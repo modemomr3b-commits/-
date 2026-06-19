@@ -1,0 +1,36 @@
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-brq-navy: #0A1633;
+  --color-brq-royal: #1E5EFF;
+  --color-brq-gold: #D4AF37;
+  --color-brq-bronze: #8B5E3C;
+  --color-brq-black: #101522;
+  --color-brq-white: #FFFFFF;
+  
+  --font-sans: "Cairo", ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  background-color: var(--color-brq-black);
+  color: var(--color-brq-white);
+  font-family: var(--font-sans);
+}
+
+.glass-panel {
+  background: rgba(10, 22, 51, 0.4);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(212, 175, 55, 0.15);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+}
+
+.glass-card {
+  background: rgba(16, 21, 34, 0.6);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(212, 175, 55, 0.2);
+  border-radius: 1rem;
+}
+

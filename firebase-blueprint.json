@@ -1,0 +1,126 @@
+{
+  "projectInfo": {
+    "name": "brq-system",
+    "description": "BRQ SYSTEM for Al Wafaa Al Mutamayez Company"
+  },
+  "schema": {
+    "collections": [
+      {
+        "name": "users",
+        "description": "User accounts including admins and members",
+        "documentType": "User",
+        "fields": [
+          { "name": "uid", "type": "string", "description": "Firebase Auth UID" },
+          { "name": "username", "type": "string" },
+          { "name": "role", "type": "string", "description": "'admin' or 'member'" },
+          { "name": "isActive", "type": "boolean" },
+          { "name": "createdAt", "type": "timestamp" }
+        ],
+        "security": {
+          "read": "request.auth != null",
+          "create": "request.auth != null && (request.resource.data.role == 'member' || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')",
+          "update": "request.auth != null && (request.auth.uid == userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')",
+          "delete": "request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'"
+        }
+      },
+      {
+        "name": "categories",
+        "description": "Product categories",
+        "documentType": "Category",
+        "fields": [
+          { "name": "id", "type": "string" },
+          { "name": "name", "type": "string" },
+          { "name": "order", "type": "number" },
+          { "name": "parentId", "type": "string", "description": "Null for main categories, string for subcategories" },
+          { "name": "createdAt", "type": "timestamp" }
+        ],
+        "security": {
+          "read": "request.auth != null",
+          "create": "request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'",
+          "update": "request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'",
+          "delete": "request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'"
+        }
+      },
+      {
+        "name": "products",
+        "description": "Product catalog",
+        "documentType": "Product",
+        "fields": [
+          { "name": "id", "type": "string" },
+          { "name": "name", "type": "string" },
+          { "name": "price", "type": "number" },
+          { "name": "modelNumber", "type": "string" },
+          { "name": "productCode", "type": "string" },
+          { "name": "barcode", "type": "string" },
+          { "name": "categoryId", "type": "string" },
+          { "name": "subcategoryId", "type": "string" },
+          { "name": "imageUrl", "type": "string" },
+          { "name": "isArchived", "type": "boolean" },
+          { "name": "views", "type": "number" },
+          { "name": "createdAt", "type": "timestamp" }
+        ],
+        "security": {
+          "read": "request.auth != null",
+          "create": "request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'",
+          "update": "request.auth != null",
+          "delete": "request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'"
+        }
+      },
+      {
+        "name": "orders",
+        "description": "User quick orders",
+        "documentType": "Order",
+        "fields": [
+          { "name": "id", "type": "string" },
+          { "name": "userId", "type": "string" },
+          { "name": "status", "type": "string" },
+          { "name": "items", "type": "array" },
+          { "name": "totalQuantity", "type": "number" },
+          { "name": "notes", "type": "string" },
+          { "name": "createdAt", "type": "timestamp" }
+        ],
+        "security": {
+          "read": "request.auth != null && (request.auth.uid == resource.data.userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')",
+          "create": "request.auth != null && request.auth.uid == request.resource.data.userId",
+          "update": "request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'",
+          "delete": "request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'"
+        }
+      },
+      {
+        "name": "favorites",
+        "description": "User favorite products",
+        "documentType": "Favorite",
+        "fields": [
+          { "name": "id", "type": "string" },
+          { "name": "userId", "type": "string" },
+          { "name": "productId", "type": "string" },
+          { "name": "createdAt", "type": "timestamp" }
+        ],
+        "security": {
+          "read": "request.auth != null && request.auth.uid == resource.data.userId",
+          "create": "request.auth != null && request.auth.uid == request.resource.data.userId",
+          "update": "request.auth != null && request.auth.uid == resource.data.userId",
+          "delete": "request.auth != null && request.auth.uid == resource.data.userId"
+        }
+      },
+      {
+        "name": "updates",
+        "description": "Latest updates and announcements",
+        "documentType": "Update",
+        "fields": [
+          { "name": "id", "type": "string" },
+          { "name": "title", "type": "string" },
+          { "name": "message", "type": "string" },
+          { "name": "type", "type": "string" },
+          { "name": "createdAt", "type": "timestamp" }
+        ],
+        "security": {
+          "read": "request.auth != null",
+          "create": "request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'",
+          "update": "request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'",
+          "delete": "request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'"
+        }
+      }
+    ]
+  }
+}
