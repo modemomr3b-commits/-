@@ -1,7 +1,7 @@
-import { Users, Plus, Search, Filter, Edit, ShieldX, CheckCircle, KeyRound, MoreVertical, Loader2, X, Trash2 } from 'lucide-react';
+import { Users, Plus, Search, Filter, Edit, ShieldX, CheckCircle, KeyRound, MoreVertical, Loader2, X, Trash2, Smartphone, Monitor, Globe } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { api } from '../../api';
-import { User, UserRole } from '../../types';
+import { User, UserRole, DeviceAccess, UserStatus } from '../../types';
 import { useStore } from '../../store';
 
 export default function UserManager() {
@@ -10,7 +10,7 @@ export default function UserManager() {
   const [loading, setLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
   const [newUser, setNewUser] = useState<Partial<User>>({
-    username: '', password: '', fullName: '', phone: '', role: 'normal', isActive: true
+    username: '', password: '', fullName: '', phone: '', role: 'normal', status: 'active', allowedDevice: 'all'
   });
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -40,19 +40,32 @@ export default function UserManager() {
     e.preventDefault();
     if (!newUser.username || !newUser.fullName) return;
     try {
-      await api.createUser({
-        id: newUser.username, // Using username as ID for simplicity and unique constraint without email
+      const userToCreate = {
+        id: newUser.username,
         uid: newUser.username,
         username: newUser.username,
         password: newUser.password || '',
         fullName: newUser.fullName,
         phone: newUser.phone || '',
         role: newUser.role || 'normal',
-        isActive: newUser.isActive !== false,
+        status: newUser.status || 'active',
+        allowedDevice: newUser.allowedDevice || 'all',
         createdAt: Date.now()
+      };
+      await api.createUser(userToCreate);
+      
+      // log action
+      await api.logAction({
+        userId: currentUser?.uid || '',
+        userName: currentUser?.username || 'System',
+        action: 'إنشاء مستخدم',
+        entityType: 'user',
+        entityId: newUser.username,
+        details: { role: newUser.role, fullName: newUser.fullName }
       });
+
       setIsAdding(false);
-      setNewUser({ username: '', password: '', fullName: '', phone: '', role: 'normal', isActive: true });
+      setNewUser({ username: '', password: '', fullName: '', phone: '', role: 'normal', status: 'active', allowedDevice: 'all' });
       const updated = await api.getUsers();
       setUsers(updated.map((u: any) => ({...u, uid: u.id})));
     } catch(e) {
@@ -61,11 +74,10 @@ export default function UserManager() {
     }
   };
 
-  const toggleStatus = async (uid: string, currentStatus: boolean) => {
+  const toggleStatus = async (uid: string, currentStatus: UserStatus) => {
     try {
-      await api.updateUser(uid, {
-        isActive: !currentStatus
-      });
+      const newStatus = currentStatus === 'active' ? 'suspended' : 'active';
+      await api.updateUser(uid, { status: newStatus });
       const updated = await api.getUsers();
       setUsers(updated.map((u: any) => ({...u, uid: u.id})));
     } catch(e) {
@@ -79,12 +91,22 @@ export default function UserManager() {
          return;
      }
 
-     if (!confirm(`هل أنت متأكد من حذف المستخدم (${username}) ونقله إلى سلة المحذوفات؟`)) {
+     if (!confirm(`هل تريد حذف المستخدم "${username}" بشكل نهائي؟`)) {
          return;
      }
 
      try {
          await api.deleteUser(uid, currentUser?.username);
+         
+         await api.logAction({
+          userId: currentUser?.uid || '',
+          userName: currentUser?.username || 'System',
+          action: 'حذف مستخدم',
+          entityType: 'user',
+          entityId: uid,
+          details: { username }
+         });
+
          const updated = await api.getUsers();
          setUsers(updated.map((u: any) => ({...u, uid: u.id})));
      } catch(e) {
@@ -107,6 +129,24 @@ export default function UserManager() {
       default: return role;
     }
   };
+
+  const getDeviceIcon = (device?: DeviceAccess) => {
+      switch (device) {
+          case 'mobile': return <Smartphone size={14} className="text-white/50" />;
+          case 'desktop': return <Monitor size={14} className="text-white/50" />;
+          default: return <Globe size={14} className="text-white/50" />;
+      }
+  };
+
+  // Online detection: activity within last 5 minutes (300000 ms)
+  const isUserOnline = (user: User) => {
+      if (user.isOnline) return true;
+      if (user.lastActive && (Date.now() - user.lastActive < 300000)) return true;
+      return false;
+  };
+
+  const onlineUsersCount = users.filter(isUserOnline).length;
+  const activeUsersCount = users.filter(u => u.status === 'active').length;
 
   if (loading) {
     return (
@@ -160,6 +200,14 @@ export default function UserManager() {
                      <option value="admin">مدير عام</option>
                   </select>
                </div>
+               <div>
+                  <label className="text-xs text-white/50 block mb-1">أجهزة الدخول المسموحة</label>
+                  <select value={newUser.allowedDevice} onChange={e => setNewUser({...newUser, allowedDevice: e.target.value as DeviceAccess})} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white">
+                     <option value="all">جميع الأجهزة (حاسوب + هواتف)</option>
+                     <option value="mobile">الموبايل فقط (واجهة مبسطة)</option>
+                     <option value="desktop">الحاسوب فقط</option>
+                  </select>
+               </div>
                <div className="md:col-span-2 mt-2">
                   <button type="submit" className="w-full py-3 bg-brq-gold text-black font-bold rounded-lg hover:bg-yellow-500 transition-colors">
                      حفظ المستخدم
@@ -174,20 +222,23 @@ export default function UserManager() {
          <div className="glass-panel border border-white/5 rounded-2xl p-5 flex flex-col gap-4">
             <h3 className="font-bold text-sm text-white/60">إحصائيات مباشرة</h3>
             <div className="flex items-center justify-between">
+                <span className="text-sm">المتصلون الآن</span>
+                <div className="flex items-center gap-2">
+                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                   <span className="text-xl font-bold text-emerald-400">{onlineUsersCount}</span>
+                </div>
+            </div>
+            <div className="flex items-center justify-between">
                 <span className="text-sm">إجمالي المستخدمين</span>
                 <span className="text-xl font-bold text-brq-gold">{users.length}</span>
             </div>
             <div className="flex items-center justify-between">
-                <span className="text-sm">مدراء وموظفين</span>
-                <span className="text-xl font-bold text-blue-400">{users.filter(u => u.role === 'admin' || u.role === 'sales').length}</span>
-            </div>
-            <div className="flex items-center justify-between">
-                <span className="text-sm">العملاء</span>
-                <span className="text-xl font-bold text-purple-400">{users.filter(u => u.role === 'normal' || u.role === 'vip').length}</span>
+                <span className="text-sm">مستخدمين نشطين</span>
+                <span className="text-xl font-bold text-blue-400">{activeUsersCount}</span>
             </div>
             <div className="flex items-center justify-between">
                 <span className="text-sm">المستخدمين الموقوفين</span>
-                <span className="text-xl font-bold text-red-400">{users.filter(u => !u.isActive).length}</span>
+                <span className="text-xl font-bold text-red-400">{users.length - activeUsersCount}</span>
             </div>
          </div>
 
@@ -213,23 +264,38 @@ export default function UserManager() {
                </div>
                
                <div className="overflow-x-auto">
-                  <table className="w-full text-sm text-right">
+                  <table className="w-full text-sm text-right whitespace-nowrap">
                      <thead className="bg-black/40 text-white/60">
                         <tr>
                            <th className="p-4 font-medium rounded-tr-lg">اسم المستخدم</th>
                            <th className="p-4 font-medium">الاسم الكامل</th>
-                           <th className="p-4 font-medium">الهاتف</th>
                            <th className="p-4 font-medium">الصلاحية</th>
+                           <th className="p-4 font-medium">الدخول</th>
                            <th className="p-4 font-medium">الحالة</th>
+                           <th className="p-4 font-medium">آخر نشاط</th>
                            <th className="p-4 font-medium rounded-tl-lg">الإجراءات</th>
                         </tr>
                      </thead>
                      <tbody className="divide-y divide-white/5 text-white/90">
-                        {filteredUsers.map((user) => (
+                        {filteredUsers.map((user) => {
+                           const online = isUserOnline(user);
+                           let lastActivityText = 'غير معروف';
+                           if (user.lastActive) {
+                               const diffMins = Math.floor((Date.now() - user.lastActive)/60000);
+                               if (diffMins < 1) lastActivityText = 'الآن';
+                               else if (diffMins < 60) lastActivityText = `منذ ${diffMins} دقيقة`;
+                               else lastActivityText = new Date(user.lastActive).toLocaleDateString('ar-IQ');
+                           }
+
+                           return (
                            <tr key={user.uid} className="hover:bg-white/5 transition-colors">
-                              <td className="p-4 font-mono text-white/70 font-bold">{user.username}</td>
+                              <td className="p-4">
+                                 <div className="flex items-center gap-2">
+                                    <span className={`w-2 h-2 rounded-full ${online ? 'bg-emerald-400' : 'bg-white/20'}`}></span>
+                                    <span className="font-mono text-white/70 font-bold">{user.username}</span>
+                                 </div>
+                              </td>
                               <td className="p-4">{user.fullName}</td>
-                              <td className="p-4 font-mono text-white/50">{user.phone || '---'}</td>
                               <td className="p-4 text-xs font-bold">
                                   <span className={`px-2 py-1 rounded border border-white/10 ${
                                       user.role === 'admin' ? 'bg-brq-gold/20 text-brq-gold' : 
@@ -241,17 +307,26 @@ export default function UserManager() {
                                   </span>
                               </td>
                               <td className="p-4">
+                                 <div className="flex items-center gap-1.5" title={user.allowedDevice === 'all' ? 'جميع الأجهزة' : user.allowedDevice === 'mobile' ? 'موبايل' : 'حاسوب'}>
+                                     {getDeviceIcon(user.allowedDevice)}
+                                     <span className="text-xs text-white/50">{user.allowedDevice === 'all' ? 'الكل' : user.allowedDevice === 'mobile' ? 'موبايل' : 'حاسوب'}</span>
+                                 </div>
+                              </td>
+                              <td className="p-4">
                                   <div className="flex items-center gap-1.5 object-contain">
-                                      <span className={`w-2 h-2 rounded-full ${user.isActive ? 'bg-emerald-400' : 'bg-red-400'}`}></span>
-                                      <span className="text-xs">{user.isActive ? 'نشط' : 'موقوف'}</span>
+                                      <span className={`w-2 h-2 rounded-full ${user.status === 'active' ? 'bg-emerald-400' : 'bg-red-400'}`}></span>
+                                      <span className="text-xs">{user.status === 'active' ? 'نشط' : 'موقوف'}</span>
                                   </div>
+                              </td>
+                              <td className="p-4 text-xs text-white/50">
+                                  {lastActivityText}
                               </td>
                               <td className="p-4">
                                  <div className="flex items-center gap-2">
-                                    {user.isActive ? (
-                                       <button onClick={() => toggleStatus(user.uid, user.isActive)} title="إيقاف" className="p-1.5 hover:bg-orange-500/20 text-orange-400 rounded transition-colors"><ShieldX size={16} /></button>
+                                    {user.status === 'active' ? (
+                                       <button onClick={() => toggleStatus(user.uid, user.status)} title="إيقاف" className="p-1.5 hover:bg-orange-500/20 text-orange-400 rounded transition-colors"><ShieldX size={16} /></button>
                                     ) : (
-                                       <button onClick={() => toggleStatus(user.uid, user.isActive)} title="تفعيل" className="p-1.5 hover:bg-emerald-500/20 text-emerald-400 rounded transition-colors"><CheckCircle size={16} /></button>
+                                       <button onClick={() => toggleStatus(user.uid, user.status)} title="تفعيل" className="p-1.5 hover:bg-emerald-500/20 text-emerald-400 rounded transition-colors"><CheckCircle size={16} /></button>
                                     )}
                                     {user.role !== 'admin' && (
                                        <button onClick={() => handleDelete(user.uid, user.username, user.role)} title="حذف" className="p-1.5 hover:bg-red-500/20 text-red-400 rounded transition-colors"><X size={16} /></button>
@@ -259,7 +334,7 @@ export default function UserManager() {
                                  </div>
                               </td>
                            </tr>
-                        ))}
+                        )})}
                      </tbody>
                   </table>
                </div>

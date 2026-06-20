@@ -1,12 +1,41 @@
 import { Outlet, Link, useLocation } from 'react-router';
 import { useStore } from '../store.ts';
-import { Home, Search, Heart, ShoppingBag, User } from 'lucide-react';
+import { Home, Search, Heart, ShoppingBag, User, Download, X } from 'lucide-react';
 import { cn } from '../lib/utils.ts';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
+import { useState, useEffect } from 'react';
 
 export default function MemberLayout() {
   const { cart, user } = useStore();
   const location = useLocation();
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      // Optional: Only show once per session or check localstorage
+      if (!localStorage.getItem('hideInstallBanner')) {
+          setShowInstallBanner(true);
+      }
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setDeferredPrompt(null);
+      setShowInstallBanner(false);
+    }
+  };
 
   const navItems = [
     { icon: Home, path: '/', label: 'الرئيسية' },
@@ -99,6 +128,45 @@ export default function MemberLayout() {
             </div>
           </div>
         </header>
+
+        {/* Floating PWA Install Banner */}
+        <AnimatePresence>
+          {showInstallBanner && deferredPrompt && (
+            <motion.div
+              initial={{ opacity: 0, y: -50 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -50 }}
+              className="md:hidden m-4 glass-panel border border-brq-gold/30 rounded-xl p-3 flex items-center justify-between shadow-[0_10px_25px_rgba(212,175,55,0.1)] relative overflow-hidden shrink-0 z-40"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-brq-gold/10 border border-brq-gold/20 flex items-center justify-center shrink-0">
+                  <Download className="text-brq-gold" size={20} />
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-white font-bold text-sm">تثبيت التطبيق</span>
+                  <span className="text-white/60 text-xs">للوصول السريع وتجربة أفضل</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleInstallClick}
+                  className="px-3 py-1.5 bg-brq-gold/20 text-brq-gold font-bold text-xs rounded-lg border border-brq-gold hover:bg-brq-gold hover:text-black transition-colors"
+                >
+                  تثبيت
+                </button>
+                <button 
+                  onClick={() => {
+                    setShowInstallBanner(false);
+                    localStorage.setItem('hideInstallBanner', 'true');
+                  }}
+                  className="p-1.5 rounded-lg hover:bg-white/10 text-white/50"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Main Content Area */}
         <main className="flex-1 overflow-x-hidden md:p-6 p-4">

@@ -72,7 +72,7 @@ export default function OrderManager() {
   };
 
   const handleDelete = async (id: string, orderNumber: string) => {
-    if (!confirm(`هل أنت متأكد من رغبتك في حذف الطلب رقم ${orderNumber} وتوجيهه لسلة المحذوفات؟`)) {
+    if (!confirm(`هل أنت متأكد من رغبتك في حذف الطلب رقم ${orderNumber} بشكل نهائي؟`)) {
       return;
     }
     try {

@@ -1,9 +1,28 @@
-import { Plus, Search, Filter, Edit, Trash2, Archive, Upload, Package, Loader2, X, Copy, Download } from 'lucide-react';
-import { useState, useEffect } from 'react';
-import { api } from '../../api';
-import { Product, Category } from '../../types.ts';
-import { burnProductOverlay } from '../../utils/burnImage.ts';
-import { useStore } from '../../store';
+import {
+  Plus,
+  Search,
+  Filter,
+  Edit,
+  Trash2,
+  Archive,
+  Upload,
+  Package,
+  Loader2,
+  X,
+  Copy,
+  Download,
+  DollarSign,
+  CheckSquare,
+  Square,
+} from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import JSZip from "jszip";
+import { saveAs } from "file-saver";
+import { api } from "../../api";
+import { supabase } from "../../supabase";
+import { Product, Category } from "../../types";
+import { burnProductOverlay } from "../../utils/burnImage";
+import { useStore } from "../../store";
 
 export default function ProductManager() {
   const { user } = useStore();
@@ -11,100 +30,150 @@ export default function ProductManager() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [usdRate, setUsdRate] = useState<number>(1500);
-  
+
   const [isAdding, setIsAdding] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [downloadProgress, setDownloadProgress] = useState<{
+    progress: number;
+    total: number;
+  } | null>(null);
+
   const [newProduct, setNewProduct] = useState<Partial<Product>>({
-    name: '', price: 0, dozenPriceUsd: 0, modelNumber: '', productCode: '', barcode: '', categoryId: '', imageUrl: ''
+    name: "",
+    price: 0,
+    dozenPriceUsd: 0,
+    modelNumber: "",
+    productCode: "",
+    barcode: "",
+    categoryId: "",
+    imageUrl: "",
   });
-  
-  const [filterStatus, setFilterStatus] = useState<'active'|'archived'>('active');
+
+  const [filterStatus, setFilterStatus] = useState<"active" | "archived">(
+    "active",
+  );
+
+  const loadData = async () => {
+    try {
+      const [cats, prods, settings] = await Promise.all([
+        api.getCategories(),
+        api.getProducts(),
+        api.getSettings(),
+      ]);
+      setCategories(cats);
+      setProducts(
+        prods.map((p: any) => ({
+          ...p,
+          createdAt: p.createdAt ? new Date(p.createdAt).getTime() : Date.now(),
+        })),
+      );
+      if (settings?.usdExchangeRate) {
+        setUsdRate(settings.usdExchangeRate);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   useEffect(() => {
     let mounted = true;
-    const loadData = async () => {
-      try {
-        const [cats, prods, settings] = await Promise.all([
-          api.getCategories(), 
-          api.getProducts(),
-          api.getSettings()
-        ]);
-        if (mounted) {
-          setCategories(cats);
-          setProducts(prods.map((p: any) => ({
-            ...p,
-            createdAt: p.createdAt ? new Date(p.createdAt).getTime() : Date.now()
-          })));
-          if (settings?.usdExchangeRate) {
-            setUsdRate(settings.usdExchangeRate);
-          }
-          setLoading(false);
-        }
-      } catch (e) {
-        console.error(e);
-        if (mounted) setLoading(false);
-      }
+    const initialLoad = async () => {
+      await loadData();
+      if (mounted) setLoading(false);
     };
-    
-    loadData();
-    const inv = setInterval(loadData, 10000); // 10 seconds interval
+    initialLoad();
+
+    const channel = supabase
+      .channel("products_changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "products" },
+        () => {
+          loadData();
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "settings" },
+        () => {
+          loadData();
+        },
+      )
+      .subscribe();
+
     return () => {
       mounted = false;
-      clearInterval(inv);
+      supabase.removeChannel(channel);
     };
   }, []);
 
+  const handleUpdateUsdRate = async (newRate: number) => {
+    setUsdRate(newRate);
+    try {
+      const currentSettings = (await api.getSettings()) || {};
+      await api.updateSettings({
+        ...currentSettings,
+        usdExchangeRate: newRate,
+      });
+    } catch (e) {
+      console.error("Failed to update USD rate", e);
+    }
+  };
+
   const PACKAGING_OPTIONS = [
-    { label: 'درزن', pieces: 12 },
-    { label: 'درزن وربع', pieces: 15 },
-    { label: 'درزن ونص', pieces: 18 },
-    { label: 'درزنين', pieces: 24 },
-    { label: 'أربع درازن', pieces: 48 },
-    { label: 'تعبئة مخصصة', pieces: 0 }
+    { label: "درزن", pieces: 12 },
+    { label: "درزن وربع", pieces: 15 },
+    { label: "درزن ونص", pieces: 18 },
+    { label: "درزنين", pieces: 24 },
+    { label: "أربع درازن", pieces: 48 },
+    { label: "تعبئة مخصصة", pieces: 0 },
   ];
 
   const handlePriceAndPackaging = (
-    usdValue: number, 
-    packaging: string, 
-    customPieces: number, 
-    isEditing: boolean = false
+    usdValue: number,
+    packaging: string,
+    customPieces: number,
+    isEditing: boolean = false,
   ) => {
     let pieces = customPieces;
-    if (packaging !== 'تعبئة مخصصة' && packaging !== '') {
-       const preset = PACKAGING_OPTIONS.find(o => o.label === packaging);
-       if (preset) pieces = preset.pieces;
+    if (packaging !== "تعبئة مخصصة" && packaging !== "") {
+      const preset = PACKAGING_OPTIONS.find((o) => o.label === packaging);
+      if (preset) pieces = preset.pieces;
     }
 
     const iqdValue = usdValue * usdRate;
-    const pieceUsd = pieces > 0 ? (usdValue / pieces) : 0;
-    const pieceIqd = pieces > 0 ? (iqdValue / pieces) : 0;
-    
+    const pieceUsd = pieces > 0 ? usdValue / pieces : 0;
+    const pieceIqd = pieces > 0 ? iqdValue / pieces : 0;
+
     if (isEditing && editingProduct) {
-      setEditingProduct({ 
-        ...editingProduct, 
-        dozenPriceUsd: usdValue, 
+      setEditingProduct({
+        ...editingProduct,
+        dozenPriceUsd: usdValue,
         price: iqdValue,
         packaging,
         piecesCount: pieces,
         piecePriceUsd: pieceUsd,
-        piecePriceIqd: pieceIqd
+        piecePriceIqd: pieceIqd,
       });
     } else {
-      setNewProduct({ 
-        ...newProduct, 
-        dozenPriceUsd: usdValue, 
+      setNewProduct({
+        ...newProduct,
+        dozenPriceUsd: usdValue,
         price: iqdValue,
         packaging,
         piecesCount: pieces,
         piecePriceUsd: pieceUsd,
-        piecePriceIqd: pieceIqd
+        piecePriceIqd: pieceIqd,
       });
     }
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, isEditing: boolean) => {
+  const handleImageUpload = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    isEditing: boolean,
+  ) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -112,7 +181,7 @@ export default function ProductManager() {
     reader.onloadend = () => {
       const img = new Image();
       img.onload = () => {
-        const canvas = document.createElement('canvas');
+        const canvas = document.createElement("canvas");
         const MAX_WIDTH = 800;
         const MAX_HEIGHT = 800;
         let width = img.width;
@@ -132,10 +201,10 @@ export default function ProductManager() {
 
         canvas.width = width;
         canvas.height = height;
-        const ctx = canvas.getContext('2d');
+        const ctx = canvas.getContext("2d");
         if (ctx) {
           ctx.drawImage(img, 0, 0, width, height);
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
           if (isEditing && editingProduct) {
             setEditingProduct({ ...editingProduct, imageUrl: dataUrl });
           } else {
@@ -154,44 +223,74 @@ export default function ProductManager() {
     try {
       let finalImg = newProduct.imageUrl;
       if (newProduct.imageUrl) {
-         try {
-           finalImg = await burnProductOverlay(newProduct, newProduct.imageUrl);
-         } catch (e) {
-             console.error("Failed to generate burned image", e);
-         }
+        try {
+          finalImg = await burnProductOverlay(newProduct, newProduct.imageUrl);
+        } catch (e) {
+          console.error("Failed to generate burned image", e);
+        }
       }
 
-      await api.createProduct({
+      const created = await api.createProduct({
         ...newProduct,
         finalImageUrl: finalImg,
         views: 0,
         isArchived: false,
       });
+      await api.logAction({
+        userId: user?.uid || "",
+        userName: user?.username || "System",
+        action: "إضافة منتج جديد",
+        entityType: "product",
+        entityId: created.id,
+        details: { name: newProduct.name, code: newProduct.productCode },
+      });
       setIsAdding(false);
-      setNewProduct({ name: '', price: 0, dozenPriceUsd: 0, modelNumber: '', productCode: '', barcode: '', categoryId: '', imageUrl: '' });
+      setNewProduct({
+        name: "",
+        price: 0,
+        dozenPriceUsd: 0,
+        modelNumber: "",
+        productCode: "",
+        barcode: "",
+        categoryId: "",
+        imageUrl: "",
+      });
       const updated = await api.getProducts();
       setProducts(updated);
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
+      alert("حدث خطأ أثناء الإضافة: " + (error.message || JSON.stringify(error)));
     }
   };
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingProduct || !editingProduct.name || !editingProduct.price) return;
+    if (!editingProduct || !editingProduct.name || !editingProduct.price)
+      return;
     try {
       let finalImg = editingProduct.finalImageUrl || editingProduct.imageUrl;
       if (editingProduct.imageUrl) {
-         try {
-           finalImg = await burnProductOverlay(editingProduct, editingProduct.imageUrl);
-         } catch (err) {
-             console.error("Failed to generate burned image on update", err);
-         }
+        try {
+          finalImg = await burnProductOverlay(
+            editingProduct,
+            editingProduct.imageUrl,
+          );
+        } catch (err) {
+          console.error("Failed to generate burned image on update", err);
+        }
       }
 
-      await api.updateProduct(editingProduct.id, {
-         ...editingProduct,
-         finalImageUrl: finalImg
+      await api.updateProduct(editingProduct.id!, {
+        ...editingProduct,
+        finalImageUrl: finalImg,
+      });
+      await api.logAction({
+        userId: user?.uid || "",
+        userName: user?.username || "System",
+        action: "تعديل بيانات أو صورة منتج",
+        entityType: "product",
+        entityId: editingProduct.id,
+        details: { name: editingProduct.name },
       });
       setEditingProduct(null);
       const updated = await api.getProducts();
@@ -203,20 +302,30 @@ export default function ProductManager() {
 
   const handleDelete = async (id: string, name: string) => {
     try {
-      if (!confirm(`هل أنت متأكد من حذف المنتج "${name}" ونقله لسلة المحذوفات؟`)) {
+      if (
+        !confirm(`هل أنت متأكد من حذف المنتج "${name}" بشكل نهائي؟`)
+      ) {
         return;
       }
       if (!id) {
-        alert('حدث خطأ: لا يوجد معرف للمنتج');
+        alert("حدث خطأ: لا يوجد معرف للمنتج");
         return;
       }
       await api.deleteProduct(id, user?.username);
+      await api.logAction({
+        userId: user?.uid || "",
+        userName: user?.username || "System",
+        action: "حذف منتج",
+        entityType: "product",
+        entityId: id,
+        details: { name },
+      });
       const updated = await api.getProducts();
       setProducts(updated);
       setDeleteConfirmId(null);
     } catch (e: any) {
-      console.error('Error deleting:', e);
-      alert('فشل الحذف: ' + e.message);
+      console.error("Error deleting:", e);
+      alert("فشل الحذف: " + e.message);
     }
   };
 
@@ -226,14 +335,14 @@ export default function ProductManager() {
       // @ts-ignore
       delete copy.id;
       copy.name = `${copy.name} (نسخة)`;
-      
+
       let finalImg = copy.finalImageUrl || copy.imageUrl;
       if (copy.imageUrl) {
-         try {
-           finalImg = await burnProductOverlay(copy, copy.imageUrl);
-         } catch (err) {
-             console.error("Failed to generate burned image on duplicate", err);
-         }
+        try {
+          finalImg = await burnProductOverlay(copy, copy.imageUrl);
+        } catch (err) {
+          console.error("Failed to generate burned image on duplicate", err);
+        }
       }
       copy.finalImageUrl = finalImg;
 
@@ -247,17 +356,76 @@ export default function ProductManager() {
 
   const handleToggleArchive = async (p: Product) => {
     try {
-       await api.updateProduct(p.id, { isArchived: !p.isArchived });
-       const updated = await api.getProducts();
-       setProducts(updated);
+      await api.updateProduct(p.id!, { isArchived: !p.isArchived });
+      const updated = await api.getProducts();
+      setProducts(updated);
     } catch (e) {
-       console.error(e);
-       alert('فشل تغيير حالة المنتج');
+      console.error(e);
+      alert("فشل تغيير حالة المنتج");
     }
   };
 
+  const toggleSelection = (id: string) => {
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedIds(next);
+  };
+
+  const toggleAll = (visibleProducts: Product[]) => {
+    if (selectedIds.size === visibleProducts.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(visibleProducts.map((p) => p.id!)));
+    }
+  };
+
+  const handleBulkDownload = async () => {
+    if (selectedIds.size === 0) return;
+
+    const productsToDownload = products.filter((p) => selectedIds.has(p.id!));
+    const imagesWithData = productsToDownload.filter(
+      (p) => p.finalImageUrl || p.imageUrl,
+    );
+
+    if (imagesWithData.length === 0) {
+      alert("لا توجد صور للمنتجات المحددة.");
+      return;
+    }
+
+    setDownloadProgress({ progress: 0, total: imagesWithData.length });
+    const zip = new JSZip();
+    let completed = 0;
+
+    for (const p of imagesWithData) {
+      const imgUrl = p.finalImageUrl || p.imageUrl;
+      if (imgUrl) {
+        try {
+          const res = await fetch(imgUrl);
+          const blob = await res.blob();
+          const ext = blob.type.split("/")[1] || "jpg";
+          const filename = `${p.productCode || p.name || "product"}.${ext}`;
+          zip.file(filename, blob);
+        } catch (err) {
+          console.error(`Failed to download image for ${p.name}`, err);
+        }
+      }
+      completed++;
+      setDownloadProgress({
+        progress: completed,
+        total: imagesWithData.length,
+      });
+    }
+
+    const content = await zip.generateAsync({ type: "blob" });
+    saveAs(content, `BRQ-Selected-Products.zip`);
+
+    setDownloadProgress(null);
+    setSelectedIds(new Set());
+  };
+
   const getCategoryName = (id: string) => {
-    return categories.find(c => c.id === id)?.name || 'بدون قسم';
+    return categories.find((c) => c.id === id)?.name || "بدون قسم";
   };
 
   if (loading) {
@@ -272,90 +440,253 @@ export default function ProductManager() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-         <div>
-             <h2 className="text-2xl font-bold text-white mb-1">إدارة المنتجات</h2>
-             <p className="text-sm text-white/50">التحكم الكامل في كتالوج المنتجات والمخزون</p>
-         </div>
-         <div className="flex gap-2 w-full md:w-auto">
-             <button className="flex-1 md:flex-none flex items-center justify-center gap-2 py-2.5 px-4 bg-brq-navy border border-brq-gold/50 text-brq-gold rounded-xl hover:bg-brq-gold hover:text-black transition-all text-sm font-bold">
-                 <Upload size={18} /> رفع مجلد كامل
-             </button>
-             <button onClick={() => setIsAdding(!isAdding)} className="flex-1 md:flex-none flex items-center justify-center gap-2 py-2.5 px-4 bg-brq-royal hover:bg-blue-600 text-white rounded-xl transition-all text-sm font-bold shadow-[0_4px_15px_rgba(30,94,255,0.3)]">
-                 <Plus size={18} /> إضافة منتج
-             </button>
-         </div>
+        <div>
+          <h2 className="text-2xl font-bold text-white mb-1">إدارة المنتجات</h2>
+          <p className="text-sm text-white/50">
+            التحكم الكامل في كتالوج المنتجات والمخزون
+          </p>
+        </div>
+        <div className="flex gap-2 w-full md:w-auto items-center">
+          <div className="flex items-center gap-2 bg-black/40 border border-white/10 rounded-xl px-3 py-1.5 focus-within:border-brq-gold/50 transition-colors hidden md:flex">
+            <DollarSign size={16} className="text-brq-gold" />
+            <div className="flex flex-col">
+              <span className="text-[10px] text-white/50 leading-none mb-1">
+                سعر التكسير
+              </span>
+              <input
+                type="number"
+                value={usdRate}
+                onChange={(e) => handleUpdateUsdRate(Number(e.target.value))}
+                className="w-16 bg-transparent text-sm text-white font-mono outline-none leading-none"
+                dir="ltr"
+              />
+            </div>
+          </div>
+          <button className="flex-1 md:flex-none flex items-center justify-center gap-2 py-2.5 px-4 bg-brq-navy border border-brq-gold/50 text-brq-gold rounded-xl hover:bg-brq-gold hover:text-black transition-all text-sm font-bold">
+            <Upload size={18} /> رفع مجلد
+          </button>
+          <button
+            onClick={() => setIsAdding(!isAdding)}
+            className="flex-1 md:flex-none flex items-center justify-center gap-2 py-2.5 px-4 bg-brq-royal hover:bg-blue-600 text-white rounded-xl transition-all text-sm font-bold shadow-[0_4px_15px_rgba(30,94,255,0.3)]"
+          >
+            <Plus size={18} /> إضافة منتج
+          </button>
+        </div>
       </div>
 
       {isAdding && (
         <div className="glass-panel p-6 rounded-2xl border border-brq-gold/30 relative">
-           <button onClick={() => setIsAdding(false)} className="absolute top-4 left-4 p-2 text-white/50 hover:text-white bg-black/40 rounded-full">
-             <X size={16} />
-           </button>
-           <h3 className="text-lg font-bold mb-4 border-b border-white/10 pb-2">إضافة منتج جديد</h3>
-           <form onSubmit={handleCreate} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-             <div>
-               <label className="text-xs text-white/50 block mb-1">اسم المنتج *</label>
-               <input required type="text" value={newProduct.name} onChange={e => setNewProduct({...newProduct, name: e.target.value})} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white" />
-             </div>
-             <div>
-               <label className="text-xs text-white/50 block mb-1">سعر الدرزن (بالدولار)</label>
-               <input type="number" step="0.01" value={newProduct.dozenPriceUsd || ''} onChange={e => handlePriceAndPackaging(Number(e.target.value), newProduct.packaging || 'درزن', newProduct.piecesCount || 12, false)} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white font-mono" />
-               <p className="text-[10px] text-white/40 mt-1">يتم ضربه بسعر الصرف الحالي: {usdRate}</p>
-             </div>
-             <div>
-               <label className="text-xs text-white/50 block mb-1">سعر الدرزن (بالدينار) *</label>
-               <input required type="number" value={newProduct.price || ''} onChange={e => setNewProduct({...newProduct, price: Number(e.target.value)})} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white font-mono" />
-             </div>
-             <div>
-               <label className="text-xs text-white/50 block mb-1">التعبئة</label>
-               <select value={newProduct.packaging || ''} onChange={e => handlePriceAndPackaging(newProduct.dozenPriceUsd || 0, e.target.value, 0, false)} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white">
-                 <option value="">-- إختر التعبئة --</option>
-                 {PACKAGING_OPTIONS.map(o => <option key={o.label} value={o.label}>{o.label}</option>)}
-               </select>
-             </div>
-             {newProduct.packaging === 'تعبئة مخصصة' && (
-               <div>
-                 <label className="text-xs text-white/50 block mb-1">عدد القطع</label>
-                 <input type="number" value={newProduct.piecesCount || ''} onChange={e => handlePriceAndPackaging(newProduct.dozenPriceUsd || 0, newProduct.packaging || '', Number(e.target.value), false)} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white font-mono" />
-               </div>
-             )}
-             {newProduct.piecesCount ? (
-               <div className="md:col-span-2 bg-white/5 p-3 rounded-lg border border-white/10 mt-2 text-center">
-                 <p className="text-xs text-white/50 mb-1">سعر القطعة (بالدينار)</p>
-                 <p className="font-mono text-lg font-bold text-brq-gold">{newProduct.piecePriceIqd?.toLocaleString()} <span className="text-sm">د.ع</span></p>
-               </div>
-             ) : null}
-             <div>
-               <label className="text-xs text-white/50 block mb-1">القسم</label>
-               <select value={newProduct.categoryId} onChange={e => setNewProduct({...newProduct, categoryId: e.target.value, subcategoryId: ''})} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white">
-                 <option value="">-- إختر القسم --</option>
-                 {categories.filter(c => !c.parentId).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-               </select>
-             </div>
-             <div>
-               <label className="text-xs text-white/50 block mb-1">القسم الفرعي</label>
-               <select value={newProduct.subcategoryId || ''} onChange={e => setNewProduct({...newProduct, subcategoryId: e.target.value})} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white disabled:opacity-50" disabled={!newProduct.categoryId}>
-                 <option value="">-- إختر القسم الفرعي --</option>
-                 {categories.filter(c => c.parentId === newProduct.categoryId).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-               </select>
-             </div>
-             <div>
-               <label className="text-xs text-white/50 block mb-1">كود المنتج</label>
-               <input type="text" value={newProduct.productCode} onChange={e => setNewProduct({...newProduct, productCode: e.target.value})} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white" />
-             </div>
+          <button
+            onClick={() => setIsAdding(false)}
+            className="absolute top-4 left-4 p-2 text-white/50 hover:text-white bg-black/40 rounded-full"
+          >
+            <X size={16} />
+          </button>
+          <h3 className="text-lg font-bold mb-4 border-b border-white/10 pb-2">
+            إضافة منتج جديد
+          </h3>
+          <form
+            onSubmit={handleCreate}
+            className="grid grid-cols-1 md:grid-cols-2 gap-4"
+          >
+            <div>
+              <label className="text-xs text-white/50 block mb-1">
+                اسم المنتج *
+              </label>
+              <input
+                required
+                type="text"
+                value={newProduct.name}
+                onChange={(e) =>
+                  setNewProduct({ ...newProduct, name: e.target.value })
+                }
+                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-white/50 block mb-1">
+                سعر الدرزن (بالدولار)
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                value={newProduct.dozenPriceUsd || ""}
+                onChange={(e) =>
+                  handlePriceAndPackaging(
+                    Number(e.target.value),
+                    newProduct.packaging || "درزن",
+                    newProduct.piecesCount || 12,
+                    false,
+                  )
+                }
+                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white font-mono"
+              />
+              <p className="text-[10px] text-white/40 mt-1">
+                يتم ضربه بسعر الصرف الحالي: {usdRate}
+              </p>
+            </div>
+            <div>
+              <label className="text-xs text-white/50 block mb-1">
+                سعر الدرزن (بالدينار) *
+              </label>
+              <input
+                required
+                type="number"
+                value={newProduct.price || ""}
+                onChange={(e) =>
+                  setNewProduct({
+                    ...newProduct,
+                    price: Number(e.target.value),
+                  })
+                }
+                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white font-mono"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-white/50 block mb-1">
+                التعبئة
+              </label>
+              <select
+                value={newProduct.packaging || ""}
+                onChange={(e) =>
+                  handlePriceAndPackaging(
+                    newProduct.dozenPriceUsd || 0,
+                    e.target.value,
+                    0,
+                    false,
+                  )
+                }
+                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white"
+              >
+                <option value="">-- إختر التعبئة --</option>
+                {PACKAGING_OPTIONS.map((o) => (
+                  <option key={o.label} value={o.label}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {newProduct.packaging === "تعبئة مخصصة" && (
               <div>
-                <label className="text-xs text-white/50 block mb-1">صورة المنتج</label>
-                <div className="flex items-center gap-3">
-                   {newProduct.imageUrl && <img src={newProduct.imageUrl} alt="preview" className="w-10 h-10 rounded object-contain border border-white/20 bg-black/50" />}
-                   <input type="file" accept="image/*" onChange={e => handleImageUpload(e, false)} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-white/10 file:text-white hover:file:bg-white/20 transition-colors" />
-                </div>
+                <label className="text-xs text-white/50 block mb-1">
+                  عدد القطع
+                </label>
+                <input
+                  type="number"
+                  value={newProduct.piecesCount || ""}
+                  onChange={(e) =>
+                    handlePriceAndPackaging(
+                      newProduct.dozenPriceUsd || 0,
+                      newProduct.packaging || "",
+                      Number(e.target.value),
+                      false,
+                    )
+                  }
+                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white font-mono"
+                />
               </div>
-             <div className="md:col-span-2">
-                <button type="submit" className="w-full py-3 bg-brq-gold text-black font-bold rounded-lg mt-2">
-                  أضف المنتج
-                </button>
-             </div>
-           </form>
+            )}
+            {newProduct.piecesCount ? (
+              <div className="md:col-span-2 bg-white/5 p-3 rounded-lg border border-white/10 mt-2 text-center">
+                <p className="text-xs text-white/50 mb-1">
+                  سعر القطعة (بالدينار)
+                </p>
+                <p className="font-mono text-lg font-bold text-brq-gold">
+                  {newProduct.piecePriceIqd?.toLocaleString()}{" "}
+                  <span className="text-sm">د.ع</span>
+                </p>
+              </div>
+            ) : null}
+            <div>
+              <label className="text-xs text-white/50 block mb-1">القسم</label>
+              <select
+                value={newProduct.categoryId}
+                onChange={(e) =>
+                  setNewProduct({
+                    ...newProduct,
+                    categoryId: e.target.value,
+                    subcategoryId: "",
+                  })
+                }
+                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white"
+              >
+                <option value="">-- إختر القسم --</option>
+                {categories
+                  .filter((c) => !c.parentId)
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-white/50 block mb-1">
+                القسم الفرعي
+              </label>
+              <select
+                value={newProduct.subcategoryId || ""}
+                onChange={(e) =>
+                  setNewProduct({
+                    ...newProduct,
+                    subcategoryId: e.target.value,
+                  })
+                }
+                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white disabled:opacity-50"
+                disabled={!newProduct.categoryId}
+              >
+                <option value="">-- إختر القسم الفرعي --</option>
+                {categories
+                  .filter((c) => c.parentId === newProduct.categoryId)
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-white/50 block mb-1">
+                كود المنتج
+              </label>
+              <input
+                type="text"
+                value={newProduct.productCode}
+                onChange={(e) =>
+                  setNewProduct({ ...newProduct, productCode: e.target.value })
+                }
+                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-white/50 block mb-1">
+                صورة المنتج
+              </label>
+              <div className="flex items-center gap-3">
+                {newProduct.imageUrl && (
+                  <img
+                    src={newProduct.imageUrl}
+                    alt="preview"
+                    className="w-10 h-10 rounded object-contain border border-white/20 bg-black/50"
+                  />
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => handleImageUpload(e, false)}
+                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-white/10 file:text-white hover:file:bg-white/20 transition-colors"
+                />
+              </div>
+            </div>
+            <div className="md:col-span-2">
+              <button
+                type="submit"
+                className="w-full py-3 bg-brq-gold text-black font-bold rounded-lg mt-2"
+              >
+                أضف المنتج
+              </button>
+            </div>
+          </form>
         </div>
       )}
 
@@ -365,161 +696,445 @@ export default function ProductManager() {
             <Package size={48} />
           </div>
           <div>
-            <h2 className="text-2xl font-bold text-white mb-2">لا توجد منتجات</h2>
-            <p className="text-white/50 max-w-md mx-auto">لم يتم العثور على أي منتجات في قاعدة البيانات.</p>
+            <h2 className="text-2xl font-bold text-white mb-2">
+              لا توجد منتجات
+            </h2>
+            <p className="text-white/50 max-w-md mx-auto">
+              لم يتم العثور على أي منتجات في قاعدة البيانات.
+            </p>
           </div>
         </div>
       ) : (
-      <div className="space-y-4">
-         <div className="flex gap-4 border-b border-white/10 pb-0">
-            <button 
-              onClick={() => setFilterStatus('active')}
-              className={`pb-2 px-2 text-sm font-bold border-b-2 transition-colors ${filterStatus === 'active' ? 'border-brq-gold text-brq-gold' : 'border-transparent text-white/50 hover:text-white'}`}
+        <div className="space-y-4">
+          <div className="flex gap-4 border-b border-white/10 pb-0">
+            <button
+              onClick={() => setFilterStatus("active")}
+              className={`pb-2 px-2 text-sm font-bold border-b-2 transition-colors ${filterStatus === "active" ? "border-brq-gold text-brq-gold" : "border-transparent text-white/50 hover:text-white"}`}
             >
               المنتجات الفعالة
             </button>
-            <button 
-              onClick={() => setFilterStatus('archived')}
-              className={`pb-2 px-2 text-sm font-bold border-b-2 transition-colors ${filterStatus === 'archived' ? 'border-brq-gold text-brq-gold' : 'border-transparent text-white/50 hover:text-white'}`}
+            <button
+              onClick={() => setFilterStatus("archived")}
+              className={`pb-2 px-2 text-sm font-bold border-b-2 transition-colors ${filterStatus === "archived" ? "border-brq-gold text-brq-gold" : "border-transparent text-white/50 hover:text-white"}`}
             >
               المواد النافذة
             </button>
-         </div>
+          </div>
 
-         <div className="glass-panel border border-white/5 rounded-2xl overflow-hidden p-1">
-            <div className="p-4 border-b border-white/5 flex flex-col sm:flex-row gap-3">
-               <div className="relative flex-1">
+          <div className="glass-panel border border-white/5 rounded-2xl overflow-hidden p-1">
+            <div className="p-4 border-b border-white/5 flex flex-col sm:flex-row gap-3 justify-between items-center">
+              <div className="flex items-center gap-4 w-full sm:w-auto">
+                <div className="relative flex-1 sm:w-64">
                   <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 w-4 h-4" />
-                  <input 
-                     type="text" 
-                     className="w-full bg-black/40 border border-white/10 rounded-lg pr-10 pl-4 py-2.5 text-sm focus:outline-none focus:border-brq-gold/50"
-                     placeholder="بحث بالاسم، الكود، الباركود..."
+                  <input
+                    type="text"
+                    className="w-full bg-black/40 border border-white/10 rounded-lg pr-10 pl-4 py-2.5 text-sm focus:outline-none focus:border-brq-gold/50"
+                    placeholder="بحث بالاسم، الكود، الباركود..."
                   />
-               </div>
-               <button className="flex items-center justify-center gap-2 px-4 py-2.5 bg-black/40 border border-white/10 rounded-lg text-sm hover:bg-white/5 transition-colors">
-                   <Filter size={16} /> تصفية حسب القسم
-               </button>
+                </div>
+                <button className="flex items-center justify-center gap-2 px-4 py-2.5 bg-black/40 border border-white/10 rounded-lg text-sm hover:bg-white/5 transition-colors whitespace-nowrap">
+                  <Filter size={16} /> تصفية حسب القسم
+                </button>
+              </div>
+
+              {selectedIds.size > 0 && (
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-bold text-white/80">
+                    تم تحديد: {selectedIds.size}
+                  </span>
+                  <button
+                    onClick={handleBulkDownload}
+                    disabled={downloadProgress !== null}
+                    className="flex items-center gap-2 px-4 py-2 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg text-sm hover:bg-emerald-500/30 transition-colors font-bold"
+                  >
+                    {downloadProgress ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <Download size={16} />
+                    )}
+                    {downloadProgress
+                      ? `جاري التحميل ${downloadProgress.progress}/${downloadProgress.total}`
+                      : "تحميل الصور"}
+                  </button>
+                </div>
+              )}
             </div>
-            
+
             <div className="overflow-x-auto">
-               <table className="w-full text-sm text-right">
-                  <thead className="bg-black/40 text-white/60">
-                     <tr>
-                        <th className="p-4 font-medium rounded-tr-lg">صورة</th>
-                        <th className="p-4 font-medium">اسم المنتج</th>
-                        <th className="p-4 font-medium">الكود</th>
-                        <th className="p-4 font-medium">القسم</th>
-                        <th className="p-4 font-medium">السعر (د.ع)</th>
-                        <th className="p-4 font-medium">المشاهدات</th>
-                        <th className="p-4 font-medium rounded-tl-lg">الإجراءات</th>
-                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/5 text-white/90">
-                     {products.filter(p => filterStatus === 'archived' ? p.isArchived : !p.isArchived).map((p) => (
-                     <tr key={p.id} className="hover:bg-white/5 transition-colors">
+              <table className="w-full text-sm text-right">
+                <thead className="bg-black/40 text-white/60">
+                  <tr>
+                    <th className="p-4 font-medium rounded-tr-lg w-10">
+                      <button
+                        onClick={() =>
+                          toggleAll(
+                            products.filter((p) =>
+                              filterStatus === "archived"
+                                ? p.isArchived
+                                : !p.isArchived,
+                            ),
+                          )
+                        }
+                        className="text-white/40 hover:text-white transition-colors"
+                      >
+                        {selectedIds.size > 0 &&
+                        selectedIds.size ===
+                          products.filter((p) =>
+                            filterStatus === "archived"
+                              ? p.isArchived
+                              : !p.isArchived,
+                          ).length ? (
+                          <CheckSquare size={18} className="text-brq-gold" />
+                        ) : (
+                          <Square size={18} />
+                        )}
+                      </button>
+                    </th>
+                    <th className="p-4 font-medium">صورة</th>
+                    <th className="p-4 font-medium">اسم المنتج</th>
+                    <th className="p-4 font-medium">الكود</th>
+                    <th className="p-4 font-medium">القسم</th>
+                    <th className="p-4 font-medium">السعر (د.ع)</th>
+                    <th className="p-4 font-medium">المشاهدات</th>
+                    <th className="p-4 font-medium rounded-tl-lg">الإجراءات</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5 text-white/90">
+                  {products
+                    .filter((p) =>
+                      filterStatus === "archived"
+                        ? p.isArchived
+                        : !p.isArchived,
+                    )
+                    .map((p) => (
+                      <tr
+                        key={p.id}
+                        className={`hover:bg-white/5 transition-colors ${selectedIds.has(p.id!) ? "bg-brq-gold/5" : ""}`}
+                      >
                         <td className="p-4">
-                           <div className="w-12 h-12 rounded-lg bg-brq-navy flex items-center justify-center border border-white/10 overflow-hidden text-2xl">
-                                {(p.finalImageUrl || p.imageUrl) ? <img src={p.finalImageUrl || p.imageUrl} alt={p.name} className="w-full h-full object-contain bg-black/20" /> : '👟'}
-                           </div>
+                          <button
+                            onClick={() => toggleSelection(p.id!)}
+                            className="text-white/40 hover:text-white transition-colors"
+                          >
+                            {selectedIds.has(p.id!) ? (
+                              <CheckSquare
+                                size={18}
+                                className="text-brq-gold"
+                              />
+                            ) : (
+                              <Square size={18} />
+                            )}
+                          </button>
+                        </td>
+                        <td className="p-4">
+                          <div className="w-12 h-12 rounded-lg bg-brq-navy flex items-center justify-center border border-white/10 overflow-hidden text-2xl">
+                            {p.finalImageUrl || p.imageUrl ? (
+                              <img
+                                src={p.finalImageUrl || p.imageUrl}
+                                alt={p.name}
+                                className="w-full h-full object-contain bg-black/20"
+                              />
+                            ) : (
+                              "👟"
+                            )}
+                          </div>
                         </td>
                         <td className="p-4 font-bold">{p.name}</td>
-                        <td className="p-4 font-mono text-brq-gold">{p.productCode || '-'}</td>
-                        <td className="p-4 text-xs bg-black/20"><span className="px-2 py-1 rounded bg-brq-navy/50 border border-white/10">{getCategoryName(p.categoryId)}</span></td>
-                        <td className="p-4 font-mono font-bold">{(p.price || 0).toLocaleString('ar-IQ')}</td>
-                        <td className="p-4">
-                           <span className="flex items-center gap-1 text-white/60">
-                              <Search size={12} /> {p.views || 0}
-                           </span>
+                        <td className="p-4 font-mono text-brq-gold">
+                          {p.productCode || "-"}
+                        </td>
+                        <td className="p-4 text-xs bg-black/20">
+                          <span className="px-2 py-1 rounded bg-brq-navy/50 border border-white/10">
+                            {getCategoryName(p.categoryId)}
+                          </span>
+                        </td>
+                        <td className="p-4 font-mono font-bold">
+                          {(p.price || 0).toLocaleString("ar-IQ")}
                         </td>
                         <td className="p-4">
-                           <div className="flex items-center gap-2">
-                              {(p.finalImageUrl || p.imageUrl) && (
-                                 <a href={p.finalImageUrl || p.imageUrl} download={`BRQ-${p.name}.jpg`} className="p-1.5 hover:bg-white/20 text-white/70 rounded transition-colors" title="تحميل"><Download size={16} /></a>
-                              )}
-                              <button type="button" onClick={() => handleDuplicate(p)} className="p-1.5 hover:bg-green-500/20 text-green-400 rounded transition-colors" title="نسخ المنتج"><Copy size={16} /></button>
-                              <button type="button" onClick={() => setEditingProduct(p)} className="p-1.5 hover:bg-blue-500/20 text-blue-400 rounded transition-colors" title="تعديل"><Edit size={16} /></button>
-                              <button type="button" onClick={() => handleToggleArchive(p)} className="p-1.5 hover:bg-yellow-500/20 text-yellow-400 rounded transition-colors" title={p.isArchived ? "استرجاع للمنتجات الفعالة" : "نقل للمواد النافذة"}><Archive size={16} /></button>
-                              <button type="button" onClick={() => handleDelete(p.id, p.name)} className="p-1.5 hover:bg-red-500/20 text-red-400 rounded transition-colors" title="حذف"><Trash2 size={16} /></button>
-                           </div>
+                          <span className="flex items-center gap-1 text-white/60">
+                            <Search size={12} /> {p.views || 0}
+                          </span>
                         </td>
-                     </tr>
-                  ))}
-               </tbody>
-            </table>
-         </div>
-      </div>
-      </div>
+                        <td className="p-4">
+                          <div className="flex items-center gap-2">
+                            {(p.finalImageUrl || p.imageUrl) && (
+                              <a
+                                href={p.finalImageUrl || p.imageUrl}
+                                download={`BRQ-${p.name}.jpg`}
+                                className="p-1.5 hover:bg-white/20 text-white/70 rounded transition-colors"
+                                title="تحميل"
+                              >
+                                <Download size={16} />
+                              </a>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleDuplicate(p)}
+                              className="p-1.5 hover:bg-green-500/20 text-green-400 rounded transition-colors"
+                              title="نسخ المنتج"
+                            >
+                              <Copy size={16} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditingProduct(p)}
+                              className="p-1.5 hover:bg-blue-500/20 text-blue-400 rounded transition-colors"
+                              title="تعديل"
+                            >
+                              <Edit size={16} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleArchive(p)}
+                              className="p-1.5 hover:bg-yellow-500/20 text-yellow-400 rounded transition-colors"
+                              title={
+                                p.isArchived
+                                  ? "استرجاع للمنتجات الفعالة"
+                                  : "نقل للمواد النافذة"
+                              }
+                            >
+                              <Archive size={16} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDelete(p.id, p.name)}
+                              className="p-1.5 hover:bg-red-500/20 text-red-400 rounded transition-colors"
+                              title="حذف"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
       )}
 
       {editingProduct && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="glass-panel p-6 rounded-2xl border border-brq-gold/30 relative w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <button onClick={() => setEditingProduct(null)} className="absolute top-4 left-4 p-2 text-white/50 hover:text-white bg-black/40 rounded-full">
+            <button
+              onClick={() => setEditingProduct(null)}
+              className="absolute top-4 left-4 p-2 text-white/50 hover:text-white bg-black/40 rounded-full"
+            >
               <X size={16} />
             </button>
-            <h3 className="text-lg font-bold mb-4 border-b border-white/10 pb-2">تعديل المنتج</h3>
-            <form onSubmit={handleUpdate} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <h3 className="text-lg font-bold mb-4 border-b border-white/10 pb-2">
+              تعديل المنتج
+            </h3>
+            <form
+              onSubmit={handleUpdate}
+              className="grid grid-cols-1 md:grid-cols-2 gap-4"
+            >
               <div>
-                <label className="text-xs text-white/50 block mb-1">اسم المنتج *</label>
-                <input required type="text" value={editingProduct.name} onChange={e => setEditingProduct({...editingProduct, name: e.target.value})} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white" />
+                <label className="text-xs text-white/50 block mb-1">
+                  اسم المنتج *
+                </label>
+                <input
+                  required
+                  type="text"
+                  value={editingProduct.name}
+                  onChange={(e) =>
+                    setEditingProduct({
+                      ...editingProduct,
+                      name: e.target.value,
+                    })
+                  }
+                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white"
+                />
               </div>
               <div>
-                <label className="text-xs text-white/50 block mb-1">سعر الدرزن (بالدولار)</label>
-                <input type="number" step="0.01" value={editingProduct.dozenPriceUsd || ''} onChange={e => handlePriceAndPackaging(Number(e.target.value), editingProduct.packaging || 'درزن', editingProduct.piecesCount || 12, true)} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white font-mono" />
-                <p className="text-[10px] text-white/40 mt-1">يتم ضربه بسعر الصرف الحالي: {usdRate}</p>
+                <label className="text-xs text-white/50 block mb-1">
+                  سعر الدرزن (بالدولار)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={editingProduct.dozenPriceUsd || ""}
+                  onChange={(e) =>
+                    handlePriceAndPackaging(
+                      Number(e.target.value),
+                      editingProduct.packaging || "درزن",
+                      editingProduct.piecesCount || 12,
+                      true,
+                    )
+                  }
+                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white font-mono"
+                />
+                <p className="text-[10px] text-white/40 mt-1">
+                  يتم ضربه بسعر الصرف الحالي: {usdRate}
+                </p>
               </div>
               <div>
-                <label className="text-xs text-white/50 block mb-1">سعر الدرزن (بالدينار) *</label>
-                <input required type="number" value={editingProduct.price || ''} onChange={e => setEditingProduct({...editingProduct, price: Number(e.target.value)})} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white font-mono" />
+                <label className="text-xs text-white/50 block mb-1">
+                  سعر الدرزن (بالدينار) *
+                </label>
+                <input
+                  required
+                  type="number"
+                  value={editingProduct.price || ""}
+                  onChange={(e) =>
+                    setEditingProduct({
+                      ...editingProduct,
+                      price: Number(e.target.value),
+                    })
+                  }
+                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white font-mono"
+                />
               </div>
               <div>
-                <label className="text-xs text-white/50 block mb-1">التعبئة</label>
-                <select value={editingProduct.packaging || ''} onChange={e => handlePriceAndPackaging(editingProduct.dozenPriceUsd || 0, e.target.value, 0, true)} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white">
+                <label className="text-xs text-white/50 block mb-1">
+                  التعبئة
+                </label>
+                <select
+                  value={editingProduct.packaging || ""}
+                  onChange={(e) =>
+                    handlePriceAndPackaging(
+                      editingProduct.dozenPriceUsd || 0,
+                      e.target.value,
+                      0,
+                      true,
+                    )
+                  }
+                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white"
+                >
                   <option value="">-- إختر التعبئة --</option>
-                  {PACKAGING_OPTIONS.map(o => <option key={o.label} value={o.label}>{o.label}</option>)}
+                  {PACKAGING_OPTIONS.map((o) => (
+                    <option key={o.label} value={o.label}>
+                      {o.label}
+                    </option>
+                  ))}
                 </select>
               </div>
-              {editingProduct.packaging === 'تعبئة مخصصة' && (
+              {editingProduct.packaging === "تعبئة مخصصة" && (
                 <div>
-                  <label className="text-xs text-white/50 block mb-1">عدد القطع</label>
-                  <input type="number" value={editingProduct.piecesCount || ''} onChange={e => handlePriceAndPackaging(editingProduct.dozenPriceUsd || 0, editingProduct.packaging || '', Number(e.target.value), true)} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white font-mono" />
+                  <label className="text-xs text-white/50 block mb-1">
+                    عدد القطع
+                  </label>
+                  <input
+                    type="number"
+                    value={editingProduct.piecesCount || ""}
+                    onChange={(e) =>
+                      handlePriceAndPackaging(
+                        editingProduct.dozenPriceUsd || 0,
+                        editingProduct.packaging || "",
+                        Number(e.target.value),
+                        true,
+                      )
+                    }
+                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white font-mono"
+                  />
                 </div>
               )}
               {editingProduct.piecesCount ? (
                 <div className="md:col-span-2 bg-white/5 p-3 rounded-lg border border-white/10 mt-2 text-center">
-                  <p className="text-xs text-white/50 mb-1">سعر القطعة (بالدينار)</p>
-                  <p className="font-mono text-lg font-bold text-brq-gold">{editingProduct.piecePriceIqd?.toLocaleString()} <span className="text-sm">د.ع</span></p>
+                  <p className="text-xs text-white/50 mb-1">
+                    سعر القطعة (بالدينار)
+                  </p>
+                  <p className="font-mono text-lg font-bold text-brq-gold">
+                    {editingProduct.piecePriceIqd?.toLocaleString()}{" "}
+                    <span className="text-sm">د.ع</span>
+                  </p>
                 </div>
               ) : null}
               <div>
-                <label className="text-xs text-white/50 block mb-1">القسم</label>
-                <select value={editingProduct.categoryId} onChange={e => setEditingProduct({...editingProduct, categoryId: e.target.value, subcategoryId: ''})} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white">
+                <label className="text-xs text-white/50 block mb-1">
+                  القسم
+                </label>
+                <select
+                  value={editingProduct.categoryId}
+                  onChange={(e) =>
+                    setEditingProduct({
+                      ...editingProduct,
+                      categoryId: e.target.value,
+                      subcategoryId: "",
+                    })
+                  }
+                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white"
+                >
                   <option value="">-- إختر القسم --</option>
-                  {categories.filter(c => !c.parentId).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                 </select>
-              </div>
-              <div>
-                <label className="text-xs text-white/50 block mb-1">القسم الفرعي</label>
-                <select value={editingProduct.subcategoryId || ''} onChange={e => setEditingProduct({...editingProduct, subcategoryId: e.target.value})} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white disabled:opacity-50" disabled={!editingProduct.categoryId}>
-                  <option value="">-- إختر القسم الفرعي --</option>
-                  {categories.filter(c => c.parentId === editingProduct.categoryId).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  {categories
+                    .filter((c) => !c.parentId)
+                    .map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
                 </select>
               </div>
               <div>
-                <label className="text-xs text-white/50 block mb-1">كود المنتج</label>
-                <input type="text" value={editingProduct.productCode} onChange={e => setEditingProduct({...editingProduct, productCode: e.target.value})} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white" />
+                <label className="text-xs text-white/50 block mb-1">
+                  القسم الفرعي
+                </label>
+                <select
+                  value={editingProduct.subcategoryId || ""}
+                  onChange={(e) =>
+                    setEditingProduct({
+                      ...editingProduct,
+                      subcategoryId: e.target.value,
+                    })
+                  }
+                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white disabled:opacity-50"
+                  disabled={!editingProduct.categoryId}
+                >
+                  <option value="">-- إختر القسم الفرعي --</option>
+                  {categories
+                    .filter((c) => c.parentId === editingProduct.categoryId)
+                    .map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                </select>
               </div>
               <div>
-                <label className="text-xs text-white/50 block mb-1">صورة المنتج</label>
+                <label className="text-xs text-white/50 block mb-1">
+                  كود المنتج
+                </label>
+                <input
+                  type="text"
+                  value={editingProduct.productCode}
+                  onChange={(e) =>
+                    setEditingProduct({
+                      ...editingProduct,
+                      productCode: e.target.value,
+                    })
+                  }
+                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-white/50 block mb-1">
+                  صورة المنتج
+                </label>
                 <div className="flex items-center gap-3">
-                   {editingProduct.imageUrl && <img src={editingProduct.imageUrl} alt="preview" className="w-10 h-10 rounded object-contain border border-white/20 bg-black/50" />}
-                   <input type="file" accept="image/*" onChange={e => handleImageUpload(e, true)} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-white/10 file:text-white hover:file:bg-white/20 transition-colors" />
+                  {editingProduct.imageUrl && (
+                    <img
+                      src={editingProduct.imageUrl}
+                      alt="preview"
+                      className="w-10 h-10 rounded object-contain border border-white/20 bg-black/50"
+                    />
+                  )}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handleImageUpload(e, true)}
+                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-white/10 file:text-white hover:file:bg-white/20 transition-colors"
+                  />
                 </div>
               </div>
               <div className="md:col-span-2">
-                 <button type="submit" className="w-full py-3 bg-brq-gold text-black font-bold rounded-lg mt-2">
-                   حفظ التعديلات
-                 </button>
+                <button
+                  type="submit"
+                  className="w-full py-3 bg-brq-gold text-black font-bold rounded-lg mt-2"
+                >
+                  حفظ التعديلات
+                </button>
               </div>
             </form>
           </div>

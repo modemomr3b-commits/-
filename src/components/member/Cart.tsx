@@ -37,11 +37,25 @@ export default function Cart() {
         notes: notes.trim(),
         createdAt: Date.now()
       });
+
+      // log action
+      await api.logAction({
+        userId: user.uid,
+        userName: user.username,
+        action: 'إنشاء طلب',
+        entityType: 'order',
+        entityId: orderNumber,
+        details: { totalPieces }
+      });
+
+      // Create notification for admins
+      await api.createNotification({
+         message: `لديك طلب جديد من المستخدم: ${user.fullName || user.username}`,
+         type: 'order'
+      });
+
       clearCart();
       setSuccess(true);
-      
-      // Let's create an update entry or notification for admins
-      // But firestore `onSnapshot` inside Admin's components could just listen to `orders`
     } catch(e) {
       console.error(e);
       alert('حدث خطأ أثناء إرسال الطلبية');

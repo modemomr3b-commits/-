@@ -1,4 +1,6 @@
 export type UserRole = 'admin' | 'sales' | 'vip' | 'normal';
+export type DeviceAccess = 'all' | 'mobile' | 'desktop';
+export type UserStatus = 'active' | 'suspended';
 
 export interface BaseEntity {
   isDeleted?: boolean;
@@ -7,13 +9,19 @@ export interface BaseEntity {
 }
 
 export interface User extends BaseEntity {
+  id: string; // The primary ID now in supabase
   uid: string; // The firestore ID
   username: string;
   password?: string;
   fullName: string;
   phone?: string;
   role: UserRole;
-  isActive: boolean;
+  status: UserStatus;
+  allowedDevice: DeviceAccess;
+  lastActive?: number;
+  currentPage?: string;
+  isOnline?: boolean;
+  allowedPages?: any;
   createdAt: number;
 }
 
@@ -50,6 +58,26 @@ export interface OrderItem {
   productId: string;
   quantity: number;
   product?: Product;
+}
+
+export interface ActivityLog {
+  id?: string;
+  userId: string;
+  userName?: string;
+  action: string;
+  entityType?: string;
+  entityId?: string;
+  details?: any;
+  createdAt: number;
+}
+
+export interface Notification extends BaseEntity {
+  id?: string;
+  userId?: string;
+  message: string;
+  type: string;
+  read: boolean;
+  createdAt: number;
 }
 
 export type OrderStatus = 'new' | 'reviewing' | 'contacted' | 'completed' | 'cancelled';

@@ -5,29 +5,35 @@ import { api } from '../../api';
 export default function AdminDashboard() {
   const [stats, setStats] = useState({
     users: 0,
+    onlineUsers: 0,
     products: 0,
     categories: 0,
     orders: 0
   });
+  const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let mounted = true;
     const fetchDashboard = async () => {
       try {
-        const [usersRes, productsRes, categoriesRes, ordersRes] = await Promise.all([
+        const [usersRes, productsRes, categoriesRes, ordersRes, logsRes] = await Promise.all([
           api.getUsers(),
           api.getProducts(),
           api.getCategories(),
-          api.getOrders()
+          api.getOrders(),
+          api.getLogs()
         ]);
         if (mounted) {
+          const onlineCount = usersRes.filter(u => u.isOnline || (u.lastActive && (Date.now() - u.lastActive < 300000))).length;
           setStats({
             users: usersRes.length,
+            onlineUsers: onlineCount,
             products: productsRes.length,
             categories: categoriesRes.length,
             orders: ordersRes.length
           });
+          setLogs(logsRes.slice(0, 50)); // Last 50 activities max
           setLoading(false);
         }
       } catch (e) {
@@ -45,8 +51,8 @@ export default function AdminDashboard() {
 
   const realtimeStats = [
     { label: 'إجمالي المستخدمين', value: stats.users.toString(), icon: Users, color: 'text-emerald-400', bg: 'bg-emerald-400/10', border: 'border-emerald-400/30' },
+    { label: 'المتصلون الآن', value: stats.onlineUsers.toString(), icon: Users, color: 'text-emerald-400', bg: 'bg-emerald-400/10', border: 'border-emerald-400/30', pulse: true },
     { label: 'إجمالي المنتجات', value: stats.products.toString(), icon: Package, color: 'text-purple-400', bg: 'bg-purple-400/10', border: 'border-purple-400/30' },
-    { label: 'إجمالي الأقسام', value: stats.categories.toString(), icon: Database, color: 'text-blue-400', bg: 'bg-blue-400/10', border: 'border-blue-400/30' },
     { label: 'إجمالي الطلبات', value: stats.orders.toString(), icon: ShoppingCart, color: 'text-brq-gold', bg: 'bg-brq-gold/10', border: 'border-brq-gold/30' },
   ];
 
@@ -65,6 +71,46 @@ export default function AdminDashboard() {
      );
   }
 
+  const ActiveUsersList = () => {
+    const [onlineUsers, setOnlineUsers] = useState<any[]>([]);
+
+    useEffect(() => {
+      const fetchOnline = async () => {
+        try {
+          const users = await api.getUsers();
+          const active = users.filter((u: any) => u.isOnline || (u.lastActive && (Date.now() - u.lastActive < 300000)));
+          setOnlineUsers(active);
+        } catch(e) {}
+      };
+      fetchOnline();
+      const intv = setInterval(fetchOnline, 10000);
+      return () => clearInterval(intv);
+    }, []);
+
+    if (onlineUsers.length === 0) {
+      return <div className="text-xs text-white/40 text-center py-4">لا يوجد مستخدمين أونلاين حالياً</div>;
+    }
+
+    return (
+      <>
+        {onlineUsers.map((u: any) => (
+          <div key={u.id} className="flex justify-between items-center p-2 rounded-lg bg-white/5 border border-white/5">
+             <div className="flex gap-2 items-center">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <div>
+                  <p className="text-xs font-bold text-white/90">{u.username}</p>
+                  <p className="text-[10px] text-white/40">{u.role === 'admin' ? 'مدير' : 'عميل'}</p>
+                </div>
+             </div>
+             <span className="text-[10px] text-white/30 font-mono">
+               الآن
+             </span>
+          </div>
+        ))}
+      </>
+    );
+  };
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -77,7 +123,7 @@ export default function AdminDashboard() {
                     <p className="text-white/60 text-xs mb-1 font-bold">{stat.label}</p>
                     <p className="text-3xl font-bold text-white flex items-center gap-2">
                       {stat.value}
-                      {i === 0 && <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>}
+                      {stat.pulse && <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>}
                     </p>
                  </div>
                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${stat.bg} ${stat.color}`}>
@@ -101,23 +147,37 @@ export default function AdminDashboard() {
             </div>
             
             <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2 no-scrollbar">
-               {[
-                 { action: 'بدأ النظام', subject: 'الاتصال بقاعدة البيانات تم بنجاح', time: 'الآن', icon: Server, color: 'text-emerald-400' },
-               ].map((item, i) => (
-                  <div key={i} className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
-                     <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-full bg-white/5 flex items-center justify-center ${item.color}`}>
-                           <item.icon size={18} />
+               {logs.length === 0 ? (
+                  <p className="text-xs text-white/50 text-center py-4">النشاطات ستظهر هنا تلقائياً عند قيام المستخدمين بأي إجراء...</p>
+               ) : (
+                  logs.map((log) => {
+                     let Icon = Server;
+                     let color = "text-emerald-400";
+                     if (log.entityType === 'order') { Icon = ShoppingCart; color = "text-blue-400"; }
+                     if (log.entityType === 'product') { Icon = Package; color = "text-purple-400"; }
+                     if (log.entityType === 'user') { Icon = Users; color = "text-brq-gold"; }
+                     if (log.action.includes('حذف')) { color = "text-red-400"; }
+
+                     const diff = Date.now() - log.createdAt;
+                     let timeText = 'الآن';
+                     if (diff > 60000) timeText = `منذ ${Math.floor(diff/60000)} دقيقة`;
+                     if (diff > 3600000) timeText = `منذ ${Math.floor(diff/3600000)} ساعة`;
+
+                     return (
+                     <div key={log.id} className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
+                        <div className="flex items-center gap-3">
+                           <div className={`w-10 h-10 rounded-full bg-white/5 flex items-center justify-center ${color}`}>
+                              <Icon size={18} />
+                           </div>
+                           <div>
+                              <p className="text-sm font-bold text-white/90">{log.userName || log.userId}</p>
+                              <p className="text-xs text-white/50">{log.action}</p>
+                           </div>
                         </div>
-                        <div>
-                           <p className="text-sm font-bold text-white/90">{item.action}</p>
-                           <p className="text-xs text-white/50">{item.subject}</p>
-                        </div>
+                        <span className="text-xs font-mono text-white/40">{timeText}</span>
                      </div>
-                     <span className="text-xs font-mono text-white/40">{item.time}</span>
-                  </div>
-               ))}
-               <p className="text-xs text-white/50 text-center py-4">النشاطات ستظهر هنا تلقائياً عند تحديث البيانات...</p>
+                  )})
+               )}
             </div>
          </div>
 
@@ -140,23 +200,12 @@ export default function AdminDashboard() {
            </div>
 
            <div className="glass-panel border border-white/5 rounded-xl p-5 flex flex-col">
-              <h3 className="font-bold text-sm mb-4 flex items-center gap-2 text-blue-400">
-                 <Download size={16} /> الإجراءات السريعة
+              <h3 className="font-bold text-sm mb-4 flex items-center gap-2 text-emerald-400">
+                 <Users size={16} /> المستخدمون النشطون الآن
               </h3>
               
-              <div className="space-y-3 flex-1">
-                 <button className="w-full text-right flex items-center gap-3 p-3 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 hover:border-brq-gold/50 transition-all group">
-                    <div className="w-8 h-8 rounded-full bg-brq-gold/20 flex items-center justify-center text-brq-gold group-hover:scale-110 transition-transform">
-                       <Package size={14} />
-                    </div>
-                    <span className="font-medium text-xs">إضافة منتج جديد</span>
-                 </button>
-                 <button className="w-full text-right flex items-center gap-3 p-3 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 hover:border-blue-400/50 transition-all group">
-                    <div className="w-8 h-8 rounded-full bg-blue-400/20 flex items-center justify-center text-blue-400 group-hover:scale-110 transition-transform">
-                       <Bell size={14} />
-                    </div>
-                    <span className="font-medium text-xs">إرسال إشعار للمستخدمين</span>
-                 </button>
+              <div className="space-y-3 flex-1 overflow-y-auto max-h-[150px] pr-2 custom-scrollbar">
+                 <ActiveUsersList />
               </div>
            </div>
          </div>
@@ -164,3 +213,4 @@ export default function AdminDashboard() {
     </div>
   );
 }
+

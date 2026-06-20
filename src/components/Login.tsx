@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useStore } from '../store.ts';
 import { useNavigate } from 'react-router';
-import { motion } from 'motion/react';
-import { Diamond, LogIn, Loader2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Diamond, LogIn, Loader2, Download } from 'lucide-react';
 import { api } from '../api';
 import { supabase } from '../supabase.ts';
 
@@ -11,8 +11,30 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const setUser = useStore((state) => state.setUser);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setDeferredPrompt(null);
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,7 +51,30 @@ export default function Login() {
       // First, check basic hardcoded admin just to make sure we don't lock out from the app
       let finalUser: any = null;
 
-      if (cleanUsername === 'wafaa' && password === 'brq') {
+      if (cleanUsername === '1' && password === '100') {
+         finalUser = {
+           uid: 'demo_user_1',
+           username: '1',
+           fullName: 'المستخدم 1',
+           role: 'normal',
+           isActive: true
+         };
+         try {
+           const dbUser = await api.getUser('1');
+           if (!dbUser) {
+             await api.createUser({...finalUser, id: '1'});
+           } else {
+             if (dbUser.isActive === false) throw new Error('تم إيقاف هذا الحساب.');
+             // Force role to normal for user 1
+             if (dbUser.role !== 'normal') {
+                 await api.updateUser('1', { role: 'normal' });
+             }
+             finalUser = {...finalUser, ...dbUser, role: 'normal'};
+           }
+         } catch(e: any) {
+           if (e.message.includes('موقوف')) throw e;
+         }
+      } else if (cleanUsername === 'wafaa' && password === 'brq') {
          finalUser = {
            uid: 'admin_user_wafaa',
            username: 'wafaa',
@@ -191,6 +236,33 @@ export default function Login() {
                 {loading ? 'جاري التحقق...' : 'تسجيل الدخول'}
               </button>
             </form>
+
+            <AnimatePresence>
+              {deferredPrompt && (
+                <motion.div
+                  initial={{ opacity: 0, y: 30 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  className="mt-8 relative overflow-hidden bg-white/5 border border-brq-gold/30 rounded-2xl p-5 flex flex-col items-center text-center shadow-[0_10px_30px_rgba(212,175,55,0.05)]"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-t from-brq-gold/5 to-transparent pointer-events-none"></div>
+                  <div className="w-12 h-12 rounded-full border border-brq-gold/20 bg-brq-gold/10 flex items-center justify-center mb-3">
+                    <Download className="text-brq-gold" size={24} />
+                  </div>
+                  <h3 className="text-white font-bold text-lg mb-1">تجربة أفضل للتطبيق</h3>
+                  <p className="text-white/60 text-xs mb-4 max-w-[250px] leading-relaxed">
+                    قم بتثبيت التطبيق على الشاشة الرئيسية للوصول السريع وبدون إطار المتصفح المزعج.
+                  </p>
+                  <button
+                    onClick={handleInstallClick}
+                    className="w-full py-2.5 rounded-xl border border-brq-gold bg-brq-gold/10 text-brq-gold hover:bg-brq-gold hover:text-black font-bold text-sm transition-all duration-300"
+                  >
+                    تنزيل للشاشة الرئيسية
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
           </motion.div>
         </div>
       </div>

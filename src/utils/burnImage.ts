@@ -54,7 +54,7 @@ export const burnProductOverlay = (product: any, rawImageUrl: string): Promise<s
         // Code row
         ctx.fillStyle = '#d4af37';
         ctx.font = `bold ${32 * scale}px Arial`;
-        const codeText = `الكود: ${product.productCode || '---'}     |     الرمز: ${product.modelNumber || '---'}`;
+        const codeText = `الكود: ${product.productCode || '---'}`;
         ctx.fillText(codeText, CANVAS_W - (40 * scale), topH + (110 * scale));
 
         // Packaging

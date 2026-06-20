@@ -1,6 +1,7 @@
-import { TrendingUp, FileText, Download, Calendar, Loader2 } from 'lucide-react';
+import { TrendingUp, FileText, Download, Calendar, Loader2, Activity } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { api } from '../../api';
+import { ActivityLog } from '../../types';
 
 export default function ReportManager() {
   const [stats, setStats] = useState({
@@ -8,13 +9,18 @@ export default function ReportManager() {
     orders: 0,
     users: 0,
   });
+  const [logs, setLogs] = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let mounted = true;
     const fetchReports = async () => {
       try {
-        const [ordersRes, usersRes] = await Promise.all([api.getOrders(), api.getUsers()]);
+        const [ordersRes, usersRes, logsRes] = await Promise.all([
+           api.getOrders(), 
+           api.getUsers(),
+           api.getLogs()
+        ]);
         
         if (mounted) {
           let totalSales = 0;
@@ -30,6 +36,7 @@ export default function ReportManager() {
              orders: totalOrders,
              users: usersRes.length
           });
+          setLogs(logsRes);
           setLoading(false);
         }
       } catch (e) {
@@ -58,13 +65,8 @@ export default function ReportManager() {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
          <div>
-             <h2 className="text-2xl font-bold text-white mb-1">التقارير</h2>
-             <p className="text-sm text-white/50">تحليل الأداء والإحصائيات</p>
-         </div>
-         <div className="flex gap-2">
-            <button className="flex items-center justify-center gap-2 py-2.5 px-4 bg-brq-navy border border-brq-gold/50 text-brq-gold rounded-xl hover:bg-brq-gold hover:text-black transition-all text-sm font-bold">
-               <Download size={18} /> تحميل تقرير شامل
-            </button>
+             <h2 className="text-2xl font-bold text-white mb-1">التقارير وسجل النشاط</h2>
+             <p className="text-sm text-white/50">تحليل الأداء والإحصائيات ومتابعة الأنشطة</p>
          </div>
       </div>
 
@@ -104,28 +106,34 @@ export default function ReportManager() {
       </div>
       
       <div className="glass-panel border border-white/5 rounded-2xl overflow-hidden p-6 mt-6">
-         <h3 className="font-bold text-lg mb-4">توليد التقارير المخصصة</h3>
-         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <div>
-               <label className="text-xs text-white/50 mb-1 block">نوع التقرير</label>
-               <select className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white">
-                  <option>المبيعات</option>
-                  <option>المخزون</option>
-                  <option>العملاء</option>
-               </select>
-            </div>
-            <div>
-               <label className="text-xs text-white/50 mb-1 block">من تاريخ</label>
-               <input type="date" className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white color-scheme-dark" />
-            </div>
-            <div>
-               <label className="text-xs text-white/50 mb-1 block">إلى تاريخ</label>
-               <input type="date" className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white color-scheme-dark" />
-            </div>
+         <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+            <Activity className="text-brq-gold" size={20} /> سجل نشاطات النظام
+         </h3>
+         
+         <div className="max-h-96 overflow-y-auto pr-2 custom-scrollbar space-y-3">
+             {logs.length === 0 ? (
+                 <p className="text-white/50 text-center py-6">لا يوجد نشاطات مسجلة حتى الآن.</p>
+             ) : (
+                 <div className="divide-y divide-white/5">
+                    {logs.map((log) => (
+                       <div key={log.id} className="py-3 flex flex-col hover:bg-white/5 p-2 rounded-lg transition-colors">
+                           <div className="flex justify-between items-start mb-1">
+                              <div className="flex items-center gap-2">
+                                 <span className="font-bold text-sm text-brq-gold">{log.userName || log.userId}</span>
+                                 <span className="text-sm text-white/70">قام بـ {log.action}</span>
+                              </div>
+                              <span className="text-xs text-white/40" dir="ltr">{new Date(log.createdAt).toLocaleString('ar-IQ')}</span>
+                           </div>
+                           {(log.entityType || log.entityId) && (
+                              <div className="text-xs text-white/50 mt-1 font-mono">
+                                 [ {log.entityType === 'order' ? 'طلب' : log.entityType === 'user' ? 'مستخدم' : log.entityType === 'product' ? 'منتج' : log.entityType} : {log.entityId} ]
+                              </div>
+                           )}
+                       </div>
+                    ))}
+                 </div>
+             )}
          </div>
-         <button className="px-6 py-2.5 bg-brq-royal hover:bg-blue-600 text-white rounded-xl transition-all text-sm font-bold shadow-[0_4px_15px_rgba(30,94,255,0.3)]">
-             إنشاء تقرير
-         </button>
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
 import { useEffect } from 'react';
 import { useStore } from './store';
+import { api } from './api';
 
 import Login from './components/Login';
 import MemberLayout from './components/MemberLayout';
@@ -30,6 +31,32 @@ export default function App() {
   useEffect(() => {
     initialize();
   }, [initialize]);
+
+  useEffect(() => {
+    if (user && user.uid) {
+      const pingStatus = async () => {
+        try {
+          // Use api to silently update status
+          await api.updateUser(user.uid, { lastActive: Date.now(), isOnline: true }, true);
+        } catch (e) {}
+      };
+      pingStatus();
+      const interval = setInterval(pingStatus, 60000); // 1 minute
+      
+      const handleBeforeUnload = () => {
+        // Attempt to mark offline before close
+        api.updateUser(user.uid, { isOnline: false, lastActive: Date.now() }, true).catch(() => {});
+      };
+      
+      window.addEventListener('beforeunload', handleBeforeUnload);
+      
+      return () => {
+        clearInterval(interval);
+        window.removeEventListener('beforeunload', handleBeforeUnload);
+        // If unmounted normally (like explicit logout) it will call API inside logout fn
+      };
+    }
+  }, [user]);
 
   if (loading) {
     return (
