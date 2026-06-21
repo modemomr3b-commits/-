@@ -39,6 +39,7 @@ export default function CategoryManager() {
 
   useEffect(() => {
     let mounted = true;
+    let fetchTimeout: any;
     const initialFetch = async () => {
       await fetchCats();
       if (mounted) setLoading(false);
@@ -52,13 +53,17 @@ export default function CategoryManager() {
         "postgres_changes",
         { event: "*", schema: "public", table: "categories" },
         () => {
-          fetchCats();
+          clearTimeout(fetchTimeout);
+          fetchTimeout = setTimeout(() => {
+             if (mounted) fetchCats();
+          }, 1500);
         },
       )
       .subscribe();
 
     return () => {
       mounted = false;
+      clearTimeout(fetchTimeout);
       supabase.removeChannel(channel);
     };
   }, []);

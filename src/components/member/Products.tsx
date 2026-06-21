@@ -50,6 +50,7 @@ export default function Products() {
 
   useEffect(() => {
     let mounted = true;
+    let fetchTimeout: any;
     const init = async () => {
        await fetchProducts();
        if (mounted) {
@@ -62,15 +63,22 @@ export default function Products() {
     const channel = supabase
       .channel('member_products_view')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
-        fetchProducts();
+        clearTimeout(fetchTimeout);
+        fetchTimeout = setTimeout(() => {
+          if (mounted) fetchProducts();
+        }, 1500);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'categories' }, () => {
-        fetchProducts();
+        clearTimeout(fetchTimeout);
+        fetchTimeout = setTimeout(() => {
+          if (mounted) fetchProducts();
+        }, 1500);
       })
       .subscribe();
 
     return () => {
       mounted = false;
+      clearTimeout(fetchTimeout);
       supabase.removeChannel(channel);
     };
   }, [categoryId]);

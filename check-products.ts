@@ -4,11 +4,11 @@ const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function run() {
-  const { data, error } = await supabase.from('categories').select('*').limit(1);
+  const { data, error } = await supabase.from('products').select('*').limit(1);
   if (error) {
-    console.error('Error fetching categories:', error);
+    console.error('Error fetching products:', error);
   } else {
-    console.log('Category keys:', data?.length ? Object.keys(data[0]) : 'no categories');
+    console.log('Product keys:', data?.length ? Object.keys(data[0]) : 'no products');
   }
 }
 run();

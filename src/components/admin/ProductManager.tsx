@@ -82,6 +82,7 @@ export default function ProductManager() {
 
   useEffect(() => {
     let mounted = true;
+    let fetchTimeout: any;
     const initialLoad = async () => {
       await loadData();
       if (mounted) setLoading(false);
@@ -94,20 +95,27 @@ export default function ProductManager() {
         "postgres_changes",
         { event: "*", schema: "public", table: "products" },
         () => {
-          loadData();
+          clearTimeout(fetchTimeout);
+          fetchTimeout = setTimeout(() => {
+             if (mounted) loadData();
+          }, 1500);
         },
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "settings" },
         () => {
-          loadData();
+          clearTimeout(fetchTimeout);
+          fetchTimeout = setTimeout(() => {
+             if (mounted) loadData();
+          }, 1500);
         },
       )
       .subscribe();
 
     return () => {
       mounted = false;
+      clearTimeout(fetchTimeout);
       supabase.removeChannel(channel);
     };
   }, []);
