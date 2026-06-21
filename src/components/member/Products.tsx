@@ -220,15 +220,17 @@ export default function Products() {
               key={p.id}
               className="glass-card rounded-2xl overflow-hidden flex flex-col border border-white/5 relative group hover:border-brq-gold transition-colors shadow-lg"
             >
-              <div className="w-full aspect-square bg-black/40 relative flex items-center justify-center border-b border-white/5 p-0">
+              <div className="w-full aspect-[4/5] bg-black/40 relative flex items-center justify-center border-b border-white/5 p-0 overflow-hidden">
                 {p.finalImageUrl || p.imageUrl ? (
-                  <OptimizedImage
-                    src={p.finalImageUrl || p.imageUrl}
-                    alt={p.name}
-                    size="medium"
-                    className="w-full h-full"
-                    imgClassName="object-cover hover:scale-105 transition-transform duration-500"
-                  />
+                  <div className="absolute inset-0">
+                    <OptimizedImage
+                      src={p.finalImageUrl || p.imageUrl}
+                      alt={p.name}
+                      size="medium"
+                      className="w-full h-full"
+                      imgClassName="object-cover w-full h-full hover:scale-105 transition-transform duration-500"
+                    />
+                  </div>
                 ) : (
                   <div className="text-white/30 text-3xl">👟</div>
                 )}

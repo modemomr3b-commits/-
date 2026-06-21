@@ -18,7 +18,7 @@ export const burnProductOverlay = (product: any, rawImageUrl: string): Promise<s
         
         // Ribbon scaling based on 1080px reference
         const scale = CANVAS_W / baseWidth;
-        const ribbonH = 210 * scale;
+        const ribbonH = 220 * scale;
         
         const CANVAS_H = CANVAS_IMG_H + ribbonH;
         
@@ -30,10 +30,10 @@ export const burnProductOverlay = (product: any, rawImageUrl: string): Promise<s
 
         const topH = CANVAS_IMG_H;
 
-        // Gradient ribbon background (Brand colors)
+        // Gradient ribbon background
         const grad = ctx.createLinearGradient(0, topH, 0, CANVAS_H);
         grad.addColorStop(0, '#111111');
-        grad.addColorStop(1, '#000000');
+        grad.addColorStop(1, '#050505');
         ctx.fillStyle = grad;
         ctx.fillRect(0, topH, CANVAS_W, ribbonH);
 
@@ -46,28 +46,31 @@ export const burnProductOverlay = (product: any, rawImageUrl: string): Promise<s
         ctx.textAlign = 'right';
         ctx.textBaseline = 'top';
 
-        // Code row
-        ctx.fillStyle = '#d4af37';
-        ctx.font = `bold ${32 * scale}px Arial`;
-        const codeText = `الكود: ${product.productCode || '---'}`;
-        ctx.fillText(codeText, CANVAS_W - (40 * scale), topH + (40 * scale));
+        // --- ROW 1: Code and Packaging ---
+        const row1Y = topH + (35 * scale);
 
-        // Packaging
+        // Code (Right side)
+        ctx.fillStyle = '#d4af37';
+        ctx.font = `bold ${34 * scale}px Arial`;
+        const codeText = `الكود: ${product.productCode || '---'}`;
+        ctx.fillText(codeText, CANVAS_W - (40 * scale), row1Y);
+
+        // Packaging (Left side)
         ctx.textAlign = 'left';
-        ctx.fillStyle = '#aaaaaa';
+        ctx.fillStyle = '#cccccc';
         ctx.font = `${32 * scale}px Arial`;
         let packStr = `التعبئة: ${product.packaging || '---'}`;
         if (product.piecesCount) packStr += ` (${product.piecesCount} قطعة)`;
-        ctx.fillText(packStr, 40 * scale, topH + (40 * scale));
+        ctx.fillText(packStr, 40 * scale, row1Y);
 
-        // Price Boxes
+        // --- ROW 2: Prices ---
         ctx.textAlign = 'right';
         const boxY = topH + (100 * scale);
         
-        // Dozen Box
-        const doxW = 400 * scale;
+        // Dozen Box (Right Side)
+        const doxW = 380 * scale;
         const doxH = 90 * scale;
-        const doxX = CANVAS_W - (440 * scale);
+        const doxX = CANVAS_W - (40 * scale) - doxW;
 
         ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
         ctx.strokeStyle = 'rgba(212, 175, 55, 0.4)';
@@ -82,15 +85,15 @@ export const burnProductOverlay = (product: any, rawImageUrl: string): Promise<s
             ctx.fillRect(doxX, boxY, doxW, doxH);
         }
 
-        ctx.fillStyle = '#888888';
+        ctx.fillStyle = '#aaaaaa';
         ctx.font = `${24 * scale}px Arial`;
-        ctx.fillText('سعر الدرزن', CANVAS_W - (60 * scale), boxY + (15 * scale));
+        ctx.fillText('سعر الجملة (الدرزن)', doxX + doxW - (20 * scale), boxY + (15 * scale));
         ctx.fillStyle = '#d4af37';
-        ctx.font = `bold ${40 * scale}px Arial`;
-        ctx.fillText(Number(product.price).toLocaleString() + ' د.ع', CANVAS_W - (60 * scale), boxY + (45 * scale));
+        ctx.font = `bold ${36 * scale}px Arial`;
+        ctx.fillText(Number(product.price || 0).toLocaleString() + ' د.ع', doxX + doxW - (20 * scale), boxY + (45 * scale));
 
-        // Piece Box
-        const pceW = 480 * scale;
+        // Piece Box (Left Side)
+        const pceW = 380 * scale;
         const pceH = 90 * scale;
         const pceX = 40 * scale;
 
@@ -103,19 +106,20 @@ export const burnProductOverlay = (product: any, rawImageUrl: string): Promise<s
             ctx.fillRect(pceX, boxY, pceW, pceH);
         }
 
-        ctx.fillStyle = '#888888';
+        ctx.fillStyle = '#aaaaaa';
         ctx.font = `${24 * scale}px Arial`;
-        ctx.fillText('سعر القطعة', pceX + pceW - (20 * scale), boxY + (15 * scale));
+        // In Arabic, we're writing rtl but the text origin is right for fillText because of ctx.textAlign = 'right'
+        ctx.fillText('سعر المفرد (القطعة)', pceX + pceW - (20 * scale), boxY + (15 * scale));
         ctx.fillStyle = '#ffffff';
-        ctx.font = `bold ${40 * scale}px Arial`;
+        ctx.font = `bold ${36 * scale}px Arial`;
         ctx.fillText((product.piecePriceIqd ? Number(product.piecePriceIqd).toLocaleString() : '---') + ' د.ع', pceX + pceW - (20 * scale), boxY + (45 * scale));
 
-        // Watermark/Branding in the center of the ribbon
+        // --- Middle BRQ Text inside ribbon ---
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillStyle = 'rgba(212, 175, 55, 0.25)';
-        ctx.font = `bold ${100 * scale}px Arial`;
-        ctx.fillText('BRQ', CANVAS_W / 2, topH + (ribbonH / 2));
+        ctx.fillStyle = 'rgba(212, 175, 55, 0.8)';
+        ctx.font = `bold ${64 * scale}px Arial`;
+        ctx.fillText('BRQ', CANVAS_W / 2, boxY + (doxH / 2));
 
         resolve(canvas.toDataURL('image/jpeg', 0.95));
       } catch (err) {

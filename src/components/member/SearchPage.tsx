@@ -114,9 +114,11 @@ export default function SearchPage() {
                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                  {filteredProducts.map(p => (
                     <Link to={`/product/${p.id}`} key={p.id} className="glass-card rounded-2xl overflow-hidden flex flex-col border border-white/5 relative group hover:border-brq-gold transition-colors">
-                      <div className="w-full aspect-square bg-black/40 relative flex items-center justify-center p-0">
+                      <div className="w-full aspect-[4/5] bg-black/40 relative flex items-center justify-center p-0 overflow-hidden">
                          {p.finalImageUrl || p.imageUrl ? (
-                           <OptimizedImage src={p.finalImageUrl || p.imageUrl} alt={p.name} size="medium" className="w-full h-full" imgClassName="object-cover" />
+                           <div className="absolute inset-0">
+                             <OptimizedImage src={p.finalImageUrl || p.imageUrl} alt={p.name} size="medium" className="w-full h-full" imgClassName="object-cover w-full h-full" />
+                           </div>
                          ) : (
                            <span className="text-4xl opacity-50">👟</span>
                          )}

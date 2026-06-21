@@ -17,6 +17,44 @@ export default function Cart() {
     return acc + item.quantity;
   }, 0);
 
+  const handleWhatsAppShare = async () => {
+    let filesArray: File[] = [];
+    const text = `*طلب جديد* 🛒\n\n${notes ? `*الملاحظات:* ${notes}\n\n` : ''}*المنتجات:*\n${cart.map((item, index) => `${index+1}- ${item.product.name}\n  الكود: ${item.product.productCode || '---'}\n  الموديل: ${item.product.modelNumber || '---'}\n  الكمية: ${item.quantity}`).join('\n\n')}`;
+    
+    if (navigator.share && navigator.canShare) {
+        try {
+            for (let i = 0; i < cart.length; i++) {
+                const url = cart[i].product.finalImageUrl || cart[i].product.imageUrl;
+                if (url) {
+                    try {
+                        const response = await fetch(url);
+                        const blob = await response.blob();
+                        const extension = blob.type.split('/')[1] || 'jpeg';
+                        filesArray.push(new File([blob], `product-${cart[i].product.productCode || i+1}.${extension}`, { type: blob.type }));
+                    } catch (fetchErr) {
+                        console.error("Failed to fetch image for sharing:", fetchErr);
+                    }
+                }
+            }
+            
+            if (filesArray.length > 0 && navigator.canShare({ files: filesArray })) {
+                await navigator.share({
+                    title: 'طلب جديد',
+                    text: text,
+                    files: filesArray
+                });
+                return;
+            }
+        } catch (err) {
+            console.error("Error sharing files:", err);
+        }
+    }
+    
+    // Fallback to standard WhatsApp link if Web Share API with files fails or is unsupported
+    const textFallback = `*طلب جديد* 🛒\n\n${notes ? `*الملاحظات:* ${notes}\n\n` : ''}*المنتجات:*\n${cart.map((item, index) => `${index+1}- ${item.product.name}\n  الكود: ${item.product.productCode || '---'}\n  الموديل: ${item.product.modelNumber || '---'}\n  الكمية: ${item.quantity}\n  الصورة: ${item.product.finalImageUrl || item.product.imageUrl || ''}`).join('\n\n')}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(textFallback)}`, '_blank');
+  };
+
   const handleSubmitOptions = async () => {
     if (cart.length === 0 || !user) return;
     setIsSubmitting(true);
@@ -144,7 +182,7 @@ export default function Cart() {
          </div>
       </div>
 
-      <div className="mt-8 mb-4">
+      <div className="mt-8 mb-4 space-y-3">
          <button 
             onClick={handleSubmitOptions}
             disabled={isSubmitting}
@@ -155,6 +193,12 @@ export default function Cart() {
                   <Send size={20} /> إرسال الطلبية للإدارة
                </>
             )}
+         </button>
+         <button
+            onClick={handleWhatsAppShare}
+            className="w-full flex items-center justify-center gap-2 py-4 bg-[#25D366] hover:bg-[#20bd5a] text-white rounded-xl font-bold tracking-wide transition-all hover:scale-[1.02]"
+         >
+            <Send size={20} /> مشاركة الطلبية عبر واتساب
          </button>
       </div>
     </div>
