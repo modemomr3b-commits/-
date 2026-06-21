@@ -9,6 +9,7 @@ export default function NotificationManager() {
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [adminNotifications, setAdminNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [newNotif, setNewNotif] = useState({ title: '', message: '', type: 'announcement' });
   const [activeTab, setActiveTab] = useState<'admin' | 'clients'>('admin');
@@ -44,7 +45,8 @@ export default function NotificationManager() {
 
   const handleCreateAnnouncement = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newNotif.title || !newNotif.message) return;
+    if (!newNotif.title || !newNotif.message || isSubmitting) return;
+    setIsSubmitting(true);
     try {
       await api.createUpdate({
         ...newNotif,
@@ -58,6 +60,8 @@ export default function NotificationManager() {
       })));
     } catch(e) {
       console.error(e);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -75,7 +79,8 @@ export default function NotificationManager() {
   };
 
   const handleDeleteAnnouncement = async (id: string, title: string) => {
-    if (!confirm(`هل أنت متأكد من حذف التحديث "${title}" بشكل نهائي؟`)) return;
+    // Optimistic update
+    setAnnouncements((prev) => prev.filter((n) => n.id !== id));
     try {
       await api.deleteUpdate(id, user?.username);
       const updated = await api.getUpdates();
@@ -85,16 +90,27 @@ export default function NotificationManager() {
       })));
     } catch(e) {
       console.error(e);
+      // Revert initial UI change
+      const updated = await api.getUpdates();
+      setAnnouncements(updated.map((n: any) => ({
+         ...n,
+         createdAt: new Date(n.createdAt).getTime()
+      })));
     }
   };
 
   const handleDeleteAdminNotif = async (id: string) => {
+    // Optimistic update
+    setAdminNotifications((prev) => prev.filter((n) => n.id !== id));
     try {
       await api.deleteNotification(id, user?.username);
       const updated = await api.getNotifications();
       setAdminNotifications(updated.sort((a,b) => b.createdAt - a.createdAt));
     } catch(e) {
        console.error(e);
+       // Revert initial UI change
+       const updated = await api.getNotifications();
+       setAdminNotifications(updated.sort((a,b) => b.createdAt - a.createdAt));
     }
   };
 
@@ -211,7 +227,8 @@ export default function NotificationManager() {
                         <label className="text-xs text-white/50 block mb-1">الرسالة *</label>
                         <textarea required rows={3} value={newNotif.message} onChange={e => setNewNotif({...newNotif, message: e.target.value})} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white"></textarea>
                      </div>
-                     <button type="submit" className="w-full py-3 bg-brq-gold text-black font-bold rounded-lg mt-2">
+                     <button type="submit" disabled={isSubmitting} className="w-full py-3 bg-brq-gold text-black font-bold rounded-lg mt-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                        {isSubmitting ? <Loader2 size={20} className="animate-spin" /> : null}
                         نشر الإعلان
                      </button>
                   </form>

@@ -14,6 +14,8 @@ import {
   DollarSign,
   CheckSquare,
   Square,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import JSZip from "jszip";
@@ -29,6 +31,7 @@ export default function ProductManager() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [usdRate, setUsdRate] = useState<number>(1500);
 
   const [isAdding, setIsAdding] = useState(false);
@@ -219,7 +222,8 @@ export default function ProductManager() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newProduct.name || !newProduct.price) return;
+    if (!newProduct.name || !newProduct.price || isSubmitting) return;
+    setIsSubmitting(true);
     try {
       let finalImg = newProduct.imageUrl;
       if (newProduct.imageUrl) {
@@ -260,13 +264,16 @@ export default function ProductManager() {
     } catch (error: any) {
       console.error(error);
       alert("حدث خطأ أثناء الإضافة: " + (error.message || JSON.stringify(error)));
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingProduct || !editingProduct.name || !editingProduct.price)
+    if (!editingProduct || !editingProduct.name || !editingProduct.price || isSubmitting)
       return;
+    setIsSubmitting(true);
     try {
       let finalImg = editingProduct.finalImageUrl || editingProduct.imageUrl;
       if (editingProduct.imageUrl) {
@@ -297,20 +304,22 @@ export default function ProductManager() {
       setProducts(updated);
     } catch (error) {
       console.error(error);
+      alert("حدث خطأ أثناء التحديث");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleDelete = async (id: string, name: string) => {
     try {
-      if (
-        !confirm(`هل أنت متأكد من حذف المنتج "${name}" بشكل نهائي؟`)
-      ) {
-        return;
-      }
       if (!id) {
         alert("حدث خطأ: لا يوجد معرف للمنتج");
         return;
       }
+      
+      // Optimistic update
+      setProducts((prev) => prev.filter((prod) => prod.id !== id));
+      
       await api.deleteProduct(id, user?.username);
       await api.logAction({
         userId: user?.uid || "",
@@ -325,6 +334,9 @@ export default function ProductManager() {
       setDeleteConfirmId(null);
     } catch (e: any) {
       console.error("Error deleting:", e);
+      // Revert on error
+      const updated = await api.getProducts();
+      setProducts(updated);
       alert("فشل الحذف: " + e.message);
     }
   };
@@ -355,13 +367,38 @@ export default function ProductManager() {
   };
 
   const handleToggleArchive = async (p: Product) => {
+    // Optimistic update
+    setProducts((prev) =>
+      prev.map((prod) =>
+        prod.id === p.id ? { ...prod, isArchived: !prod.isArchived } : prod
+      )
+    );
     try {
       await api.updateProduct(p.id!, { isArchived: !p.isArchived });
-      const updated = await api.getProducts();
-      setProducts(updated);
     } catch (e) {
       console.error(e);
+      // Revert optimistic update
+      const updated = await api.getProducts();
+      setProducts(updated);
       alert("فشل تغيير حالة المنتج");
+    }
+  };
+
+  const handleToggleHide = async (p: Product) => {
+    // Optimistic update
+    setProducts((prev) =>
+      prev.map((prod) =>
+        prod.id === p.id ? { ...prod, isHidden: !prod.isHidden } : prod
+      )
+    );
+    try {
+      await api.updateProduct(p.id!, { isHidden: !p.isHidden });
+    } catch (e) {
+      console.error(e);
+      // Revert optimistic update
+      const updated = await api.getProducts();
+      setProducts(updated);
+      alert("فشل تغيير حالة إخفاء المنتج");
     }
   };
 
@@ -681,9 +718,17 @@ export default function ProductManager() {
             <div className="md:col-span-2">
               <button
                 type="submit"
-                className="w-full py-3 bg-brq-gold text-black font-bold rounded-lg mt-2"
+                disabled={isSubmitting}
+                className="w-full py-3 bg-brq-gold text-black font-bold rounded-lg mt-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                أضف المنتج
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    جاري الإضافة...
+                  </>
+                ) : (
+                  "أضف المنتج"
+                )}
               </button>
             </div>
           </form>
@@ -832,14 +877,21 @@ export default function ProductManager() {
                               <img
                                 src={p.finalImageUrl || p.imageUrl}
                                 alt={p.name}
-                                className="w-full h-full object-contain bg-black/20"
+                                className="w-full h-full object-cover bg-black/20"
                               />
                             ) : (
                               "👟"
                             )}
                           </div>
                         </td>
-                        <td className="p-4 font-bold">{p.name}</td>
+                        <td className="p-4 font-bold">
+                          {p.name}
+                          {p.isHidden && (
+                            <span className="mr-2 px-2 py-0.5 rounded text-[10px] bg-purple-500/20 text-purple-400 border border-purple-500/30">
+                              مخفي
+                            </span>
+                          )}
+                        </td>
                         <td className="p-4 font-mono text-brq-gold">
                           {p.productCode || "-"}
                         </td>
@@ -878,6 +930,14 @@ export default function ProductManager() {
                             </button>
                             <button
                               type="button"
+                              onClick={() => handleToggleHide(p)}
+                              className={`p-1.5 rounded transition-colors ${p.isHidden ? 'bg-purple-500/20 text-purple-400 hover:bg-purple-500/30' : 'hover:bg-purple-500/20 text-white/50 hover:text-purple-400'}`}
+                              title={p.isHidden ? "إظهار المنتج للمستخدمين" : "إخفاء المنتج عن المستخدمين"}
+                            >
+                              {p.isHidden ? <EyeOff size={16} /> : <Eye size={16} />}
+                            </button>
+                            <button
+                              type="button"
                               onClick={() => setEditingProduct(p)}
                               className="p-1.5 hover:bg-blue-500/20 text-blue-400 rounded transition-colors"
                               title="تعديل"
@@ -890,11 +950,11 @@ export default function ProductManager() {
                               className="p-1.5 hover:bg-yellow-500/20 text-yellow-400 rounded transition-colors"
                               title={
                                 p.isArchived
-                                  ? "استرجاع للمنتجات الفعالة"
-                                  : "نقل للمواد النافذة"
+                                  ? "استرجاع من المواد النافذة"
+                                  : "نقل مباشر إلى المواد النافذة"
                               }
                             >
-                              <Archive size={16} />
+                              <Package size={16} />
                             </button>
                             <button
                               type="button"
@@ -1131,9 +1191,17 @@ export default function ProductManager() {
               <div className="md:col-span-2">
                 <button
                   type="submit"
-                  className="w-full py-3 bg-brq-gold text-black font-bold rounded-lg mt-2"
+                  disabled={isSubmitting}
+                  className="w-full py-3 bg-brq-gold text-black font-bold rounded-lg mt-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  حفظ التعديلات
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      جاري الحفظ...
+                    </>
+                  ) : (
+                    "حفظ التعديلات"
+                  )}
                 </button>
               </div>
             </form>

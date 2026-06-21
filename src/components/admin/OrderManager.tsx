@@ -59,31 +59,44 @@ export default function OrderManager() {
   }, []);
 
   const updateOrderStatus = async (id: string, status: OrderStatus) => {
+    // Optimistic update
+    setOrders((prev) => 
+      prev.map((o) => (o.id === id ? { ...o, status } : o))
+    );
+    if (selectedOrder?.id === id) {
+       setSelectedOrder({ ...selectedOrder, status });
+    }
+       
     try {
       await api.updateOrder(id, { status });
-      const updatedOrders = await api.getOrders();
-      setOrders(updatedOrders.sort((a: any, b: any) => b.createdAt - a.createdAt));
-      if (selectedOrder?.id === id) {
-         setSelectedOrder({ ...selectedOrder, status });
-      }
     } catch(e) {
        console.error("فشل تحديث حالة الطلب", e);
+       // Revert on failure
+       const updatedOrders = await api.getOrders();
+       setOrders(updatedOrders.sort((a: any, b: any) => b.createdAt - a.createdAt));
+       if (selectedOrder?.id === id) {
+          const original = updatedOrders.find((o: any) => o.id === id);
+          if (original) setSelectedOrder(original);
+       }
     }
   };
 
   const handleDelete = async (id: string, orderNumber: string) => {
-    if (!confirm(`هل أنت متأكد من رغبتك في حذف الطلب رقم ${orderNumber} بشكل نهائي؟`)) {
-      return;
+    // Optimistic update
+    setOrders((prev) => prev.filter((o) => o.id !== id));
+    if (selectedOrder?.id === id) {
+        setSelectedOrder(null);
     }
+    
     try {
       await api.deleteOrder(id, user?.username);
       const updatedOrders = await api.getOrders();
       setOrders(updatedOrders.sort((a: any, b: any) => b.createdAt - a.createdAt));
-      if (selectedOrder?.id === id) {
-          setSelectedOrder(null);
-      }
     } catch (e) {
       console.error(e);
+      // Revert initial UI change
+      const updatedOrders = await api.getOrders();
+      setOrders(updatedOrders.sort((a: any, b: any) => b.createdAt - a.createdAt));
       alert('حدث خطأ أثناء الحذف');
     }
   };

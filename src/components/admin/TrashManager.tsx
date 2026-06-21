@@ -60,8 +60,10 @@ export default function TrashManager() {
     const itemsToRestore = id ? [id] : Array.from(selectedItems);
     if (itemsToRestore.length === 0) return;
 
-    if (!confirm("هل أنت متأكد من استعادة العناصر المحددة؟")) return;
-
+    // Optimistic UI updates
+    setItems((prev) => prev.filter(i => !itemsToRestore.includes(i.id)));
+    setSelectedItems(new Set());
+    
     try {
       for (const itemId of itemsToRestore) {
         if (activeTab === "products") await api.restoreProduct(itemId);
@@ -70,11 +72,11 @@ export default function TrashManager() {
         else if (activeTab === "orders") await api.restoreOrder(itemId);
         else if (activeTab === "updates") await api.restoreUpdate(itemId);
       }
-      alert("تم الاستعادة بنجاح");
       fetchTrash();
     } catch (e) {
       console.error(e);
       alert("حدث خطأ أثناء الاستعادة");
+      fetchTrash();
     }
   };
 
@@ -82,76 +84,23 @@ export default function TrashManager() {
     const itemsToDelete = id ? [id] : Array.from(selectedItems);
     if (itemsToDelete.length === 0) return;
 
-    // Customized warning when deleting categories
-    if (activeTab === "categories") {
-      const catsToDelete = itemsToDelete
-        .map((itemId) => items.find((i) => i.id === itemId))
-        .filter(Boolean);
-      for (const cat of catsToDelete) {
-        // get all subcategories & products for this category to show correct numbers
-        try {
-          const allCats = await api.getCategories(); // Need unrestricted access
-          const allProds = await api.getProducts();
-
-          // This is an approximation since we don't have direct unrestricted deep queries readily loaded
-          const subCategories = allCats.filter(
-            (c: any) => c.parentId === cat.id,
-          );
-          const productsInCat = allProds.filter(
-            (p: any) => p.categoryId === cat.id || p.subcategoryId === cat.id,
-          );
-          const subCatIds = subCategories.map((c: any) => c.id);
-          const productsInSubCats = allProds.filter(
-            (p: any) =>
-              subCatIds.includes(p.categoryId) ||
-              subCatIds.includes(p.subcategoryId),
-          );
-
-          const totalProds = new Set([...productsInCat, ...productsInSubCats]);
-          const numImages = Array.from(totalProds).filter(
-            (p: any) => p.imageUrl || p.finalImageUrl,
-          ).length;
-
-          const msg = `هل أنت متأكد من الحذف النهائي؟ سيتم حذف [${cat.name}] مع جميع الأقسام الفرعية التابعة له (عدد ${subCategories.length}) و [${totalProds.size}] منتج و [${numImages}] صورة من قاعدة البيانات نهائياً.`;
-          if (!confirm(msg)) {
-            return; // User cancelled
-          }
-        } catch (e) {
-          console.error(
-            "Failed to gather detailed category info for deletion warning",
-            e,
-          );
-          if (
-            !confirm(
-              `هل أنت متأكد من الحذف النهائي لـ [${cat.name}]؟ سيتم حذف جميع الأقسام والمنتجات التابعة له.`,
-            )
-          )
-            return;
-        }
-      }
-    } else {
-      if (
-        !confirm(
-          "تحذير: سيتم حذف العنصر المالي بشكل نهائي ولا يمكن التراجع عن هذا الإجراء! هل تريد المتابعة؟",
-        )
-      )
-        return;
-    }
-
+    // Optimistic UI updates
+    setItems((prev) => prev.filter(i => !itemsToDelete.includes(i.id)));
+    
     try {
       for (const itemId of itemsToDelete) {
         if (activeTab === "products") await api.hardDeleteProduct(itemId);
-        else if (activeTab === "categories")
-          await api.hardDeleteCategory(itemId);
+        else if (activeTab === "categories") await api.hardDeleteCategory(itemId);
         else if (activeTab === "users") await api.hardDeleteUser(itemId);
         else if (activeTab === "orders") await api.hardDeleteOrder(itemId);
         else if (activeTab === "updates") await api.hardDeleteUpdate(itemId);
       }
-      alert("تم الحذف النهائي بنجاح");
+      setSelectedItems(new Set());
       fetchTrash();
     } catch (e) {
       console.error(e);
       alert("حدث خطأ أثناء الحذف");
+      fetchTrash();
     }
   };
 

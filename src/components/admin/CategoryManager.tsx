@@ -24,6 +24,7 @@ export default function CategoryManager() {
   const { user } = useStore();
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [newCatName, setNewCatName] = useState("");
 
@@ -63,7 +64,8 @@ export default function CategoryManager() {
   }, []);
 
   const handleCreate = async () => {
-    if (!newCatName.trim()) return;
+    if (!newCatName.trim() || isSubmitting) return;
+    setIsSubmitting(true);
     try {
       const newCat = await api.createCategory({
         name: newCatName,
@@ -86,29 +88,20 @@ export default function CategoryManager() {
     } catch (e: any) {
       console.error(e);
       alert("حدث خطأ أثناء الإضافة: " + (e.message || JSON.stringify(e)));
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleDelete = async (id: string, name: string) => {
     try {
+      // Optimistic update
+      setCategories((prev) => prev.filter((c) => c.id !== id && c.parentId !== id));
+      
       const allProducts = await api.getProducts();
       const productsInCat = allProducts.filter(
         (p) => p.categoryId === id || p.subcategoryId === id,
       );
-
-      if (productsInCat.length > 0) {
-        if (
-          !confirm(
-            `تنبيه: هذا القسم (${name}) يحتوي على ${productsInCat.length} منتجات.\nهل أنت متأكد من رغبتك في حذفه بشكل نهائي؟ (ملاحظة: هذا لن يحذف المنتجات بل سيجعلها بدون قسم)`,
-          )
-        ) {
-          return;
-        }
-      } else {
-        if (!confirm(`هل تريد بالتأكيد نقل قسم "${name}" إلى سلة المحذوفات؟`)) {
-          return;
-        }
-      }
 
       await api.deleteCategory(id, user?.username);
       await api.logAction({
@@ -123,11 +116,20 @@ export default function CategoryManager() {
       setCategories(updated);
     } catch (e) {
       console.error(e);
+      // Revert optimistic update
+      const updated = await api.getCategories();
+      setCategories(updated);
       alert("حدث خطأ أثناء الحذف");
     }
   };
 
   const handleToggleHide = async (id: string, currentIsHidden: boolean) => {
+    // Optimistic update
+    setCategories((prev) =>
+      prev.map((c) =>
+        c.id === id ? { ...c, isHidden: !currentIsHidden } : c
+      )
+    );
     try {
       await api.updateCategory(id, {
         isHidden: !currentIsHidden,
@@ -143,6 +145,9 @@ export default function CategoryManager() {
       setCategories(updated);
     } catch (e) {
       console.error(e);
+      // Revert optimistic update
+      const updated = await api.getCategories();
+      setCategories(updated);
     }
   };
 
@@ -160,7 +165,8 @@ export default function CategoryManager() {
   const [newSubName, setNewSubName] = useState("");
 
   const handleCreateSub = async (parentId: string) => {
-    if (!newSubName.trim()) return;
+    if (!newSubName.trim() || isSubmitting) return;
+    setIsSubmitting(true);
     try {
       const subs = getSubcategories(parentId);
       const newSub = await api.createCategory({
@@ -183,6 +189,8 @@ export default function CategoryManager() {
       setCategories(updated);
     } catch (e) {
       console.error(e);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -385,9 +393,10 @@ export default function CategoryManager() {
           </div>
           <button
             onClick={handleCreate}
-            disabled={!newCatName.trim()}
-            className="px-6 py-2 bg-brq-gold text-black rounded-lg font-bold disabled:opacity-50"
+            disabled={!newCatName.trim() || isSubmitting}
+            className="px-6 py-2 bg-brq-gold text-black rounded-lg font-bold disabled:opacity-50 flex items-center gap-2"
           >
+            {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : null}
             حفظ
           </button>
         </div>
@@ -498,9 +507,10 @@ export default function CategoryManager() {
                     />
                     <button
                       onClick={() => handleCreateSub(c.id!)}
-                      disabled={!newSubName.trim()}
-                      className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold rounded-lg transition-colors"
+                      disabled={!newSubName.trim() || isSubmitting}
+                      className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50"
                     >
+                      {activeParentForSub === c.id && isSubmitting ? <Loader2 size={14} className="animate-spin" /> : null}
                       إضافة
                     </button>
                   </div>

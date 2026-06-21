@@ -50,6 +50,7 @@ export interface Product extends BaseEntity {
   imageUrl: string; // Will store the raw image
   finalImageUrl?: string; // Burned in info image
   isArchived: boolean;
+  isHidden?: boolean;
   views: number;
   createdAt: number;
 }

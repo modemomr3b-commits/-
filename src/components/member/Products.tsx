@@ -29,7 +29,7 @@ export default function Products() {
         api.getProducts(),
       ]);
 
-      let fetchedProducts = allProducts.filter((p: any) => !p.isArchived);
+      let fetchedProducts = allProducts.filter((p: any) => !p.isArchived && !p.isHidden);
       if (categoryId) {
         fetchedProducts = fetchedProducts.filter(
           (p: any) => p.categoryId === categoryId,
@@ -212,13 +212,14 @@ export default function Products() {
               key={p.id}
               className="glass-card rounded-2xl overflow-hidden flex flex-col border border-white/5 relative group hover:border-brq-gold transition-colors shadow-lg"
             >
-              <div className="w-full aspect-square bg-black/40 relative flex items-center justify-center border-b border-white/5 p-2">
+              <div className="w-full aspect-square bg-black/40 relative flex items-center justify-center border-b border-white/5 p-0">
                 {p.finalImageUrl || p.imageUrl ? (
                   <OptimizedImage
                     src={p.finalImageUrl || p.imageUrl}
                     alt={p.name}
                     size="medium"
-                    className="w-full h-full object-contain hover:scale-105 transition-transform duration-500"
+                    className="w-full h-full"
+                    imgClassName="object-cover hover:scale-105 transition-transform duration-500"
                   />
                 ) : (
                   <div className="text-white/30 text-3xl">👟</div>

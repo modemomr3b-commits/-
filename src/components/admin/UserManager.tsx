@@ -8,6 +8,7 @@ export default function UserManager() {
   const { user: currentUser } = useStore();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [newUser, setNewUser] = useState<Partial<User>>({
     username: '', password: '', fullName: '', phone: '', role: 'normal', status: 'active', allowedDevice: 'all'
@@ -38,7 +39,8 @@ export default function UserManager() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newUser.username || !newUser.fullName) return;
+    if (!newUser.username || !newUser.fullName || isSubmitting) return;
+    setIsSubmitting(true);
     try {
       const userToCreate = {
         id: newUser.username,
@@ -71,6 +73,8 @@ export default function UserManager() {
     } catch(e) {
       console.error(e);
       alert('فشل إنشاء المستخدم. ربما اسم المستخدم موجود مسبقاً.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -91,9 +95,8 @@ export default function UserManager() {
          return;
      }
 
-     if (!confirm(`هل تريد حذف المستخدم "${username}" بشكل نهائي؟`)) {
-         return;
-     }
+     // Optimistic update
+     setUsers((prev) => prev.filter((u) => u.uid !== uid));
 
      try {
          await api.deleteUser(uid, currentUser?.username);
@@ -111,6 +114,9 @@ export default function UserManager() {
          setUsers(updated.map((u: any) => ({...u, uid: u.id})));
      } catch(e) {
          console.error(e);
+         // Revert on error
+         const updated = await api.getUsers();
+         setUsers(updated.map((u: any) => ({...u, uid: u.id})));
          alert('حدث خطأ أثناء الحذف');
      }
   };
@@ -209,7 +215,8 @@ export default function UserManager() {
                   </select>
                </div>
                <div className="md:col-span-2 mt-2">
-                  <button type="submit" className="w-full py-3 bg-brq-gold text-black font-bold rounded-lg hover:bg-yellow-500 transition-colors">
+                  <button type="submit" disabled={isSubmitting} className="w-full py-3 bg-brq-gold text-black font-bold rounded-lg hover:bg-yellow-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2">
+                     {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
                      حفظ المستخدم
                   </button>
                </div>

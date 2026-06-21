@@ -30,6 +30,9 @@ export default function SearchPage() {
   }, []);
 
   const filteredProducts = products.filter(p => {
+    // Hidden products should not be visible
+    if (p.isHidden) return false;
+
     // Filter by archive status
     if (searchArchived ? !p.isArchived : p.isArchived) return false;
     
@@ -111,9 +114,9 @@ export default function SearchPage() {
                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                  {filteredProducts.map(p => (
                     <Link to={`/product/${p.id}`} key={p.id} className="glass-card rounded-2xl overflow-hidden flex flex-col border border-white/5 relative group hover:border-brq-gold transition-colors">
-                      <div className="w-full aspect-[4/5] bg-black/40 relative flex items-center justify-center">
+                      <div className="w-full aspect-square bg-black/40 relative flex items-center justify-center p-0">
                          {p.finalImageUrl || p.imageUrl ? (
-                           <OptimizedImage src={p.finalImageUrl || p.imageUrl} alt={p.name} size="medium" className="w-full h-full" />
+                           <OptimizedImage src={p.finalImageUrl || p.imageUrl} alt={p.name} size="medium" className="w-full h-full" imgClassName="object-cover" />
                          ) : (
                            <span className="text-4xl opacity-50">👟</span>
                          )}

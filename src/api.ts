@@ -15,14 +15,32 @@ const getDeletedData = async (table: string) => {
 
 export const api = {
   // PRODUCTS
-  getProducts: async () => await getData('products'),
+  getProducts: async () => {
+    const data = await getData('products');
+    return data.map((p: any) => ({
+      ...p,
+      isHidden: p.size?.isHidden || false
+    }));
+  },
   createProduct: async (data: any) => { 
-    const { data: r, error } = await supabase.from('products').insert(data).select().single(); 
-    if (error) throw error; return r; 
+    const safeData = { ...data };
+    if (safeData.isHidden !== undefined) {
+      safeData.size = { ...(safeData.size || {}), isHidden: safeData.isHidden };
+      delete safeData.isHidden;
+    }
+    const { data: r, error } = await supabase.from('products').insert(safeData).select().single(); 
+    if (error) throw error; 
+    return { ...r, isHidden: r.size?.isHidden || false }; 
   },
   updateProduct: async (id: string, data: any) => { 
-    const { data: r, error } = await supabase.from('products').update(data).match({ id }).select().single(); 
-    if (error) throw error; return r; 
+    const safeData = { ...data };
+    if (safeData.isHidden !== undefined) {
+      safeData.size = { ...(safeData.size || {}), isHidden: safeData.isHidden };
+      delete safeData.isHidden;
+    }
+    const { data: r, error } = await supabase.from('products').update(safeData).match({ id }).select().single(); 
+    if (error) throw error; 
+    return { ...r, isHidden: r.size?.isHidden || false }; 
   },
   deleteProduct: async (id: string, deletedBy?: string) => { 
     const { error } = await supabase.from('products').delete().match({ id }); 

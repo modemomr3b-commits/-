@@ -115,7 +115,7 @@ export default function Cart() {
              <div key={item.product.id} className="glass-card p-3 rounded-2xl flex gap-3 relative">
                 <Link to={`/product/${item.product.id}`} className="shrink-0">
                   {item.product.finalImageUrl || item.product.imageUrl ? (
-                     <OptimizedImage src={item.product.finalImageUrl || item.product.imageUrl} alt={item.product.name} size="thumbnail" className="w-24 h-24 rounded-xl object-contain bg-black/40 border border-white/5" />
+                     <OptimizedImage src={item.product.finalImageUrl || item.product.imageUrl} alt={item.product.name} size="thumbnail" className="w-24 h-24 rounded-xl bg-black/40 border border-white/5" imgClassName="object-cover" />
                   ) : <div className="w-24 h-24 rounded-xl bg-black/40 border border-white/5 flex items-center justify-center text-3xl">👟</div>}
                 </Link>
                 <div className="flex flex-col flex-1 py-1">

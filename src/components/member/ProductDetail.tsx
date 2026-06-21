@@ -20,7 +20,11 @@ export default function ProductDetail() {
         const allProducts = await api.getProducts();
         const found = allProducts.find((p: any) => p.id === productId);
         if (mounted) {
-          setProduct(found || null);
+          if (found && found.isHidden) {
+            setProduct(null);
+          } else {
+            setProduct(found || null);
+          }
           setLoading(false);
         }
       } catch (err) {
@@ -58,9 +62,9 @@ export default function ProductDetail() {
 
   return (
     <div className="pb-20">
-      <div className="relative w-full aspect-[4/5] bg-black/40 flex items-center justify-center">
+      <div className="relative w-full bg-black/40 flex items-center justify-center min-h-[300px]">
          {product.finalImageUrl || product.imageUrl ? (
-            <OptimizedImage src={product.finalImageUrl || product.imageUrl} alt={product.name} size="full" className="w-full h-full object-contain" />
+            <OptimizedImage src={product.finalImageUrl || product.imageUrl} alt={product.name} size="full" className="w-full h-auto" />
          ) : null}
          
          <button onClick={() => navigate(-1)} className="absolute top-4 right-4 p-2 bg-black/50 backdrop-blur-md rounded-full border border-white/20 text-white z-10 hover:bg-black transition-colors">

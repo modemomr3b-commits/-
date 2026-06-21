@@ -4,12 +4,13 @@ interface OptimizedImageProps extends React.ImgHTMLAttributes<HTMLImageElement> 
   src: string;
   alt: string;
   className?: string;
+  imgClassName?: string;
   width?: number;
   height?: number;
   size?: 'thumbnail' | 'medium' | 'full';
 }
 
-export default function OptimizedImage({ src, alt, className = '', width, height, size = 'medium', ...props }: OptimizedImageProps) {
+export default function OptimizedImage({ src, alt, className = '', imgClassName = '', width, height, size = 'medium', ...props }: OptimizedImageProps) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [currentSrc, setCurrentSrc] = useState<string>('');
 
@@ -46,7 +47,7 @@ export default function OptimizedImage({ src, alt, className = '', width, height
       <img
         src={currentSrc || undefined}
         alt={alt}
-        className={`w-full h-full object-contain transition-opacity duration-700 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
+        className={`w-full h-full transition-opacity duration-700 ${imgClassName || 'object-contain'} ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
         loading="lazy"
         width={width}
         height={height}
