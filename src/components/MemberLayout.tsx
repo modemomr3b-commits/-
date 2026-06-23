@@ -101,7 +101,7 @@ export default function MemberLayout() {
              </div>
           </div>
           {user?.role === 'admin' && (
-            <Link to="/admin" className="mt-3 flex items-center justify-center w-full py-2.5 bg-brq-royal/20 text-brq-gold rounded-xl border border-brq-gold/30 text-sm font-bold font-mono hover:bg-brq-royal/40 transition-colors gap-2">
+            <Link to="/admin" className="mt-3 flex items-center justify-center w-full py-2.5 bg-brq-royal/20 text-white rounded-xl border border-white/20 text-sm font-bold font-mono hover:bg-brq-royal/40 transition-colors gap-2">
               <User size={16} /> Admin Panel
             </Link>
           )}
@@ -119,7 +119,7 @@ export default function MemberLayout() {
           </div>
           <div className="flex gap-2 items-center">
             {user?.role === 'admin' && (
-              <Link to="/admin" className="px-3 py-1.5 bg-brq-royal/20 text-brq-gold rounded-lg border border-brq-gold/30 text-xs font-bold font-mono hover:bg-brq-royal/40">
+              <Link to="/admin" className="px-3 py-1.5 bg-brq-royal/20 text-white rounded-lg border border-white/20 text-xs font-bold font-mono hover:bg-brq-royal/40">
                 Admin
               </Link>
             )}

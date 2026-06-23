@@ -34,3 +34,68 @@ body {
   border-radius: 1rem;
 }
 
+/* Admin Light Theme Overrides */
+.admin-theme {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+.admin-theme .glass-panel,
+.admin-theme aside.glass-panel,
+.admin-theme header.glass-panel {
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1) !important;
+}
+
+.admin-theme .glass-card {
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05) !important;
+}
+
+.admin-theme .text-white:not(.bg-brq-royal):not(.bg-red-500):not(.bg-\[\#25D366\]):not(.bg-blue-600) { color: #0f172a !important; }
+.admin-theme .text-white\/90:not(.bg-brq-royal) { color: rgba(15, 23, 42, 0.9) !important; }
+.admin-theme .text-white\/80:not(.bg-brq-royal) { color: rgba(15, 23, 42, 0.8) !important; }
+.admin-theme .text-white\/70:not(.bg-brq-royal) { color: rgba(15, 23, 42, 0.7) !important; }
+.admin-theme .text-white\/60:not(.bg-brq-royal) { color: rgba(15, 23, 42, 0.6) !important; }
+.admin-theme .text-white\/50:not(.bg-brq-royal) { color: rgba(15, 23, 42, 0.5) !important; }
+.admin-theme .text-white\/40:not(.bg-brq-royal) { color: rgba(15, 23, 42, 0.4) !important; }
+.admin-theme .text-white\/30:not(.bg-brq-royal) { color: rgba(15, 23, 42, 0.3) !important; }
+.admin-theme .text-white\/20:not(.bg-brq-royal) { color: rgba(15, 23, 42, 0.2) !important; }
+
+/* Handle navy backgrounds that stand out in light theme */
+.admin-theme .bg-brq-navy { background-color: #f1f5f9 !important; border-color: #cbd5e1 !important; color: #334155 !important; }
+.admin-theme .bg-brq-black { background-color: #ffffff !important; color: #0f172a !important; }
+
+/* Handle gold text overrides for light mode to be a bit darker and more legible */
+.admin-theme .text-brq-gold { color: #d97706 !important; }
+.admin-theme .bg-brq-gold\/20 { background-color: #fde68a !important; }
+.admin-theme .bg-brq-gold\/10 { background-color: #fef3c7 !important; }
+.admin-theme .bg-brq-gold\/5 { background-color: #fffbeb !important; }
+.admin-theme .bg-brq-gold { background-color: #f59e0b !important; color: #ffffff !important; }
+.admin-theme .border-brq-gold\/50 { border-color: #fbbf24 !important; }
+.admin-theme .border-brq-gold\/30 { border-color: #fcd34d !important; }
+
+.admin-theme .bg-white\/5,
+.admin-theme .bg-white\/10,
+.admin-theme .bg-white\/20 {
+  background-color: #f1f5f9 !important;
+}
+
+.admin-theme .hover\:bg-white\/5:hover,
+.admin-theme .hover\:bg-white\/10:hover {
+  background-color: #e2e8f0 !important;
+}
+
+.admin-theme .border-white\/5,
+.admin-theme .border-white\/10,
+.admin-theme .border-white\/20 {
+  border-color: #e2e8f0 !important;
+}
+
+.admin-theme .placeholder-white\/50::-webkit-input-placeholder { color: rgba(15, 23, 42, 0.5) !important; }
+.admin-theme .placeholder-white\/50::-moz-placeholder { color: rgba(15, 23, 42, 0.5) !important; }
+.admin-theme .placeholder-white\/50::placeholder { color: rgba(15, 23, 42, 0.5) !important; }
+
+

@@ -54,9 +54,38 @@ export default function ProductManager() {
     imageUrl: "",
   });
 
-  const [filterStatus, setFilterStatus] = useState<"active" | "archived">(
-    "active",
-  );
+  const [filterStatus, setFilterStatus] = useState<"active" | "archived">("active");
+
+  const autoSelectSubcategory = (name: string, categoryId: string, currentSubcategoryId?: string) => {
+    if (!categoryId || !name) return currentSubcategoryId || "";
+    
+    const lowerName = name.toLowerCase();
+    const subs = categories.filter(c => c.parentId === categoryId);
+    
+    const matches = [
+        { key: "رجالي", term: "رجالي" },
+        { key: "نسائي", term: "نسائي" },
+        { key: "شبابي", term: "شبابي" },
+        { key: "ولادي", term: "ولادي" },
+        { key: "طفل", term: "ولادي" },
+        { key: "بناتي", term: "بناتي" },
+        { key: "طفلة", term: "بناتي" },
+        { key: "بيبي", term: "بيبي" },
+        { key: "اعدادي", term: "اعدادي" },
+        { key: "مدرسي", term: "مدرسي" },
+        { key: "سفر", term: "سفر" },
+    ];
+    
+    for (const match of matches) {
+        if (lowerName.includes(match.key)) {
+            const foundSub = subs.find(s => s.name.includes(match.term) || s.name.includes(match.key));
+            if (foundSub) {
+                return foundSub.id;
+            }
+        }
+    }
+    return currentSubcategoryId || "";
+  };
 
   const loadData = async () => {
     try {
@@ -542,9 +571,11 @@ export default function ProductManager() {
                 required
                 type="text"
                 value={newProduct.name}
-                onChange={(e) =>
-                  setNewProduct({ ...newProduct, name: e.target.value })
-                }
+                onChange={(e) => {
+                  const newName = e.target.value;
+                  const autoSub = autoSelectSubcategory(newName, newProduct.categoryId || "");
+                  setNewProduct({ ...newProduct, name: newName, subcategoryId: autoSub || newProduct.subcategoryId });
+                }}
                 className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white"
               />
             </div>
@@ -646,13 +677,15 @@ export default function ProductManager() {
               <label className="text-xs text-white/50 block mb-1">القسم</label>
               <select
                 value={newProduct.categoryId}
-                onChange={(e) =>
+                onChange={(e) => {
+                  const newCat = e.target.value;
+                  const autoSub = autoSelectSubcategory(newProduct.name || "", newCat);
                   setNewProduct({
                     ...newProduct,
-                    categoryId: e.target.value,
-                    subcategoryId: "",
-                  })
-                }
+                    categoryId: newCat,
+                    subcategoryId: autoSub || "",
+                  });
+                }}
                 className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white"
               >
                 <option value="">-- إختر القسم --</option>
@@ -1007,12 +1040,15 @@ export default function ProductManager() {
                   required
                   type="text"
                   value={editingProduct.name}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    const newName = e.target.value;
+                    const autoSub = autoSelectSubcategory(newName, editingProduct.categoryId || "");
                     setEditingProduct({
                       ...editingProduct,
-                      name: e.target.value,
-                    })
-                  }
+                      name: newName,
+                      subcategoryId: autoSub || editingProduct.subcategoryId
+                    });
+                  }}
                   className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white"
                 />
               </div>
@@ -1116,13 +1152,15 @@ export default function ProductManager() {
                 </label>
                 <select
                   value={editingProduct.categoryId}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    const newCat = e.target.value;
+                    const autoSub = autoSelectSubcategory(editingProduct.name || "", newCat);
                     setEditingProduct({
                       ...editingProduct,
-                      categoryId: e.target.value,
-                      subcategoryId: "",
-                    })
-                  }
+                      categoryId: newCat,
+                      subcategoryId: autoSub || "",
+                    });
+                  }}
                   className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white"
                 >
                   <option value="">-- إختر القسم --</option>

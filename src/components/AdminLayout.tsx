@@ -71,7 +71,7 @@ export default function AdminLayout() {
   ];
 
   return (
-    <div className="flex h-screen bg-[#050a1a] overflow-hidden">
+    <div className="admin-theme flex h-screen bg-[#050a1a] overflow-hidden">
       {/* Toast Notification */}
       {toastMessage && (
          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[100] bg-emerald-900 border border-emerald-500 rounded-xl p-4 shadow-2xl flex items-start gap-3 animate-[pulse_2s_ease-in-out_infinite]">
@@ -84,9 +84,9 @@ export default function AdminLayout() {
       )}
 
       {/* Sidebar for Desktop */}
-      <aside className="w-64 glass-panel border-l border-brq-gold/20 flex flex-col hidden md:flex h-full rounded-none">
-        <div className="p-6 border-b border-brq-gold/10">
-          <h2 className="text-xl font-bold text-brq-gold tracking-widest text-center">BRQ SYSTEM</h2>
+      <aside className="w-64 glass-panel border-l border-white/20 flex flex-col hidden md:flex h-full rounded-none">
+        <div className="p-6 border-b border-white/10">
+          <h2 className="text-xl font-bold text-white tracking-widest text-center">BRQ SYSTEM</h2>
           <p className="text-xs text-center text-white/50 uppercase mt-1">Admin Dashboard</p>
         </div>
         <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
@@ -100,12 +100,12 @@ export default function AdminLayout() {
                 className={cn(
                   "flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-200",
                   isActive 
-                    ? "bg-brq-royal/20 border border-brq-royal/50 shadow-[0_0_15px_rgba(30,94,255,0.2)] text-white" 
+                    ? "bg-white/10 border border-white/20 text-white" 
                     : "text-white/60 hover:bg-white/5 hover:text-white"
                 )}
               >
                 <div className="flex items-center gap-3">
-                   <Icon size={20} className={isActive ? "text-brq-gold" : ""} />
+                   <Icon size={20} className={isActive ? "text-white" : ""} />
                    <span className="font-medium">{item.label}</span>
                 </div>
                 {item.badge !== undefined && item.badge > 0 && (
@@ -115,7 +115,7 @@ export default function AdminLayout() {
             );
           })}
         </nav>
-        <div className="p-4 border-t border-brq-gold/10">
+        <div className="p-4 border-t border-white/10">
           <button 
             onClick={handleLogout}
             className="flex items-center gap-3 w-full px-4 py-3 text-red-400 hover:bg-red-500/10 rounded-xl transition-colors font-medium"
@@ -128,16 +128,16 @@ export default function AdminLayout() {
 
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col h-full overflow-hidden relative">
-        <header className="glass-panel border-b border-brq-gold/10 h-16 flex flex-shrink-0 items-center px-6 justify-between rounded-none">
-          <h1 className="text-lg font-semibold text-brq-white">
+        <header className="glass-panel border-b border-white/10 h-16 flex flex-shrink-0 items-center px-6 justify-between rounded-none">
+          <h1 className="text-lg font-semibold text-white">
             {menu.find(m => m.path === location.pathname)?.label || 'لوحة القيادة'}
           </h1>
           <div className="flex gap-4 items-center">
              <div className="text-left text-sm hidden sm:block">
-               <p className="font-medium">{user?.fullName || 'مدير النظام'}</p>
+               <p className="font-medium text-white">{user?.fullName || 'مدير النظام'}</p>
                <p className="text-white/50 text-xs font-mono">@{user?.username}</p>
              </div>
-             <div className="w-10 h-10 rounded-full bg-brq-gold/20 border border-brq-gold/50 flex items-center justify-center text-brq-gold font-bold">
+             <div className="w-10 h-10 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-white font-bold">
                {user?.fullName?.charAt(0).toUpperCase() || 'W'}
              </div>
           </div>
