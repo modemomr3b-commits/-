@@ -79,10 +79,18 @@ export const api = {
   },
 
   // USERS
-  getUsers: async () => await getData('users'),
+  getUsers: async () => {
+    const data = await getData('users');
+    return data.map((u: any) => {
+      const { password, ...rest } = u;
+      return rest;
+    });
+  },
   getUser: async (id: string) => { 
     const { data, error } = await supabase.from('users').select('*').match({ id }).single(); 
-    return error ? null : data; 
+    if (error || !data) return null;
+    const { password, ...rest } = data;
+    return rest;
   },
   createUser: async (data: any) => { 
     const { data: r, error } = await supabase.from('users').insert({ id: data.id || data.uid, ...data }).select().single(); 

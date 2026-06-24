@@ -16,15 +16,16 @@ import {
   Square,
   Eye,
   EyeOff,
+  Share2,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
-import JSZip from "jszip";
-import { saveAs } from "file-saver";
 import { api } from "../../api";
 import { supabase } from "../../supabase";
 import { Product, Category } from "../../types";
 import { burnProductOverlay } from "../../utils/burnImage";
+import { BatchProductItem } from "./BatchProductUpload";
 import { useStore } from "../../store";
+import { CategoryDownloadDialog } from "../shared/CategoryDownloadDialog";
 
 export default function ProductManager() {
   const { user } = useStore();
@@ -35,6 +36,8 @@ export default function ProductManager() {
   const [usdRate, setUsdRate] = useState<number>(1500);
 
   const [isAdding, setIsAdding] = useState(false);
+  const [isBatchAdding, setIsBatchAdding] = useState(false);
+  const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -454,6 +457,63 @@ export default function ProductManager() {
     }
   };
 
+  const handleBulkShare = async () => {
+    if (selectedIds.size === 0) return;
+
+    const productsToDownload = products.filter((p) => selectedIds.has(p.id!));
+    const imagesWithData = productsToDownload.filter(
+      (p) => p.finalImageUrl || p.imageUrl,
+    );
+
+    if (imagesWithData.length === 0) {
+      alert("لا توجد صور للمنتجات المحددة.");
+      return;
+    }
+
+    setDownloadProgress({ progress: 0, total: imagesWithData.length });
+    let completed = 0;
+    const files: File[] = [];
+
+    for (const p of imagesWithData) {
+      const imgUrl = p.finalImageUrl || p.imageUrl;
+      if (imgUrl) {
+        try {
+          const res = await fetch(imgUrl);
+          const blob = await res.blob();
+          const ext = blob.type.split("/")[1] || "jpg";
+          const safeName = (p.productCode || p.name || "product").replace(/[\/\?<>\\:\*\|":]/g, '-');
+          const filename = `${safeName}.${ext}`;
+          files.push(new File([blob], filename, { type: blob.type }));
+        } catch (err) {
+          console.error(`Failed to fetch image for ${p.name}`, err);
+        }
+      }
+      completed++;
+      setDownloadProgress({
+        progress: completed,
+        total: imagesWithData.length,
+      });
+    }
+
+    setDownloadProgress(null);
+
+    if (files.length > 0) {
+      if (navigator.canShare && navigator.canShare({ files })) {
+        try {
+          await navigator.share({
+            files,
+            title: 'منتجات BRQ',
+          });
+          setSelectedIds(new Set());
+        } catch (error) {
+          console.error('Error sharing files', error);
+        }
+      } else {
+        alert("متصفحك لا يدعم مشاركة هذه الصور مباشرة. جرب تحميلها بدلاً من ذلك.");
+      }
+    }
+  };
+
   const handleBulkDownload = async () => {
     if (selectedIds.size === 0) return;
 
@@ -468,7 +528,6 @@ export default function ProductManager() {
     }
 
     setDownloadProgress({ progress: 0, total: imagesWithData.length });
-    const zip = new JSZip();
     let completed = 0;
 
     for (const p of imagesWithData) {
@@ -478,8 +537,22 @@ export default function ProductManager() {
           const res = await fetch(imgUrl);
           const blob = await res.blob();
           const ext = blob.type.split("/")[1] || "jpg";
-          const filename = `${p.productCode || p.name || "product"}.${ext}`;
-          zip.file(filename, blob);
+          
+          const safeName = (p.productCode || p.name || "product").replace(/[\/\?<>\\:\*\|":]/g, '-');
+          const filename = `${safeName}.${ext}`;
+          
+          const objectUrl = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = objectUrl;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          
+          // Small delay to prevent browser from blocking multiple downloads
+          await new Promise(resolve => setTimeout(resolve, 300));
+          
+          URL.revokeObjectURL(objectUrl);
         } catch (err) {
           console.error(`Failed to download image for ${p.name}`, err);
         }
@@ -490,9 +563,6 @@ export default function ProductManager() {
         total: imagesWithData.length,
       });
     }
-
-    const content = await zip.generateAsync({ type: "blob" });
-    saveAs(content, `BRQ-Selected-Products.zip`);
 
     setDownloadProgress(null);
     setSelectedIds(new Set());
@@ -536,17 +606,51 @@ export default function ProductManager() {
               />
             </div>
           </div>
-          <button className="flex-1 md:flex-none flex items-center justify-center gap-2 py-2.5 px-4 bg-brq-navy border border-brq-gold/50 text-brq-gold rounded-xl hover:bg-brq-gold hover:text-black transition-all text-sm font-bold">
-            <Upload size={18} /> رفع مجلد
+          <button onClick={() => setIsDownloadDialogOpen(true)} className="flex-1 md:flex-none flex items-center justify-center gap-2 py-2.5 px-4 bg-brq-gold/20 border border-brq-gold/50 text-brq-gold rounded-xl hover:bg-brq-gold/30 transition-all text-sm font-bold">
+            <Download size={18} /> تحميل متقدم
+          </button>
+          <button onClick={() => { setIsBatchAdding(!isBatchAdding); setIsAdding(false); }} className="flex-1 md:flex-none flex items-center justify-center gap-2 py-2.5 px-4 bg-brq-navy border border-brq-gold/50 text-brq-gold rounded-xl hover:bg-brq-gold hover:text-black transition-all text-sm font-bold">
+            <Upload size={18} /> رفع سريع (10 منتجات)
           </button>
           <button
-            onClick={() => setIsAdding(!isAdding)}
+            onClick={() => { setIsAdding(!isAdding); setIsBatchAdding(false); }}
             className="flex-1 md:flex-none flex items-center justify-center gap-2 py-2.5 px-4 bg-brq-royal hover:bg-blue-600 text-white rounded-xl transition-all text-sm font-bold shadow-[0_4px_15px_rgba(30,94,255,0.3)]"
           >
             <Plus size={18} /> إضافة منتج
           </button>
         </div>
       </div>
+
+      {isDownloadDialogOpen && (
+        <CategoryDownloadDialog 
+          categories={categories}
+          products={products}
+          onClose={() => setIsDownloadDialogOpen(false)}
+        />
+      )}
+
+      {isBatchAdding && (
+        <div className="space-y-4">
+            <div className="flex justify-between items-center bg-black/40 p-4 rounded-xl border border-white/10">
+                <h3 className="text-brq-gold font-bold">نمط الرفع السريع</h3>
+                <button onClick={() => setIsBatchAdding(false)} className="text-white/50 hover:text-white">
+                    <X size={20} />
+                </button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {Array.from({ length: 10 }).map((_, idx) => (
+                    <BatchProductItem 
+                        key={idx} 
+                        index={idx + 1}
+                        categories={categories}
+                        usdRate={usdRate}
+                        user={user}
+                        onAdded={loadData}
+                    />
+                ))}
+            </div>
+        </div>
+      )}
 
       {isAdding && (
         <div className="glass-panel p-6 rounded-2xl border border-brq-gold/30 relative">
@@ -828,6 +932,14 @@ export default function ProductManager() {
                   <span className="text-sm font-bold text-white/80">
                     تم تحديد: {selectedIds.size}
                   </span>
+                  <button
+                    onClick={handleBulkShare}
+                    disabled={downloadProgress !== null}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-lg text-sm hover:bg-blue-500/30 transition-colors font-bold"
+                  >
+                    <Share2 size={16} />
+                    مشاركة الصور
+                  </button>
                   <button
                     onClick={handleBulkDownload}
                     disabled={downloadProgress !== null}

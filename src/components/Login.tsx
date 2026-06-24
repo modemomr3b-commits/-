@@ -1,40 +1,21 @@
 import { useState, useEffect } from 'react';
+import bcryptjs from 'bcryptjs';
 import { useStore } from '../store.ts';
 import { useNavigate } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
-import { Diamond, LogIn, Loader2, Download } from 'lucide-react';
+import { Diamond, LogIn, Loader2, Download, Share } from 'lucide-react';
 import { api } from '../api';
 import { supabase } from '../supabase.ts';
+import { usePWAInstall } from '../hooks/usePWAInstall';
 
 export default function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const setUser = useStore((state) => state.setUser);
   const navigate = useNavigate();
-
-  useEffect(() => {
-    const handleBeforeInstallPrompt = (e: Event) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-    };
-
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    };
-  }, []);
-
-  const handleInstallClick = async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-      setDeferredPrompt(null);
-    }
-  };
+  const { deferredPrompt, isIOS, showInstallPrompt, handleInstallClick } = usePWAInstall();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -96,17 +77,34 @@ export default function Login() {
          }
       } else {
          // Check Supabase
-         const { data: snapshot, error: fetchError } = await supabase.from('users').select('*').match({ username: cleanUsername, password });
+         const { data: snapshot, error: fetchError } = await supabase.from('users').select('*').eq('username', cleanUsername);
          if (fetchError || !snapshot || snapshot.length === 0) {
             throw new Error('بيانات الدخول غير صحيحة');
          }
 
          const udoc = snapshot[0];
-         if (udoc.isActive === false) {
+         
+         // Verify password securely
+         const isBcryptHash = udoc.password && udoc.password.startsWith('$2');
+         let isPasswordCorrect = false;
+         
+         if (isBcryptHash) {
+             isPasswordCorrect = bcryptjs.compareSync(password, udoc.password);
+         } else {
+             // Legacy plain text password
+             isPasswordCorrect = (udoc.password === password);
+         }
+
+         if (!isPasswordCorrect) {
+             throw new Error('بيانات الدخول غير صحيحة');
+         }
+
+         if (udoc.status === 'inactive' || udoc.isActive === false) {
             throw new Error('تم إيقاف هذا الحساب.');
          }
 
-         finalUser = { id: udoc.id, ...udoc, uid: udoc.id };
+         const { password: _dbPassword, ...userWithoutPassword } = udoc;
+         finalUser = { id: udoc.id, ...userWithoutPassword, uid: udoc.id };
       }
 
       setUser(finalUser);
@@ -238,7 +236,7 @@ export default function Login() {
             </form>
 
             <AnimatePresence>
-              {deferredPrompt && (
+              {(showInstallPrompt && (deferredPrompt || isIOS)) && (
                 <motion.div
                   initial={{ opacity: 0, y: 30 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -253,12 +251,24 @@ export default function Login() {
                   <p className="text-white/60 text-xs mb-4 max-w-[250px] leading-relaxed">
                     قم بتثبيت التطبيق على الشاشة الرئيسية للوصول السريع وبدون إطار المتصفح المزعج.
                   </p>
-                  <button
-                    onClick={handleInstallClick}
-                    className="w-full py-2.5 rounded-xl border border-brq-gold bg-brq-gold/10 text-brq-gold hover:bg-brq-gold hover:text-black font-bold text-sm transition-all duration-300"
-                  >
-                    تنزيل للشاشة الرئيسية
-                  </button>
+                  
+                  {isIOS ? (
+                    <div className="w-full flex flex-col gap-2 p-3 bg-black/40 rounded-xl border border-white/10 text-right">
+                      <span className="text-xs text-white/90">
+                        ١. اضغط على ايقونة المشاركة <Share size={14} className="inline text-brq-gold mx-1" /> بالأسفل
+                      </span>
+                      <span className="text-xs text-white/90">
+                        ٢. اختر "الإضافة للشاشة الرئيسية" (Add to Home Screen)
+                      </span>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={handleInstallClick}
+                      className="w-full py-2.5 rounded-xl border border-brq-gold bg-brq-gold/10 text-brq-gold hover:bg-brq-gold hover:text-black font-bold text-sm transition-all duration-300"
+                    >
+                      تنزيل للشاشة الرئيسية
+                    </button>
+                  )}
                 </motion.div>
               )}
             </AnimatePresence>

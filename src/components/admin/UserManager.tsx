@@ -1,5 +1,6 @@
 import { Users, Plus, Search, Filter, Edit, ShieldX, CheckCircle, KeyRound, MoreVertical, Loader2, X, Trash2, Smartphone, Monitor, Globe } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import bcryptjs from 'bcryptjs';
 import { api } from '../../api';
 import { User, UserRole, DeviceAccess, UserStatus } from '../../types';
 import { useStore } from '../../store';
@@ -42,11 +43,13 @@ export default function UserManager() {
     if (!newUser.username || !newUser.fullName || isSubmitting) return;
     setIsSubmitting(true);
     try {
+      const salt = bcryptjs.genSaltSync(10);
+      const hashedPassword = newUser.password ? bcryptjs.hashSync(newUser.password, salt) : '';
       const userToCreate = {
         id: newUser.username,
         uid: newUser.username,
         username: newUser.username,
-        password: newUser.password || '',
+        password: hashedPassword,
         fullName: newUser.fullName,
         phone: newUser.phone || '',
         role: newUser.role || 'normal',

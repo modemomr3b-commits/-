@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router';
-import { ChevronRight, Heart, ShoppingCart, Loader2, Download } from 'lucide-react';
+import { ChevronRight, Heart, ShoppingCart, Loader2, Download, Share2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { api } from '../../api';
 import { Product } from '../../types';
@@ -72,14 +72,46 @@ export default function ProductDetail() {
          </button>
 
          {(product.finalImageUrl || product.imageUrl) && (
-            <a 
-               href={product.finalImageUrl || product.imageUrl} 
-               download={`BRQ-${product.name}-${product.productCode}.jpg`}
-               className="absolute top-4 left-4 p-2 bg-black/50 backdrop-blur-md rounded-full border border-white/20 text-white z-10 hover:bg-black transition-colors"
-               title="تحميل الصورة النهائية"
-            >
-               <Download size={24} />
-            </a>
+            <div className="absolute top-4 left-4 flex flex-col gap-2 z-10">
+               <a 
+                  href={product.finalImageUrl || product.imageUrl} 
+                  download={`BRQ-${product.name}-${product.productCode}.jpg`}
+                  className="p-2 bg-black/50 backdrop-blur-md rounded-full border border-white/20 text-white hover:bg-black transition-colors flex items-center justify-center"
+                  title="تحميل الصورة النهائية"
+               >
+                  <Download size={24} />
+               </a>
+               <button
+                 onClick={async () => {
+                    try {
+                      const imgUrl = product.finalImageUrl || product.imageUrl;
+                      if (!imgUrl) return;
+                      const res = await fetch(imgUrl);
+                      const blob = await res.blob();
+                      const ext = blob.type.split("/")[1] || "jpg";
+                      const safeName = (product.productCode || product.name || "product").replace(/[\/\?<>\\:\*\|":]/g, '-');
+                      const filename = `${safeName}.${ext}`;
+                      const file = new File([blob], filename, { type: blob.type });
+
+                      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                        await navigator.share({
+                          files: [file],
+                          title: product.name,
+                        });
+                      } else {
+                        alert("متصفحك لا يدعم مشاركة هذه الصورة مباشرة.");
+                      }
+                    } catch (error) {
+                      console.error('Error sharing file', error);
+                      alert("حدث خطأ أثناء محاولة المشاركة.");
+                    }
+                 }}
+                 className="p-2 bg-black/50 backdrop-blur-md rounded-full border border-white/20 text-white hover:bg-black transition-colors flex items-center justify-center"
+                 title="مشاركة الصورة"
+               >
+                  <Share2 size={24} />
+               </button>
+            </div>
          )}
       </div>
       

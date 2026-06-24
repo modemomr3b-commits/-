@@ -1,41 +1,16 @@
 import { Outlet, Link, useLocation } from 'react-router';
 import { useStore } from '../store.ts';
-import { Home, Search, Heart, ShoppingBag, User, Download, X } from 'lucide-react';
+import { Home, Search, Heart, ShoppingBag, User, Download, X, Share } from 'lucide-react';
 import { cn } from '../lib/utils.ts';
 import { motion, AnimatePresence } from 'motion/react';
-import { useState, useEffect } from 'react';
+import { usePWAInstall } from '../hooks/usePWAInstall';
 
 export default function MemberLayout() {
   const { cart, user } = useStore();
   const location = useLocation();
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
-  const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const { deferredPrompt, isIOS, showInstallPrompt, setShowInstallPrompt, handleInstallClick } = usePWAInstall();
 
-  useEffect(() => {
-    const handleBeforeInstallPrompt = (e: Event) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-      // Optional: Only show once per session or check localstorage
-      if (!localStorage.getItem('hideInstallBanner')) {
-          setShowInstallBanner(true);
-      }
-    };
-
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    };
-  }, []);
-
-  const handleInstallClick = async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-      setDeferredPrompt(null);
-      setShowInstallBanner(false);
-    }
-  };
+  const isBannerVisible = showInstallPrompt && (deferredPrompt || isIOS) && !localStorage.getItem('hideInstallBanner');
 
   const navItems = [
     { icon: Home, path: '/', label: 'الرئيسية' },
@@ -131,7 +106,7 @@ export default function MemberLayout() {
 
         {/* Floating PWA Install Banner */}
         <AnimatePresence>
-          {showInstallBanner && deferredPrompt && (
+          {isBannerVisible && (
             <motion.div
               initial={{ opacity: 0, y: -50 }}
               animate={{ opacity: 1, y: 0 }}
@@ -147,23 +122,44 @@ export default function MemberLayout() {
                   <span className="text-white/60 text-xs">للوصول السريع وتجربة أفضل</span>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleInstallClick}
-                  className="px-3 py-1.5 bg-brq-gold/20 text-brq-gold font-bold text-xs rounded-lg border border-brq-gold hover:bg-brq-gold hover:text-black transition-colors"
-                >
-                  تثبيت
-                </button>
-                <button 
-                  onClick={() => {
-                    setShowInstallBanner(false);
-                    localStorage.setItem('hideInstallBanner', 'true');
-                  }}
-                  className="p-1.5 rounded-lg hover:bg-white/10 text-white/50"
-                >
-                  <X size={16} />
-                </button>
-              </div>
+              
+              {isIOS ? (
+                <div className="flex flex-col gap-1 items-end relative">
+                  <button 
+                    onClick={() => {
+                      setShowInstallPrompt(false);
+                      localStorage.setItem('hideInstallBanner', 'true');
+                    }}
+                    className="absolute -top-1 -right-1 p-1 rounded-full text-white/40 hover:text-white/80"
+                  >
+                    <X size={12} />
+                  </button>
+                  <span className="text-[10px] text-white/80 mt-3 whitespace-nowrap text-right" dir="rtl">
+                    ١. اضغط <Share size={12} className="inline mx-0.5 text-brq-gold" /> بالأسفل
+                  </span>
+                  <span className="text-[10px] text-white/80 whitespace-nowrap text-right" dir="rtl">
+                    ٢. اختر "الإضافة للشاشة الرئيسية"
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleInstallClick}
+                    className="px-3 py-1.5 bg-brq-gold/20 text-brq-gold font-bold text-xs rounded-lg border border-brq-gold hover:bg-brq-gold hover:text-black transition-colors"
+                  >
+                    تثبيت
+                  </button>
+                  <button 
+                    onClick={() => {
+                      setShowInstallPrompt(false);
+                      localStorage.setItem('hideInstallBanner', 'true');
+                    }}
+                    className="p-1.5 rounded-lg hover:bg-white/10 text-white/50"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>

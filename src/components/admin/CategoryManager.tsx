@@ -13,8 +13,6 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { useState, useEffect } from "react";
-import JSZip from "jszip";
-import { saveAs } from "file-saver";
 import { api } from "../../api";
 import { supabase } from "../../supabase";
 import { Category, Product } from "../../types";
@@ -230,7 +228,6 @@ export default function CategoryManager() {
         total: imagesWithData.length,
       });
 
-      const zip = new JSZip();
       let completed = 0;
 
       for (const p of imagesWithData) {
@@ -241,10 +238,23 @@ export default function CategoryManager() {
             const res = await fetch(imgUrl);
             const blob = await res.blob();
 
-            // Add to zip
+            // Download directly
             const ext = blob.type.split("/")[1] || "jpg";
-            const filename = `${p.productCode || p.name || "product"}.${ext}`;
-            zip.file(filename, blob);
+            const safeName = (p.productCode || p.name || "product").replace(/[\/\?<>\\:\*\|":]/g, '-');
+            const filename = `${safeName}.${ext}`;
+
+            const objectUrl = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = objectUrl;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+
+            // Small delay to prevent browser from blocking multiple downloads
+            await new Promise(resolve => setTimeout(resolve, 300));
+
+            URL.revokeObjectURL(objectUrl);
           } catch (err) {
             console.error(`Failed to download image for ${p.name}`, err);
           }
@@ -257,9 +267,6 @@ export default function CategoryManager() {
         });
       }
 
-      const content = await zip.generateAsync({ type: "blob" });
-      saveAs(content, `BRQ-${catName}.zip`);
-
       setDownloadProgress(null);
 
       await api.logAction({
@@ -271,7 +278,7 @@ export default function CategoryManager() {
         details: { name: catName, total: imagesWithData.length },
       });
     } catch (e) {
-      console.error("Error generating zip", e);
+      console.error("Error downloading category", e);
       alert("حدث خطأ أثناء تحميل القسم");
       setDownloadProgress(null);
     }

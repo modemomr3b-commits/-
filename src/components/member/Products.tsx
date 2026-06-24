@@ -1,11 +1,12 @@
 import { useParams, Link, useNavigate } from "react-router";
-import { ChevronRight, Filter, Download, ShoppingCart } from "lucide-react";
+import { ChevronRight, Filter, Download, ShoppingCart, Layers, Share2, CheckSquare, Square } from "lucide-react";
 import { useState, useEffect } from "react";
 import { api } from "../../api";
 import { supabase } from "../../supabase";
-import { Product } from "../../types";
+import { Product, Category } from "../../types";
 import { useStore } from "../../store";
 import OptimizedImage from "../OptimizedImage";
+import { CategoryDownloadDialog } from "../shared/CategoryDownloadDialog";
 
 const MOCK_PRODUCTS: Product[] = [];
 
@@ -14,6 +15,7 @@ export default function Products() {
   const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
   const [subCategories, setSubCategories] = useState<any[]>([]);
+  const [allCategories, setAllCategories] = useState<Category[]>([]);
   const [activeSub, setActiveSub] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const { addToCart } = useStore();
@@ -21,6 +23,10 @@ export default function Products() {
   const [categoryName, setCategoryName] = useState("جميع المنتجات");
   const [downloadProgress, setDownloadProgress] = useState<{ progress: number, total: number } | null>(null);
   const [initialLoading, setInitialLoading] = useState(true);
+  const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false);
+
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const fetchProducts = async () => {
     try {
@@ -28,6 +34,8 @@ export default function Products() {
         api.getCategories(),
         api.getProducts(),
       ]);
+
+      setAllCategories(cats);
 
       let fetchedProducts = allProducts.filter((p: any) => !p.isArchived && !p.isHidden);
       if (categoryId) {
@@ -94,6 +102,103 @@ export default function Products() {
     ? products.filter((p) => p.subcategoryId === activeSub)
     : products;
 
+  const toggleSelection = (e: React.MouseEvent, id: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedIds(next);
+  };
+
+  const handleShareSelected = async () => {
+    if (selectedIds.size === 0) return;
+
+    const productsToShare = products.filter((p) => selectedIds.has(p.id!));
+    const imagesWithData = productsToShare.filter((p) => p.finalImageUrl || p.imageUrl);
+
+    if (imagesWithData.length === 0) {
+      alert("لا توجد صور للمنتجات المحددة.");
+      return;
+    }
+
+    setDownloadProgress({ progress: 0, total: imagesWithData.length });
+    let completed = 0;
+    const files: File[] = [];
+
+    for (const p of imagesWithData) {
+      const imgUrl = p.finalImageUrl || p.imageUrl;
+      if (imgUrl) {
+        try {
+          const res = await fetch(imgUrl);
+          const blob = await res.blob();
+          const ext = blob.type.split("/")[1] || "jpg";
+          const safeName = (p.productCode || p.name || "product").replace(/[\/\?<>\\:\*\|":]/g, '-');
+          const filename = `${safeName}.${ext}`;
+          files.push(new File([blob], filename, { type: blob.type }));
+        } catch (err) {
+          console.error(`Failed to fetch image for ${p.name}`, err);
+        }
+      }
+      completed++;
+      setDownloadProgress({
+        progress: completed,
+        total: imagesWithData.length,
+      });
+    }
+
+    setDownloadProgress(null);
+
+    if (files.length > 0) {
+      if (navigator.canShare && navigator.canShare({ files })) {
+        try {
+          await navigator.share({
+            files,
+            title: 'منتجات BRQ',
+          });
+          setSelectedIds(new Set());
+          setIsSelectionMode(false);
+        } catch (error) {
+          console.error('Error sharing files', error);
+        }
+      } else {
+        alert("متصفحك لا يدعم مشاركة هذه الصور مباشرة.");
+      }
+    }
+  };
+
+  const handleShareSingle = async (e: React.MouseEvent, p: Product) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const imgUrl = p.finalImageUrl || p.imageUrl;
+    if (!imgUrl) {
+      alert("لا توجد صورة لهذا المنتج.");
+      return;
+    }
+
+    try {
+      const res = await fetch(imgUrl);
+      const blob = await res.blob();
+      const ext = blob.type.split("/")[1] || "jpg";
+      const safeName = (p.productCode || p.name || "product").replace(/[\/\?<>\\:\*\|":]/g, '-');
+      const filename = `${safeName}.${ext}`;
+      const file = new File([blob], filename, { type: blob.type });
+
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: p.name,
+        });
+      } else {
+        alert("متصفحك لا يدعم مشاركة هذه الصورة مباشرة.");
+      }
+    } catch (error) {
+      console.error('Error sharing file', error);
+      alert("حدث خطأ أثناء محاولة المشاركة.");
+    }
+  };
+
   return (
     <div className="flex flex-col bg-brq-black min-h-[calc(100vh-60px)]">
       <div className="glass-panel sticky top-0 z-40 p-4 border-b border-brq-gold/20 shadow-lg">
@@ -151,48 +256,73 @@ export default function Products() {
               }
               
               setDownloadProgress({ progress: 0, total: imagesWithData.length });
-              try {
-                // Dynamically import JSZip and file-saver
-                const JSZip = (await import('jszip')).default;
-                const { saveAs } = await import('file-saver');
+              let completed = 0;
 
-                const zip = new JSZip();
-                let completed = 0;
-
-                for (const p of imagesWithData) {
-                  const imgUrl = p.finalImageUrl || p.imageUrl;
-                  if (imgUrl) {
-                    try {
-                      const res = await fetch(imgUrl);
-                      const blob = await res.blob();
-                      const ext = blob.type.split('/')[1] || 'jpg';
-                      const filename = `${p.productCode || p.name || 'product'}.${ext}`;
-                      zip.file(filename, blob);
-                    } catch (e) {
-                      console.error(`Failed to download ${p.name}`);
-                    }
+              for (const p of imagesWithData) {
+                const imgUrl = p.finalImageUrl || p.imageUrl;
+                if (imgUrl) {
+                  try {
+                    const res = await fetch(imgUrl);
+                    const blob = await res.blob();
+                    const ext = blob.type.split('/')[1] || 'jpg';
+                    const safeName = (p.productCode || p.name || 'product').replace(/[\/\?<>\\:\*\|":]/g, '-');
+                    const filename = `${safeName}.${ext}`;
+                    
+                    const objectUrl = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = objectUrl;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    
+                    await new Promise(resolve => setTimeout(resolve, 300));
+                    URL.revokeObjectURL(objectUrl);
+                  } catch (e) {
+                    console.error(`Failed to download ${p.name}`);
                   }
-                  completed++;
-                  setDownloadProgress({ progress: completed, total: imagesWithData.length });
                 }
-
-                const content = await zip.generateAsync({ type: 'blob' });
-                saveAs(content, `BRQ-${categoryName}.zip`);
-              } catch (e) {
-                console.error(e);
-                alert("حدث خطأ أثناء تحميل الصور");
+                completed++;
+                setDownloadProgress({ progress: completed, total: imagesWithData.length });
               }
               setDownloadProgress(null);
             }} 
-            className="flex-1 py-2 bg-brq-navy rounded-lg border border-brq-royal/50 flex gap-2 items-center justify-center text-xs text-brq-gold hover:bg-brq-navy/80 transition-colors disabled:opacity-50"
+            className="flex-[2] py-2 bg-brq-navy rounded-lg border border-brq-royal/50 flex gap-2 items-center justify-center text-xs text-brq-gold hover:bg-brq-navy/80 transition-colors disabled:opacity-50"
           >
-            <Download size={14} /> {downloadProgress ? `جاري التحميل ${downloadProgress.progress}/${downloadProgress.total}` : 'حفظ الصور'}
+            <Download size={14} /> {downloadProgress ? `جاري التحميل ${downloadProgress.progress}/${downloadProgress.total}` : 'حفظ القسم'}
           </button>
+          
+          <button 
+            onClick={() => setIsDownloadDialogOpen(true)}
+            className="flex-[2] py-2 bg-brq-gold/20 rounded-lg border border-brq-gold/50 flex gap-2 items-center justify-center text-xs text-brq-gold hover:bg-brq-gold/30 transition-colors"
+          >
+            <Layers size={14} /> تحميل كل الصور
+          </button>
+
+          <button 
+            onClick={() => setIsSelectionMode(!isSelectionMode)}
+            className={`flex-1 py-2 rounded-lg border text-xs flex gap-2 items-center justify-center transition-colors ${
+              isSelectionMode 
+                ? "bg-blue-500/20 text-blue-400 border-blue-500/50" 
+                : "bg-white/5 text-white border-white/10 hover:bg-white/10"
+            }`}
+          >
+            <CheckSquare size={14} /> تحديد
+          </button>
+          
           <button className="flex-1 py-2 bg-white/5 rounded-lg border border-white/10 text-white flex gap-2 items-center justify-center text-xs hover:bg-white/10 transition-colors">
             <Filter size={14} /> تصفية
           </button>
         </div>
       </div>
+
+      {isDownloadDialogOpen && (
+        <CategoryDownloadDialog 
+          categories={allCategories}
+          products={products}
+          onClose={() => setIsDownloadDialogOpen(false)}
+        />
+      )}
 
       {initialLoading ? (
         <div className="flex-1 flex justify-center items-center h-64">
@@ -218,8 +348,42 @@ export default function Products() {
             <Link
               to={`/product/${p.id}`}
               key={p.id}
-              className="glass-card rounded-2xl overflow-hidden flex flex-col border border-white/5 relative group hover:border-brq-gold transition-colors shadow-lg"
+              className={`glass-card rounded-2xl overflow-hidden flex flex-col border relative group transition-colors shadow-lg ${
+                selectedIds.has(p.id!) ? "border-blue-500 bg-blue-500/10" : "border-white/5 hover:border-brq-gold"
+              }`}
+              onClick={(e) => {
+                if (isSelectionMode) {
+                  toggleSelection(e, p.id!);
+                }
+              }}
             >
+              {isSelectionMode && (
+                <div className="absolute top-2 right-2 z-10">
+                  <button
+                    onClick={(e) => toggleSelection(e, p.id!)}
+                    className="p-1.5 rounded-lg bg-black/40 backdrop-blur-sm border border-white/20 text-white transition-colors"
+                  >
+                    {selectedIds.has(p.id!) ? (
+                      <CheckSquare size={18} className="text-blue-400" />
+                    ) : (
+                      <Square size={18} className="text-white/60" />
+                    )}
+                  </button>
+                </div>
+              )}
+              
+              {!isSelectionMode && (
+                <div className="absolute top-2 left-2 z-10">
+                  <button
+                    onClick={(e) => handleShareSingle(e, p)}
+                    className="p-1.5 rounded-lg bg-black/40 backdrop-blur-sm border border-white/20 text-white hover:bg-blue-500/50 hover:text-white transition-colors"
+                    title="مشاركة الصورة"
+                  >
+                    <Share2 size={16} />
+                  </button>
+                </div>
+              )}
+              
               <div className="w-full aspect-[4/5] bg-black/40 relative flex items-center justify-center border-b border-white/5 p-0 overflow-hidden">
                 {p.finalImageUrl || p.imageUrl ? (
                   <div className="absolute inset-0">
@@ -276,6 +440,27 @@ export default function Products() {
               </div>
             </Link>
           ))}
+        </div>
+      )}
+
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-20 left-0 right-0 z-50 px-4 animate-in slide-in-from-bottom-10 fade-in duration-300">
+          <div className="max-w-md mx-auto bg-blue-900/90 backdrop-blur-md border border-blue-500/50 rounded-2xl shadow-2xl p-4 flex items-center justify-between">
+            <div className="flex flex-col">
+              <span className="text-white font-bold text-sm">
+                تم تحديد {selectedIds.size} منتج
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleShareSelected}
+                disabled={downloadProgress !== null}
+                className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-bold text-sm transition-colors flex items-center gap-2"
+              >
+                <Share2 size={16} /> مشاركة
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

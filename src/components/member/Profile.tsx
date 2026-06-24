@@ -3,6 +3,7 @@ import { Download, Share, UserCircle, ShoppingBag, Eye, LogOut } from 'lucide-re
 import { useState, useEffect } from 'react';
 import { api } from '../../api';
 import { Order, OrderStatus } from '../../types';
+import { usePWAInstall } from '../../hooks/usePWAInstall';
 
 const statusMap: Record<OrderStatus, { label: string, color: string }> = {
   new: { label: 'جديد', color: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' },
@@ -14,29 +15,11 @@ const statusMap: Record<OrderStatus, { label: string, color: string }> = {
 
 export default function Profile() {
   const { user, setUser } = useStore();
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
-  const [isIos, setIsIos] = useState(false);
-  const [isInstalled, setIsInstalled] = useState(false);
+  const { deferredPrompt, isIOS: isIos, handleInstallClick: handleInstall } = usePWAInstall();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
-
-  useEffect(() => {
-    if (window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true) {
-      setIsInstalled(true);
-      return;
-    }
-
-    const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
-    setIsIos(ios);
-
-    const handler = (e: Event) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-    };
-
-    window.addEventListener('beforeinstallprompt', handler);
-    return () => window.removeEventListener('beforeinstallprompt', handler);
-  }, []);
+  
+  const isInstalled = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true;
 
   useEffect(() => {
     const fetchMyOrders = async () => {
@@ -55,17 +38,6 @@ export default function Profile() {
     const inv = setInterval(fetchMyOrders, 5000); // Check for order updates
     return () => clearInterval(inv);
   }, [user?.uid]);
-
-  const handleInstall = async () => {
-    if (isIos) return;
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-      setIsInstalled(true);
-    }
-    setDeferredPrompt(null);
-  };
 
   const handleLogout = () => {
     setUser(null);
@@ -114,10 +86,10 @@ export default function Profile() {
           {isIos ? (
             <div className="bg-black/30 rounded-xl p-4 flex flex-col gap-3 text-sm text-white/80">
                <p className="flex items-center gap-2">
-                 1. اضغط على زر المشاركة <Share size={16} className="text-blue-400" /> في متصفح سفاري
+                 ١. اضغط على زر المشاركة <Share size={16} className="text-brq-gold" /> في متصفح سفاري
                </p>
                <p className="flex items-center gap-2">
-                 2. اختر "إضافة للشاشة الرئيسية" 
+                 ٢. اختر "إضافة للشاشة الرئيسية" 
                </p>
             </div>
           ) : (
