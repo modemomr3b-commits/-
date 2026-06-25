@@ -637,7 +637,7 @@ export default function ProductManager() {
                     <select
                         value={batchCategoryId}
                         onChange={(e) => setBatchCategoryId(e.target.value)}
-                        className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white"
+                        className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black placeholder:text-gray-500"
                     >
                         <option value="">-- إختر القسم الرئيسي --</option>
                         {categories.filter((c) => !c.parentId).map((c) => (
@@ -690,7 +690,7 @@ export default function ProductManager() {
                   const autoSub = autoSelectSubcategory(newName, newProduct.categoryId || "");
                   setNewProduct({ ...newProduct, name: newName, subcategoryId: autoSub || newProduct.subcategoryId });
                 }}
-                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white"
+                className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black placeholder:text-gray-500"
               />
             </div>
             <div>
@@ -710,7 +710,7 @@ export default function ProductManager() {
                     newProduct.forceStandardCrush
                   )
                 }
-                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white font-mono"
+                className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
               />
               <p className="text-[10px] text-white/40 mt-1">
                 يتم ضربه بسعر الصرف الحالي: {usdRate}
@@ -730,7 +730,7 @@ export default function ProductManager() {
                     price: Number(e.target.value),
                   })
                 }
-                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white font-mono"
+                className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
               />
             </div>
             <div>
@@ -752,7 +752,7 @@ export default function ProductManager() {
                     newProduct.forceStandardCrush
                   );
                 }}
-                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white font-mono"
+                className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
               />
             </div>
             <div className="flex items-center gap-2 mt-2 md:col-span-2">
@@ -771,7 +771,7 @@ export default function ProductManager() {
                     forceCrush
                   );
                 }}
-                className="bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-sm focus:border-brq-gold/50 outline-none text-white w-24"
+                className="bg-white border border-black rounded-lg px-3 py-1.5 text-sm focus:border-brq-gold/50 outline-none text-black w-24 placeholder:text-gray-500"
               >
                 <option value="no">لا</option>
                 <option value="yes">نعم</option>
@@ -801,7 +801,7 @@ export default function ProductManager() {
                     subcategoryId: autoSub || "",
                   });
                 }}
-                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white"
+                className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black placeholder:text-gray-500"
               >
                 <option value="">-- إختر القسم --</option>
                 {categories
@@ -825,7 +825,7 @@ export default function ProductManager() {
                     subcategoryId: e.target.value,
                   })
                 }
-                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white disabled:opacity-50"
+                className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black disabled:opacity-50 placeholder:text-gray-500"
                 disabled={!newProduct.categoryId}
               >
                 <option value="">-- إختر القسم الفرعي --</option>
@@ -848,7 +848,7 @@ export default function ProductManager() {
                 onChange={(e) =>
                   setNewProduct({ ...newProduct, productCode: e.target.value })
                 }
-                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white"
+                className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black placeholder:text-gray-500"
               />
             </div>
             <div>
@@ -867,7 +867,7 @@ export default function ProductManager() {
                   type="file"
                   accept="image/*"
                   onChange={(e) => handleImageUpload(e, false)}
-                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-white/10 file:text-white hover:file:bg-white/20 transition-colors"
+                  className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-black/10 file:text-black hover:file:bg-black/20 transition-colors placeholder:text-gray-500"
                 />
               </div>
             </div>
@@ -929,7 +929,7 @@ export default function ProductManager() {
                   <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 w-4 h-4" />
                   <input
                     type="text"
-                    className="w-full bg-black/40 border border-white/10 rounded-lg pr-10 pl-4 py-2.5 text-sm focus:outline-none focus:border-brq-gold/50"
+                    className="w-full bg-white border border-black rounded-lg pr-10 pl-4 py-2.5 text-sm text-black placeholder:text-gray-500 focus:outline-none focus:border-brq-gold/50"
                     placeholder="بحث بالاسم، الكود، الباركود..."
                   />
                 </div>
@@ -1189,7 +1189,7 @@ export default function ProductManager() {
                       subcategoryId: autoSub || editingProduct.subcategoryId
                     });
                   }}
-                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white"
+                  className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black placeholder:text-gray-500"
                 />
               </div>
               <div>
@@ -1209,7 +1209,7 @@ export default function ProductManager() {
                       editingProduct.forceStandardCrush
                     )
                   }
-                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white font-mono"
+                  className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
                 />
                 <p className="text-[10px] text-white/40 mt-1">
                   يتم ضربه بسعر الصرف الحالي: {usdRate}
@@ -1229,7 +1229,7 @@ export default function ProductManager() {
                       price: Number(e.target.value),
                     })
                   }
-                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white font-mono"
+                  className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
                 />
               </div>
               <div>
@@ -1251,7 +1251,7 @@ export default function ProductManager() {
                       editingProduct.forceStandardCrush
                     );
                   }}
-                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white font-mono"
+                  className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
                 />
               </div>
               <div className="flex items-center gap-2 mt-2 md:col-span-2">
@@ -1270,7 +1270,7 @@ export default function ProductManager() {
                       forceCrush
                     );
                   }}
-                  className="bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-sm focus:border-brq-gold/50 outline-none text-white w-24"
+                  className="bg-white border border-black rounded-lg px-3 py-1.5 text-sm focus:border-brq-gold/50 outline-none text-black w-24 placeholder:text-gray-500"
                 >
                   <option value="no">لا</option>
                   <option value="yes">نعم</option>
@@ -1302,7 +1302,7 @@ export default function ProductManager() {
                       subcategoryId: autoSub || "",
                     });
                   }}
-                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white"
+                  className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black placeholder:text-gray-500"
                 >
                   <option value="">-- إختر القسم --</option>
                   {categories
@@ -1326,7 +1326,7 @@ export default function ProductManager() {
                       subcategoryId: e.target.value,
                     })
                   }
-                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white disabled:opacity-50"
+                  className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black disabled:opacity-50 placeholder:text-gray-500"
                   disabled={!editingProduct.categoryId}
                 >
                   <option value="">-- إختر القسم الفرعي --</option>
@@ -1352,7 +1352,7 @@ export default function ProductManager() {
                       productCode: e.target.value,
                     })
                   }
-                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white"
+                  className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black placeholder:text-gray-500"
                 />
               </div>
               <div>
@@ -1371,7 +1371,7 @@ export default function ProductManager() {
                     type="file"
                     accept="image/*"
                     onChange={(e) => handleImageUpload(e, true)}
-                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-white/10 file:text-white hover:file:bg-white/20 transition-colors"
+                    className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-black/10 file:text-black hover:file:bg-black/20 transition-colors placeholder:text-gray-500"
                   />
                 </div>
               </div>
