@@ -56,6 +56,7 @@ export default function ProductManager() {
     barcode: "",
     categoryId: "",
     imageUrl: "",
+    forceStandardCrush: true,
   });
 
   const [filterStatus, setFilterStatus] = useState<"active" | "archived">("active");
@@ -290,6 +291,7 @@ export default function ProductManager() {
         barcode: "",
         categoryId: "",
         imageUrl: "",
+        forceStandardCrush: true,
       });
       const updated = await api.getProducts();
       setProducts(updated);
@@ -1117,7 +1119,7 @@ export default function ProductManager() {
                             </button>
                             <button
                               type="button"
-                              onClick={() => setEditingProduct(p)}
+                              onClick={() => setEditingProduct({ ...p, forceStandardCrush: p.forceStandardCrush ?? true })}
                               className="p-1.5 hover:bg-blue-500/20 text-blue-400 rounded transition-colors"
                               title="تعديل"
                             >
