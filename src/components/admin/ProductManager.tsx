@@ -180,7 +180,8 @@ export default function ProductManager() {
     customPieces: number,
     isEditing: boolean = false,
   ) => {
-    let pieces = customPieces;
+    if (!packaging) packaging = "درزن";
+    let pieces = customPieces || 12;
     if (packaging !== "تعبئة مخصصة" && packaging !== "") {
       const preset = PACKAGING_OPTIONS.find((o) => o.label === packaging);
       if (preset) pieces = preset.pieces;
@@ -727,7 +728,7 @@ export default function ProductManager() {
                 التعبئة
               </label>
               <select
-                value={newProduct.packaging || ""}
+                value={newProduct.packaging || "درزن"}
                 onChange={(e) =>
                   handlePriceAndPackaging(
                     newProduct.dozenPriceUsd || 0,
@@ -738,7 +739,6 @@ export default function ProductManager() {
                 }
                 className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white"
               >
-                <option value="">-- إختر التعبئة --</option>
                 {PACKAGING_OPTIONS.map((o) => (
                   <option key={o.label} value={o.label}>
                     {o.label}
@@ -757,7 +757,7 @@ export default function ProductManager() {
                   onChange={(e) =>
                     handlePriceAndPackaging(
                       newProduct.dozenPriceUsd || 0,
-                      newProduct.packaging || "",
+                      newProduct.packaging || "درزن",
                       Number(e.target.value),
                       false,
                     )
@@ -991,8 +991,10 @@ export default function ProductManager() {
                     <th className="p-4 font-medium">صورة</th>
                     <th className="p-4 font-medium">اسم المنتج</th>
                     <th className="p-4 font-medium">الكود</th>
+                    <th className="p-4 font-medium">الرمز</th>
                     <th className="p-4 font-medium">القسم</th>
-                    <th className="p-4 font-medium">السعر (د.ع)</th>
+                    <th className="p-4 font-medium">السعر</th>
+                    <th className="p-4 font-medium">التعبئة</th>
                     <th className="p-4 font-medium">المشاهدات</th>
                     <th className="p-4 font-medium rounded-tl-lg">الإجراءات</th>
                   </tr>
@@ -1048,13 +1050,28 @@ export default function ProductManager() {
                         <td className="p-4 font-mono text-brq-gold">
                           {p.productCode || "-"}
                         </td>
+                        <td className="p-4 font-mono text-white/80">
+                          {p.modelNumber || "-"}
+                        </td>
                         <td className="p-4 text-xs bg-black/20">
                           <span className="px-2 py-1 rounded bg-brq-navy/50 border border-white/10">
                             {getCategoryName(p.categoryId)}
                           </span>
                         </td>
-                        <td className="p-4 font-mono font-bold">
-                          {(p.price || 0).toLocaleString("ar-IQ")}
+                        <td className="p-4">
+                          <div className="flex flex-col items-end">
+                            <span className="font-mono font-bold text-brq-gold">
+                              {(p.price || 0).toLocaleString("ar-IQ")} د.ع
+                            </span>
+                            {p.dozenPriceUsd !== undefined && (
+                              <span className="font-mono text-xs text-brq-blue mt-0.5">
+                                ${p.dozenPriceUsd}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-4 text-xs">
+                          {p.packaging || "-"}
                         </td>
                         <td className="p-4">
                           <span className="flex items-center gap-1 text-white/60">
@@ -1208,7 +1225,7 @@ export default function ProductManager() {
                   التعبئة
                 </label>
                 <select
-                  value={editingProduct.packaging || ""}
+                  value={editingProduct.packaging || "درزن"}
                   onChange={(e) =>
                     handlePriceAndPackaging(
                       editingProduct.dozenPriceUsd || 0,
@@ -1219,7 +1236,6 @@ export default function ProductManager() {
                   }
                   className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white"
                 >
-                  <option value="">-- إختر التعبئة --</option>
                   {PACKAGING_OPTIONS.map((o) => (
                     <option key={o.label} value={o.label}>
                       {o.label}
@@ -1238,7 +1254,7 @@ export default function ProductManager() {
                     onChange={(e) =>
                       handlePriceAndPackaging(
                         editingProduct.dozenPriceUsd || 0,
-                        editingProduct.packaging || "",
+                        editingProduct.packaging || "درزن",
                         Number(e.target.value),
                         true,
                       )

@@ -11,7 +11,7 @@ export default function ProductDetail() {
   const navigate = useNavigate();
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
-  const { addToCart } = useStore();
+  const { addToCart, user } = useStore();
 
   useEffect(() => {
     let mounted = true;
@@ -124,9 +124,16 @@ export default function ProductDetail() {
                </button>
             </div>
             
-            <div className="flex gap-4 items-baseline mb-4">
-              <p className="text-brq-gold text-2xl font-bold">{product.price?.toLocaleString()} <span className="text-sm">د.ع</span></p>
-              {product.packaging && <span className="text-xs text-white/50 bg-white/10 px-2 py-1 rounded">{product.packaging}</span>}
+            <div className="flex flex-col gap-1 mb-4">
+              <div className="flex gap-4 items-baseline">
+                <p className="text-brq-gold text-2xl font-bold">{product.price?.toLocaleString()} <span className="text-sm">د.ع</span></p>
+                {product.packaging && <span className="text-xs text-white/50 bg-white/10 px-2 py-1 rounded">{product.packaging}</span>}
+              </div>
+              {user?.role === 'admin' && product.dozenPriceUsd !== undefined && (
+                <p className="text-brq-blue text-lg font-bold font-mono">
+                  ${product.dozenPriceUsd} <span className="text-sm font-sans text-white/50">دولار</span>
+                </p>
+              )}
             </div>
             
             <div className="grid grid-cols-2 gap-3 mb-6">

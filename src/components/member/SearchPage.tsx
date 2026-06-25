@@ -5,7 +5,10 @@ import { Product } from '../../types';
 import { Link } from 'react-router';
 import OptimizedImage from '../OptimizedImage';
 
+import { useStore } from '../../store';
+
 export default function SearchPage() {
+  const { user } = useStore();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
@@ -134,7 +137,12 @@ export default function SearchPage() {
                          </div>
                          <div className="flex justify-between items-end mt-auto pt-2 border-t border-white/5">
                            <span className="text-xs font-mono text-white/50">{p.productCode}</span>
-                           <span className="font-bold text-brq-gold text-sm">{Number(p.price).toLocaleString()} <span className="text-[10px]">د.ع</span></span>
+                           <div className="flex flex-col items-end">
+                             <span className="font-bold text-brq-gold text-sm">{Number(p.price).toLocaleString()} <span className="text-[10px]">د.ع</span></span>
+                             {user?.role === 'admin' && p.dozenPriceUsd !== undefined && (
+                               <span className="font-bold text-brq-blue text-xs font-mono">${p.dozenPriceUsd}</span>
+                             )}
+                           </div>
                          </div>
                       </div>
                     </Link>

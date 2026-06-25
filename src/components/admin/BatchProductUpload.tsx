@@ -75,7 +75,8 @@ export function BatchProductItem({ categories, usdRate, user, onAdded, index }: 
     packaging: string,
     customPieces: number,
   ) => {
-    let pieces = customPieces;
+    if (!packaging) packaging = "درزن";
+    let pieces = customPieces || 12;
     if (packaging !== "تعبئة مخصصة" && packaging !== "") {
       const preset = PACKAGING_OPTIONS.find((o) => o.label === packaging);
       if (preset) pieces = preset.pieces;
@@ -253,7 +254,7 @@ export function BatchProductItem({ categories, usdRate, user, onAdded, index }: 
         <div>
           <label className="text-xs text-white/50 block mb-1">التعبئة</label>
           <select
-            value={product.packaging || ""}
+            value={product.packaging || "درزن"}
             onChange={(e) =>
               handlePriceAndPackaging(
                 product.dozenPriceUsd || 0,
@@ -263,7 +264,6 @@ export function BatchProductItem({ categories, usdRate, user, onAdded, index }: 
             }
             className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white"
           >
-            <option value="">-- إختر التعبئة --</option>
             {PACKAGING_OPTIONS.map((o) => (
               <option key={o.label} value={o.label}>{o.label}</option>
             ))}
@@ -278,7 +278,7 @@ export function BatchProductItem({ categories, usdRate, user, onAdded, index }: 
               onChange={(e) =>
                 handlePriceAndPackaging(
                   product.dozenPriceUsd || 0,
-                  product.packaging || "",
+                  product.packaging || "درزن",
                   Number(e.target.value)
                 )
               }

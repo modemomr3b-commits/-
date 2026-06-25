@@ -18,7 +18,7 @@ export default function Products() {
   const [allCategories, setAllCategories] = useState<Category[]>([]);
   const [activeSub, setActiveSub] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const { addToCart } = useStore();
+  const { addToCart, user } = useStore();
 
   const [categoryName, setCategoryName] = useState("جميع المنتجات");
   const [downloadProgress, setDownloadProgress] = useState<{ progress: number, total: number } | null>(null);
@@ -418,6 +418,14 @@ export default function Products() {
                       {p.price?.toLocaleString()}
                     </p>
                     <p className="text-[9px] text-white/40">د.ع / الجملة</p>
+                    {user?.role === 'admin' && p.dozenPriceUsd !== undefined && (
+                      <div className="mt-1">
+                        <p className="text-brq-blue text-xs font-bold font-mono">
+                          ${p.dozenPriceUsd}
+                        </p>
+                        <p className="text-[9px] text-white/40">دولار / الجملة</p>
+                      </div>
+                    )}
                   </div>
                   {p.piecesCount && (
                     <div className="flex flex-col items-end">
