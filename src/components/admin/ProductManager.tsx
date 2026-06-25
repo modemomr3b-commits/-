@@ -37,6 +37,7 @@ export default function ProductManager() {
 
   const [isAdding, setIsAdding] = useState(false);
   const [isBatchAdding, setIsBatchAdding] = useState(false);
+  const [batchCategoryId, setBatchCategoryId] = useState<string>("");
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -165,15 +166,6 @@ export default function ProductManager() {
     }
   };
 
-  const PACKAGING_OPTIONS = [
-    { label: "درزن", pieces: 12 },
-    { label: "درزن وربع", pieces: 15 },
-    { label: "درزن ونص", pieces: 18 },
-    { label: "درزنين", pieces: 24 },
-    { label: "أربع درازن", pieces: 48 },
-    { label: "تعبئة مخصصة", pieces: 0 },
-  ];
-
   const handlePriceAndPackaging = (
     usdValue: number,
     packaging: string,
@@ -181,12 +173,7 @@ export default function ProductManager() {
     isEditing: boolean = false,
     forceStandardCrush: boolean = false,
   ) => {
-    if (!packaging) packaging = "درزن";
     let pieces = customPieces || 12;
-    if (packaging !== "تعبئة مخصصة" && packaging !== "") {
-      const preset = PACKAGING_OPTIONS.find((o) => o.label === packaging);
-      if (preset) pieces = preset.pieces;
-    }
 
     const iqdValue = usdValue * usdRate;
     const calcPieces = forceStandardCrush ? 12 : pieces;
@@ -636,11 +623,26 @@ export default function ProductManager() {
 
       {isBatchAdding && (
         <div className="space-y-4">
-            <div className="flex justify-between items-center bg-black/40 p-4 rounded-xl border border-white/10">
-                <h3 className="text-brq-gold font-bold">نمط الرفع السريع</h3>
-                <button onClick={() => setIsBatchAdding(false)} className="text-white/50 hover:text-white">
-                    <X size={20} />
-                </button>
+            <div className="flex flex-col gap-4 bg-black/40 p-4 rounded-xl border border-white/10">
+                <div className="flex justify-between items-center">
+                    <h3 className="text-brq-gold font-bold">نمط الرفع السريع</h3>
+                    <button onClick={() => setIsBatchAdding(false)} className="text-white/50 hover:text-white">
+                        <X size={20} />
+                    </button>
+                </div>
+                <div className="w-full md:w-1/2">
+                    <label className="text-xs text-white/50 block mb-1">القسم الرئيسي لكل المنتجات</label>
+                    <select
+                        value={batchCategoryId}
+                        onChange={(e) => setBatchCategoryId(e.target.value)}
+                        className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white"
+                    >
+                        <option value="">-- إختر القسم الرئيسي --</option>
+                        {categories.filter((c) => !c.parentId).map((c) => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                    </select>
+                </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {Array.from({ length: 10 }).map((_, idx) => (
@@ -651,6 +653,7 @@ export default function ProductManager() {
                         usdRate={usdRate}
                         user={user}
                         onAdded={loadData}
+                        globalCategoryId={batchCategoryId || undefined}
                     />
                 ))}
             </div>
@@ -699,7 +702,7 @@ export default function ProductManager() {
                 onChange={(e) =>
                   handlePriceAndPackaging(
                     Number(e.target.value),
-                    newProduct.packaging || "درزن",
+                    newProduct.packaging || "",
                     newProduct.piecesCount || 12,
                     false,
                     newProduct.forceStandardCrush
@@ -730,27 +733,25 @@ export default function ProductManager() {
             </div>
             <div>
               <label className="text-xs text-white/50 block mb-1">
-                التعبئة
+                التعبئة (رقم أو نص يظهر في الصورة)
               </label>
-              <select
-                value={newProduct.packaging || "درزن"}
-                onChange={(e) =>
+              <input
+                type="text"
+                value={newProduct.packaging || ""}
+                placeholder="مثال: 12"
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const num = parseInt(val) || 12;
                   handlePriceAndPackaging(
                     newProduct.dozenPriceUsd || 0,
-                    e.target.value,
-                    newProduct.packaging === "تعبئة مخصصة" ? (newProduct.piecesCount || 12) : 0,
+                    val,
+                    num,
                     false,
                     newProduct.forceStandardCrush
-                  )
-                }
-                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white"
-              >
-                {PACKAGING_OPTIONS.map((o) => (
-                  <option key={o.label} value={o.label}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
+                  );
+                }}
+                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white font-mono"
+              />
             </div>
             <div className="flex items-center gap-2 mt-2 md:col-span-2">
               <label className="text-sm text-white/80 select-none flex-1">
@@ -762,7 +763,7 @@ export default function ProductManager() {
                   const forceCrush = e.target.value === "yes";
                   handlePriceAndPackaging(
                     newProduct.dozenPriceUsd || 0,
-                    newProduct.packaging || "درزن",
+                    newProduct.packaging || "",
                     newProduct.piecesCount || 12,
                     false,
                     forceCrush
@@ -774,27 +775,6 @@ export default function ProductManager() {
                 <option value="yes">نعم</option>
               </select>
             </div>
-            {newProduct.packaging === "تعبئة مخصصة" && (
-              <div>
-                <label className="text-xs text-white/50 block mb-1">
-                  عدد القطع
-                </label>
-                <input
-                  type="number"
-                  value={newProduct.piecesCount || ""}
-                  onChange={(e) =>
-                    handlePriceAndPackaging(
-                      newProduct.dozenPriceUsd || 0,
-                      newProduct.packaging || "درزن",
-                      Number(e.target.value),
-                      false,
-                      newProduct.forceStandardCrush
-                    )
-                  }
-                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white font-mono"
-                />
-              </div>
-            )}
             {newProduct.piecesCount ? (
               <div className="md:col-span-2 bg-white/5 p-3 rounded-lg border border-white/10 mt-2 text-center">
                 <p className="text-xs text-white/50 mb-1">
@@ -1221,7 +1201,7 @@ export default function ProductManager() {
                   onChange={(e) =>
                     handlePriceAndPackaging(
                       Number(e.target.value),
-                      editingProduct.packaging || "درزن",
+                      editingProduct.packaging || "",
                       editingProduct.piecesCount || 12,
                       true,
                       editingProduct.forceStandardCrush
@@ -1252,27 +1232,25 @@ export default function ProductManager() {
               </div>
               <div>
                 <label className="text-xs text-white/50 block mb-1">
-                  التعبئة
+                  التعبئة (رقم أو نص يظهر في الصورة)
                 </label>
-                <select
-                  value={editingProduct.packaging || "درزن"}
-                  onChange={(e) =>
+                <input
+                  type="text"
+                  value={editingProduct.packaging || ""}
+                  placeholder="مثال: 12"
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    const num = parseInt(val) || 12;
                     handlePriceAndPackaging(
                       editingProduct.dozenPriceUsd || 0,
-                      e.target.value,
-                      editingProduct.packaging === "تعبئة مخصصة" ? (editingProduct.piecesCount || 12) : 0,
+                      val,
+                      num,
                       true,
                       editingProduct.forceStandardCrush
-                    )
-                  }
-                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white"
-                >
-                  {PACKAGING_OPTIONS.map((o) => (
-                    <option key={o.label} value={o.label}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
+                    );
+                  }}
+                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white font-mono"
+                />
               </div>
               <div className="flex items-center gap-2 mt-2 md:col-span-2">
                 <label className="text-sm text-white/80 select-none flex-1">
@@ -1284,7 +1262,7 @@ export default function ProductManager() {
                     const forceCrush = e.target.value === "yes";
                     handlePriceAndPackaging(
                       editingProduct.dozenPriceUsd || 0,
-                      editingProduct.packaging || "درزن",
+                      editingProduct.packaging || "",
                       editingProduct.piecesCount || 12,
                       true,
                       forceCrush
@@ -1296,27 +1274,6 @@ export default function ProductManager() {
                   <option value="yes">نعم</option>
                 </select>
               </div>
-              {editingProduct.packaging === "تعبئة مخصصة" && (
-                <div>
-                  <label className="text-xs text-white/50 block mb-1">
-                    عدد القطع
-                  </label>
-                  <input
-                    type="number"
-                    value={editingProduct.piecesCount || ""}
-                    onChange={(e) =>
-                      handlePriceAndPackaging(
-                        editingProduct.dozenPriceUsd || 0,
-                        editingProduct.packaging || "درزن",
-                        Number(e.target.value),
-                        true,
-                        editingProduct.forceStandardCrush
-                      )
-                    }
-                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white font-mono"
-                  />
-                </div>
-              )}
               {editingProduct.piecesCount ? (
                 <div className="md:col-span-2 bg-white/5 p-3 rounded-lg border border-white/10 mt-2 text-center">
                   <p className="text-xs text-white/50 mb-1">

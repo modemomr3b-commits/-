@@ -1,17 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Loader2, Plus, Upload, X, CheckCircle2 } from "lucide-react";
 import { api } from "../../api";
 import { burnProductOverlay } from "../../utils/burnImage";
 import { Product, Category } from "../../types";
 
-const PACKAGING_OPTIONS = [
-  { label: "درزن", pieces: 12 },
-  { label: "درزن وربع", pieces: 15 },
-  { label: "درزن ونص", pieces: 18 },
-  { label: "درزنين", pieces: 24 },
-  { label: "أربع درازن", pieces: 48 },
-  { label: "تعبئة مخصصة", pieces: 0 },
-];
 
 export const autoSelectSubcategory = (name: string, categoryId: string, currentSubcategoryId?: string, categories: Category[] = []) => {
   if (!categoryId || !name) return currentSubcategoryId || "";
@@ -50,22 +42,32 @@ interface BatchProductItemProps {
   user: any;
   onAdded: () => void;
   index: number;
+  globalCategoryId?: string;
 }
 
-export function BatchProductItem({ categories, usdRate, user, onAdded, index }: BatchProductItemProps) {
+export function BatchProductItem({ categories, usdRate, user, onAdded, index, globalCategoryId }: BatchProductItemProps) {
   const [product, setProduct] = useState<Partial<Product>>({
     name: "",
-    categoryId: "",
+    categoryId: globalCategoryId || "",
     subcategoryId: "",
     productCode: "",
     dozenPriceUsd: 0,
     price: 0,
-    packaging: "درزن",
+    packaging: "",
     piecesCount: 12,
     piecePriceUsd: 0,
     piecePriceIqd: 0,
     imageUrl: "",
   });
+
+  useEffect(() => {
+    if (globalCategoryId !== undefined) {
+      setProduct(p => {
+        const autoSub = autoSelectSubcategory(p.name || "", globalCategoryId, p.subcategoryId, categories);
+        return { ...p, categoryId: globalCategoryId, subcategoryId: autoSub || p.subcategoryId };
+      });
+    }
+  }, [globalCategoryId, categories]);
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -76,12 +78,7 @@ export function BatchProductItem({ categories, usdRate, user, onAdded, index }: 
     customPieces: number,
     forceStandardCrush: boolean = false,
   ) => {
-    if (!packaging) packaging = "درزن";
     let pieces = customPieces || 12;
-    if (packaging !== "تعبئة مخصصة" && packaging !== "") {
-      const preset = PACKAGING_OPTIONS.find((o) => o.label === packaging);
-      if (preset) pieces = preset.pieces;
-    }
 
     const iqdValue = usdValue * usdRate;
     const calcPieces = forceStandardCrush ? 12 : pieces;
@@ -182,7 +179,7 @@ export function BatchProductItem({ categories, usdRate, user, onAdded, index }: 
           productCode: "",
           dozenPriceUsd: 0,
           price: 0,
-          packaging: "درزن",
+          packaging: "",
           piecesCount: 12,
           piecePriceUsd: 0,
           piecePriceIqd: 0,
@@ -237,7 +234,7 @@ export function BatchProductItem({ categories, usdRate, user, onAdded, index }: 
             onChange={(e) =>
               handlePriceAndPackaging(
                 Number(e.target.value),
-                product.packaging || "درزن",
+                product.packaging || "",
                 product.piecesCount || 12,
                 product.forceStandardCrush
               )
@@ -256,23 +253,23 @@ export function BatchProductItem({ categories, usdRate, user, onAdded, index }: 
           />
         </div>
         <div>
-          <label className="text-xs text-white/50 block mb-1">التعبئة</label>
-          <select
-            value={product.packaging || "درزن"}
-            onChange={(e) =>
+          <label className="text-xs text-white/50 block mb-1">التعبئة (رقم أو نص يظهر في الصورة)</label>
+          <input
+            type="text"
+            value={product.packaging || ""}
+            placeholder="مثال: 12"
+            onChange={(e) => {
+              const val = e.target.value;
+              const num = parseInt(val) || 12;
               handlePriceAndPackaging(
                 product.dozenPriceUsd || 0,
-                e.target.value,
-                product.packaging === "تعبئة مخصصة" ? (product.piecesCount || 12) : 0,
+                val,
+                num,
                 product.forceStandardCrush
-              )
-            }
-            className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white"
-          >
-            {PACKAGING_OPTIONS.map((o) => (
-              <option key={o.label} value={o.label}>{o.label}</option>
-            ))}
-          </select>
+              );
+            }}
+            className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white font-mono"
+          />
         </div>
         <div className="flex items-center gap-2 mt-4 md:col-span-2">
           <label className="text-sm text-white/80 select-none flex-1">
@@ -284,7 +281,7 @@ export function BatchProductItem({ categories, usdRate, user, onAdded, index }: 
               const forceCrush = e.target.value === "yes";
               handlePriceAndPackaging(
                 product.dozenPriceUsd || 0,
-                product.packaging || "درزن",
+                product.packaging || "",
                 product.piecesCount || 12,
                 forceCrush
               );
@@ -295,24 +292,6 @@ export function BatchProductItem({ categories, usdRate, user, onAdded, index }: 
             <option value="yes">نعم</option>
           </select>
         </div>
-        {product.packaging === "تعبئة مخصصة" && (
-          <div>
-            <label className="text-xs text-white/50 block mb-1">عدد القطع</label>
-            <input
-              type="number"
-              value={product.piecesCount || ""}
-              onChange={(e) =>
-                handlePriceAndPackaging(
-                  product.dozenPriceUsd || 0,
-                  product.packaging || "درزن",
-                  Number(e.target.value),
-                  product.forceStandardCrush
-                )
-              }
-              className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white font-mono"
-            />
-          </div>
-        )}
         {product.piecesCount ? (
           <div className="md:col-span-2 bg-white/5 p-3 rounded-lg border border-white/10 mt-2 text-center">
             <p className="text-xs text-white/50 mb-1">سعر القطعة (بالدينار)</p>
@@ -321,27 +300,29 @@ export function BatchProductItem({ categories, usdRate, user, onAdded, index }: 
             </p>
           </div>
         ) : null}
-        <div>
-          <label className="text-xs text-white/50 block mb-1">القسم</label>
-          <select
-            value={product.categoryId || ""}
-            onChange={(e) => {
-              const newCat = e.target.value;
-              const autoSub = autoSelectSubcategory(product.name || "", newCat, "", categories);
-              setProduct({
-                ...product,
-                categoryId: newCat,
-                subcategoryId: autoSub || "",
-              });
-            }}
-            className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white"
-          >
-            <option value="">-- إختر القسم --</option>
-            {categories.filter((c) => !c.parentId).map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-        </div>
+        {!globalCategoryId && (
+          <div>
+            <label className="text-xs text-white/50 block mb-1">القسم</label>
+            <select
+              value={product.categoryId || ""}
+              onChange={(e) => {
+                const newCat = e.target.value;
+                const autoSub = autoSelectSubcategory(product.name || "", newCat, "", categories);
+                setProduct({
+                  ...product,
+                  categoryId: newCat,
+                  subcategoryId: autoSub || "",
+                });
+              }}
+              className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white"
+            >
+              <option value="">-- إختر القسم --</option>
+              {categories.filter((c) => !c.parentId).map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
         <div>
           <label className="text-xs text-white/50 block mb-1">القسم الفرعي</label>
           <select

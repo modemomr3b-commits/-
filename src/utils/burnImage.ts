@@ -60,7 +60,6 @@ export const burnProductOverlay = (product: any, rawImageUrl: string): Promise<s
         ctx.fillStyle = '#cccccc';
         ctx.font = `${32 * scale}px Arial`;
         let packStr = `التعبئة: ${product.packaging || '---'}`;
-        if (product.piecesCount) packStr += ` (${product.piecesCount} قطعة)`;
         ctx.fillText(packStr, 40 * scale, row1Y);
 
         // --- ROW 2: Prices ---
