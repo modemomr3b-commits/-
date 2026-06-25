@@ -74,6 +74,7 @@ export function BatchProductItem({ categories, usdRate, user, onAdded, index }: 
     usdValue: number,
     packaging: string,
     customPieces: number,
+    forceStandardCrush: boolean = false,
   ) => {
     if (!packaging) packaging = "درزن";
     let pieces = customPieces || 12;
@@ -83,18 +84,20 @@ export function BatchProductItem({ categories, usdRate, user, onAdded, index }: 
     }
 
     const iqdValue = usdValue * usdRate;
-    const pieceUsd = pieces > 0 ? usdValue / pieces : 0;
-    const pieceIqd = pieces > 0 ? iqdValue / pieces : 0;
+    const calcPieces = forceStandardCrush ? 12 : pieces;
+    const pieceUsd = calcPieces > 0 ? usdValue / calcPieces : 0;
+    const pieceIqd = calcPieces > 0 ? iqdValue / calcPieces : 0;
 
-    setProduct({
-      ...product,
+    setProduct((prev) => ({
+      ...prev,
       dozenPriceUsd: usdValue,
       packaging,
       piecesCount: pieces,
+      forceStandardCrush,
       price: iqdValue,
       piecePriceUsd: pieceUsd,
       piecePriceIqd: pieceIqd,
-    });
+    }));
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -235,7 +238,8 @@ export function BatchProductItem({ categories, usdRate, user, onAdded, index }: 
               handlePriceAndPackaging(
                 Number(e.target.value),
                 product.packaging || "درزن",
-                product.piecesCount || 12
+                product.piecesCount || 12,
+                product.forceStandardCrush
               )
             }
             className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white font-mono"
@@ -259,7 +263,8 @@ export function BatchProductItem({ categories, usdRate, user, onAdded, index }: 
               handlePriceAndPackaging(
                 product.dozenPriceUsd || 0,
                 e.target.value,
-                0
+                product.packaging === "تعبئة مخصصة" ? (product.piecesCount || 12) : 0,
+                product.forceStandardCrush
               )
             }
             className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white"
@@ -267,6 +272,27 @@ export function BatchProductItem({ categories, usdRate, user, onAdded, index }: 
             {PACKAGING_OPTIONS.map((o) => (
               <option key={o.label} value={o.label}>{o.label}</option>
             ))}
+          </select>
+        </div>
+        <div className="flex items-center gap-2 mt-4 md:col-span-2">
+          <label className="text-sm text-white/80 select-none flex-1">
+            تشغيل التكسير التلقائي (تقسيم سعر القطعة على 12 دائماً)
+          </label>
+          <select
+            value={product.forceStandardCrush ? "yes" : "no"}
+            onChange={(e) => {
+              const forceCrush = e.target.value === "yes";
+              handlePriceAndPackaging(
+                product.dozenPriceUsd || 0,
+                product.packaging || "درزن",
+                product.piecesCount || 12,
+                forceCrush
+              );
+            }}
+            className="bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-sm focus:border-brq-gold/50 outline-none text-white w-24"
+          >
+            <option value="no">لا</option>
+            <option value="yes">نعم</option>
           </select>
         </div>
         {product.packaging === "تعبئة مخصصة" && (
@@ -279,7 +305,8 @@ export function BatchProductItem({ categories, usdRate, user, onAdded, index }: 
                 handlePriceAndPackaging(
                   product.dozenPriceUsd || 0,
                   product.packaging || "درزن",
-                  Number(e.target.value)
+                  Number(e.target.value),
+                  product.forceStandardCrush
                 )
               }
               className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white font-mono"

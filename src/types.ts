@@ -42,6 +42,7 @@ export interface Product extends BaseEntity {
   piecePriceIqd?: number;
   packaging?: string;
   piecesCount?: number;
+  forceStandardCrush?: boolean;
   modelNumber: string; // The user called it الرمز
   productCode: string; // The user called it الكود
   barcode: string;

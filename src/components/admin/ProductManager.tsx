@@ -179,6 +179,7 @@ export default function ProductManager() {
     packaging: string,
     customPieces: number,
     isEditing: boolean = false,
+    forceStandardCrush: boolean = false,
   ) => {
     if (!packaging) packaging = "درزن";
     let pieces = customPieces || 12;
@@ -188,8 +189,9 @@ export default function ProductManager() {
     }
 
     const iqdValue = usdValue * usdRate;
-    const pieceUsd = pieces > 0 ? usdValue / pieces : 0;
-    const pieceIqd = pieces > 0 ? iqdValue / pieces : 0;
+    const calcPieces = forceStandardCrush ? 12 : pieces;
+    const pieceUsd = calcPieces > 0 ? usdValue / calcPieces : 0;
+    const pieceIqd = calcPieces > 0 ? iqdValue / calcPieces : 0;
 
     if (isEditing && editingProduct) {
       setEditingProduct({
@@ -198,6 +200,7 @@ export default function ProductManager() {
         price: iqdValue,
         packaging,
         piecesCount: pieces,
+        forceStandardCrush,
         piecePriceUsd: pieceUsd,
         piecePriceIqd: pieceIqd,
       });
@@ -208,6 +211,7 @@ export default function ProductManager() {
         price: iqdValue,
         packaging,
         piecesCount: pieces,
+        forceStandardCrush,
         piecePriceUsd: pieceUsd,
         piecePriceIqd: pieceIqd,
       });
@@ -698,6 +702,7 @@ export default function ProductManager() {
                     newProduct.packaging || "درزن",
                     newProduct.piecesCount || 12,
                     false,
+                    newProduct.forceStandardCrush
                   )
                 }
                 className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white font-mono"
@@ -733,8 +738,9 @@ export default function ProductManager() {
                   handlePriceAndPackaging(
                     newProduct.dozenPriceUsd || 0,
                     e.target.value,
-                    0,
+                    newProduct.packaging === "تعبئة مخصصة" ? (newProduct.piecesCount || 12) : 0,
                     false,
+                    newProduct.forceStandardCrush
                   )
                 }
                 className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white"
@@ -744,6 +750,28 @@ export default function ProductManager() {
                     {o.label}
                   </option>
                 ))}
+              </select>
+            </div>
+            <div className="flex items-center gap-2 mt-2 md:col-span-2">
+              <label className="text-sm text-white/80 select-none flex-1">
+                تشغيل التكسير التلقائي (تقسيم سعر القطعة على 12 دائماً)
+              </label>
+              <select
+                value={newProduct.forceStandardCrush ? "yes" : "no"}
+                onChange={(e) => {
+                  const forceCrush = e.target.value === "yes";
+                  handlePriceAndPackaging(
+                    newProduct.dozenPriceUsd || 0,
+                    newProduct.packaging || "درزن",
+                    newProduct.piecesCount || 12,
+                    false,
+                    forceCrush
+                  );
+                }}
+                className="bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-sm focus:border-brq-gold/50 outline-none text-white w-24"
+              >
+                <option value="no">لا</option>
+                <option value="yes">نعم</option>
               </select>
             </div>
             {newProduct.packaging === "تعبئة مخصصة" && (
@@ -760,6 +788,7 @@ export default function ProductManager() {
                       newProduct.packaging || "درزن",
                       Number(e.target.value),
                       false,
+                      newProduct.forceStandardCrush
                     )
                   }
                   className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white font-mono"
@@ -1195,6 +1224,7 @@ export default function ProductManager() {
                       editingProduct.packaging || "درزن",
                       editingProduct.piecesCount || 12,
                       true,
+                      editingProduct.forceStandardCrush
                     )
                   }
                   className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white font-mono"
@@ -1230,8 +1260,9 @@ export default function ProductManager() {
                     handlePriceAndPackaging(
                       editingProduct.dozenPriceUsd || 0,
                       e.target.value,
-                      0,
+                      editingProduct.packaging === "تعبئة مخصصة" ? (editingProduct.piecesCount || 12) : 0,
                       true,
+                      editingProduct.forceStandardCrush
                     )
                   }
                   className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white"
@@ -1241,6 +1272,28 @@ export default function ProductManager() {
                       {o.label}
                     </option>
                   ))}
+                </select>
+              </div>
+              <div className="flex items-center gap-2 mt-2 md:col-span-2">
+                <label className="text-sm text-white/80 select-none flex-1">
+                  تشغيل التكسير التلقائي (تقسيم سعر القطعة على 12 دائماً)
+                </label>
+                <select
+                  value={editingProduct.forceStandardCrush ? "yes" : "no"}
+                  onChange={(e) => {
+                    const forceCrush = e.target.value === "yes";
+                    handlePriceAndPackaging(
+                      editingProduct.dozenPriceUsd || 0,
+                      editingProduct.packaging || "درزن",
+                      editingProduct.piecesCount || 12,
+                      true,
+                      forceCrush
+                    );
+                  }}
+                  className="bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-sm focus:border-brq-gold/50 outline-none text-white w-24"
+                >
+                  <option value="no">لا</option>
+                  <option value="yes">نعم</option>
                 </select>
               </div>
               {editingProduct.packaging === "تعبئة مخصصة" && (
@@ -1257,6 +1310,7 @@ export default function ProductManager() {
                         editingProduct.packaging || "درزن",
                         Number(e.target.value),
                         true,
+                        editingProduct.forceStandardCrush
                       )
                     }
                     className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white font-mono"
