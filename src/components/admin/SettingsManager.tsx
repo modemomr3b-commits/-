@@ -76,7 +76,7 @@ export default function SettingsManager() {
                   type="number" 
                   value={settings.usdExchangeRate || ''} 
                   onChange={e => setSettings({...settings, usdExchangeRate: Number(e.target.value)})}
-                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white font-mono" 
+                  className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500" 
                />
                <p className="text-[10px] text-white/40 mt-1">
                  تغيير هذا السعر سيؤثر على حساب أسعار المنتجات الجديدة فقط (سعر الدرزن).
@@ -97,7 +97,7 @@ export default function SettingsManager() {
                   type="text" 
                   value={settings.companyName} 
                   onChange={e => setSettings({...settings, companyName: e.target.value})}
-                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white" 
+                  className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black placeholder:text-gray-500" 
                />
              </div>
              <div>
@@ -106,7 +106,7 @@ export default function SettingsManager() {
                   type="text" 
                   value={settings.phone} 
                   onChange={e => setSettings({...settings, phone: e.target.value})}
-                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white" 
+                  className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black placeholder:text-gray-500" 
                />
              </div>
           </div>
@@ -151,8 +151,8 @@ export default function SettingsManager() {
             <h3 className="font-bold text-lg">الأمان</h3>
           </div>
           <div className="space-y-3">
-             <button className="w-full text-right px-4 py-2 bg-black/40 border border-white/10 rounded-lg text-sm hover:bg-white/5 transition-colors">تغيير كلمة المرور...</button>
-             <button className="w-full text-right px-4 py-2 bg-black/40 border border-white/10 rounded-lg text-sm hover:bg-white/5 transition-colors">إعدادات المصادقة الثنائية...</button>
+             <button className="w-full text-right px-4 py-2 bg-white border border-black rounded-lg text-sm hover:bg-gray-100 transition-colors text-black">تغيير كلمة المرور...</button>
+             <button className="w-full text-right px-4 py-2 bg-white border border-black rounded-lg text-sm hover:bg-gray-100 transition-colors text-black">إعدادات المصادقة الثنائية...</button>
           </div>
         </div>
       </div>
