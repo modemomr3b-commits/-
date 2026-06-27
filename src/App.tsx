@@ -25,6 +25,8 @@ import NotificationManager from './components/admin/NotificationManager';
 import ReportManager from './components/admin/ReportManager';
 import TrashManager from './components/admin/TrashManager';
 
+import GlobalNotifications from './components/GlobalNotifications';
+
 export default function App() {
   const { initialize, user, loading } = useStore();
 
@@ -68,6 +70,7 @@ export default function App() {
 
   return (
     <BrowserRouter>
+      <GlobalNotifications />
       <div dir="rtl" className="min-h-screen bg-brq-black text-brq-white antialiased">
         <Routes>
           <Route path="/login" element={!user ? <Login /> : <Navigate to="/" />} />
