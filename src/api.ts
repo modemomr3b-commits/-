@@ -14,6 +14,36 @@ const getDeletedData = async (table: string) => {
 };
 
 export const api = {
+  uploadImage: async (base64Str: string): Promise<string> => {
+    try {
+      if (!base64Str || !base64Str.startsWith('data:image')) return base64Str;
+      
+      const res = await fetch(base64Str);
+      const blob = await res.blob();
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`;
+      
+      const { data, error } = await supabase.storage.from('products').upload(fileName, blob, {
+        contentType: 'image/jpeg',
+        upsert: false
+      });
+      
+      if (error) {
+        if (error.message.includes('Bucket not found') || error.message.includes('Object not found')) {
+          await supabase.storage.createBucket('products', { public: true });
+          const retry = await supabase.storage.from('products').upload(fileName, blob, { contentType: 'image/jpeg' });
+          if (retry.error) throw retry.error;
+        } else {
+          throw error;
+        }
+      }
+      
+      const { data: urlData } = supabase.storage.from('products').getPublicUrl(fileName);
+      return urlData.publicUrl;
+    } catch (e: any) {
+      console.error('Image upload failed:', e);
+      throw new Error(`خطأ في رفع الصورة: ${e.message || JSON.stringify(e)} (تأكد من وجود bucket باسم products وأنه public)`);
+    }
+  },
   // PRODUCTS
   getProducts: async () => {
     const data = await getData('products');
@@ -24,20 +54,41 @@ export const api = {
   },
   createProduct: async (data: any) => { 
     const safeData = { ...data };
+    
+    // Upload images if they are base64
+    if (safeData.imageUrl?.startsWith('data:image')) {
+        safeData.imageUrl = await api.uploadImage(safeData.imageUrl);
+    }
+    if (safeData.finalImageUrl?.startsWith('data:image')) {
+        safeData.finalImageUrl = await api.uploadImage(safeData.finalImageUrl);
+    }
+
     if (safeData.isHidden !== undefined) {
       safeData.size = { ...(safeData.size || {}), isHidden: safeData.isHidden };
       delete safeData.isHidden;
     }
+    delete safeData.forceStandardCrush;
+
     const { data: r, error } = await supabase.from('products').insert(safeData).select().single(); 
     if (error) throw error; 
     return { ...r, isHidden: r.size?.isHidden || false }; 
   },
   updateProduct: async (id: string, data: any) => { 
     const safeData = { ...data };
+    
+    if (safeData.imageUrl?.startsWith('data:image')) {
+        safeData.imageUrl = await api.uploadImage(safeData.imageUrl);
+    }
+    if (safeData.finalImageUrl?.startsWith('data:image')) {
+        safeData.finalImageUrl = await api.uploadImage(safeData.finalImageUrl);
+    }
+
     if (safeData.isHidden !== undefined) {
       safeData.size = { ...(safeData.size || {}), isHidden: safeData.isHidden };
       delete safeData.isHidden;
     }
+    delete safeData.forceStandardCrush;
+
     const { data: r, error } = await supabase.from('products').update(safeData).match({ id }).select().single(); 
     if (error) throw error; 
     return { ...r, isHidden: r.size?.isHidden || false }; 

@@ -23,7 +23,7 @@ import { api } from "../../api";
 import { supabase } from "../../supabase";
 import { Product, Category } from "../../types";
 import { burnProductOverlay } from "../../utils/burnImage";
-import { BatchProductItem } from "./BatchProductUpload";
+import { BatchProductUpload } from "./BatchProductUpload";
 import { useStore } from "../../store";
 import { CategoryDownloadDialog } from "../shared/CategoryDownloadDialog";
 
@@ -218,8 +218,8 @@ export default function ProductManager() {
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement("canvas");
-        const MAX_WIDTH = 800;
-        const MAX_HEIGHT = 800;
+        const MAX_WIDTH = 1200;
+        const MAX_HEIGHT = 1200;
         let width = img.width;
         let height = img.height;
 
@@ -240,7 +240,7 @@ export default function ProductManager() {
         const ctx = canvas.getContext("2d");
         if (ctx) {
           ctx.drawImage(img, 0, 0, width, height);
-          const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
           if (isEditing && editingProduct) {
             setEditingProduct({ ...editingProduct, imageUrl: dataUrl });
           } else {
@@ -624,42 +624,13 @@ export default function ProductManager() {
       )}
 
       {isBatchAdding && (
-        <div className="space-y-4">
-            <div className="flex flex-col gap-4 bg-black/40 p-4 rounded-xl border border-white/10">
-                <div className="flex justify-between items-center">
-                    <h3 className="text-brq-gold font-bold">نمط الرفع السريع</h3>
-                    <button onClick={() => setIsBatchAdding(false)} className="text-white/50 hover:text-white">
-                        <X size={20} />
-                    </button>
-                </div>
-                <div className="w-full md:w-1/2">
-                    <label className="text-xs text-white/50 block mb-1">القسم الرئيسي لكل المنتجات</label>
-                    <select
-                        value={batchCategoryId}
-                        onChange={(e) => setBatchCategoryId(e.target.value)}
-                        className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black placeholder:text-gray-500"
-                    >
-                        <option value="">-- إختر القسم الرئيسي --</option>
-                        {categories.filter((c) => !c.parentId).map((c) => (
-                            <option key={c.id} value={c.id}>{c.name}</option>
-                        ))}
-                    </select>
-                </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {Array.from({ length: 10 }).map((_, idx) => (
-                    <BatchProductItem 
-                        key={idx} 
-                        index={idx + 1}
-                        categories={categories}
-                        usdRate={usdRate}
-                        user={user}
-                        onAdded={loadData}
-                        globalCategoryId={batchCategoryId || undefined}
-                    />
-                ))}
-            </div>
-        </div>
+        <BatchProductUpload 
+            categories={categories}
+            usdRate={usdRate}
+            user={user}
+            onAdded={loadData}
+            onClose={() => setIsBatchAdding(false)}
+        />
       )}
 
       {isAdding && (
@@ -675,7 +646,7 @@ export default function ProductManager() {
           </h3>
           <form
             onSubmit={handleCreate}
-            className="grid grid-cols-1 md:grid-cols-2 gap-4"
+            className="flex flex-col gap-4"
           >
             <div>
               <label className="text-xs text-white/50 block mb-1">
@@ -1170,7 +1141,7 @@ export default function ProductManager() {
             </h3>
             <form
               onSubmit={handleUpdate}
-              className="grid grid-cols-1 md:grid-cols-2 gap-4"
+              className="flex flex-col gap-4"
             >
               <div>
                 <label className="text-xs text-white/50 block mb-1">

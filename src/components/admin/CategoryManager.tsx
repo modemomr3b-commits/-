@@ -166,6 +166,35 @@ export default function CategoryManager() {
     null,
   );
   const [newSubName, setNewSubName] = useState("");
+  const [editingCatId, setEditingCatId] = useState<string | null>(null);
+  const [editCatName, setEditCatName] = useState("");
+
+  const handleSaveEdit = async (id: string, oldName: string) => {
+    if (!editCatName.trim() || editCatName === oldName || isSubmitting) {
+      setEditingCatId(null);
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      await api.updateCategory(id, { name: editCatName });
+      await api.logAction({
+        userId: user?.uid || "",
+        userName: user?.username || "System",
+        action: "تعديل اسم قسم",
+        entityType: "category",
+        entityId: id,
+        details: { oldName, newName: editCatName },
+      });
+      const updated = await api.getCategories();
+      setCategories(updated);
+      setEditingCatId(null);
+    } catch (e) {
+      console.error(e);
+      alert("حدث خطأ أثناء التعديل");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const handleCreateSub = async (parentId: string) => {
     if (!newSubName.trim() || isSubmitting) return;
@@ -431,7 +460,26 @@ export default function CategoryManager() {
                       {c.order}
                     </div>
                     <div>
-                      <h3 className="font-bold text-lg">{c.name}</h3>
+                      {editingCatId === c.id ? (
+                        <div className="flex items-center gap-2">
+                            <input 
+                                type="text" 
+                                value={editCatName} 
+                                onChange={(e) => setEditCatName(e.target.value)}
+                                className="bg-white border border-black rounded px-2 py-1 text-sm text-black outline-none"
+                                autoFocus
+                            />
+                            <button onClick={() => handleSaveEdit(c.id!, c.name)} className="text-emerald-500 hover:text-emerald-400 text-sm font-bold">حفظ</button>
+                            <button onClick={() => setEditingCatId(null)} className="text-red-500 hover:text-red-400 text-sm font-bold">إلغاء</button>
+                        </div>
+                    ) : (
+                        <h3 className="font-bold text-lg flex items-center gap-2">
+                            {c.name}
+                            <button onClick={() => { setEditingCatId(c.id!); setEditCatName(c.name); }} className="text-white/30 hover:text-white/80 transition-colors p-1">
+                                <Edit size={14} />
+                            </button>
+                        </h3>
+                    )}
                       <p className="text-xs text-white/50">
                         {subs.length} أقسام فرعية
                       </p>
