@@ -8,6 +8,8 @@ import OptimizedImage from '../OptimizedImage';
 export default function Cart() {
   const { cart, removeFromCart, updateQuantity, clearCart, user } = useStore();
   const [notes, setNotes] = useState('');
+  const [customerName, setCustomerName] = useState('');
+  const [transport, setTransport] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const navigate = useNavigate();
@@ -19,7 +21,8 @@ export default function Cart() {
 
   const handleWhatsAppShare = async () => {
     let filesArray: File[] = [];
-    const text = `*طلب جديد* 🛒\n\n${notes ? `*الملاحظات:* ${notes}\n\n` : ''}*المنتجات:*\n${cart.map((item, index) => `${index+1}- ${item.product.name}\n  الكود: ${item.product.productCode || '---'}\n  الموديل: ${item.product.modelNumber || '---'}\n  الكمية: ${item.quantity}`).join('\n\n')}`;
+    const agentName = user?.fullName || user?.username || '---';
+    const text = `*طلب جديد* 🛒\n\n*اسم الوكيل:* ${agentName}\n*اسم الزبون:* ${customerName || '---'}\n*النقليات:* ${transport || '---'}\n${notes ? `*الملاحظات:* ${notes}\n\n` : '\n'}*المنتجات:*\n${cart.map((item, index) => `${index+1}- ${item.product.name}\n  *الكود: ${item.product.productCode || '---'}*\n  الموديل: ${item.product.modelNumber || '---'}\n  *الكمية: ${item.quantity}*`).join('\n\n')}`;
     
     if (navigator.share && navigator.canShare) {
         try {
@@ -51,7 +54,7 @@ export default function Cart() {
     }
     
     // Fallback to standard WhatsApp link if Web Share API with files fails or is unsupported
-    const textFallback = `*طلب جديد* 🛒\n\n${notes ? `*الملاحظات:* ${notes}\n\n` : ''}*المنتجات:*\n${cart.map((item, index) => `${index+1}- ${item.product.name}\n  الكود: ${item.product.productCode || '---'}\n  الموديل: ${item.product.modelNumber || '---'}\n  الكمية: ${item.quantity}\n  الصورة: ${item.product.finalImageUrl || item.product.imageUrl || ''}`).join('\n\n')}`;
+    const textFallback = `*طلب جديد* 🛒\n\n*اسم الوكيل:* ${agentName}\n*اسم الزبون:* ${customerName || '---'}\n*النقليات:* ${transport || '---'}\n${notes ? `*الملاحظات:* ${notes}\n\n` : '\n'}*المنتجات:*\n${cart.map((item, index) => `${index+1}- ${item.product.name}\n  *الكود: ${item.product.productCode || '---'}*\n  الموديل: ${item.product.modelNumber || '---'}\n  *الكمية: ${item.quantity}*\n  الصورة: ${item.product.finalImageUrl || item.product.imageUrl || ''}`).join('\n\n')}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(textFallback)}`, '_blank');
   };
 
@@ -59,6 +62,12 @@ export default function Cart() {
     if (cart.length === 0 || !user) return;
     setIsSubmitting(true);
     try {
+      const fullNotes = [
+         customerName ? `اسم الزبون: ${customerName}` : '',
+         transport ? `النقليات: ${transport}` : '',
+         notes ? `ملاحظات إضافية: ${notes}` : ''
+      ].filter(Boolean).join('\n');
+
       const orderNumber = `BRQ-${Math.floor(1000 + Math.random() * 9000)}`;
       await api.createOrder({
         userId: user.uid,
@@ -72,7 +81,7 @@ export default function Cart() {
              product: item.product,
         })),
         totalQuantity: totalPieces,
-        notes: notes.trim(),
+        notes: fullNotes,
         createdAt: Date.now()
       });
 
@@ -171,14 +180,36 @@ export default function Cart() {
              </div>
          ))}
 
-         <div className="glass-panel p-4 rounded-xl mt-6 space-y-3 border border-white/5">
-             <label className="text-xs text-white/70 font-bold block mb-2">ملاحظات الطلبية (اختياري)</label>
-             <textarea 
-               value={notes}
-               onChange={e => setNotes(e.target.value)}
-               className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-sm focus:outline-none focus:border-brq-gold/50 h-24 text-white placeholder-white/30"
-               placeholder="أضف ملاحظاتك حول الألوان أو القياسات المطلوبة، أو أي تفاصيل أخرى..."
-             />
+         <div className="glass-panel p-4 rounded-xl mt-6 space-y-4 border border-white/5">
+             <div className="space-y-1">
+                 <label className="text-xs text-white/70 font-bold block">اسم الزبون (اختياري)</label>
+                 <input 
+                   type="text"
+                   value={customerName}
+                   onChange={e => setCustomerName(e.target.value)}
+                   className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-sm focus:outline-none focus:border-brq-gold/50 text-white placeholder-white/30"
+                   placeholder="أدخل اسم الزبون المستلم..."
+                 />
+             </div>
+             <div className="space-y-1">
+                 <label className="text-xs text-white/70 font-bold block">النقليات (اختياري)</label>
+                 <input 
+                   type="text"
+                   value={transport}
+                   onChange={e => setTransport(e.target.value)}
+                   className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-sm focus:outline-none focus:border-brq-gold/50 text-white placeholder-white/30"
+                   placeholder="تفاصيل الشحن أو النقليات..."
+                 />
+             </div>
+             <div className="space-y-1 pt-2">
+                 <label className="text-xs text-white/70 font-bold block">ملاحظات الطلبية (اختياري)</label>
+                 <textarea 
+                   value={notes}
+                   onChange={e => setNotes(e.target.value)}
+                   className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-sm focus:outline-none focus:border-brq-gold/50 h-24 text-white placeholder-white/30"
+                   placeholder="أضف ملاحظاتك حول الألوان أو القياسات المطلوبة، أو أي تفاصيل أخرى..."
+                 />
+             </div>
          </div>
       </div>
 

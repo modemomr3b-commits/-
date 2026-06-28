@@ -263,7 +263,7 @@ export default function OrderManager() {
                      </div>
                      <div className="p-4 bg-white/5 rounded-xl border border-white/10">
                         <div className="text-xs text-white/50 mb-1">الاسم الكامل</div>
-                        <div className="font-bold">{selectedOrder.fullName}</div>
+                        <div className="font-bold">{selectedOrder.fullName || selectedOrder.username}</div>
                      </div>
                   </div>
 

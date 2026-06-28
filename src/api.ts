@@ -165,13 +165,34 @@ export const api = {
   },
 
   // ORDERS
-  getOrders: async () => await getData('orders'),
+  getOrders: async () => {
+    const data = await getData('orders');
+    return data.map((o: any) => ({
+      ...o,
+      items: o.products || o.items || [],
+      totalQuantity: o.total || o.totalQuantity || 0,
+      fullName: o.customerName || o.fullName || o.username || '',
+      username: o.username || o.customerName || '',
+    }));
+  },
   createOrder: async (data: any) => { 
-    const { data: r, error } = await supabase.from('orders').insert(data).select().single(); 
+    const safeData = { ...data };
+    if (safeData.items) { safeData.products = safeData.items; delete safeData.items; }
+    if (safeData.totalQuantity !== undefined) { safeData.total = safeData.totalQuantity; delete safeData.totalQuantity; }
+    if (safeData.fullName !== undefined) { safeData.customerName = safeData.fullName; delete safeData.fullName; }
+    delete safeData.userId;
+    delete safeData.username;
+    const { data: r, error } = await supabase.from('orders').insert(safeData).select().single(); 
     if (error) throw error; return r; 
   },
   updateOrder: async (id: string, data: any) => { 
-    const { data: r, error } = await supabase.from('orders').update(data).match({ id }).select().single(); 
+    const safeData = { ...data };
+    if (safeData.items) { safeData.products = safeData.items; delete safeData.items; }
+    if (safeData.totalQuantity !== undefined) { safeData.total = safeData.totalQuantity; delete safeData.totalQuantity; }
+    if (safeData.fullName !== undefined) { safeData.customerName = safeData.fullName; delete safeData.fullName; }
+    delete safeData.userId;
+    delete safeData.username;
+    const { data: r, error } = await supabase.from('orders').update(safeData).match({ id }).select().single(); 
     if (error) throw error; return r; 
   },
   deleteOrder: async (id: string, deletedBy?: string) => { 
