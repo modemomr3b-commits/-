@@ -186,6 +186,7 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
           finalImageUrl: finalImg,
           views: 0,
           isArchived: false,
+          isHidden: true,
         } as any);
         
         await api.logAction({

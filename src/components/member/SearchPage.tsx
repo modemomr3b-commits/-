@@ -1,10 +1,10 @@
-import { Search, SlidersHorizontal, Archive, ChevronLeft } from 'lucide-react';
+import { Search, SlidersHorizontal, Archive, ChevronLeft, History } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { api } from '../../api';
 import { Product } from '../../types';
 import { Link } from 'react-router';
 import OptimizedImage from '../OptimizedImage';
-
+import { PriceHistoryViewer } from './PriceHistoryViewer';
 import { useStore } from '../../store';
 
 export default function SearchPage() {
@@ -13,6 +13,7 @@ export default function SearchPage() {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [searchArchived, setSearchArchived] = useState(false);
+  const [historyProduct, setHistoryProduct] = useState<Product | null>(null);
 
   useEffect(() => {
     let mounted = true;

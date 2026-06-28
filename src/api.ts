@@ -49,7 +49,8 @@ export const api = {
     const data = await getData('products');
     return data.map((p: any) => ({
       ...p,
-      isHidden: p.size?.isHidden || false
+      isHidden: p.size?.isHidden || false,
+      oldPriceInfo: p.size?.oldPriceInfo || undefined
     }));
   },
   createProduct: async (data: any) => { 
@@ -63,15 +64,16 @@ export const api = {
         safeData.finalImageUrl = await api.uploadImage(safeData.finalImageUrl);
     }
 
-    if (safeData.isHidden !== undefined) {
-      safeData.size = { ...(safeData.size || {}), isHidden: safeData.isHidden };
-      delete safeData.isHidden;
-    }
+    safeData.size = { ...(safeData.size || {}) };
+    if (safeData.isHidden !== undefined) safeData.size.isHidden = safeData.isHidden;
+    if (safeData.oldPriceInfo !== undefined) safeData.size.oldPriceInfo = safeData.oldPriceInfo;
+    delete safeData.isHidden;
+    delete safeData.oldPriceInfo;
     delete safeData.forceStandardCrush;
 
     const { data: r, error } = await supabase.from('products').insert(safeData).select().single(); 
     if (error) throw error; 
-    return { ...r, isHidden: r.size?.isHidden || false }; 
+    return { ...r, isHidden: r.size?.isHidden || false, oldPriceInfo: r.size?.oldPriceInfo || undefined }; 
   },
   updateProduct: async (id: string, data: any) => { 
     const safeData = { ...data };
@@ -83,15 +85,16 @@ export const api = {
         safeData.finalImageUrl = await api.uploadImage(safeData.finalImageUrl);
     }
 
-    if (safeData.isHidden !== undefined) {
-      safeData.size = { ...(safeData.size || {}), isHidden: safeData.isHidden };
-      delete safeData.isHidden;
-    }
+    safeData.size = { ...(safeData.size || {}) };
+    if (safeData.isHidden !== undefined) safeData.size.isHidden = safeData.isHidden;
+    if (safeData.oldPriceInfo !== undefined) safeData.size.oldPriceInfo = safeData.oldPriceInfo;
+    delete safeData.isHidden;
+    delete safeData.oldPriceInfo;
     delete safeData.forceStandardCrush;
 
     const { data: r, error } = await supabase.from('products').update(safeData).match({ id }).select().single(); 
     if (error) throw error; 
-    return { ...r, isHidden: r.size?.isHidden || false }; 
+    return { ...r, isHidden: r.size?.isHidden || false, oldPriceInfo: r.size?.oldPriceInfo || undefined }; 
   },
   deleteProduct: async (id: string, deletedBy?: string) => { 
     const { error } = await supabase.from('products').delete().match({ id }); 

@@ -9,7 +9,6 @@ import {
   Package,
   Loader2,
   X,
-  Copy,
   Download,
   DollarSign,
   CheckSquare,
@@ -17,6 +16,7 @@ import {
   Eye,
   EyeOff,
   Share2,
+  History,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { api } from "../../api";
@@ -26,11 +26,15 @@ import { burnProductOverlay } from "../../utils/burnImage";
 import { BatchProductUpload } from "./BatchProductUpload";
 import { useStore } from "../../store";
 import { CategoryDownloadDialog } from "../shared/CategoryDownloadDialog";
+import ImageViewer from "../ImageViewer";
+import { PriceHistoryViewer } from "../member/PriceHistoryViewer";
 
 export default function ProductManager() {
   const { user } = useStore();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [viewImage, setViewImage] = useState<{ src: string, alt: string } | null>(null);
+  const [historyProduct, setHistoryProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [usdRate, setUsdRate] = useState<number>(1500);
@@ -57,6 +61,7 @@ export default function ProductManager() {
     categoryId: "",
     imageUrl: "",
     forceStandardCrush: true,
+    isHidden: true,
   });
 
   const [filterStatus, setFilterStatus] = useState<"active" | "archived">("active");
@@ -272,6 +277,7 @@ export default function ProductManager() {
         finalImageUrl: finalImg,
         views: 0,
         isArchived: false,
+        isHidden: newProduct.isHidden ?? true,
       });
       await api.logAction({
         userId: user?.uid || "",
@@ -292,6 +298,7 @@ export default function ProductManager() {
         categoryId: "",
         imageUrl: "",
         forceStandardCrush: true,
+        isHidden: true,
       });
       const updated = await api.getProducts();
       setProducts(updated);
@@ -309,6 +316,7 @@ export default function ProductManager() {
       return;
     setIsSubmitting(true);
     try {
+      const originalProduct = products.find(p => p.id === editingProduct.id);
       let finalImg = editingProduct.finalImageUrl || editingProduct.imageUrl;
       if (editingProduct.imageUrl) {
         try {
@@ -321,9 +329,24 @@ export default function ProductManager() {
         }
       }
 
+      const isPriceChanged = originalProduct && (
+        originalProduct.price !== editingProduct.price ||
+        originalProduct.piecePriceIqd !== editingProduct.piecePriceIqd ||
+        originalProduct.dozenPriceUsd !== editingProduct.dozenPriceUsd
+      );
+
+      const oldPriceInfo = (isPriceChanged && originalProduct?.finalImageUrl) ? {
+        price: originalProduct.price,
+        piecePriceIqd: originalProduct.piecePriceIqd,
+        dozenPriceUsd: originalProduct.dozenPriceUsd,
+        finalImageUrl: originalProduct.finalImageUrl,
+        updatedAt: Date.now()
+      } : originalProduct?.oldPriceInfo;
+
       await api.updateProduct(editingProduct.id!, {
         ...editingProduct,
         finalImageUrl: finalImg,
+        oldPriceInfo: oldPriceInfo
       });
       await api.logAction({
         userId: user?.uid || "",
@@ -372,31 +395,6 @@ export default function ProductManager() {
       const updated = await api.getProducts();
       setProducts(updated);
       alert("فشل الحذف: " + e.message);
-    }
-  };
-
-  const handleDuplicate = async (p: Product) => {
-    try {
-      const copy = { ...p };
-      // @ts-ignore
-      delete copy.id;
-      copy.name = `${copy.name} (نسخة)`;
-
-      let finalImg = copy.finalImageUrl || copy.imageUrl;
-      if (copy.imageUrl) {
-        try {
-          finalImg = await burnProductOverlay(copy, copy.imageUrl);
-        } catch (err) {
-          console.error("Failed to generate burned image on duplicate", err);
-        }
-      }
-      copy.finalImageUrl = finalImg;
-
-      await api.createProduct(copy);
-      const updated = await api.getProducts();
-      setProducts(updated);
-    } catch (e) {
-      console.error(e);
     }
   };
 
@@ -1009,7 +1007,14 @@ export default function ProductManager() {
                           </button>
                         </td>
                         <td className="p-4">
-                          <div className="w-12 h-12 rounded-lg bg-brq-navy flex items-center justify-center border border-white/10 overflow-hidden text-2xl">
+                          <div 
+                            className="w-12 h-12 rounded-lg bg-brq-navy flex items-center justify-center border border-white/10 overflow-hidden text-2xl cursor-pointer"
+                            onClick={() => {
+                              if (p.finalImageUrl || p.imageUrl) {
+                                setViewImage({ src: p.finalImageUrl || p.imageUrl || '', alt: p.name });
+                              }
+                            }}
+                          >
                             {p.finalImageUrl || p.imageUrl ? (
                               <img
                                 src={p.finalImageUrl || p.imageUrl}
@@ -1074,20 +1079,22 @@ export default function ProductManager() {
                             )}
                             <button
                               type="button"
-                              onClick={() => handleDuplicate(p)}
-                              className="p-1.5 hover:bg-green-500/20 text-green-400 rounded transition-colors"
-                              title="نسخ المنتج"
-                            >
-                              <Copy size={16} />
-                            </button>
-                            <button
-                              type="button"
                               onClick={() => handleToggleHide(p)}
                               className={`p-1.5 rounded transition-colors ${p.isHidden ? 'bg-purple-500/20 text-purple-400 hover:bg-purple-500/30' : 'hover:bg-purple-500/20 text-white/50 hover:text-purple-400'}`}
                               title={p.isHidden ? "إظهار المنتج للمستخدمين" : "إخفاء المنتج عن المستخدمين"}
                             >
                               {p.isHidden ? <EyeOff size={16} /> : <Eye size={16} />}
                             </button>
+                            {p.oldPriceInfo && (
+                              <button
+                                type="button"
+                                onClick={() => setHistoryProduct(p)}
+                                className="p-1.5 hover:bg-brq-gold/20 text-brq-gold rounded transition-colors"
+                                title="تم تغيير السعر - عرض التاريخ"
+                              >
+                                <History size={16} />
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => setEditingProduct({ ...p, forceStandardCrush: p.forceStandardCrush ?? true })}
@@ -1365,6 +1372,19 @@ export default function ProductManager() {
             </form>
           </div>
         </div>
+      )}
+
+      {/* Image Viewer */}
+      {viewImage && (
+        <ImageViewer 
+          src={viewImage.src} 
+          alt={viewImage.alt} 
+          onClose={() => setViewImage(null)} 
+        />
+      )}
+
+      {historyProduct && (
+        <PriceHistoryViewer product={historyProduct} onClose={() => setHistoryProduct(null)} />
       )}
     </div>
   );

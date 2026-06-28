@@ -54,6 +54,13 @@ export interface Product extends BaseEntity {
   isHidden?: boolean;
   views: number;
   createdAt: number;
+  oldPriceInfo?: {
+    price: number;
+    piecePriceIqd?: number;
+    dozenPriceUsd?: number;
+    finalImageUrl: string;
+    updatedAt: number;
+  };
 }
 
 export interface OrderItem {

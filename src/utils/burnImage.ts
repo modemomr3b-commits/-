@@ -96,6 +96,9 @@ export const burnProductOverlay = (product: any, rawImageUrl: string): Promise<s
         const pceH = 90 * scale;
         const pceX = 40 * scale;
 
+        ctx.fillStyle = '#d4af37'; // Ensure piece box is solid gold
+        ctx.strokeStyle = '#d4af37';
+        
         if (ctx.roundRect) {
             ctx.beginPath();
             ctx.roundRect(pceX, boxY, pceW, pceH, 12 * scale);
@@ -105,11 +108,11 @@ export const burnProductOverlay = (product: any, rawImageUrl: string): Promise<s
             ctx.fillRect(pceX, boxY, pceW, pceH);
         }
 
-        ctx.fillStyle = '#aaaaaa';
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'; // Dark text for label
         ctx.font = `${24 * scale}px Arial`;
         // In Arabic, we're writing rtl but the text origin is right for fillText because of ctx.textAlign = 'right'
         ctx.fillText('سعر المفرد (القطعة)', pceX + pceW - (20 * scale), boxY + (15 * scale));
-        ctx.fillStyle = '#ffffff';
+        ctx.fillStyle = '#000000'; // Black text for price
         ctx.font = `bold ${36 * scale}px Arial`;
         ctx.fillText((product.piecePriceIqd ? Number(product.piecePriceIqd).toLocaleString() : '---') + ' د.ع', pceX + pceW - (20 * scale), boxY + (45 * scale));
 

@@ -1,5 +1,5 @@
 import { useParams, Link, useNavigate } from "react-router";
-import { ChevronRight, Filter, Download, ShoppingCart, Layers, Share2, CheckSquare, Square } from "lucide-react";
+import { ChevronRight, Filter, Download, ShoppingCart, Layers, Share2, CheckSquare, Square, History } from "lucide-react";
 import { useState, useEffect } from "react";
 import { api } from "../../api";
 import { supabase } from "../../supabase";
@@ -7,6 +7,7 @@ import { Product, Category } from "../../types";
 import { useStore } from "../../store";
 import OptimizedImage from "../OptimizedImage";
 import { CategoryDownloadDialog } from "../shared/CategoryDownloadDialog";
+import { PriceHistoryViewer } from "./PriceHistoryViewer";
 
 const MOCK_PRODUCTS: Product[] = [];
 
@@ -19,6 +20,7 @@ export default function Products() {
   const [activeSub, setActiveSub] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const { addToCart, user } = useStore();
+  const [historyProduct, setHistoryProduct] = useState<Product | null>(null);
 
   const [categoryName, setCategoryName] = useState("جميع المنتجات");
   const [downloadProgress, setDownloadProgress] = useState<{ progress: number, total: number } | null>(null);
@@ -373,7 +375,7 @@ export default function Products() {
               )}
               
               {!isSelectionMode && (
-                <div className="absolute top-2 left-2 z-10">
+                <div className="absolute top-2 left-2 z-10 flex flex-col gap-1">
                   <button
                     onClick={(e) => handleShareSingle(e, p)}
                     className="p-1.5 rounded-lg bg-black/40 backdrop-blur-sm border border-white/20 text-white hover:bg-blue-500/50 hover:text-white transition-colors"
@@ -381,6 +383,19 @@ export default function Products() {
                   >
                     <Share2 size={16} />
                   </button>
+                  {p.oldPriceInfo && (
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setHistoryProduct(p);
+                      }}
+                      className="p-1.5 rounded-lg bg-brq-gold/20 backdrop-blur-sm border border-brq-gold/40 text-brq-gold hover:bg-brq-gold hover:text-black transition-colors shadow-[0_0_10px_rgba(212,175,55,0.3)]"
+                      title="تم تغيير السعر - عرض التاريخ"
+                    >
+                      <History size={16} />
+                    </button>
+                  )}
                 </div>
               )}
               
@@ -470,6 +485,10 @@ export default function Products() {
             </div>
           </div>
         </div>
+      )}
+
+      {historyProduct && (
+        <PriceHistoryViewer product={historyProduct} onClose={() => setHistoryProduct(null)} />
       )}
     </div>
   );

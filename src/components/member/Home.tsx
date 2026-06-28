@@ -115,8 +115,7 @@ export default function Home() {
                 تسوق الآن
               </button>
               <p className="text-xs md:text-sm border border-white/20 px-4 py-2.5 rounded-full bg-black/40 backdrop-blur-md inline-flex items-center gap-2">
-                <Zap size={14} className="text-yellow-400" /> خصم 30% لفترة
-                محدودة
+                <Zap size={14} className="text-brq-gold" /> شركة الوفاء - الجودة والتميز
               </p>
             </div>
           </motion.div>

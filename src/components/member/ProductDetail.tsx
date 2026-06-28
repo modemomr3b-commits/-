@@ -1,10 +1,11 @@
 import { useParams, useNavigate } from 'react-router';
-import { ChevronRight, Heart, ShoppingCart, Loader2, Download, Share2 } from 'lucide-react';
+import { ChevronRight, Heart, ShoppingCart, Loader2, Download, Share2, History } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { api } from '../../api';
 import { Product } from '../../types';
 import { useStore } from '../../store';
 import OptimizedImage from '../OptimizedImage';
+import { PriceHistoryViewer } from './PriceHistoryViewer';
 
 export default function ProductDetail() {
   const { productId } = useParams();
@@ -12,6 +13,7 @@ export default function ProductDetail() {
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const { addToCart, user } = useStore();
+  const [historyProduct, setHistoryProduct] = useState<Product | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -119,9 +121,20 @@ export default function ProductDetail() {
          <div>
             <div className="flex justify-between items-start mb-2">
                <h1 className="text-2xl font-bold leading-tight">{product.name}</h1>
-               <button className="text-white/50 hover:text-brq-gold transition-colors">
-                 <Heart size={24} />
-               </button>
+               <div className="flex gap-2 items-center">
+                 {product.oldPriceInfo && (
+                   <button 
+                     onClick={() => setHistoryProduct(product)}
+                     className="p-1.5 rounded-lg bg-brq-gold/20 text-brq-gold hover:bg-brq-gold hover:text-black transition-colors"
+                     title="تم تغيير السعر - عرض التاريخ"
+                   >
+                     <History size={24} />
+                   </button>
+                 )}
+                 <button className="text-white/50 hover:text-brq-gold transition-colors p-1.5">
+                   <Heart size={24} />
+                 </button>
+               </div>
             </div>
             
             <div className="flex flex-col gap-1 mb-4">
@@ -161,6 +174,10 @@ export default function ProductDetail() {
             إضافة إلى الطلبية
          </button>
       </div>
+
+      {historyProduct && (
+        <PriceHistoryViewer product={historyProduct} onClose={() => setHistoryProduct(null)} />
+      )}
     </div>
   );
 }
