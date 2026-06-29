@@ -27,12 +27,10 @@ export default function MemberLayout() {
       <aside className="hidden md:flex flex-col w-72 glass-panel border-l border-brq-gold/20 h-screen sticky top-0 bg-black/40 backdrop-blur-xl">
         <div className="p-6 border-b border-brq-gold/20 flex flex-col items-center gap-3 relative">
           <div className="absolute top-0 right-0 w-32 h-32 bg-brq-gold/10 blur-[50px] rounded-full pointer-events-none"></div>
-          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-brq-gold to-yellow-600 flex items-center justify-center p-0.5 shadow-[0_0_15px_rgba(212,175,55,0.4)]">
-            <div className="w-full h-full bg-brq-navy rounded-full flex items-center justify-center text-xl font-bold text-white">BRQ</div>
-          </div>
-          <div className="text-center">
-            <h1 className="text-xl font-bold tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-brq-gold to-yellow-300">BRQ SYSTEM</h1>
-            <p className="text-xs text-white/50 tracking-wider">شـــــركة الـوفــاء المـتميــــــز</p>
+          
+          <div className="w-32 h-32 flex items-center justify-center relative transition-transform hover:scale-105 duration-500 group">
+            <div className="absolute inset-4 bg-brq-gold/20 rounded-full blur-xl group-hover:bg-brq-gold/40 transition-colors duration-500"></div>
+            <img src="/icon.svg" alt="شركة الوفاء BRQ" className="w-full h-full object-contain relative z-10 drop-shadow-2xl" referrerPolicy="no-referrer" />
           </div>
         </div>
 
@@ -88,9 +86,14 @@ export default function MemberLayout() {
         
         {/* Top Header - Mobile */}
         <header className="md:hidden sticky top-0 z-50 glass-panel border-b border-brq-gold/20 px-4 py-3 flex items-center justify-between">
-          <div className="flex flex-col">
-            <span className="text-brq-gold font-bold text-lg tracking-wide uppercase">BRQ SYSTEM</span>
-            <span className="text-xs text-white/50">شركة الوفاء المتميز</span>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 flex items-center justify-center relative">
+              <img src="/icon.svg" alt="شركة الوفاء BRQ" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-brq-gold font-bold text-lg tracking-wide uppercase">BRQ</span>
+              <span className="text-xs text-white/50">شركة الوفاء</span>
+            </div>
           </div>
           <div className="flex gap-2 items-center">
             {user?.role === 'admin' && (

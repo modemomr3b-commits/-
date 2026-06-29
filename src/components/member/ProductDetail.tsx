@@ -12,7 +12,7 @@ export default function ProductDetail() {
   const navigate = useNavigate();
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
-  const { addToCart, user } = useStore();
+  const { addToCart, updateQuantity, removeFromCart, cart, user } = useStore();
   const [historyProduct, setHistoryProduct] = useState<Product | null>(null);
 
   useEffect(() => {
@@ -41,8 +41,17 @@ export default function ProductDetail() {
   const handleAddToCart = () => {
      if (product) {
        addToCart(product, 1);
-       alert('تم إضافة المنتج للطلبية بنجاح!');
      }
+  };
+
+  const handleUpdateQuantity = (quantity: number) => {
+    if (product) {
+      if (quantity <= 0) {
+        removeFromCart(product.id!);
+      } else {
+        updateQuantity(product.id!, quantity);
+      }
+    }
   };
 
   if (loading) {
@@ -169,10 +178,34 @@ export default function ProductDetail() {
             </div>
          </div>
 
-         <button onClick={handleAddToCart} className="w-full flex items-center justify-center gap-2 py-4 bg-brq-royal hover:bg-blue-600 rounded-xl text-white font-bold tracking-wide shadow-[0_4px_20px_rgba(30,94,255,0.4)] transition-all hover:scale-[1.02]">
-            <ShoppingCart size={20} />
-            إضافة إلى الطلبية
-         </button>
+         {(() => {
+           const cartItem = cart.find(item => item.product.id === product.id);
+           if (cartItem) {
+             return (
+               <div className="flex items-center justify-between w-full h-14 bg-brq-royal/20 border border-brq-royal/50 rounded-xl px-4">
+                 <button
+                   onClick={() => handleUpdateQuantity(cartItem.quantity + 1)}
+                   className="h-full px-6 text-white text-2xl hover:bg-brq-royal/50 rounded-r-xl transition-colors"
+                 >
+                   +
+                 </button>
+                 <span className="text-white font-bold text-xl">{cartItem.quantity}</span>
+                 <button
+                   onClick={() => handleUpdateQuantity(cartItem.quantity - 1)}
+                   className="h-full px-6 text-white text-2xl hover:bg-brq-royal/50 rounded-l-xl transition-colors"
+                 >
+                   -
+                 </button>
+               </div>
+             );
+           }
+           return (
+             <button onClick={handleAddToCart} className="w-full flex items-center justify-center gap-2 py-4 bg-brq-royal hover:bg-blue-600 rounded-xl text-white font-bold tracking-wide shadow-[0_4px_20px_rgba(30,94,255,0.4)] transition-all hover:scale-[1.02]">
+                <ShoppingCart size={20} />
+                إضافة إلى الطلبية
+             </button>
+           );
+         })()}
       </div>
 
       {historyProduct && (

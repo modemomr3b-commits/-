@@ -36,19 +36,33 @@ export default function SearchPage() {
   const filteredProducts = products.filter(p => {
     // Hidden products should not be visible
     if (p.isHidden) return false;
-
-    // Filter by archive status
-    if (searchArchived ? !p.isArchived : p.isArchived) return false;
     
     // Filter by query
-    if (!query) return false; // Show nothing or everything if empty? Usually search shows nothing until typed, or recent. Let's show matching.
-    const q = query.toLowerCase();
-    return (
-      (p.name && p.name.toLowerCase().includes(q)) ||
-      (p.productCode && p.productCode.toLowerCase().includes(q)) ||
-      (p.modelNumber && p.modelNumber.toLowerCase().includes(q)) ||
-      (p.barcode && p.barcode.toLowerCase().includes(q))
-    );
+    if (!query) return false; 
+    const q = query.toLowerCase().trim();
+
+    if (searchArchived) {
+      // If we are in "Archived Search" mode, only show archived products
+      if (!p.isArchived) return false;
+      
+      // And only show if there is an exact or startsWith match on code, model, or barcode
+      return (
+        (p.productCode && p.productCode.toLowerCase().startsWith(q)) ||
+        (p.modelNumber && p.modelNumber.toLowerCase().startsWith(q)) ||
+        (p.barcode && p.barcode.toLowerCase().startsWith(q))
+      );
+    } else {
+      // If we are in normal search mode, hide archived products
+      if (p.isArchived) return false;
+
+      // Show partial matches for active products
+      return (
+        (p.name && p.name.toLowerCase().includes(q)) ||
+        (p.productCode && p.productCode.toLowerCase().startsWith(q)) ||
+        (p.modelNumber && p.modelNumber.toLowerCase().startsWith(q)) ||
+        (p.barcode && p.barcode.toLowerCase().startsWith(q))
+      );
+    }
   });
 
   return (
@@ -121,7 +135,7 @@ export default function SearchPage() {
                       <div className="w-full aspect-[4/5] bg-black/40 relative flex items-center justify-center p-0 overflow-hidden">
                          {p.finalImageUrl || p.imageUrl ? (
                            <div className="absolute inset-0">
-                             <OptimizedImage src={p.finalImageUrl || p.imageUrl} alt={p.name} size="medium" className="w-full h-full" imgClassName="object-cover w-full h-full" />
+                             <OptimizedImage src={p.finalImageUrl || p.imageUrl} alt={p.name} size="medium" className="w-full h-full" imgClassName="object-contain w-full h-full" />
                            </div>
                          ) : (
                            <span className="text-4xl opacity-50">👟</span>

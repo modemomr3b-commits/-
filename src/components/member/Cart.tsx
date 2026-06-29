@@ -70,7 +70,7 @@ export default function Cart() {
 
       const orderNumber = `BRQ-${Math.floor(1000 + Math.random() * 9000)}`;
       await api.createOrder({
-        userId: user.uid,
+        userId: user.id || user.uid,
         username: user.username,
         fullName: user.fullName || user.username,
         orderNumber,
@@ -87,7 +87,7 @@ export default function Cart() {
 
       // log action
       await api.logAction({
-        userId: user.uid,
+        userId: user.id || user.uid,
         userName: user.username,
         action: 'إنشاء طلب',
         entityType: 'order',
@@ -162,7 +162,7 @@ export default function Cart() {
              <div key={item.product.id} className="glass-card p-3 rounded-2xl flex gap-3 relative">
                 <Link to={`/product/${item.product.id}`} className="shrink-0">
                   {item.product.finalImageUrl || item.product.imageUrl ? (
-                     <OptimizedImage src={item.product.finalImageUrl || item.product.imageUrl} alt={item.product.name} size="thumbnail" className="w-24 h-24 rounded-xl bg-black/40 border border-white/5" imgClassName="object-cover" />
+                     <OptimizedImage src={item.product.finalImageUrl || item.product.imageUrl} alt={item.product.name} size="thumbnail" className="w-24 h-24 rounded-xl bg-black/40 border border-white/5" imgClassName="object-contain" />
                   ) : <div className="w-24 h-24 rounded-xl bg-black/40 border border-white/5 flex items-center justify-center text-3xl">👟</div>}
                 </Link>
                 <div className="flex flex-col flex-1 py-1">

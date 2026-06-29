@@ -7,9 +7,13 @@ import {
   Clock,
   Filter,
   Layers,
+  Info,
+  X,
+  Star,
+  Shield
 } from "lucide-react";
 import { Link, useNavigate } from "react-router";
-import { motion } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
 import { useState, useEffect } from "react";
 import { api } from "../../api";
 import { supabase } from "../../supabase";
@@ -19,6 +23,7 @@ const DEFAULT_ICONS = ["✨", "👟", "🇹🇷", "⭐", "🎒", "☀️", "🔥
 export default function Home() {
   const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showAbout, setShowAbout] = useState(false);
   const navigate = useNavigate();
 
   const fetchCats = async () => {
@@ -185,12 +190,12 @@ export default function Home() {
             <Layers className="text-brq-gold" />
             تصفح الأقسام
           </h2>
-          <Link
-            to="/search"
-            className="text-sm text-brq-gold hover:text-white transition-colors flex items-center gap-1"
+          <button
+            onClick={() => setShowAbout(true)}
+            className="text-sm text-brq-gold hover:text-white transition-colors flex items-center gap-1 bg-brq-gold/10 px-3 py-1.5 rounded-full"
           >
-            عرض الكل <ChevronLeft size={14} />
-          </Link>
+            <Info size={14} /> عن الشركة
+          </button>
         </div>
 
         {loading ? (
@@ -231,6 +236,58 @@ export default function Home() {
           </div>
         )}
       </div>
+
+      {/* About Modal */}
+      <AnimatePresence>
+        {showAbout && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-[#111] border border-white/10 rounded-3xl p-6 w-full max-w-md relative overflow-hidden"
+            >
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-brq-gold to-transparent opacity-50" />
+              
+              <button 
+                onClick={() => setShowAbout(false)}
+                className="absolute top-4 right-4 p-2 bg-white/5 hover:bg-white/10 rounded-full transition-colors"
+              >
+                <X size={20} />
+              </button>
+
+              <div className="text-center mb-6 pt-4">
+                <div className="w-20 h-20 bg-brq-gold/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-brq-gold/30">
+                  <Info className="text-brq-gold" size={40} />
+                </div>
+                <h3 className="text-2xl font-black text-white mb-2">عن الشركة</h3>
+                <p className="text-white/60">شركة الوفاء المتميز</p>
+              </div>
+
+              <div className="space-y-4 text-white/80 text-sm leading-relaxed text-right">
+                <div className="glass-panel p-4 rounded-xl border border-white/5">
+                  <h4 className="text-brq-gold font-bold mb-2 flex items-center gap-2">
+                    <Star size={16} /> رؤيتنا
+                  </h4>
+                  <p>نسعى لتقديم أفضل المنتجات وأجود الخامات لعملائنا الكرام، مع ضمان أفضل الأسعار في السوق.</p>
+                </div>
+                
+                <div className="glass-panel p-4 rounded-xl border border-white/5">
+                  <h4 className="text-brq-gold font-bold mb-2 flex items-center gap-2">
+                    <Shield size={16} /> قيمنا
+                  </h4>
+                  <p>المصداقية، الجودة، وسرعة تلبية متطلبات السوق من أهم الركائز التي نعتمد عليها في عملنا.</p>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

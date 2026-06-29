@@ -13,8 +13,8 @@ export default defineConfig(() => {
         registerType: 'autoUpdate',
         includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
         manifest: {
-          name: 'BRQ System',
-          short_name: 'BRQ',
+          name: 'شركة الوفاء BRQ',
+          short_name: 'شركة الوفاء',
           description: 'BRQ Enterprise Product Catalog Platform',
           theme_color: '#0A1633',
           background_color: '#050a1a',

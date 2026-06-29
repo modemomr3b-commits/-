@@ -140,8 +140,9 @@ export default function Login() {
              transition={{ duration: 1 }}
              className="relative z-10"
            >
-              <div className="w-32 h-32 rounded-full border border-brq-gold/30 bg-black/40 backdrop-blur-md flex items-center justify-center mx-auto shadow-[0_0_50px_rgba(212,175,55,0.2)] mb-8">
-                 <Diamond size={64} className="text-brq-gold" strokeWidth={1} />
+              <div className="w-36 h-36 flex items-center justify-center mx-auto mb-8 relative transition-transform hover:scale-105 duration-500">
+                <div className="absolute inset-4 bg-brq-gold opacity-20 blur-xl rounded-full"></div>
+                <img src="/icon.svg" alt="شركة الوفاء BRQ" className="w-full h-full object-contain relative z-10 drop-shadow-2xl" referrerPolicy="no-referrer" />
               </div>
               <h2 className="text-4xl font-black text-white tracking-widest mb-4 font-mono">BRQ SYSTEM</h2>
               <p className="text-brq-gold font-bold text-lg mb-8 uppercase tracking-widest">— Excellence in Operations —</p>
@@ -171,12 +172,10 @@ export default function Login() {
           >
             <div className="flex flex-col items-center mb-10 md:hidden">
               <motion.div
-                animate={{ rotateY: 360 }}
-                transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
-                className="w-16 h-16 mb-4 flex items-center justify-center relative"
+                className="w-24 h-24 mb-4 flex items-center justify-center relative transition-transform hover:scale-105 duration-500"
               >
-                <div className="absolute inset-0 bg-brq-gold opacity-20 blur-xl rounded-full"></div>
-                <Diamond size={48} className="text-brq-gold relative z-10 drop-shadow-[0_0_15px_rgba(212,175,55,0.5)]" />
+                <div className="absolute inset-2 bg-brq-gold opacity-20 blur-xl rounded-full"></div>
+                <img src="/icon.svg" alt="شركة الوفاء BRQ" className="w-full h-full object-contain relative z-10 drop-shadow-[0_0_15px_rgba(212,175,55,0.5)]" referrerPolicy="no-referrer" />
               </motion.div>
               <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-brq-gold to-white mb-1 tracking-wider">BRQ SYSTEM</h1>
               <h2 className="text-sm text-brq-white opacity-80 font-semibold tracking-wide">شركة الوفاء المتميز</h2>

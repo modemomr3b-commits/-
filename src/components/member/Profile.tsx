@@ -1,16 +1,16 @@
 import { useStore } from '../../store';
-import { Download, Share, UserCircle, ShoppingBag, Eye, LogOut } from 'lucide-react';
+import { Download, Share, UserCircle, ShoppingBag, Eye, LogOut, ChevronDown, ChevronUp } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { api } from '../../api';
 import { Order, OrderStatus } from '../../types';
 import { usePWAInstall } from '../../hooks/usePWAInstall';
 
 const statusMap: Record<OrderStatus, { label: string, color: string }> = {
-  new: { label: 'جديد', color: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' },
-  reviewing: { label: 'قيد المراجعة', color: 'bg-yellow-500/20 text-yellow-500 border-yellow-500/30' },
-  contacted: { label: 'تم التواصل', color: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
-  completed: { label: 'مكتمل', color: 'bg-green-500/20 text-green-400 border-green-500/30' },
-  cancelled: { label: 'ملغى', color: 'bg-red-500/20 text-red-400 border-red-500/30' },
+  new: { label: 'قيد المراجعة', color: 'bg-yellow-500/20 text-yellow-500 border-yellow-500/30' },
+  reviewing: { label: 'جاري التجهيز', color: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
+  contacted: { label: 'تم التواصل', color: 'bg-purple-500/20 text-purple-400 border-purple-500/30' },
+  completed: { label: 'تم القبول', color: 'bg-green-500/20 text-green-400 border-green-500/30' },
+  cancelled: { label: 'مرفوض/ملغى', color: 'bg-red-500/20 text-red-400 border-red-500/30' },
 };
 
 export default function Profile() {
@@ -18,15 +18,16 @@ export default function Profile() {
   const { deferredPrompt, isIOS: isIos, handleInstallClick: handleInstall } = usePWAInstall();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
+  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   
   const isInstalled = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true;
 
   useEffect(() => {
     const fetchMyOrders = async () => {
-       if (!user?.uid) return;
+       if (!user?.id && !user?.uid) return;
        try {
          const allOrders = await api.getOrders();
-         const myOrders = allOrders.filter(o => o.userId === user.uid).sort((a: any, b: any) => b.createdAt - a.createdAt);
+         const myOrders = allOrders.filter(o => o.userId === user.id || o.userId === user.uid).sort((a: any, b: any) => b.createdAt - a.createdAt);
          setOrders(myOrders);
        } catch(e) {
          console.error(e);
@@ -37,7 +38,7 @@ export default function Profile() {
     fetchMyOrders();
     const inv = setInterval(fetchMyOrders, 5000); // Check for order updates
     return () => clearInterval(inv);
-  }, [user?.uid]);
+  }, [user?.uid, user?.id]);
 
   const handleLogout = () => {
     setUser(null);
@@ -50,6 +51,14 @@ export default function Profile() {
       case 'vip': return 'عميل VIP';
       case 'normal': return 'عميل عادي';
       default: return role || 'مستخدم';
+    }
+  };
+
+  const toggleOrderExpand = (orderId: string) => {
+    if (expandedOrderId === orderId) {
+      setExpandedOrderId(null);
+    } else {
+      setExpandedOrderId(orderId);
     }
   };
 
@@ -121,24 +130,48 @@ export default function Profile() {
          ) : (
             <div className="space-y-4">
                {orders.map(order => (
-                  <div key={order.id} className="bg-black/40 border border-white/5 rounded-xl p-4">
-                     <div className="flex justify-between items-start mb-3">
+                  <div key={order.id} className="bg-black/40 border border-white/5 rounded-xl p-4 transition-all">
+                     <div className="flex justify-between items-start mb-3 cursor-pointer" onClick={() => toggleOrderExpand(order.id)}>
                         <div className="flex flex-col gap-1">
                            <span className="font-bold text-white break-all flex items-center gap-2">
                              طلب #{order.orderNumber || order.id.slice(0,8).toUpperCase()}
                            </span>
                            <span className="text-xs text-white/40" dir="ltr">{new Date(order.createdAt).toLocaleString('ar-IQ')}</span>
                         </div>
-                        <span className={`px-2 py-1 rounded border text-xs font-bold whitespace-nowrap ${statusMap[order.status || 'new']?.color}`}>
-                           {statusMap[order.status || 'new']?.label}
-                        </span>
+                        <div className="flex items-center gap-3">
+                           <span className={`px-2 py-1 rounded border text-xs font-bold whitespace-nowrap ${statusMap[order.status || 'new']?.color}`}>
+                              {statusMap[order.status || 'new']?.label}
+                           </span>
+                           {expandedOrderId === order.id ? <ChevronUp size={20} className="text-white/50" /> : <ChevronDown size={20} className="text-white/50" />}
+                        </div>
                      </div>
                      <div className="flex justify-between items-end border-t border-white/5 pt-3 mt-3">
                         <span className="text-sm text-white/60 font-medium">عدد المنتجات: <span className="text-brq-gold font-bold">{order.totalQuantity}</span></span>
-                        <div className="flex gap-2">
-                          {/* Maybe a summary of items here, but right now a quick list */}
-                        </div>
                      </div>
+                     
+                     {/* Expanded Order Details */}
+                     {expandedOrderId === order.id && (
+                        <div className="mt-4 pt-4 border-t border-white/5 space-y-3">
+                           <h4 className="text-sm font-bold text-white mb-2">المنتجات المطلوبة:</h4>
+                           {order.items.map((item, idx) => (
+                              <div key={idx} className="flex justify-between items-center bg-white/5 p-3 rounded-lg border border-white/5">
+                                 <div className="flex flex-col gap-1">
+                                    <span className="text-sm font-bold text-white">{item.product?.name || 'منتج غير معروف'}</span>
+                                    <span className="text-xs text-white/50">كود: {item.product?.productCode || '---'} | موديل: {item.product?.modelNumber || '---'}</span>
+                                 </div>
+                                 <div className="text-sm font-bold text-brq-gold bg-brq-gold/10 px-3 py-1 rounded-lg">
+                                    الكمية: {item.quantity}
+                                 </div>
+                              </div>
+                           ))}
+                           {order.notes && (
+                              <div className="mt-3 p-3 bg-white/5 rounded-lg border border-white/5">
+                                 <span className="text-xs font-bold text-white/50 block mb-1">الملاحظات:</span>
+                                 <span className="text-sm text-white/80 whitespace-pre-wrap">{order.notes}</span>
+                              </div>
+                           )}
+                        </div>
+                     )}
                   </div>
                ))}
             </div>

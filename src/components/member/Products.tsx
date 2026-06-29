@@ -19,7 +19,7 @@ export default function Products() {
   const [allCategories, setAllCategories] = useState<Category[]>([]);
   const [activeSub, setActiveSub] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const { addToCart, user } = useStore();
+  const { addToCart, updateQuantity, removeFromCart, cart, user } = useStore();
   const [historyProduct, setHistoryProduct] = useState<Product | null>(null);
 
   const [categoryName, setCategoryName] = useState("جميع المنتجات");
@@ -97,7 +97,16 @@ export default function Products() {
     e.preventDefault();
     e.stopPropagation();
     addToCart(p, 1);
-    alert("تم إضافة المنتج للطلبية بنجاح!");
+  };
+
+  const handleUpdateQuantity = (e: React.MouseEvent, p: Product, quantity: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (quantity <= 0) {
+      removeFromCart(p.id!);
+    } else {
+      updateQuantity(p.id!, quantity);
+    }
   };
 
   const filteredProducts = activeSub
@@ -407,7 +416,7 @@ export default function Products() {
                       alt={p.name}
                       size="medium"
                       className="w-full h-full"
-                      imgClassName="object-cover w-full h-full hover:scale-105 transition-transform duration-500"
+                      imgClassName="object-contain w-full h-full hover:scale-105 transition-transform duration-500"
                     />
                   </div>
                 ) : (
@@ -454,12 +463,38 @@ export default function Products() {
                   )}
                 </div>
 
-                <button
-                  onClick={(e) => handleAddToCart(e, p)}
-                  className="w-full py-1.5 mt-2 bg-brq-royal/20 hover:bg-brq-royal border border-brq-royal/50 rounded-lg text-white font-medium text-xs flex items-center justify-center gap-1.5 transition-colors"
-                >
-                  <ShoppingCart size={14} /> إضافة
-                </button>
+                <div className="mt-2">
+                  {(() => {
+                    const cartItem = cart.find(item => item.product.id === p.id);
+                    if (cartItem) {
+                      return (
+                        <div className="flex items-center justify-between w-full h-8 bg-brq-royal/20 border border-brq-royal/50 rounded-lg">
+                          <button
+                            onClick={(e) => handleUpdateQuantity(e, p, cartItem.quantity + 1)}
+                            className="h-full px-3 text-white hover:bg-brq-royal/50 rounded-r-lg transition-colors"
+                          >
+                            +
+                          </button>
+                          <span className="text-white font-bold text-xs">{cartItem.quantity}</span>
+                          <button
+                            onClick={(e) => handleUpdateQuantity(e, p, cartItem.quantity - 1)}
+                            className="h-full px-3 text-white hover:bg-brq-royal/50 rounded-l-lg transition-colors"
+                          >
+                            -
+                          </button>
+                        </div>
+                      );
+                    }
+                    return (
+                      <button
+                        onClick={(e) => handleAddToCart(e, p)}
+                        className="w-full py-1.5 bg-brq-royal/20 hover:bg-brq-royal border border-brq-royal/50 rounded-lg text-white font-medium text-xs flex items-center justify-center gap-1.5 transition-colors"
+                      >
+                        <ShoppingCart size={14} /> إضافة
+                      </button>
+                    );
+                  })()}
+                </div>
               </div>
             </Link>
           ))}

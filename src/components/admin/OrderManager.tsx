@@ -18,6 +18,7 @@ export default function OrderManager() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<OrderStatus | 'all'>('all');
+  const [activeTab, setActiveTab] = useState<'incoming' | 'archived'>('incoming');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   
   const previousOrdersCount = useRef(0);
@@ -81,6 +82,24 @@ export default function OrderManager() {
     }
   };
 
+  const handleViewOrder = async (order: Order) => {
+     setSelectedOrder(order);
+     if (order.status === 'new') {
+        // Auto complete and notify
+        await updateOrderStatus(order.id, 'completed');
+        try {
+           await api.createNotification({
+              userId: order.userId,
+              type: 'order',
+              message: `تم قبول وتأكيد طلبيتك رقم ${order.orderNumber || order.id.slice(0, 8)}`,
+              read: false,
+           });
+        } catch (e) {
+           console.error("Failed to send notification", e);
+        }
+     }
+  };
+
   const handleDelete = async (id: string, orderNumber: string) => {
     // Optimistic update
     setOrders((prev) => prev.filter((o) => o.id !== id));
@@ -106,9 +125,13 @@ export default function OrderManager() {
        (o.orderNumber && o.orderNumber.toLowerCase().includes(searchQuery.toLowerCase())) ||
        (o.username && o.username.toLowerCase().includes(searchQuery.toLowerCase())) ||
        (o.fullName && o.fullName.toLowerCase().includes(searchQuery.toLowerCase()));
+    
     const matchesStatus = filterStatus === 'all' || o.status === filterStatus;
     
-    return matchesSearch && matchesStatus;
+    const isArchived = o.status === 'completed' || o.status === 'cancelled';
+    const matchesTab = activeTab === 'archived' ? isArchived : !isArchived;
+
+    return matchesSearch && matchesStatus && matchesTab;
   });
 
   const newOrdersCount = orders.filter(o => o.status === 'new').length;
@@ -131,6 +154,21 @@ export default function OrderManager() {
              </h2>
              <p className="text-sm text-white/50">متابعة ومعالجة طلبات العملاء</p>
          </div>
+      </div>
+
+      <div className="flex gap-4 border-b border-white/10 pb-0">
+         <button
+            onClick={() => setActiveTab('incoming')}
+            className={`pb-2 px-2 text-sm font-bold border-b-2 transition-colors ${activeTab === 'incoming' ? 'border-brq-gold text-brq-gold' : 'border-transparent text-white/50 hover:text-white'}`}
+         >
+            الطلبات الحالية
+         </button>
+         <button
+            onClick={() => setActiveTab('archived')}
+            className={`pb-2 px-2 text-sm font-bold border-b-2 transition-colors ${activeTab === 'archived' ? 'border-brq-gold text-brq-gold' : 'border-transparent text-white/50 hover:text-white'}`}
+         >
+            الطلبيات المؤرشفة
+         </button>
       </div>
 
       <div className="glass-panel border border-white/5 rounded-2xl overflow-hidden p-1">
@@ -216,7 +254,7 @@ export default function OrderManager() {
                           </td>
                           <td className="p-4">
                              <div className="flex gap-2">
-                               <button onClick={() => setSelectedOrder(o)} className="p-2 bg-brq-gold/10 hover:bg-brq-gold/20 text-brq-gold rounded-lg transition-colors flex items-center gap-2 text-xs font-bold">
+                               <button onClick={() => handleViewOrder(o)} className="p-2 bg-brq-gold/10 hover:bg-brq-gold/20 text-brq-gold rounded-lg transition-colors flex items-center gap-2 text-xs font-bold">
                                  <Eye size={14} /> عرض
                                </button>
                                <button onClick={() => handleDelete(o.id, o.orderNumber)} className="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg transition-colors flex items-center gap-2 text-xs font-bold" title="حذف الطلب">
@@ -262,7 +300,7 @@ export default function OrderManager() {
                         <div className="font-bold flex items-center gap-2"><UserCircle size={16} className="text-brq-gold"/> {selectedOrder.username}</div>
                      </div>
                      <div className="p-4 bg-white/5 rounded-xl border border-white/10">
-                        <div className="text-xs text-white/50 mb-1">الاسم الكامل</div>
+                        <div className="text-xs text-white/50 mb-1">المرسل (الاسم الكامل)</div>
                         <div className="font-bold">{selectedOrder.fullName || selectedOrder.username}</div>
                      </div>
                   </div>
@@ -270,7 +308,7 @@ export default function OrderManager() {
                   {selectedOrder.notes && (
                      <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl">
                         <h4 className="text-sm font-bold text-yellow-500 mb-2">ملاحظات العميل:</h4>
-                        <p className="text-sm text-white/80 leading-relaxed">{selectedOrder.notes}</p>
+                        <p className="text-sm text-white/80 leading-relaxed whitespace-pre-wrap">{selectedOrder.notes}</p>
                      </div>
                   )}
 

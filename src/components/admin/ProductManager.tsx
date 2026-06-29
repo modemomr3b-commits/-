@@ -64,7 +64,9 @@ export default function ProductManager() {
     isHidden: true,
   });
 
-  const [filterStatus, setFilterStatus] = useState<"active" | "archived">("active");
+  const [filterStatus, setFilterStatus] = useState<"active" | "archived" | "inactive" | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterCategoryId, setFilterCategoryId] = useState("");
 
   const autoSelectSubcategory = (name: string, categoryId: string, currentSubcategoryId?: string) => {
     if (!categoryId || !name) return currentSubcategoryId || "";
@@ -573,6 +575,34 @@ export default function ProductManager() {
     );
   }
 
+  const filteredProducts = products.filter(p => {
+    if (filterCategoryId && p.categoryId !== filterCategoryId) {
+      return false;
+    }
+
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase().trim();
+      const matchesSearch = 
+        (p.name && p.name.toLowerCase().includes(q)) ||
+        (p.productCode && p.productCode.toLowerCase().startsWith(q)) ||
+        (p.modelNumber && p.modelNumber.toLowerCase().startsWith(q)) ||
+        (p.barcode && p.barcode.toLowerCase().startsWith(q));
+      
+      if (!matchesSearch) return false;
+    } else {
+      if (filterStatus === 'archived') {
+        if (!p.isArchived) return false;
+      } else if (filterStatus === 'inactive') {
+        if (!p.isHidden || p.isArchived) return false;
+      } else if (filterStatus === 'active') {
+        if (p.isHidden || p.isArchived) return false;
+      } else if (filterStatus === null) {
+        return false;
+      }
+    }
+    return true;
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -884,6 +914,12 @@ export default function ProductManager() {
               المنتجات الفعالة
             </button>
             <button
+              onClick={() => setFilterStatus("inactive")}
+              className={`pb-2 px-2 text-sm font-bold border-b-2 transition-colors ${filterStatus === "inactive" ? "border-brq-gold text-brq-gold" : "border-transparent text-white/50 hover:text-white"}`}
+            >
+              المواد غير الفعالة
+            </button>
+            <button
               onClick={() => setFilterStatus("archived")}
               className={`pb-2 px-2 text-sm font-bold border-b-2 transition-colors ${filterStatus === "archived" ? "border-brq-gold text-brq-gold" : "border-transparent text-white/50 hover:text-white"}`}
             >
@@ -898,13 +934,25 @@ export default function ProductManager() {
                   <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 w-4 h-4" />
                   <input
                     type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
                     className="w-full bg-white border border-black rounded-lg pr-10 pl-4 py-2.5 text-sm text-black placeholder:text-gray-500 focus:outline-none focus:border-brq-gold/50"
                     placeholder="بحث بالاسم، الكود، الباركود..."
                   />
                 </div>
-                <button className="flex items-center justify-center gap-2 px-4 py-2.5 bg-black/40 border border-white/10 rounded-lg text-sm hover:bg-white/5 transition-colors whitespace-nowrap">
-                  <Filter size={16} /> تصفية حسب القسم
-                </button>
+                <div className="relative">
+                  <select
+                    value={filterCategoryId}
+                    onChange={(e) => setFilterCategoryId(e.target.value)}
+                    className="appearance-none pl-8 pr-10 py-2.5 bg-black/40 border border-white/10 rounded-lg text-sm text-white hover:bg-white/5 transition-colors focus:outline-none focus:border-brq-gold/50"
+                  >
+                    <option value="">جميع الأقسام</option>
+                    {categories.filter(c => !c.parentId).map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                  <Filter className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 w-4 h-4 pointer-events-none" />
+                </div>
               </div>
 
               {selectedIds.size > 0 && (
@@ -938,30 +986,29 @@ export default function ProductManager() {
               )}
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto min-h-[400px]">
+              {filterStatus === null && !searchQuery ? (
+                <div className="flex flex-col items-center justify-center h-[400px] text-center p-8 space-y-6">
+                  <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center text-white/30 border border-white/10">
+                    <Package size={40} />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-white mb-2">اختر القسم للبدء</h3>
+                    <p className="text-white/50 max-w-sm">
+                      قم باختيار المنتجات الفعالة، غير الفعالة، أو النافذة من القائمة العلوية لعرض المنتجات، أو ابدأ بالبحث مباشرة.
+                    </p>
+                  </div>
+                </div>
+              ) : (
               <table className="w-full text-sm text-right">
                 <thead className="bg-black/40 text-white/60">
                   <tr>
                     <th className="p-4 font-medium rounded-tr-lg w-10">
                       <button
-                        onClick={() =>
-                          toggleAll(
-                            products.filter((p) =>
-                              filterStatus === "archived"
-                                ? p.isArchived
-                                : !p.isArchived,
-                            ),
-                          )
-                        }
+                        onClick={() => toggleAll(filteredProducts)}
                         className="text-white/40 hover:text-white transition-colors"
                       >
-                        {selectedIds.size > 0 &&
-                        selectedIds.size ===
-                          products.filter((p) =>
-                            filterStatus === "archived"
-                              ? p.isArchived
-                              : !p.isArchived,
-                          ).length ? (
+                        {selectedIds.size > 0 && selectedIds.size === filteredProducts.length ? (
                           <CheckSquare size={18} className="text-brq-gold" />
                         ) : (
                           <Square size={18} />
@@ -980,13 +1027,7 @@ export default function ProductManager() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5 text-white/90">
-                  {products
-                    .filter((p) =>
-                      filterStatus === "archived"
-                        ? p.isArchived
-                        : !p.isArchived,
-                    )
-                    .map((p) => (
+                  {filteredProducts.map((p) => (
                       <tr
                         key={p.id}
                         className={`hover:bg-white/5 transition-colors ${selectedIds.has(p.id!) ? "bg-brq-gold/5" : ""}`}
@@ -1019,17 +1060,34 @@ export default function ProductManager() {
                               <img
                                 src={p.finalImageUrl || p.imageUrl}
                                 alt={p.name}
-                                className="w-full h-full object-cover bg-black/20"
+                                className="w-full h-full object-contain bg-black/20"
                               />
                             ) : (
                               "👟"
                             )}
                           </div>
                         </td>
-                        <td className="p-4 font-bold">
-                          {p.name}
-                          {p.isHidden && (
-                            <span className="mr-2 px-2 py-0.5 rounded text-[10px] bg-purple-500/20 text-purple-400 border border-purple-500/30">
+                        <td className="p-4 font-bold flex flex-col justify-center items-start gap-1">
+                          <span>{p.name}</span>
+                          {searchQuery && (
+                            <div className="flex gap-1">
+                              {p.isArchived ? (
+                                <span className="px-2 py-0.5 rounded text-[10px] bg-red-500/20 text-red-400 border border-red-500/30">
+                                  نافذ
+                                </span>
+                              ) : p.isHidden ? (
+                                <span className="px-2 py-0.5 rounded text-[10px] bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
+                                  غير فعال
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded text-[10px] bg-green-500/20 text-green-400 border border-green-500/30">
+                                  فعال
+                                </span>
+                              )}
+                            </div>
+                          )}
+                          {!searchQuery && p.isHidden && (
+                            <span className="px-2 py-0.5 rounded text-[10px] bg-purple-500/20 text-purple-400 border border-purple-500/30">
                               مخفي
                             </span>
                           )}
@@ -1129,6 +1187,7 @@ export default function ProductManager() {
                     ))}
                 </tbody>
               </table>
+              )}
             </div>
           </div>
         </div>
