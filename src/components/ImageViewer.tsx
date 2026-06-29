@@ -41,14 +41,18 @@ export default function ImageViewer({ src, alt, onClose }: ImageViewerProps) {
     };
   }, []);
 
+  const [hasDragged, setHasDragged] = useState(false);
+
   const handlePointerDown = (e: React.PointerEvent) => {
     if (scale <= 1) return;
     setIsDragging(true);
+    setHasDragged(false);
     setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y });
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
     if (!isDragging || scale <= 1) return;
+    setHasDragged(true);
     setPosition({
       x: e.clientX - dragStart.x,
       y: e.clientY - dragStart.y
@@ -57,6 +61,13 @@ export default function ImageViewer({ src, alt, onClose }: ImageViewerProps) {
 
   const handlePointerUp = () => {
     setIsDragging(false);
+    // hasDragged will be reset on next pointer down
+  };
+
+  const handleWrapperClick = () => {
+    if (!hasDragged) {
+      onClose();
+    }
   };
 
   return (
@@ -66,9 +77,13 @@ export default function ImageViewer({ src, alt, onClose }: ImageViewerProps) {
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-xl touch-none"
+        onClick={handleWrapperClick}
       >
         {/* Controls Overlay */}
-        <div className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between z-20 pointer-events-auto bg-gradient-to-b from-black/80 to-transparent">
+        <div 
+          className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between z-20 bg-gradient-to-b from-black/80 to-transparent"
+          onClick={(e) => e.stopPropagation()}
+        >
           <button 
             onClick={onClose}
             className="p-2 text-white/70 hover:text-white bg-white/10 hover:bg-white/20 rounded-full transition-colors backdrop-blur-md"
@@ -109,6 +124,11 @@ export default function ImageViewer({ src, alt, onClose }: ImageViewerProps) {
             animate={{ scale, x: position.x, y: position.y }}
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
             className="relative flex items-center justify-center w-full h-full max-h-[90vh] max-w-[90vw]"
+            onClick={(e) => {
+              if (hasDragged) {
+                e.stopPropagation();
+              }
+            }}
           >
              <OptimizedImage 
                src={src} 

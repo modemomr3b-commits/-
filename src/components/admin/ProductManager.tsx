@@ -562,6 +562,56 @@ export default function ProductManager() {
     setSelectedIds(new Set());
   };
 
+  const handleDownloadInactiveImages = async () => {
+    const productsToDownload = products.filter((p) => p.isHidden && !p.isArchived);
+    const imagesWithData = productsToDownload.filter(
+      (p) => p.finalImageUrl || p.imageUrl,
+    );
+
+    if (imagesWithData.length === 0) {
+      alert("لا توجد صور للمنتجات الغير فعالة.");
+      return;
+    }
+
+    setDownloadProgress({ progress: 0, total: imagesWithData.length });
+    let completed = 0;
+
+    for (const p of imagesWithData) {
+      const imgUrl = p.finalImageUrl || p.imageUrl;
+      if (imgUrl) {
+        try {
+          const res = await fetch(imgUrl);
+          const blob = await res.blob();
+          const ext = blob.type.split("/")[1] || "jpg";
+          
+          const safeName = (p.productCode || p.name || "product").replace(/[\/\?<>\\:\*\|":]/g, '-');
+          const filename = `${safeName}.${ext}`;
+          
+          const objectUrl = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = objectUrl;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          
+          await new Promise(resolve => setTimeout(resolve, 300));
+          
+          URL.revokeObjectURL(objectUrl);
+        } catch (err) {
+          console.error(`Failed to download image for ${p.name}`, err);
+        }
+      }
+      completed++;
+      setDownloadProgress({
+        progress: completed,
+        total: imagesWithData.length,
+      });
+    }
+
+    setDownloadProgress(null);
+  };
+
   const getCategoryName = (id: string) => {
     return categories.find((c) => c.id === id)?.name || "بدون قسم";
   };
@@ -955,33 +1005,55 @@ export default function ProductManager() {
                 </div>
               </div>
 
-              {selectedIds.size > 0 && (
-                <div className="flex items-center gap-3">
-                  <span className="text-sm font-bold text-white/80">
-                    تم تحديد: {selectedIds.size}
-                  </span>
-                  <button
-                    onClick={handleBulkShare}
-                    disabled={downloadProgress !== null}
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-lg text-sm hover:bg-blue-500/30 transition-colors font-bold"
-                  >
-                    <Share2 size={16} />
-                    مشاركة الصور
-                  </button>
-                  <button
-                    onClick={handleBulkDownload}
-                    disabled={downloadProgress !== null}
-                    className="flex items-center gap-2 px-4 py-2 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg text-sm hover:bg-emerald-500/30 transition-colors font-bold"
-                  >
-                    {downloadProgress ? (
-                      <Loader2 size={16} className="animate-spin" />
-                    ) : (
-                      <Download size={16} />
-                    )}
-                    {downloadProgress
-                      ? `جاري التحميل ${downloadProgress.progress}/${downloadProgress.total}`
-                      : "تحميل الصور"}
-                  </button>
+              {(selectedIds.size > 0 || filterStatus === 'inactive') && (
+                <div className="flex items-center gap-3 w-full sm:w-auto overflow-x-auto pb-1">
+                  {selectedIds.size > 0 && (
+                    <span className="text-sm font-bold text-white/80 whitespace-nowrap">
+                      تم تحديد: {selectedIds.size}
+                    </span>
+                  )}
+                  {selectedIds.size > 0 && (
+                    <button
+                      onClick={handleBulkShare}
+                      disabled={downloadProgress !== null}
+                      className="flex items-center gap-2 px-4 py-2 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-lg text-sm hover:bg-blue-500/30 transition-colors font-bold whitespace-nowrap"
+                    >
+                      <Share2 size={16} />
+                      مشاركة الصور
+                    </button>
+                  )}
+                  {selectedIds.size > 0 && (
+                    <button
+                      onClick={handleBulkDownload}
+                      disabled={downloadProgress !== null}
+                      className="flex items-center gap-2 px-4 py-2 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg text-sm hover:bg-emerald-500/30 transition-colors font-bold whitespace-nowrap"
+                    >
+                      {downloadProgress ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : (
+                        <Download size={16} />
+                      )}
+                      {downloadProgress
+                        ? `جاري التحميل ${downloadProgress.progress}/${downloadProgress.total}`
+                        : "تحميل الصور"}
+                    </button>
+                  )}
+                  {filterStatus === 'inactive' && (
+                    <button
+                      onClick={handleDownloadInactiveImages}
+                      disabled={downloadProgress !== null}
+                      className="flex items-center gap-2 px-4 py-2 bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded-lg text-sm hover:bg-purple-500/30 transition-colors font-bold whitespace-nowrap"
+                    >
+                      {downloadProgress ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : (
+                        <Download size={16} />
+                      )}
+                      {downloadProgress
+                        ? `جاري التحميل ${downloadProgress.progress}/${downloadProgress.total}`
+                        : "تحميل الصور الغير فعالة"}
+                    </button>
+                  )}
                 </div>
               )}
             </div>
