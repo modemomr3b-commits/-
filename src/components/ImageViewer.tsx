@@ -44,9 +44,9 @@ export default function ImageViewer({ src, alt, onClose }: ImageViewerProps) {
   const [hasDragged, setHasDragged] = useState(false);
 
   const handlePointerDown = (e: React.PointerEvent) => {
+    setHasDragged(false);
     if (scale <= 1) return;
     setIsDragging(true);
-    setHasDragged(false);
     setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y });
   };
 
