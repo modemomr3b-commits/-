@@ -1,4 +1,4 @@
-import { Search, Filter, Download, Eye, MoreVertical, Loader2, BellRing, UserCircle, Edit, Check, Trash2 } from 'lucide-react';
+import { Search, Filter, Download, Eye, MoreVertical, Loader2, BellRing, UserCircle, Edit, Check, Trash2, Printer } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { api } from '../../api';
 import { Order, OrderStatus } from '../../types';
@@ -118,6 +118,116 @@ export default function OrderManager() {
       setOrders(updatedOrders.sort((a: any, b: any) => b.createdAt - a.createdAt));
       alert('حدث خطأ أثناء الحذف');
     }
+  };
+
+  const handlePrintOrder = (order: Order) => {
+    const date = new Date(order.createdAt).toLocaleString('ar-IQ');
+    
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert("يرجى السماح بالنوافذ المنبثقة (Pop-ups) لطباعة الطلبية.");
+      return;
+    }
+
+    const itemsHtml = order.items?.map((item, index) => `
+      <tr>
+        <td style="padding: 10px; border-bottom: 1px solid #ddd;">${index + 1}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #ddd;">
+          <div style="font-weight: bold; font-size: 16px;">${item.product?.name || 'منتج محذوف'}</div>
+          <div style="color: #666; font-size: 14px; margin-top: 4px;">
+            ${item.product?.productCode ? `كود: ${item.product.productCode}` : ''}
+            ${item.product?.productCode && item.product?.modelNumber ? ' | ' : ''}
+            ${item.product?.modelNumber ? `الموديل/الرمز: ${item.product.modelNumber}` : ''}
+          </div>
+        </td>
+        <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center; font-weight: bold; font-size: 18px;">${item.quantity}</td>
+      </tr>
+    `).join('') || '';
+
+    const html = `
+      <html dir="rtl" lang="ar">
+        <head>
+          <title>طباعة طلب رقم ${order.orderNumber || order.id.slice(0, 8)}</title>
+          <style>
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; color: #000; direction: rtl; }
+            .header { border-bottom: 2px solid #000; padding-bottom: 15px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
+            .title { font-size: 28px; font-weight: bold; }
+            .info-box { border: 2px solid #333; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+            .info-row { display: flex; margin-bottom: 10px; font-size: 16px; }
+            .info-label { width: 160px; font-weight: bold; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th { background: #f0f0f0; padding: 12px; text-align: right; border-bottom: 2px solid #000; font-size: 16px; }
+            td { text-align: right; border-bottom: 1px solid #ccc; }
+            .footer { margin-top: 50px; padding-top: 20px; border-top: 1px solid #ccc; text-align: center; color: #555; font-size: 14px; }
+            @media print {
+              body { padding: 0; }
+              @page { margin: 1.5cm; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="title">تفاصيل الطلبية</div>
+            <div style="text-align: left; font-size: 16px;">
+              <strong>رقم الطلب:</strong> <span style="font-family: monospace;">${order.orderNumber || order.id.slice(0, 8)}</span><br/>
+              <strong>التاريخ:</strong> <span dir="ltr">${date}</span>
+            </div>
+          </div>
+          
+          <div class="info-box">
+            <div class="info-row">
+              <div class="info-label">اسم الوكيل:</div>
+              <div>${order.username}</div>
+            </div>
+            <div class="info-row">
+              <div class="info-label">اسم الزبون/المرسل:</div>
+              <div>${order.fullName || '---'}</div>
+            </div>
+            ${order.notes ? `
+            <div class="info-row" style="margin-top: 15px; border-top: 1px dashed #ccc; padding-top: 15px;">
+              <div class="info-label">الملاحظات:</div>
+              <div style="font-weight: bold;">${order.notes}</div>
+            </div>
+            ` : ''}
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 50px;">#</th>
+                <th>المنتج والتفاصيل</th>
+                <th style="text-align: center; width: 120px;">الكمية</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHtml}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colspan="2" style="padding: 15px; text-align: left; font-weight: bold; font-size: 18px;">إجمالي الكمية (قطع):</td>
+                <td style="padding: 15px; text-align: center; font-weight: bold; font-size: 22px;">${order.totalQuantity}</td>
+              </tr>
+            </tfoot>
+          </table>
+
+          <div class="footer">
+            وثيقة طلبية مطبوعة من نظام الإدارة
+          </div>
+          
+          <script>
+            window.onload = () => {
+              setTimeout(() => {
+                window.print();
+              }, 500);
+            };
+          </script>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
   };
 
   const filteredOrders = orders.filter(o => {
@@ -254,6 +364,9 @@ export default function OrderManager() {
                           </td>
                           <td className="p-4">
                              <div className="flex gap-2">
+                               <button onClick={() => handlePrintOrder(o)} className="p-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-lg transition-colors flex items-center gap-2 text-xs font-bold" title="طباعة الطلب">
+                                 <Printer size={14} /> طباعة
+                               </button>
                                <button onClick={() => handleViewOrder(o)} className="p-2 bg-brq-gold/10 hover:bg-brq-gold/20 text-brq-gold rounded-lg transition-colors flex items-center gap-2 text-xs font-bold">
                                  <Eye size={14} /> عرض
                                </button>
@@ -286,9 +399,14 @@ export default function OrderManager() {
                         {statusMap[selectedOrder.status || 'new']?.label}
                      </span>
                   </div>
-                  <button onClick={() => setSelectedOrder(null)} className="text-white/50 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors">
-                     ✕
-                  </button>
+                  <div className="flex gap-2">
+                     <button onClick={() => handlePrintOrder(selectedOrder)} className="text-white/50 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors" title="طباعة الطلب">
+                        <Printer size={20} />
+                     </button>
+                     <button onClick={() => setSelectedOrder(null)} className="text-white/50 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors" title="إغلاق">
+                        ✕
+                     </button>
+                  </div>
                </div>
 
                {/* Modal Body */}
