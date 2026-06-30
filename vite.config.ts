@@ -22,20 +22,14 @@ export default defineConfig(() => {
           icons: [
             {
               src: 'icon.svg',
-              sizes: 'any',
+              sizes: '192x192',
               type: 'image/svg+xml',
               purpose: 'any maskable'
             },
             {
-              src: 'logo.jpeg.jpeg',
-              sizes: '192x192',
-              type: 'image/jpeg',
-              purpose: 'any maskable'
-            },
-            {
-              src: 'logo.jpeg.jpeg',
+              src: 'icon.svg',
               sizes: '512x512',
-              type: 'image/jpeg',
+              type: 'image/svg+xml',
               purpose: 'any maskable'
             }
           ]

@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 export function usePWAInstall() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isIOS, setIsIOS] = useState(false);
-  const [showInstallPrompt, setShowInstallPrompt] = useState(true);
+  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
 
   useEffect(() => {
@@ -18,6 +18,9 @@ export function usePWAInstall() {
 
     if (isIOSDevice && isSafari && !standaloneCheck) {
       setIsIOS(true);
+      if (!localStorage.getItem('hideInstallBanner')) {
+        setShowInstallPrompt(true);
+      }
     }
 
     if (standaloneCheck || localStorage.getItem('hideInstallBanner')) {
