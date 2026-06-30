@@ -16,15 +16,15 @@ export function usePWAInstall() {
 
     if (isIOSDevice && isSafari && !isStandalone) {
       setIsIOS(true);
-    }
-    
-    if (!isStandalone) {
       setShowInstallPrompt(true);
     }
 
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e);
+      if (!isStandalone) {
+        setShowInstallPrompt(true);
+      }
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
