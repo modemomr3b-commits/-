@@ -27,9 +27,21 @@ export function usePWAInstall() {
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e);
+      // Only show prompt if not already installed
+      if (!standaloneCheck && !localStorage.getItem('hideInstallBanner')) {
+        setShowInstallPrompt(true);
+      }
+    };
+
+    const handleAppInstalled = () => {
+      setDeferredPrompt(null);
+      setShowInstallPrompt(false);
+      setIsStandalone(true);
+      alert('تم تثبيت التطبيق بنجاح');
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
     const handleHide = () => {
       setShowInstallPrompt(false);
       localStorage.setItem('hideInstallBanner', 'true');
@@ -38,6 +50,7 @@ export function usePWAInstall() {
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
       window.removeEventListener('hide-install-prompt', handleHide);
     };
   }, []);

@@ -4,7 +4,7 @@ import { useTexture, Environment, Sparkles, Html } from '@react-three/drei';
 import * as THREE from 'three';
 
 function Logo3D({ isHovered, scale = 1 }: { isHovered: boolean, scale?: number }) {
-  const texture = useTexture('/logo.jpeg'); 
+  const texture = useTexture('/logo.jpeg.jpeg'); 
   
   const crystalRef = useRef<THREE.Group>(null);
   const torusGroupRef = useRef<THREE.Group>(null);
@@ -117,9 +117,9 @@ export default function Animated3DLogo({ isHovered = false, scale = 1 }: Props) 
   return (
     <ErrorBoundary fallback={
       <div className="flex flex-col items-center justify-center">
-        <img src="/logo.jpeg" alt="BRQ" className="w-full h-full object-contain drop-shadow-2xl mb-4" />
+        <img src="/logo.jpeg.jpeg" alt="BRQ" className="w-full h-full object-contain drop-shadow-2xl mb-4" />
         <p className="text-yellow-400 text-xs text-center max-w-[250px] bg-black/50 p-2 rounded">
-          يرجى التأكد من رفع الصورة باسم logo.jpeg في مجلد public
+          يرجى التأكد من رفع الصورة باسم logo.jpeg.jpeg في مجلد public
         </p>
       </div>
     }>
