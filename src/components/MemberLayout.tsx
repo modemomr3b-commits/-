@@ -13,7 +13,7 @@ export default function MemberLayout() {
   const { deferredPrompt, isIOS, showInstallPrompt, setShowInstallPrompt, handleInstallClick } = usePWAInstall();
   const [isLogoHovered, setIsLogoHovered] = useState(false);
 
-  const isBannerVisible = showInstallPrompt && !localStorage.getItem('hideInstallBanner');
+  const isBannerVisible = showInstallPrompt;
 
   const navItems = [
     { icon: Home, path: '/', label: 'الرئيسية' },
@@ -125,7 +125,6 @@ export default function MemberLayout() {
                 <button 
                   onClick={() => {
                     setShowInstallPrompt(false);
-                    localStorage.setItem('hideInstallBanner', 'true');
                   }}
                   className="absolute top-4 right-4 p-2 rounded-full text-white/50 hover:text-white hover:bg-white/10 transition-colors"
                 >

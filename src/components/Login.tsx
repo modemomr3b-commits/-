@@ -3,7 +3,7 @@ import bcryptjs from 'bcryptjs';
 import { useStore } from '../store.ts';
 import { useNavigate } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
-import { Diamond, LogIn, Loader2, Download, Share } from 'lucide-react';
+import { Diamond, LogIn, Loader2, Download, Share, X } from 'lucide-react';
 import { api } from '../api';
 import { supabase } from '../supabase.ts';
 import { usePWAInstall } from '../hooks/usePWAInstall';
@@ -255,6 +255,15 @@ export default function Login() {
                   exit={{ opacity: 0, scale: 0.9 }}
                   className="mt-8 relative overflow-hidden bg-white/5 border border-brq-gold/30 rounded-2xl p-5 flex flex-col items-center text-center shadow-[0_10px_30px_rgba(212,175,55,0.05)]"
                 >
+                  <button 
+                    onClick={() => {
+                      const event = new CustomEvent('hide-install-prompt');
+                      window.dispatchEvent(event);
+                    }}
+                    className="absolute top-2 right-2 p-1.5 rounded-full text-white/50 hover:text-white hover:bg-white/10 transition-colors"
+                  >
+                    <X size={16} />
+                  </button>
                   <div className="absolute inset-0 bg-gradient-to-t from-brq-gold/5 to-transparent pointer-events-none"></div>
                   <div className="w-12 h-12 rounded-full border border-brq-gold/20 bg-brq-gold/10 flex items-center justify-center mb-3">
                     <Download className="text-brq-gold" size={24} />
