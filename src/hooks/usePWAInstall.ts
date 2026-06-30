@@ -16,13 +16,15 @@ export function usePWAInstall() {
 
     if (isIOSDevice && isSafari && !isStandalone) {
       setIsIOS(true);
+    }
+    
+    if (!isStandalone) {
       setShowInstallPrompt(true);
     }
 
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e);
-      setShowInstallPrompt(true);
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -32,7 +34,10 @@ export function usePWAInstall() {
   }, []);
 
   const handleInstallClick = async () => {
-    if (!deferredPrompt) return;
+    if (!deferredPrompt) {
+      alert('يرجى تثبيت التطبيق من خيارات المتصفح عن طريق اختيار "الإضافة للشاشة الرئيسية" (Add to Home Screen)');
+      return;
+    }
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
     if (outcome === 'accepted') {

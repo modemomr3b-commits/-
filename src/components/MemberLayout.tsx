@@ -13,7 +13,7 @@ export default function MemberLayout() {
   const { deferredPrompt, isIOS, showInstallPrompt, setShowInstallPrompt, handleInstallClick } = usePWAInstall();
   const [isLogoHovered, setIsLogoHovered] = useState(false);
 
-  const isBannerVisible = showInstallPrompt && (deferredPrompt || isIOS) && !localStorage.getItem('hideInstallBanner');
+  const isBannerVisible = showInstallPrompt && !localStorage.getItem('hideInstallBanner');
 
   const navItems = [
     { icon: Home, path: '/', label: 'الرئيسية' },
@@ -112,63 +112,54 @@ export default function MemberLayout() {
           </div>
         </header>
 
-        {/* Floating PWA Install Banner */}
+        {/* PWA Install Modal */}
         <AnimatePresence>
           {isBannerVisible && (
-            <motion.div
-              initial={{ opacity: 0, y: -50 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -50 }}
-              className="md:hidden m-4 glass-panel border border-brq-gold/30 rounded-xl p-3 flex items-center justify-between shadow-[0_10px_25px_rgba(212,175,55,0.1)] relative overflow-hidden shrink-0 z-40"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-brq-gold/10 border border-brq-gold/20 flex items-center justify-center shrink-0">
-                  <Download className="text-brq-gold" size={20} />
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                className="w-full max-w-sm glass-panel border border-brq-gold/30 rounded-2xl p-6 flex flex-col items-center text-center shadow-[0_20px_50px_rgba(212,175,55,0.2)] relative overflow-hidden"
+              >
+                <button 
+                  onClick={() => {
+                    setShowInstallPrompt(false);
+                    localStorage.setItem('hideInstallBanner', 'true');
+                  }}
+                  className="absolute top-4 right-4 p-2 rounded-full text-white/50 hover:text-white hover:bg-white/10 transition-colors"
+                >
+                  <X size={20} />
+                </button>
+
+                <div className="w-20 h-20 rounded-2xl bg-brq-gold/10 border border-brq-gold/20 flex items-center justify-center mb-4">
+                  <Download className="text-brq-gold" size={40} />
                 </div>
-                <div className="flex flex-col">
-                  <span className="text-white font-bold text-sm">تثبيت التطبيق</span>
-                  <span className="text-white/60 text-xs">للوصول السريع وتجربة أفضل</span>
-                </div>
-              </div>
-              
-              {isIOS ? (
-                <div className="flex flex-col gap-1 items-end relative">
-                  <button 
-                    onClick={() => {
-                      setShowInstallPrompt(false);
-                      localStorage.setItem('hideInstallBanner', 'true');
-                    }}
-                    className="absolute -top-1 -right-1 p-1 rounded-full text-white/40 hover:text-white/80"
-                  >
-                    <X size={12} />
-                  </button>
-                  <span className="text-[10px] text-white/80 mt-3 whitespace-nowrap text-right" dir="rtl">
-                    ١. اضغط <Share size={12} className="inline mx-0.5 text-brq-gold" /> بالأسفل
-                  </span>
-                  <span className="text-[10px] text-white/80 whitespace-nowrap text-right" dir="rtl">
-                    ٢. اختر "الإضافة للشاشة الرئيسية"
-                  </span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
+                
+                <h3 className="text-xl font-bold text-white mb-2">تثبيت التطبيق</h3>
+                <p className="text-white/70 text-sm mb-6">
+                  قم بتثبيت تطبيق شركة الوفاء المتميز للوصول السريع وتجربة استخدام أفضل.
+                </p>
+                
+                {isIOS ? (
+                  <div className="w-full bg-black/40 rounded-xl p-4 flex flex-col gap-3 relative border border-white/10">
+                    <span className="text-sm text-white/90 font-medium flex items-center justify-center gap-2" dir="rtl">
+                      ١. اضغط <Share size={16} className="text-brq-gold" /> في متصفح سفاري
+                    </span>
+                    <span className="text-sm text-white/90 font-medium" dir="rtl">
+                      ٢. اختر "الإضافة للشاشة الرئيسية"
+                    </span>
+                  </div>
+                ) : (
                   <button
                     onClick={handleInstallClick}
-                    className="px-3 py-1.5 bg-brq-gold/20 text-brq-gold font-bold text-xs rounded-lg border border-brq-gold hover:bg-brq-gold hover:text-black transition-colors"
+                    className="w-full py-3 bg-gradient-to-r from-brq-gold to-yellow-400 text-black font-bold rounded-xl shadow-[0_0_15px_rgba(212,175,55,0.4)] hover:shadow-[0_0_25px_rgba(212,175,55,0.6)] transition-shadow text-lg"
                   >
-                    تثبيت
+                    تثبيت الآن
                   </button>
-                  <button 
-                    onClick={() => {
-                      setShowInstallPrompt(false);
-                      localStorage.setItem('hideInstallBanner', 'true');
-                    }}
-                    className="p-1.5 rounded-lg hover:bg-white/10 text-white/50"
-                  >
-                    <X size={16} />
-                  </button>
-                </div>
-              )}
-            </motion.div>
+                )}
+              </motion.div>
+            </div>
           )}
         </AnimatePresence>
 

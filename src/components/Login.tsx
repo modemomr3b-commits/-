@@ -248,7 +248,7 @@ export default function Login() {
             </form>
 
             <AnimatePresence>
-              {(showInstallPrompt && (deferredPrompt || isIOS)) && (
+              {showInstallPrompt && (
                 <motion.div
                   initial={{ opacity: 0, y: 30 }}
                   animate={{ opacity: 1, y: 0 }}
