@@ -31,11 +31,11 @@ import GlobalNotifications from './components/GlobalNotifications';
 export default function App() {
   const { initialize, user, loading } = useStore();
   const [splashFinished, setSplashFinished] = useState(() => {
-    return sessionStorage.getItem('splashShown') === 'true';
+    return localStorage.getItem('splashShown') === 'true';
   });
 
   const handleSplashComplete = () => {
-    sessionStorage.setItem('splashShown', 'true');
+    localStorage.setItem('splashShown', 'true');
     setSplashFinished(true);
   };
 
