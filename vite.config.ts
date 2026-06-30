@@ -11,7 +11,7 @@ export default defineConfig(() => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
+        includeAssets: ['logo.jpeg', 'logo.png', 'icon.svg'],
         manifest: {
           name: 'شركة الوفاء BRQ',
           short_name: 'شركة الوفاء',

@@ -12,16 +12,6 @@ export default function MemberLayout() {
   const location = useLocation();
   const { deferredPrompt, isIOS, showInstallPrompt, setShowInstallPrompt, handleInstallClick } = usePWAInstall();
   const [isLogoHovered, setIsLogoHovered] = useState(false);
-  const [installReady, setInstallReady] = useState(false);
-
-  useEffect(() => {
-    if (deferredPrompt || isIOS) {
-      setInstallReady(true);
-    } else {
-      const timer = setTimeout(() => setInstallReady(true), 2500);
-      return () => clearTimeout(timer);
-    }
-  }, [deferredPrompt, isIOS]);
 
   const isBannerVisible = showInstallPrompt;
 
@@ -162,17 +152,9 @@ export default function MemberLayout() {
                 ) : (
                   <button
                     onClick={handleInstallClick}
-                    disabled={!installReady}
-                    className="w-full py-3 bg-gradient-to-r from-brq-gold to-yellow-400 text-black font-bold rounded-xl shadow-[0_0_15px_rgba(212,175,55,0.4)] hover:shadow-[0_0_25px_rgba(212,175,55,0.6)] transition-all text-lg disabled:opacity-50 disabled:cursor-wait flex justify-center items-center gap-2"
+                    className="w-full py-3 bg-gradient-to-r from-brq-gold to-yellow-400 text-black font-bold rounded-xl shadow-[0_0_15px_rgba(212,175,55,0.4)] hover:shadow-[0_0_25px_rgba(212,175,55,0.6)] transition-all text-lg"
                   >
-                    {!installReady ? (
-                      <>
-                        <span className="animate-spin rounded-full h-5 w-5 border-b-2 border-black"></span>
-                        جاري التجهيز...
-                      </>
-                    ) : (
-                      'تثبيت الآن'
-                    )}
+                    تثبيت الآن
                   </button>
                 )}
               </motion.div>
