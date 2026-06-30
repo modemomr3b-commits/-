@@ -133,14 +133,15 @@ export default function OrderManager() {
       <tr>
         <td style="padding: 10px; border-bottom: 1px solid #ddd;">${index + 1}</td>
         <td style="padding: 10px; border-bottom: 1px solid #ddd;">
-          <div style="font-weight: bold; font-size: 16px;">${item.product?.name || 'منتج محذوف'}</div>
+          <div style="font-weight: bold; font-size: 18px;">${item.product?.name || 'منتج محذوف'}</div>
           <div style="color: #666; font-size: 14px; margin-top: 4px;">
-            ${item.product?.productCode ? `كود: ${item.product.productCode}` : ''}
-            ${item.product?.productCode && item.product?.modelNumber ? ' | ' : ''}
             ${item.product?.modelNumber ? `الموديل/الرمز: ${item.product.modelNumber}` : ''}
           </div>
         </td>
-        <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center; font-weight: bold; font-size: 18px;">${item.quantity}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center; font-weight: bold; font-size: 24px; font-family: monospace; letter-spacing: 2px;">
+          ${item.product?.productCode || '---'}
+        </td>
+        <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center; font-weight: bold; font-size: 20px;">${item.quantity}</td>
       </tr>
     `).join('') || '';
 
@@ -196,7 +197,8 @@ export default function OrderManager() {
               <tr>
                 <th style="width: 50px;">#</th>
                 <th>المنتج والتفاصيل</th>
-                <th style="text-align: center; width: 120px;">الكمية</th>
+                <th style="text-align: center; width: 180px;">الكود</th>
+                <th style="text-align: center; width: 100px;">الكمية</th>
               </tr>
             </thead>
             <tbody>
@@ -204,7 +206,7 @@ export default function OrderManager() {
             </tbody>
             <tfoot>
               <tr>
-                <td colspan="2" style="padding: 15px; text-align: left; font-weight: bold; font-size: 18px;">إجمالي الكمية (قطع):</td>
+                <td colspan="3" style="padding: 15px; text-align: left; font-weight: bold; font-size: 18px;">إجمالي الكمية (قطع):</td>
                 <td style="padding: 15px; text-align: center; font-weight: bold; font-size: 22px;">${order.totalQuantity}</td>
               </tr>
             </tfoot>
