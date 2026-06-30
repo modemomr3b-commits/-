@@ -21,9 +21,9 @@ export default defineConfig(() => {
           display: 'standalone',
           icons: [
             {
-              src: 'icon.svg',
+              src: 'logo.jpeg',
               sizes: '192x192 512x512',
-              type: 'image/svg+xml',
+              type: 'image/jpeg',
               purpose: 'any maskable'
             }
           ]

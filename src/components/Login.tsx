@@ -7,12 +7,15 @@ import { Diamond, LogIn, Loader2, Download, Share } from 'lucide-react';
 import { api } from '../api';
 import { supabase } from '../supabase.ts';
 import { usePWAInstall } from '../hooks/usePWAInstall';
+import Animated3DLogo from './ui/Animated3DLogo';
 
 export default function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isLogoHoveredDesktop, setIsLogoHoveredDesktop] = useState(false);
+  const [isLogoHoveredMobile, setIsLogoHoveredMobile] = useState(false);
   const setUser = useStore((state) => state.setUser);
   const navigate = useNavigate();
   const { deferredPrompt, isIOS, showInstallPrompt, handleInstallClick } = usePWAInstall();
@@ -140,9 +143,15 @@ export default function Login() {
              transition={{ duration: 1 }}
              className="relative z-10"
            >
-              <div className="w-36 h-36 flex items-center justify-center mx-auto mb-8 relative transition-transform hover:scale-105 duration-500">
+              <div 
+                className="w-36 h-36 flex items-center justify-center mx-auto mb-8 relative transition-transform hover:scale-105 duration-500"
+                onMouseEnter={() => setIsLogoHoveredDesktop(true)}
+                onMouseLeave={() => setIsLogoHoveredDesktop(false)}
+              >
                 <div className="absolute inset-4 bg-brq-gold opacity-20 blur-xl rounded-full"></div>
-                <img src="/icon.svg" alt="شركة الوفاء BRQ" className="w-full h-full object-contain relative z-10 drop-shadow-2xl" referrerPolicy="no-referrer" />
+                <div className="w-full h-full relative z-10">
+                  <Animated3DLogo isHovered={isLogoHoveredDesktop} scale={0.8} />
+                </div>
               </div>
               <h2 className="text-4xl font-black text-white tracking-widest mb-4 font-mono">BRQ SYSTEM</h2>
               <p className="text-brq-gold font-bold text-lg mb-8 uppercase tracking-widest">— Excellence in Operations —</p>
@@ -173,9 +182,13 @@ export default function Login() {
             <div className="flex flex-col items-center mb-10 md:hidden">
               <motion.div
                 className="w-24 h-24 mb-4 flex items-center justify-center relative transition-transform hover:scale-105 duration-500"
+                onMouseEnter={() => setIsLogoHoveredMobile(true)}
+                onMouseLeave={() => setIsLogoHoveredMobile(false)}
               >
                 <div className="absolute inset-2 bg-brq-gold opacity-20 blur-xl rounded-full"></div>
-                <img src="/icon.svg" alt="شركة الوفاء BRQ" className="w-full h-full object-contain relative z-10 drop-shadow-[0_0_15px_rgba(212,175,55,0.5)]" referrerPolicy="no-referrer" />
+                <div className="w-full h-full relative z-10">
+                  <Animated3DLogo isHovered={isLogoHoveredMobile} scale={0.6} />
+                </div>
               </motion.div>
               <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-brq-gold to-white mb-1 tracking-wider">BRQ SYSTEM</h1>
               <h2 className="text-sm text-brq-white opacity-80 font-semibold tracking-wide">شركة الوفاء المتميز</h2>

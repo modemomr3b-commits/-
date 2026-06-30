@@ -17,6 +17,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { useState, useEffect } from "react";
 import { api } from "../../api";
 import { supabase } from "../../supabase";
+import Animated3DLogo from "../ui/Animated3DLogo";
 
 const DEFAULT_ICONS = ["✨", "👟", "🇹🇷", "⭐", "🎒", "☀️", "🔥"];
 
@@ -93,33 +94,44 @@ export default function Home() {
         </div>
       </motion.div>
 
+      {/* 3D Animated Hero Logo Section */}
+      <div className="w-full flex items-center justify-center mb-12 relative pt-8">
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="w-1/2 h-full bg-brq-gold/10 blur-[120px] rounded-full" />
+        </div>
+        <div className="w-[400px] h-[400px] md:w-[600px] md:h-[600px] lg:w-[800px] lg:h-[800px] cursor-pointer z-10">
+          <Animated3DLogo isHovered={true} scale={1.3} />
+        </div>
+      </div>
+
       {/* Bento Grid Layout for Desktop */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Main Banner - Span 8 */}
-        <div className="lg:col-span-8 relative rounded-3xl overflow-hidden bg-gradient-to-br from-brq-navy via-brq-royal to-purple-900 border border-brq-gold/30 lg:h-[320px] h-48 flex items-center shadow-2xl group cursor-pointer">
+        <div className="lg:col-span-8 relative rounded-3xl overflow-hidden bg-gradient-to-br from-brq-navy via-brq-royal to-[#081B63] border border-brq-gold/30 lg:h-[320px] h-64 flex items-center shadow-2xl group cursor-pointer">
           <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10 group-hover:opacity-20 transition-opacity"></div>
-          <div className="absolute right-0 top-0 bottom-0 w-1/2 bg-gradient-to-l from-black/60 to-transparent"></div>
+          
+          <div className="absolute right-0 top-0 bottom-0 w-full bg-gradient-to-l from-[#081B63]/90 via-[#081B63]/70 to-transparent z-0"></div>
 
           <motion.div
             initial={{ opacity: 0, x: 50 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.1 }}
-            className="relative z-10 px-8 lg:px-12 w-full lg:w-2/3"
+            className="relative z-10 px-6 lg:px-12 w-full lg:w-2/3"
           >
-            <span className="text-brq-gold text-sm md:text-base font-bold tracking-widest uppercase mb-2 block">
+            <span className="text-brq-gold text-sm md:text-base font-bold tracking-widest uppercase mb-2 block drop-shadow-md">
               — حصرياً في BRQ
             </span>
-            <h2 className="text-2xl md:text-4xl lg:text-5xl font-black text-white mb-4 leading-tight">
+            <h2 className="text-2xl md:text-4xl lg:text-5xl font-black text-white mb-4 leading-tight drop-shadow-lg">
               اكتشف أحدث <br /> تشكيلات{" "}
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-brq-gold to-yellow-300">
                 الأحذية
               </span>
             </h2>
-            <div className="flex gap-4 items-center">
-              <button className="bg-brq-gold text-black px-6 py-2.5 rounded-full font-bold hover:bg-yellow-400 transition-colors shadow-[0_0_15px_rgba(212,175,55,0.4)]">
+            <div className="flex flex-wrap gap-3 md:gap-4 items-center">
+              <button className="bg-brq-gold text-black px-5 md:px-6 py-2.5 rounded-full font-bold hover:bg-yellow-400 transition-colors shadow-[0_0_15px_rgba(212,175,55,0.4)]">
                 تسوق الآن
               </button>
-              <p className="text-xs md:text-sm border border-white/20 px-4 py-2.5 rounded-full bg-black/40 backdrop-blur-md inline-flex items-center gap-2">
+              <p className="text-[10px] md:text-xs border border-white/20 px-3 md:px-4 py-2 md:py-2.5 rounded-full bg-black/40 backdrop-blur-md inline-flex items-center gap-1.5 md:gap-2">
                 <Zap size={14} className="text-brq-gold" /> شركة الوفاء - الجودة والتميز
               </p>
             </div>

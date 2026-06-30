@@ -3,8 +3,10 @@ import { useStore } from '../store';
 import { LayoutDashboard, Users, ShoppingCart, Package, Settings, LogOut, Tags, Bell, FileText, Eye, Trash2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useState, useEffect, useRef } from 'react';
+import { motion } from 'framer-motion';
 import { api } from '../api';
 import { Order } from '../types';
+import Animated3DLogo from './ui/Animated3DLogo';
 
 export default function AdminLayout() {
   const { user, setUser } = useStore();
@@ -12,6 +14,7 @@ export default function AdminLayout() {
   const navigate = useNavigate();
   const [newOrdersCount, setNewOrdersCount] = useState(0);
   const [toastMessage, setToastMessage] = useState<{ title: string, body: string } | null>(null);
+  const [isLogoHovered, setIsLogoHovered] = useState(false);
   const previousNewOrdersCount = useRef(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -86,9 +89,11 @@ export default function AdminLayout() {
       {/* Sidebar for Desktop */}
       <aside className="w-64 glass-panel border-l border-white/20 flex flex-col hidden md:flex h-full rounded-none">
         <div className="p-6 border-b border-white/10 flex flex-col items-center gap-3">
-          <div className="w-24 h-24 flex items-center justify-center relative transition-transform hover:scale-105 duration-500">
+          <div className="w-24 h-24 flex items-center justify-center relative transition-transform hover:scale-105 duration-500" onMouseEnter={() => setIsLogoHovered(true)} onMouseLeave={() => setIsLogoHovered(false)}>
             <div className="absolute inset-2 bg-brq-gold/10 rounded-full blur-xl"></div>
-            <img src="/icon.svg" alt="شركة الوفاء BRQ" className="w-full h-full object-contain relative z-10 drop-shadow-xl" referrerPolicy="no-referrer" />
+            <div className="w-full h-full relative z-10">
+              <Animated3DLogo isHovered={isLogoHovered} scale={0.6} />
+            </div>
           </div>
           <div className="text-center mt-2">
             <p className="text-xs text-brq-gold tracking-[0.2em] uppercase font-semibold">Admin Dashboard</p>

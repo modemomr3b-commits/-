@@ -1,8 +1,9 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useStore } from './store';
 import { api } from './api';
 
+import SplashScreen from './components/SplashScreen';
 import Login from './components/Login';
 import MemberLayout from './components/MemberLayout';
 import AdminLayout from './components/AdminLayout';
@@ -29,6 +30,7 @@ import GlobalNotifications from './components/GlobalNotifications';
 
 export default function App() {
   const { initialize, user, loading } = useStore();
+  const [splashFinished, setSplashFinished] = useState(false);
 
   useEffect(() => {
     initialize();
@@ -59,6 +61,10 @@ export default function App() {
       };
     }
   }, [user]);
+
+  if (!splashFinished) {
+    return <SplashScreen onComplete={() => setSplashFinished(true)} />;
+  }
 
   if (loading) {
     return (

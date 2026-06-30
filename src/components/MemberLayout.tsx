@@ -4,11 +4,14 @@ import { Home, Search, Heart, ShoppingBag, User, Download, X, Share } from 'luci
 import { cn } from '../lib/utils.ts';
 import { motion, AnimatePresence } from 'motion/react';
 import { usePWAInstall } from '../hooks/usePWAInstall';
+import { useState } from 'react';
+import Animated3DLogo from './ui/Animated3DLogo';
 
 export default function MemberLayout() {
   const { cart, user } = useStore();
   const location = useLocation();
   const { deferredPrompt, isIOS, showInstallPrompt, setShowInstallPrompt, handleInstallClick } = usePWAInstall();
+  const [isLogoHovered, setIsLogoHovered] = useState(false);
 
   const isBannerVisible = showInstallPrompt && (deferredPrompt || isIOS) && !localStorage.getItem('hideInstallBanner');
 
@@ -30,7 +33,9 @@ export default function MemberLayout() {
           
           <div className="w-32 h-32 flex items-center justify-center relative transition-transform hover:scale-105 duration-500 group">
             <div className="absolute inset-4 bg-brq-gold/20 rounded-full blur-xl group-hover:bg-brq-gold/40 transition-colors duration-500"></div>
-            <img src="/icon.svg" alt="شركة الوفاء BRQ" className="w-full h-full object-contain relative z-10 drop-shadow-2xl" referrerPolicy="no-referrer" />
+            <div className="w-full h-full relative z-10" onMouseEnter={() => setIsLogoHovered(true)} onMouseLeave={() => setIsLogoHovered(false)}>
+              <Animated3DLogo isHovered={isLogoHovered} scale={0.7} />
+            </div>
           </div>
         </div>
 
@@ -87,8 +92,8 @@ export default function MemberLayout() {
         {/* Top Header - Mobile */}
         <header className="md:hidden sticky top-0 z-50 glass-panel border-b border-brq-gold/20 px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 flex items-center justify-center relative">
-              <img src="/icon.svg" alt="شركة الوفاء BRQ" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+            <div className="w-12 h-12 flex items-center justify-center relative">
+              <Animated3DLogo scale={0.4} />
             </div>
             <div className="flex flex-col">
               <span className="text-brq-gold font-bold text-lg tracking-wide uppercase">BRQ</span>
