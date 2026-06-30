@@ -30,7 +30,14 @@ import GlobalNotifications from './components/GlobalNotifications';
 
 export default function App() {
   const { initialize, user, loading } = useStore();
-  const [splashFinished, setSplashFinished] = useState(false);
+  const [splashFinished, setSplashFinished] = useState(() => {
+    return sessionStorage.getItem('splashShown') === 'true';
+  });
+
+  const handleSplashComplete = () => {
+    sessionStorage.setItem('splashShown', 'true');
+    setSplashFinished(true);
+  };
 
   useEffect(() => {
     initialize();
@@ -63,7 +70,7 @@ export default function App() {
   }, [user]);
 
   if (!splashFinished) {
-    return <SplashScreen onComplete={() => setSplashFinished(true)} />;
+    return <SplashScreen onComplete={handleSplashComplete} />;
   }
 
   if (loading) {
