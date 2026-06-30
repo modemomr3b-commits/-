@@ -57,7 +57,6 @@ export function usePWAInstall() {
 
   const handleInstallClick = async () => {
     if (!deferredPrompt) {
-      alert('لتثبيت التطبيق:\n1. اضغط على خيارات المتصفح (الثلاث نقاط بالزاوية)\n2. اختر "الإضافة للشاشة الرئيسية" أو "تثبيت التطبيق"\n(Add to Home Screen / Install App)');
       return;
     }
     deferredPrompt.prompt();
