@@ -3,32 +3,37 @@ import { useState, useEffect } from 'react';
 export function usePWAInstall() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isIOS, setIsIOS] = useState(false);
-  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
+  const [showInstallPrompt, setShowInstallPrompt] = useState(true);
+  const [isStandalone, setIsStandalone] = useState(false);
 
   useEffect(() => {
     // Check if it's already installed (standalone mode)
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true;
+    const standaloneCheck = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true;
+    setIsStandalone(standaloneCheck);
     
     // iOS Safari detection
     const ua = window.navigator.userAgent;
     const isIOSDevice = /iPad|iPhone|iPod/.test(ua) && !(window as any).MSStream;
     const isSafari = /Safari/.test(ua) && !/Chrome/.test(ua);
 
-    if (isIOSDevice && isSafari && !isStandalone) {
+    if (isIOSDevice && isSafari && !standaloneCheck) {
       setIsIOS(true);
-      setShowInstallPrompt(true);
+    }
+
+    if (standaloneCheck || localStorage.getItem('hideInstallBanner')) {
+      setShowInstallPrompt(false);
     }
 
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e);
-      if (!isStandalone) {
-        setShowInstallPrompt(true);
-      }
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    const handleHide = () => setShowInstallPrompt(false);
+    const handleHide = () => {
+      setShowInstallPrompt(false);
+      localStorage.setItem('hideInstallBanner', 'true');
+    };
     window.addEventListener('hide-install-prompt', handleHide);
 
     return () => {
@@ -50,5 +55,5 @@ export function usePWAInstall() {
     }
   };
 
-  return { deferredPrompt, isIOS, showInstallPrompt, setShowInstallPrompt, handleInstallClick };
+  return { deferredPrompt, isIOS, showInstallPrompt, setShowInstallPrompt, handleInstallClick, isStandalone };
 }

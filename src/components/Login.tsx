@@ -18,7 +18,17 @@ export default function Login() {
   const [isLogoHoveredMobile, setIsLogoHoveredMobile] = useState(false);
   const setUser = useStore((state) => state.setUser);
   const navigate = useNavigate();
-  const { deferredPrompt, isIOS, showInstallPrompt, handleInstallClick } = usePWAInstall();
+  const { deferredPrompt, isIOS, showInstallPrompt, handleInstallClick, isStandalone } = usePWAInstall();
+  const [installReady, setInstallReady] = useState(false);
+
+  useEffect(() => {
+    if (deferredPrompt || isIOS) {
+      setInstallReady(true);
+    } else {
+      const timer = setTimeout(() => setInstallReady(true), 2500);
+      return () => clearTimeout(timer);
+    }
+  }, [deferredPrompt, isIOS]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -285,9 +295,17 @@ export default function Login() {
                   ) : (
                     <button
                       onClick={handleInstallClick}
-                      className="w-full py-2.5 rounded-xl border border-brq-gold bg-brq-gold/10 text-brq-gold hover:bg-brq-gold hover:text-black font-bold text-sm transition-all duration-300"
+                      disabled={!installReady}
+                      className="w-full py-2.5 rounded-xl border border-brq-gold bg-brq-gold/10 text-brq-gold hover:bg-brq-gold hover:text-black font-bold text-sm transition-all duration-300 disabled:opacity-50 disabled:cursor-wait"
                     >
-                      تنزيل للشاشة الرئيسية
+                      {!installReady ? (
+                        <div className="flex items-center justify-center gap-2">
+                          <Loader2 size={16} className="animate-spin" />
+                          <span>جاري التجهيز...</span>
+                        </div>
+                      ) : (
+                        'تنزيل للشاشة الرئيسية'
+                      )}
                     </button>
                   )}
                 </motion.div>
