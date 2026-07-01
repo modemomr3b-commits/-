@@ -44,7 +44,7 @@ export default function ProductManager() {
   const [batchCategoryId, setBatchCategoryId] = useState<string>("");
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ isBulk: boolean; ids?: string[]; name?: string; count?: number; } | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [downloadProgress, setDownloadProgress] = useState<{
     progress: number;
@@ -213,6 +213,45 @@ export default function ProductManager() {
     }
   };
 
+  const handleIqdPriceChange = (
+    iqdValue: number,
+    packaging: string,
+    customPieces: number,
+    isEditing: boolean = false,
+    forceStandardCrush: boolean = false,
+  ) => {
+    let pieces = customPieces || 12;
+
+    const usdValue = usdRate > 0 ? iqdValue / usdRate : 0;
+    const calcPieces = forceStandardCrush ? 12 : pieces;
+    const pieceUsd = calcPieces > 0 ? usdValue / calcPieces : 0;
+    const pieceIqd = calcPieces > 0 ? iqdValue / calcPieces : 0;
+
+    if (isEditing && editingProduct) {
+      setEditingProduct({
+        ...editingProduct,
+        dozenPriceUsd: Number(usdValue.toFixed(2)),
+        price: iqdValue,
+        packaging,
+        piecesCount: pieces,
+        forceStandardCrush,
+        piecePriceUsd: Number(pieceUsd.toFixed(2)),
+        piecePriceIqd: pieceIqd,
+      });
+    } else {
+      setNewProduct({
+        ...newProduct,
+        dozenPriceUsd: Number(usdValue.toFixed(2)),
+        price: iqdValue,
+        packaging,
+        piecesCount: pieces,
+        forceStandardCrush,
+        piecePriceUsd: Number(pieceUsd.toFixed(2)),
+        piecePriceIqd: pieceIqd,
+      });
+    }
+  };
+
   const handleImageUpload = (
     e: React.ChangeEvent<HTMLInputElement>,
     isEditing: boolean,
@@ -369,31 +408,43 @@ export default function ProductManager() {
     }
   };
 
-  const handleDelete = async (id: string, name: string) => {
+  const handleDelete = (id: string, name: string) => {
+    setDeleteConfirm({ isBulk: false, ids: [id], name });
+  };
+
+  const executeDelete = async () => {
+    if (!deleteConfirm || !deleteConfirm.ids) return;
+    
     try {
-      if (!id) {
-        alert("حدث خطأ: لا يوجد معرف للمنتج");
-        return;
+      if (deleteConfirm.isBulk) {
+        setProducts((prev) => prev.filter((prod) => !deleteConfirm.ids!.includes(prod.id!)));
+        await Promise.all(deleteConfirm.ids.map(id => api.deleteProduct(id, user?.username)));
+        await api.logAction({
+          userId: user?.uid || "",
+          userName: user?.username || "System",
+          action: "حذف مجموعة منتجات",
+          entityType: "product",
+          details: { count: deleteConfirm.ids.length, ids: deleteConfirm.ids },
+        });
+        setSelectedIds(new Set());
+      } else {
+        const id = deleteConfirm.ids[0];
+        setProducts((prev) => prev.filter((prod) => prod.id !== id));
+        await api.deleteProduct(id, user?.username);
+        await api.logAction({
+          userId: user?.uid || "",
+          userName: user?.username || "System",
+          action: "حذف منتج",
+          entityType: "product",
+          entityId: id,
+          details: { name: deleteConfirm.name },
+        });
       }
-      
-      // Optimistic update
-      setProducts((prev) => prev.filter((prod) => prod.id !== id));
-      
-      await api.deleteProduct(id, user?.username);
-      await api.logAction({
-        userId: user?.uid || "",
-        userName: user?.username || "System",
-        action: "حذف منتج",
-        entityType: "product",
-        entityId: id,
-        details: { name },
-      });
       const updated = await api.getProducts();
       setProducts(updated);
-      setDeleteConfirmId(null);
+      setDeleteConfirm(null);
     } catch (e: any) {
       console.error("Error deleting:", e);
-      // Revert on error
       const updated = await api.getProducts();
       setProducts(updated);
       alert("فشل الحذف: " + e.message);
@@ -448,6 +499,33 @@ export default function ProductManager() {
       setSelectedIds(new Set());
     } else {
       setSelectedIds(new Set(visibleProducts.map((p) => p.id!)));
+    }
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedIds.size === 0) return;
+    setDeleteConfirm({ isBulk: true, ids: Array.from(selectedIds), count: selectedIds.size });
+  };
+
+  const handleBulkToggleHide = async (hide: boolean) => {
+    if (selectedIds.size === 0) return;
+    
+    try {
+      setProducts((prev) =>
+        prev.map((prod) =>
+          selectedIds.has(prod.id!) ? { ...prod, isHidden: hide } : prod
+        )
+      );
+      
+      const ids = Array.from(selectedIds);
+      await Promise.all(ids.map(id => api.updateProduct(id, { isHidden: hide })));
+      
+      setSelectedIds(new Set());
+    } catch (e: any) {
+      console.error("Error bulk toggling hide:", e);
+      const updated = await api.getProducts();
+      setProducts(updated);
+      alert("فشل التحديث المجمع: " + e.message);
     }
   };
 
@@ -774,10 +852,13 @@ export default function ProductManager() {
                 type="number"
                 value={newProduct.price || ""}
                 onChange={(e) =>
-                  setNewProduct({
-                    ...newProduct,
-                    price: Number(e.target.value),
-                  })
+                  handleIqdPriceChange(
+                    Number(e.target.value),
+                    newProduct.packaging || "",
+                    newProduct.piecesCount || 12,
+                    false,
+                    newProduct.forceStandardCrush
+                  )
                 }
                 className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
               />
@@ -1011,6 +1092,33 @@ export default function ProductManager() {
                     <span className="text-sm font-bold text-white/80 whitespace-nowrap">
                       تم تحديد: {selectedIds.size}
                     </span>
+                  )}
+                  {selectedIds.size > 0 && (
+                    <button
+                      onClick={handleBulkDelete}
+                      className="flex items-center gap-2 px-4 py-2 bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg text-sm hover:bg-red-500/30 transition-colors font-bold whitespace-nowrap"
+                    >
+                      <Trash2 size={16} />
+                      حذف
+                    </button>
+                  )}
+                  {selectedIds.size > 0 && (
+                    <button
+                      onClick={() => handleBulkToggleHide(false)}
+                      className="flex items-center gap-2 px-4 py-2 bg-green-500/20 text-green-400 border border-green-500/30 rounded-lg text-sm hover:bg-green-500/30 transition-colors font-bold whitespace-nowrap"
+                    >
+                      <Eye size={16} />
+                      تفعيل
+                    </button>
+                  )}
+                  {selectedIds.size > 0 && (
+                    <button
+                      onClick={() => handleBulkToggleHide(true)}
+                      className="flex items-center gap-2 px-4 py-2 bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 rounded-lg text-sm hover:bg-yellow-500/30 transition-colors font-bold whitespace-nowrap"
+                    >
+                      <EyeOff size={16} />
+                      إخفاء
+                    </button>
                   )}
                   {selectedIds.size > 0 && (
                     <button
@@ -1333,10 +1441,13 @@ export default function ProductManager() {
                   type="number"
                   value={editingProduct.price || ""}
                   onChange={(e) =>
-                    setEditingProduct({
-                      ...editingProduct,
-                      price: Number(e.target.value),
-                    })
+                    handleIqdPriceChange(
+                      Number(e.target.value),
+                      editingProduct.packaging || "",
+                      editingProduct.piecesCount || 12,
+                      true,
+                      editingProduct.forceStandardCrush
+                    )
                   }
                   className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
                 />
@@ -1516,6 +1627,35 @@ export default function ProductManager() {
 
       {historyProduct && (
         <PriceHistoryViewer product={historyProduct} onClose={() => setHistoryProduct(null)} />
+      )}
+
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[200] backdrop-blur-sm">
+          <div className="bg-brq-card border border-brq-border rounded-xl p-6 max-w-sm w-full relative overflow-hidden" dir="rtl">
+            <div className="absolute top-0 right-0 w-full h-1 bg-gradient-to-r from-red-500 to-red-700"></div>
+            <h3 className="text-xl font-bold text-white mb-3">تأكيد الحذف</h3>
+            <p className="text-white/70 mb-6 leading-relaxed">
+              {deleteConfirm.isBulk 
+                ? `هل أنت متأكد من حذف ${deleteConfirm.count} منتج بشكل نهائي؟` 
+                : `هل أنت متأكد من حذف المنتج "${deleteConfirm.name}" بشكل نهائي؟`}
+            </p>
+            <div className="flex justify-end gap-3">
+              <button 
+                onClick={() => setDeleteConfirm(null)}
+                className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-lg transition-colors text-sm"
+              >
+                إلغاء
+              </button>
+              <button 
+                onClick={executeDelete}
+                className="px-4 py-2 bg-red-500/20 hover:bg-red-500 border border-red-500/50 hover:border-red-500 text-red-500 hover:text-white rounded-lg transition-all font-bold text-sm flex items-center gap-2"
+              >
+                <Trash2 size={16} />
+                تأكيد الحذف
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

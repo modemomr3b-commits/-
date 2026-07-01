@@ -121,6 +121,36 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
     });
   };
 
+  const handleIqdPriceChange = (
+    index: number,
+    iqdValue: number,
+    packaging: string,
+    customPieces: number,
+    forceStandardCrush: boolean = false,
+  ) => {
+    let pieces = customPieces || 12;
+
+    const usdValue = usdRate > 0 ? iqdValue / usdRate : 0;
+    const calcPieces = forceStandardCrush ? 12 : pieces;
+    const pieceUsd = calcPieces > 0 ? usdValue / calcPieces : 0;
+    const pieceIqd = calcPieces > 0 ? iqdValue / calcPieces : 0;
+
+    setProducts(prev => {
+      const newProducts = [...prev];
+      newProducts[index] = {
+        ...newProducts[index],
+        dozenPriceUsd: Number(usdValue.toFixed(2)),
+        packaging,
+        piecesCount: pieces,
+        forceStandardCrush,
+        price: iqdValue,
+        piecePriceUsd: Number(pieceUsd.toFixed(2)),
+        piecePriceIqd: pieceIqd,
+      };
+      return newProducts;
+    });
+  };
+
   const handleImageUpload = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -303,7 +333,13 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
                 <input
                   type="number"
                   value={product.price || ''}
-                  onChange={(e) => handleProductChange(idx, 'price', Number(e.target.value))}
+                  onChange={(e) => handleIqdPriceChange(
+                    idx,
+                    Number(e.target.value),
+                    product.packaging || "",
+                    product.piecesCount || 12,
+                    product.forceStandardCrush
+                  )}
                   className="w-full bg-white border border-black rounded-lg px-2 py-1.5 text-xs focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
                 />
               </div>
