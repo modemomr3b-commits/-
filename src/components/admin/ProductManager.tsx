@@ -17,6 +17,7 @@ import {
   EyeOff,
   Share2,
   History,
+  AlertCircle,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { api } from "../../api";
@@ -45,6 +46,7 @@ export default function ProductManager() {
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ isBulk: boolean; ids?: string[]; name?: string; count?: number; } | null>(null);
+  const [alertMessage, setAlertMessage] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [downloadProgress, setDownloadProgress] = useState<{
     progress: number;
@@ -299,9 +301,32 @@ export default function ProductManager() {
     reader.readAsDataURL(file);
   };
 
+  const extractAtNumber = (name: string) => {
+    if (!name) return null;
+    const words = name.trim().split(/\s+/);
+    const lastWord = words[words.length - 1];
+    if (lastWord && !/[\u0600-\u06FF]/.test(lastWord) && lastWord.length >= 3) {
+      return lastWord.toUpperCase();
+    }
+    return null;
+  };
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newProduct.name || !newProduct.price || isSubmitting) return;
+
+    const atNumber = extractAtNumber(newProduct.name);
+    if (atNumber) {
+      const existing = products.find(p => {
+        const existingAt = extractAtNumber(p.name || "");
+        return existingAt === atNumber;
+      });
+      if (existing) {
+        setAlertMessage(`عذراً، لا يمكن إضافة هذا الموديل. الرقم (${atNumber}) موجود مسبقاً باسم:\n${existing.name}`);
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     try {
       let finalImg = newProduct.imageUrl;
@@ -345,7 +370,7 @@ export default function ProductManager() {
       setProducts(updated);
     } catch (error: any) {
       console.error(error);
-      alert("حدث خطأ أثناء الإضافة: " + (error.message || JSON.stringify(error)));
+      setAlertMessage("حدث خطأ أثناء الإضافة: " + (error.message || JSON.stringify(error)));
     } finally {
       setIsSubmitting(false);
     }
@@ -355,6 +380,20 @@ export default function ProductManager() {
     e.preventDefault();
     if (!editingProduct || !editingProduct.name || !editingProduct.price || isSubmitting)
       return;
+
+    const atNumber = extractAtNumber(editingProduct.name);
+    if (atNumber) {
+      const existing = products.find(p => {
+        if (p.id === editingProduct.id) return false;
+        const existingAt = extractAtNumber(p.name || "");
+        return existingAt === atNumber;
+      });
+      if (existing) {
+        setAlertMessage(`عذراً، لا يمكن تعديل هذا الموديل. الرقم (${atNumber}) موجود مسبقاً باسم:\n${existing.name}`);
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     try {
       const originalProduct = products.find(p => p.id === editingProduct.id);
@@ -402,7 +441,7 @@ export default function ProductManager() {
       setProducts(updated);
     } catch (error) {
       console.error(error);
-      alert("حدث خطأ أثناء التحديث");
+      setAlertMessage("حدث خطأ أثناء التحديث");
     } finally {
       setIsSubmitting(false);
     }
@@ -447,7 +486,7 @@ export default function ProductManager() {
       console.error("Error deleting:", e);
       const updated = await api.getProducts();
       setProducts(updated);
-      alert("فشل الحذف: " + e.message);
+      setAlertMessage("فشل الحذف: " + e.message);
     }
   };
 
@@ -465,7 +504,7 @@ export default function ProductManager() {
       // Revert optimistic update
       const updated = await api.getProducts();
       setProducts(updated);
-      alert("فشل تغيير حالة المنتج");
+      setAlertMessage("فشل تغيير حالة المنتج");
     }
   };
 
@@ -483,7 +522,7 @@ export default function ProductManager() {
       // Revert optimistic update
       const updated = await api.getProducts();
       setProducts(updated);
-      alert("فشل تغيير حالة إخفاء المنتج");
+      setAlertMessage("فشل تغيير حالة إخفاء المنتج");
     }
   };
 
@@ -525,7 +564,7 @@ export default function ProductManager() {
       console.error("Error bulk toggling hide:", e);
       const updated = await api.getProducts();
       setProducts(updated);
-      alert("فشل التحديث المجمع: " + e.message);
+      setAlertMessage("فشل التحديث المجمع: " + e.message);
     }
   };
 
@@ -538,7 +577,7 @@ export default function ProductManager() {
     );
 
     if (imagesWithData.length === 0) {
-      alert("لا توجد صور للمنتجات المحددة.");
+      setAlertMessage("لا توجد صور للمنتجات المحددة.");
       return;
     }
 
@@ -581,7 +620,7 @@ export default function ProductManager() {
           console.error('Error sharing files', error);
         }
       } else {
-        alert("متصفحك لا يدعم مشاركة هذه الصور مباشرة. جرب تحميلها بدلاً من ذلك.");
+        setAlertMessage("متصفحك لا يدعم مشاركة هذه الصور مباشرة. جرب تحميلها بدلاً من ذلك.");
       }
     }
   };
@@ -595,7 +634,7 @@ export default function ProductManager() {
     );
 
     if (imagesWithData.length === 0) {
-      alert("لا توجد صور للمنتجات المحددة.");
+      setAlertMessage("لا توجد صور للمنتجات المحددة.");
       return;
     }
 
@@ -647,7 +686,7 @@ export default function ProductManager() {
     );
 
     if (imagesWithData.length === 0) {
-      alert("لا توجد صور للمنتجات الغير فعالة.");
+      setAlertMessage("لا توجد صور للمنتجات الغير فعالة.");
       return;
     }
 
@@ -1652,6 +1691,29 @@ export default function ProductManager() {
               >
                 <Trash2 size={16} />
                 تأكيد الحذف
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {alertMessage && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[300] backdrop-blur-sm">
+          <div className="bg-brq-card border border-brq-border rounded-xl p-6 max-w-sm w-full relative overflow-hidden" dir="rtl">
+            <div className="absolute top-0 right-0 w-full h-1 bg-gradient-to-r from-red-500 to-red-700"></div>
+            <h3 className="text-xl font-bold text-white mb-3 flex items-center gap-2">
+              <AlertCircle className="w-6 h-6 text-red-500" />
+              تنبيه
+            </h3>
+            <p className="text-white/80 mb-6 leading-relaxed whitespace-pre-wrap">
+              {alertMessage}
+            </p>
+            <div className="flex justify-end">
+              <button 
+                onClick={() => setAlertMessage(null)}
+                className="px-6 py-2 bg-red-500/20 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/50 hover:border-red-500 rounded-lg transition-all font-bold text-sm"
+              >
+                حسناً
               </button>
             </div>
           </div>

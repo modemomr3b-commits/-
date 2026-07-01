@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Loader2, Upload, X, CheckCircle2 } from 'lucide-react';
+import { Loader2, Upload, X, CheckCircle2, AlertCircle } from 'lucide-react';
 import { api } from '../../api';
 import { burnProductOverlay } from '../../utils/burnImage';
 import { Product, Category } from '../../types';
@@ -48,6 +48,7 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [uploadSessionId, setUploadSessionId] = useState(Date.now());
+  const [alertMessage, setAlertMessage] = useState<string | null>(null);
   
   const emptyProduct = () => ({
     name: '',
@@ -191,16 +192,53 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
     reader.readAsDataURL(file);
   };
 
+  const extractAtNumber = (name: string) => {
+    if (!name) return null;
+    const words = name.trim().split(/\s+/);
+    const lastWord = words[words.length - 1];
+    if (lastWord && !/[\u0600-\u06FF]/.test(lastWord) && lastWord.length >= 3) {
+      return lastWord.toUpperCase();
+    }
+    return null;
+  };
+
   const handleSubmitAll = async () => {
     const validProducts = products.filter(p => p.name && p.price);
     
     if (validProducts.length === 0) {
-      alert('الرجاء تعبئة منتج واحد على الأقل (الاسم والسعر مطلوبان)');
+      setAlertMessage('الرجاء تعبئة منتج واحد على الأقل (الاسم والسعر مطلوبان)');
       return;
     }
-    
+
     setIsSubmitting(true);
+    
     try {
+      const existingProducts = await api.getProducts();
+      const seenAtNumbers = new Set<string>();
+
+      for (const product of validProducts) {
+        const atNumber = extractAtNumber(product.name || "");
+        if (atNumber) {
+          if (seenAtNumbers.has(atNumber)) {
+            setIsSubmitting(false);
+            setAlertMessage(`عذراً، الموديل (${atNumber}) متكرر في قائمة الإضافة الحالية.`);
+            return;
+          }
+          seenAtNumbers.add(atNumber);
+
+          const existing = existingProducts.find(p => {
+            const existingAt = extractAtNumber(p.name || "");
+            return existingAt === atNumber;
+          });
+          
+          if (existing) {
+            setIsSubmitting(false);
+            setAlertMessage(`عذراً، الموديل (${atNumber}) الخاص بالمنتج "${product.name}" موجود مسبقاً باسم:\n${existing.name}`);
+            return;
+          }
+        }
+      }
+
       for (const product of validProducts) {
         let finalImg = product.imageUrl;
         if (product.imageUrl) {
@@ -245,7 +283,7 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
     } catch (error: any) {
       console.error('Error creating products:', error);
       setIsSubmitting(false);
-      alert('حدث خطأ أثناء إضافة المنتجات: ' + (error.message || ''));
+      setAlertMessage('حدث خطأ أثناء إضافة المنتجات: ' + (error.message || ''));
     }
   };
 
@@ -471,6 +509,29 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
             )}
           </button>
       </div>
+
+      {alertMessage && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[300] backdrop-blur-sm">
+          <div className="bg-brq-card border border-brq-border rounded-xl p-6 max-w-sm w-full relative overflow-hidden" dir="rtl">
+            <div className="absolute top-0 right-0 w-full h-1 bg-gradient-to-r from-red-500 to-red-700"></div>
+            <h3 className="text-xl font-bold text-white mb-3 flex items-center gap-2">
+              <AlertCircle className="w-6 h-6 text-red-500" />
+              تنبيه
+            </h3>
+            <p className="text-white/80 mb-6 leading-relaxed whitespace-pre-wrap">
+              {alertMessage}
+            </p>
+            <div className="flex justify-end">
+              <button 
+                onClick={() => setAlertMessage(null)}
+                className="px-6 py-2 bg-red-500/20 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/50 hover:border-red-500 rounded-lg transition-all font-bold text-sm"
+              >
+                حسناً
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
