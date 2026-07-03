@@ -20,6 +20,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
+import { motion, AnimatePresence } from "motion/react";
 import { api } from "../../api";
 import { supabase } from "../../supabase";
 import { Product, Category } from "../../types";
@@ -47,6 +48,7 @@ export default function ProductManager() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ isBulk: boolean; ids?: string[]; name?: string; count?: number; } | null>(null);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
+  const [duplicateConfirm, setDuplicateConfirm] = useState<{ atNumber: string; existingName: string; type: 'create' | 'update'; payload: any } | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [downloadProgress, setDownloadProgress] = useState<{
     progress: number;
@@ -312,40 +314,25 @@ export default function ProductManager() {
     return null;
   };
 
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newProduct.name || !newProduct.price || isSubmitting) return;
-
-    const atNumber = extractAtNumber(newProduct.name);
-    if (atNumber) {
-      const existing = products.find(p => {
-        const existingAt = extractAtNumber(p.name || "");
-        return existingAt === atNumber;
-      });
-      if (existing) {
-        if (!window.confirm(`الموديل (${atNumber}) موجود مسبقاً باسم:\n${existing.name}\n\nهل تريد الاستمرار بنشر هذا الموديل على أي حال؟`)) {
-          return;
-        }
-      }
-    }
-
+  const proceedCreate = async (payloadToCreate: any) => {
     setIsSubmitting(true);
+    setDuplicateConfirm(null);
     try {
-      let finalImg = newProduct.imageUrl;
-      if (newProduct.imageUrl) {
+      let finalImg = payloadToCreate.imageUrl;
+      if (payloadToCreate.imageUrl) {
         try {
-          finalImg = await burnProductOverlay(newProduct, newProduct.imageUrl);
+          finalImg = await burnProductOverlay(payloadToCreate, payloadToCreate.imageUrl);
         } catch (e) {
           console.error("Failed to generate burned image", e);
         }
       }
 
       const created = await api.createProduct({
-        ...newProduct,
+        ...payloadToCreate,
         finalImageUrl: finalImg,
         views: 0,
         isArchived: false,
-        isHidden: newProduct.isHidden ?? true,
+        isHidden: payloadToCreate.isHidden ?? true,
       });
       await api.logAction({
         userId: user?.uid || "",
@@ -353,7 +340,7 @@ export default function ProductManager() {
         action: "إضافة منتج جديد",
         entityType: "product",
         entityId: created.id,
-        details: { name: newProduct.name, code: newProduct.productCode },
+        details: { name: payloadToCreate.name, code: payloadToCreate.productCode },
       });
       // setIsAdding(false); removed to keep form open
       setNewProduct({
@@ -378,6 +365,87 @@ export default function ProductManager() {
     }
   };
 
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newProduct.name || !newProduct.price || isSubmitting) return;
+
+    const atNumber = extractAtNumber(newProduct.name);
+    if (atNumber) {
+      const existing = products.find(p => {
+        const existingAt = extractAtNumber(p.name || "");
+        return existingAt === atNumber;
+      });
+      if (existing) {
+        setDuplicateConfirm({
+          atNumber,
+          existingName: existing.name || '',
+          type: 'create',
+          payload: newProduct
+        });
+        return;
+      }
+    }
+
+    proceedCreate(newProduct);
+  };
+
+  const proceedUpdate = async (payloadToUpdate: any) => {
+    setIsSubmitting(true);
+    setDuplicateConfirm(null);
+    try {
+      const originalProduct = products.find(p => p.id === payloadToUpdate.id);
+      let finalImg = payloadToUpdate.finalImageUrl || payloadToUpdate.imageUrl;
+      if (payloadToUpdate.imageUrl) {
+        try {
+          finalImg = await burnProductOverlay(
+            payloadToUpdate,
+            payloadToUpdate.imageUrl,
+          );
+        } catch (err) {
+          console.error("Failed to generate burned image on update", err);
+        }
+      }
+
+      const isPriceChanged = originalProduct && (
+        originalProduct.price !== payloadToUpdate.price ||
+        originalProduct.piecePriceIqd !== payloadToUpdate.piecePriceIqd ||
+        originalProduct.dozenPriceUsd !== payloadToUpdate.dozenPriceUsd
+      );
+
+      const oldPriceInfo = (isPriceChanged && originalProduct?.finalImageUrl) ? {
+        price: originalProduct.price,
+        piecePriceIqd: originalProduct.piecePriceIqd,
+        dozenPriceUsd: originalProduct.dozenPriceUsd,
+        finalImageUrl: originalProduct.finalImageUrl,
+        updatedAt: Date.now()
+      } : originalProduct?.oldPriceInfo;
+
+      await api.updateProduct(payloadToUpdate.id!, {
+        ...payloadToUpdate,
+        finalImageUrl: finalImg,
+        oldPriceInfo: oldPriceInfo
+      });
+
+      await api.logAction({
+        userId: user?.uid || "",
+        userName: user?.username || "System",
+        action: "تعديل بيانات أو صورة منتج",
+        entityType: "product",
+        entityId: payloadToUpdate.id,
+        details: { name: payloadToUpdate.name },
+      });
+
+      setEditingProduct(null);
+      const updated = await api.getProducts();
+      setProducts(updated);
+    } catch (error) {
+      console.error(error);
+      setAlertMessage("حدث خطأ أثناء التحديث");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProduct || !editingProduct.name || !editingProduct.price || isSubmitting)
@@ -391,63 +459,17 @@ export default function ProductManager() {
         return existingAt === atNumber;
       });
       if (existing) {
-        if (!window.confirm(`الموديل (${atNumber}) موجود مسبقاً باسم:\n${existing.name}\n\nهل تريد الاستمرار بتعديل هذا الموديل على أي حال؟`)) {
-          return;
-        }
+        setDuplicateConfirm({
+          atNumber,
+          existingName: existing.name || '',
+          type: 'update',
+          payload: editingProduct
+        });
+        return;
       }
     }
 
-    setIsSubmitting(true);
-    try {
-      const originalProduct = products.find(p => p.id === editingProduct.id);
-      let finalImg = editingProduct.finalImageUrl || editingProduct.imageUrl;
-      if (editingProduct.imageUrl) {
-        try {
-          finalImg = await burnProductOverlay(
-            editingProduct,
-            editingProduct.imageUrl,
-          );
-        } catch (err) {
-          console.error("Failed to generate burned image on update", err);
-        }
-      }
-
-      const isPriceChanged = originalProduct && (
-        originalProduct.price !== editingProduct.price ||
-        originalProduct.piecePriceIqd !== editingProduct.piecePriceIqd ||
-        originalProduct.dozenPriceUsd !== editingProduct.dozenPriceUsd
-      );
-
-      const oldPriceInfo = (isPriceChanged && originalProduct?.finalImageUrl) ? {
-        price: originalProduct.price,
-        piecePriceIqd: originalProduct.piecePriceIqd,
-        dozenPriceUsd: originalProduct.dozenPriceUsd,
-        finalImageUrl: originalProduct.finalImageUrl,
-        updatedAt: Date.now()
-      } : originalProduct?.oldPriceInfo;
-
-      await api.updateProduct(editingProduct.id!, {
-        ...editingProduct,
-        finalImageUrl: finalImg,
-        oldPriceInfo: oldPriceInfo
-      });
-      await api.logAction({
-        userId: user?.uid || "",
-        userName: user?.username || "System",
-        action: "تعديل بيانات أو صورة منتج",
-        entityType: "product",
-        entityId: editingProduct.id,
-        details: { name: editingProduct.name },
-      });
-      setEditingProduct(null);
-      const updated = await api.getProducts();
-      setProducts(updated);
-    } catch (error) {
-      console.error(error);
-      setAlertMessage("حدث خطأ أثناء التحديث");
-    } finally {
-      setIsSubmitting(false);
-    }
+    proceedUpdate(editingProduct);
   };
 
   const handleDelete = (id: string, name: string) => {
@@ -1670,6 +1692,63 @@ export default function ProductManager() {
       {historyProduct && (
         <PriceHistoryViewer product={historyProduct} onClose={() => setHistoryProduct(null)} />
       )}
+
+      
+      {/* Duplicate AT Number Modal */}
+      <AnimatePresence>
+        {duplicateConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={() => setDuplicateConfirm(null)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-md bg-white border border-brq-navy rounded-2xl p-6 shadow-2xl flex flex-col items-center text-center overflow-hidden"
+            >
+              <div className="w-16 h-16 rounded-full bg-amber-100 flex items-center justify-center mb-4">
+                <AlertCircle size={32} className="text-amber-600" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2 font-mono">
+                الموديل ({duplicateConfirm.atNumber}) موجود
+              </h3>
+              <p className="text-gray-600 mb-6 text-sm">
+                هذا الات نمبر موجود مسبقاً باسم:
+                <br />
+                <span className="font-bold text-gray-900">{duplicateConfirm.existingName}</span>
+                <br /><br />
+                هل تريد الاستمرار بنشر هذا الموديل على أي حال؟
+              </p>
+              
+              <div className="flex gap-3 w-full">
+                <button
+                  onClick={() => setDuplicateConfirm(null)}
+                  className="flex-1 py-3 px-4 rounded-xl font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors"
+                >
+                  إلغاء النشر
+                </button>
+                <button
+                  onClick={() => {
+                    if (duplicateConfirm.type === 'create') {
+                      proceedCreate(duplicateConfirm.payload);
+                    } else {
+                      proceedUpdate(duplicateConfirm.payload);
+                    }
+                  }}
+                  className="flex-1 py-3 px-4 rounded-xl font-bold text-white bg-amber-500 hover:bg-amber-600 transition-colors"
+                >
+                  نعم، أكمل النشر
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {deleteConfirm && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[200] backdrop-blur-sm">
