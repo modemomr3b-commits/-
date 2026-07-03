@@ -51,7 +51,7 @@ export const api = {
       ...p,
       isHidden: p.size?.isHidden || false,
       oldPriceInfo: p.size?.oldPriceInfo || undefined
-    }));
+    })).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   },
   createProduct: async (data: any) => { 
     const safeData = { ...data };

@@ -107,6 +107,12 @@ export default function AdminLayout() {
               <Link
                 key={item.path}
                 to={item.path}
+                onClick={(e) => {
+                  if (location.pathname === item.path) {
+                    e.preventDefault();
+                    window.location.reload();
+                  }
+                }}
                 className={cn(
                   "flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-200",
                   isActive 

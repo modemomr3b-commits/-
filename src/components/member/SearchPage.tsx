@@ -39,7 +39,7 @@ export default function SearchPage() {
     
     // Filter by query
     if (!query) return false; 
-    const q = query.toLowerCase().trim();
+    const q = query.toLowerCase().trim().replace(/[-_]/g, '');
 
     if (searchArchived) {
       // If we are in "Archived Search" mode, only show archived products
@@ -47,9 +47,9 @@ export default function SearchPage() {
       
       // And only show if there is an exact or startsWith match on code, model, or barcode
       return (
-        (p.productCode && p.productCode.toLowerCase().startsWith(q)) ||
-        (p.modelNumber && p.modelNumber.toLowerCase().startsWith(q)) ||
-        (p.barcode && p.barcode.toLowerCase().startsWith(q))
+        (p.productCode && p.productCode.toLowerCase().replace(/[-_]/g, '').startsWith(q)) ||
+        (p.modelNumber && p.modelNumber.toLowerCase().replace(/[-_]/g, '').startsWith(q)) ||
+        (p.barcode && p.barcode.toLowerCase().replace(/[-_]/g, '').startsWith(q))
       );
     } else {
       // If we are in normal search mode, hide archived products
@@ -57,10 +57,10 @@ export default function SearchPage() {
 
       // Show partial matches for active products
       return (
-        (p.name && p.name.toLowerCase().includes(q)) ||
-        (p.productCode && p.productCode.toLowerCase().startsWith(q)) ||
-        (p.modelNumber && p.modelNumber.toLowerCase().startsWith(q)) ||
-        (p.barcode && p.barcode.toLowerCase().startsWith(q))
+        (p.name && p.name.toLowerCase().replace(/[-_]/g, '').includes(q)) ||
+        (p.productCode && p.productCode.toLowerCase().replace(/[-_]/g, '').startsWith(q)) ||
+        (p.modelNumber && p.modelNumber.toLowerCase().replace(/[-_]/g, '').startsWith(q)) ||
+        (p.barcode && p.barcode.toLowerCase().replace(/[-_]/g, '').startsWith(q))
       );
     }
   });

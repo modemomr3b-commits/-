@@ -34,6 +34,7 @@ export default function ImageViewer({ src, alt, onClose }: ImageViewerProps) {
   }, [onClose]);
 
   useEffect(() => {
+    window.scrollTo(0, 0);
     // Disable body scroll when modal is open
     document.body.style.overflow = 'hidden';
     return () => {

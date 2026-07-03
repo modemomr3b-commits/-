@@ -93,6 +93,26 @@ export default function Products() {
     };
   }, [categoryId]);
 
+  
+  useEffect(() => {
+    const handleScroll = () => {
+      sessionStorage.setItem(`scroll_${categoryId || 'all'}`, window.scrollY.toString());
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [categoryId]);
+
+  useEffect(() => {
+    if (!loading) {
+      setTimeout(() => {
+        const savedScroll = sessionStorage.getItem(`scroll_${categoryId || 'all'}`);
+        if (savedScroll) {
+          window.scrollTo(0, parseInt(savedScroll));
+        }
+      }, 0);
+    }
+  }, [loading, categoryId]);
+
   const handleAddToCart = (e: React.MouseEvent, p: Product) => {
     e.preventDefault();
     e.stopPropagation();

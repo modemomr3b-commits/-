@@ -15,10 +15,11 @@ export const autoSelectSubcategory = (name: string, categoryId: string, currentS
       { key: 'نسائي', term: 'نسائي' },
       { key: 'شبابي', term: 'شبابي' },
       { key: 'ولادي', term: 'ولادي' },
-      { key: 'طفل', term: 'ولادي' },
+      { key: 'طفلة', term: 'طفل' },
+      { key: 'طفل', term: 'طفل' },
       { key: 'بناتي', term: 'بناتي' },
-      { key: 'طفلة', term: 'بناتي' },
       { key: 'بيبي', term: 'بيبي' },
+      { key: 'مواليد', term: 'مواليد' },
       { key: 'اعدادي', term: 'اعدادي' },
       { key: 'مدرسي', term: 'مدرسي' },
       { key: 'سفر', term: 'سفر' },
@@ -99,7 +100,7 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
     customPieces: number,
     forceStandardCrush: boolean = false,
   ) => {
-    let pieces = customPieces || 12;
+    let pieces = forceStandardCrush ? 12 : (customPieces || 12);
 
     const iqdValue = usdValue * usdRate;
     const calcPieces = forceStandardCrush ? 12 : pieces;
@@ -129,7 +130,7 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
     customPieces: number,
     forceStandardCrush: boolean = false,
   ) => {
-    let pieces = customPieces || 12;
+    let pieces = forceStandardCrush ? 12 : (customPieces || 12);
 
     const usdValue = usdRate > 0 ? iqdValue / usdRate : 0;
     const calcPieces = forceStandardCrush ? 12 : pieces;
@@ -197,7 +198,7 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
     const words = name.trim().split(/\s+/);
     const lastWord = words[words.length - 1];
     if (lastWord && !/[\u0600-\u06FF]/.test(lastWord) && lastWord.length >= 3) {
-      return lastWord.toUpperCase();
+      return lastWord.toUpperCase().replace(/[-_]/g, '');
     }
     return null;
   };
@@ -221,8 +222,10 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
         if (atNumber) {
           if (seenAtNumbers.has(atNumber)) {
             setIsSubmitting(false);
-            setAlertMessage(`عذراً، الموديل (${atNumber}) متكرر في قائمة الإضافة الحالية.`);
+            if (!window.confirm(`الموديل (${atNumber}) متكرر في قائمة الإضافة الحالية.\n\nهل تريد الاستمرار على أي حال؟`)) {
+            setIsSubmitting(false);
             return;
+          }
           }
           seenAtNumbers.add(atNumber);
 
@@ -233,8 +236,10 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
           
           if (existing) {
             setIsSubmitting(false);
-            setAlertMessage(`عذراً، الموديل (${atNumber}) الخاص بالمنتج "${product.name}" موجود مسبقاً باسم:\n${existing.name}`);
+            if (!window.confirm(`الموديل (${atNumber}) الخاص بالمنتج "${product.name}" موجود مسبقاً باسم:\n${existing.name}\n\nهل تريد الاستمرار بنشره على أي حال؟`)) {
+            setIsSubmitting(false);
             return;
+          }
           }
         }
       }

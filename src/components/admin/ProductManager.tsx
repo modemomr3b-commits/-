@@ -81,10 +81,11 @@ export default function ProductManager() {
         { key: "نسائي", term: "نسائي" },
         { key: "شبابي", term: "شبابي" },
         { key: "ولادي", term: "ولادي" },
-        { key: "طفل", term: "ولادي" },
+        { key: "طفلة", term: "طفل" },
+        { key: "طفل", term: "طفل" },
         { key: "بناتي", term: "بناتي" },
-        { key: "طفلة", term: "بناتي" },
         { key: "بيبي", term: "بيبي" },
+        { key: "مواليد", term: "مواليد" },
         { key: "اعدادي", term: "اعدادي" },
         { key: "مدرسي", term: "مدرسي" },
         { key: "سفر", term: "سفر" },
@@ -183,7 +184,7 @@ export default function ProductManager() {
     isEditing: boolean = false,
     forceStandardCrush: boolean = false,
   ) => {
-    let pieces = customPieces || 12;
+    let pieces = forceStandardCrush ? 12 : (customPieces || 12);
 
     const iqdValue = usdValue * usdRate;
     const calcPieces = forceStandardCrush ? 12 : pieces;
@@ -222,7 +223,7 @@ export default function ProductManager() {
     isEditing: boolean = false,
     forceStandardCrush: boolean = false,
   ) => {
-    let pieces = customPieces || 12;
+    let pieces = forceStandardCrush ? 12 : (customPieces || 12);
 
     const usdValue = usdRate > 0 ? iqdValue / usdRate : 0;
     const calcPieces = forceStandardCrush ? 12 : pieces;
@@ -306,7 +307,7 @@ export default function ProductManager() {
     const words = name.trim().split(/\s+/);
     const lastWord = words[words.length - 1];
     if (lastWord && !/[\u0600-\u06FF]/.test(lastWord) && lastWord.length >= 3) {
-      return lastWord.toUpperCase();
+      return lastWord.toUpperCase().replace(/[-_]/g, '');
     }
     return null;
   };
@@ -322,8 +323,9 @@ export default function ProductManager() {
         return existingAt === atNumber;
       });
       if (existing) {
-        setAlertMessage(`عذراً، لا يمكن إضافة هذا الموديل. الرقم (${atNumber}) موجود مسبقاً باسم:\n${existing.name}`);
-        return;
+        if (!window.confirm(`الموديل (${atNumber}) موجود مسبقاً باسم:\n${existing.name}\n\nهل تريد الاستمرار بنشر هذا الموديل على أي حال؟`)) {
+          return;
+        }
       }
     }
 
@@ -353,7 +355,7 @@ export default function ProductManager() {
         entityId: created.id,
         details: { name: newProduct.name, code: newProduct.productCode },
       });
-      setIsAdding(false);
+      // setIsAdding(false); removed to keep form open
       setNewProduct({
         name: "",
         price: 0,
@@ -389,8 +391,9 @@ export default function ProductManager() {
         return existingAt === atNumber;
       });
       if (existing) {
-        setAlertMessage(`عذراً، لا يمكن تعديل هذا الموديل. الرقم (${atNumber}) موجود مسبقاً باسم:\n${existing.name}`);
-        return;
+        if (!window.confirm(`الموديل (${atNumber}) موجود مسبقاً باسم:\n${existing.name}\n\nهل تريد الاستمرار بتعديل هذا الموديل على أي حال؟`)) {
+          return;
+        }
       }
     }
 
@@ -748,12 +751,12 @@ export default function ProductManager() {
     }
 
     if (searchQuery) {
-      const q = searchQuery.toLowerCase().trim();
+      const q = searchQuery.toLowerCase().trim().replace(/[-_]/g, '');
       const matchesSearch = 
-        (p.name && p.name.toLowerCase().includes(q)) ||
-        (p.productCode && p.productCode.toLowerCase().startsWith(q)) ||
-        (p.modelNumber && p.modelNumber.toLowerCase().startsWith(q)) ||
-        (p.barcode && p.barcode.toLowerCase().startsWith(q));
+        (p.name && p.name.toLowerCase().replace(/[-_]/g, '').includes(q)) ||
+        (p.productCode && p.productCode.toLowerCase().replace(/[-_]/g, '').startsWith(q)) ||
+        (p.modelNumber && p.modelNumber.toLowerCase().replace(/[-_]/g, '').startsWith(q)) ||
+        (p.barcode && p.barcode.toLowerCase().replace(/[-_]/g, '').startsWith(q));
       
       if (!matchesSearch) return false;
     } else {

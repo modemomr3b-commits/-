@@ -16,6 +16,7 @@ export default function ProductDetail() {
   const [historyProduct, setHistoryProduct] = useState<Product | null>(null);
 
   useEffect(() => {
+    window.scrollTo(0, 0);
     let mounted = true;
     const fetchProduct = async () => {
       try {
