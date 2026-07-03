@@ -81,7 +81,7 @@ export default function ProductManager() {
         { key: "نسائي", term: "نسائي" },
         { key: "شبابي", term: "شبابي" },
         { key: "ولادي", term: "ولادي" },
-        { key: "طفلة", term: "طفل" },
+        { key: "طفلة", term: "طفلة" },
         { key: "طفل", term: "طفل" },
         { key: "بناتي", term: "بناتي" },
         { key: "بيبي", term: "بيبي" },
@@ -92,7 +92,7 @@ export default function ProductManager() {
     ];
     
     for (const match of matches) {
-        if (lowerName.includes(match.key)) {
+        if (new RegExp('(^|\\s)' + match.key + '(\\s|$)').test(lowerName)) {
             const foundSub = subs.find(s => s.name.includes(match.term) || s.name.includes(match.key));
             if (foundSub) {
                 return foundSub.id;

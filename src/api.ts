@@ -13,7 +13,13 @@ const getDeletedData = async (table: string) => {
   return data;
 };
 
+
+// Simple memory cache for fast browsing
+const memCache: Record<string, { data: any, timestamp: number }> = {};
+const CACHE_TTL = 30000; // 30 seconds
+
 export const api = {
+  clearCache: () => { Object.keys(memCache).forEach(k => delete memCache[k]); },
   uploadImage: async (base64Str: string): Promise<string> => {
     try {
       if (!base64Str || !base64Str.startsWith('data:image')) return base64Str;
@@ -45,6 +51,33 @@ export const api = {
     }
   },
   // PRODUCTS
+  getProductsByCategory: async (categoryId: string) => {
+    const cacheKey = `products_cat_${categoryId}`;
+    if (memCache[cacheKey] && Date.now() - memCache[cacheKey].timestamp < CACHE_TTL) {
+      return memCache[cacheKey].data;
+    }
+    const { data, error } = await supabase.from('products')
+      .select('*')
+      .eq('categoryId', categoryId)
+      .neq('isDeleted', true);
+    if (error) { console.error(error); return []; }
+    const res = data.map((p: any) => ({
+      ...p,
+      isHidden: p.size?.isHidden || false,
+      oldPriceInfo: p.size?.oldPriceInfo || undefined
+    })).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    memCache[cacheKey] = { data: res, timestamp: Date.now() };
+    return res;
+  },
+  getProductById: async (id: string) => {
+    const { data, error } = await supabase.from('products').select('*').eq('id', id).single();
+    if (error || !data) return null;
+    return {
+      ...data,
+      isHidden: data.size?.isHidden || false,
+      oldPriceInfo: data.size?.oldPriceInfo || undefined
+    };
+  },
   getProducts: async () => {
     const data = await getData('products');
     return data.map((p: any) => ({
@@ -134,17 +167,23 @@ export const api = {
 
   // USERS
   getUsers: async () => {
-    const data = await getData('users');
-    return data.map((u: any) => {
-      const { password, ...rest } = u;
-      return rest;
-    });
+    try {
+      const res = await fetch('/api/secure/users');
+      if (!res.ok) throw new Error('Failed to fetch users');
+      return await res.json();
+    } catch (e) {
+      console.error(e);
+      return [];
+    }
   },
   getUser: async (id: string) => { 
-    const { data, error } = await supabase.from('users').select('*').match({ id }).single(); 
-    if (error || !data) return null;
-    const { password, ...rest } = data;
-    return rest;
+    try {
+      const res = await fetch(`/api/secure/users/${id}`);
+      if (!res.ok) return null;
+      return await res.json();
+    } catch (e) {
+      return null;
+    }
   },
   createUser: async (data: any) => { 
     const { data: r, error } = await supabase.from('users').insert({ id: data.id || data.uid, ...data }).select().single(); 

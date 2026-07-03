@@ -21,10 +21,12 @@ export default function Products() {
   const [loading, setLoading] = useState(true);
   const { addToCart, updateQuantity, removeFromCart, cart, user } = useStore();
   const [historyProduct, setHistoryProduct] = useState<Product | null>(null);
+  const [fullscreenImage, setFullscreenImage] = useState<{ src: string, alt: string } | null>(null);
 
   const [categoryName, setCategoryName] = useState("جميع المنتجات");
   const [downloadProgress, setDownloadProgress] = useState<{ progress: number, total: number } | null>(null);
   const [initialLoading, setInitialLoading] = useState(true);
+  const [displayedCount, setDisplayedCount] = useState(30);
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false);
 
   const [isSelectionMode, setIsSelectionMode] = useState(false);
@@ -32,18 +34,19 @@ export default function Products() {
 
   const fetchProducts = async () => {
     try {
-      const [cats, allProducts] = await Promise.all([
-        api.getCategories(),
-        api.getProducts(),
-      ]);
-
+      const cats = await api.getCategories();
       setAllCategories(cats);
-
-      let fetchedProducts = allProducts.filter((p: any) => !p.isArchived && !p.isHidden);
+      
+      let allProducts = [];
       if (categoryId) {
-        fetchedProducts = fetchedProducts.filter(
-          (p: any) => p.categoryId === categoryId,
-        );
+        allProducts = await api.getProductsByCategory(categoryId);
+      } else {
+        allProducts = await api.getProducts();
+      }
+      
+      let fetchedProducts = allProducts.filter((p: any) => !p.isArchived && !p.isHidden);
+      
+      if (categoryId) {
         const cat = cats.find((c: any) => c.id === categoryId);
         setCategoryName(cat ? cat.name : `القسم ${categoryId}`);
         const subs = cats
@@ -107,7 +110,8 @@ export default function Products() {
       setTimeout(() => {
         const savedScroll = sessionStorage.getItem(`scroll_${categoryId || 'all'}`);
         if (savedScroll) {
-          window.scrollTo(0, parseInt(savedScroll));
+          setDisplayedCount(Math.max(30, Math.ceil(parseInt(savedScroll) / 200) * 4 + 10));
+          setTimeout(() => window.scrollTo(0, parseInt(savedScroll)), 100);
         }
       }, 0);
     }
@@ -129,9 +133,23 @@ export default function Products() {
     }
   };
 
-  const filteredProducts = activeSub
+  const filteredProductsAll = activeSub
     ? products.filter((p) => p.subcategoryId === activeSub)
     : products;
+  
+  const filteredProducts = filteredProductsAll.slice(0, displayedCount);
+  
+  
+
+  useEffect(() => {
+    const handleScrollForMore = () => {
+      if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 1000) {
+        setDisplayedCount(prev => prev + 20);
+      }
+    };
+    window.addEventListener('scroll', handleScrollForMore);
+    return () => window.removeEventListener('scroll', handleScrollForMore);
+  }, []);
 
   const toggleSelection = (e: React.MouseEvent, id: string) => {
     e.preventDefault();
@@ -376,8 +394,7 @@ export default function Products() {
       ) : (
         <div className="p-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 pb-24">
           {filteredProducts.map((p) => (
-            <Link
-              to={`/product/${p.id}`}
+            <Link to={`/product/${p.id}`} state={{ product: p }}
               key={p.id}
               className={`glass-card rounded-2xl overflow-hidden flex flex-col border relative group transition-colors shadow-lg ${
                 selectedIds.has(p.id!) ? "border-blue-500 bg-blue-500/10" : "border-white/5 hover:border-brq-gold"
@@ -544,6 +561,9 @@ export default function Products() {
 
       {historyProduct && (
         <PriceHistoryViewer product={historyProduct} onClose={() => setHistoryProduct(null)} />
+      )}
+      {fullscreenImage && (
+        <ImageViewer src={fullscreenImage.src} alt={fullscreenImage.alt} onClose={() => setFullscreenImage(null)} />
       )}
     </div>
   );

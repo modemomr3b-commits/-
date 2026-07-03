@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from 'react-router';
+import { useParams, useNavigate, useLocation } from 'react-router';
 import { ChevronRight, Heart, ShoppingCart, Loader2, Download, Share2, History } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { api } from '../../api';
@@ -6,22 +6,24 @@ import { Product } from '../../types';
 import { useStore } from '../../store';
 import OptimizedImage from '../OptimizedImage';
 import { PriceHistoryViewer } from './PriceHistoryViewer';
+import ImageViewer from '../ImageViewer';
 
 export default function ProductDetail() {
   const { productId } = useParams();
   const navigate = useNavigate();
-  const [product, setProduct] = useState<Product | null>(null);
-  const [loading, setLoading] = useState(true);
+  const location = useLocation();
+  const [product, setProduct] = useState<Product | null>(location.state?.product || null);
+  const [loading, setLoading] = useState(!location.state?.product);
   const { addToCart, updateQuantity, removeFromCart, cart, user } = useStore();
   const [historyProduct, setHistoryProduct] = useState<Product | null>(null);
+  const [fullscreenImage, setFullscreenImage] = useState<{ src: string, alt: string } | null>(null);
 
   useEffect(() => {
     window.scrollTo(0, 0);
     let mounted = true;
     const fetchProduct = async () => {
       try {
-        const allProducts = await api.getProducts();
-        const found = allProducts.find((p: any) => p.id === productId);
+        const found = await api.getProductById(productId as string);
         if (mounted) {
           if (found && found.isHidden) {
             setProduct(null);
@@ -67,14 +69,20 @@ export default function ProductDetail() {
     return (
       <div className="p-8 text-center text-white/50 h-screen flex flex-col items-center justify-center">
         <p className="mb-4">المنتج غير موجود</p>
-        <button onClick={() => navigate(-1)} className="px-6 py-2 bg-white/10 rounded-lg">العودة</button>
+        <button onClick={(e) => { e.stopPropagation(); navigate(-1); }} className="px-6 py-2 bg-white/10 rounded-lg">العودة</button>
       </div>
     );
   }
 
   return (
     <div className="pb-20">
-      <div className="relative w-full bg-black/40 flex items-center justify-center min-h-[300px]">
+      <div className="relative w-full bg-black/40 flex items-center justify-center min-h-[300px] cursor-pointer"
+          onClick={() => {
+            if (product?.finalImageUrl || product?.imageUrl) {
+              setFullscreenImage({ src: product.finalImageUrl || product.imageUrl || '', alt: product.name });
+            }
+          }}
+     >
          {product.finalImageUrl || product.imageUrl ? (
             <OptimizedImage src={product.finalImageUrl || product.imageUrl} alt={product.name} size="full" className="w-full h-auto" />
          ) : null}
@@ -86,6 +94,7 @@ export default function ProductDetail() {
          {(product.finalImageUrl || product.imageUrl) && (
             <div className="absolute top-4 left-4 flex flex-col gap-2 z-10">
                <a 
+                  onClick={(e) => e.stopPropagation()}
                   href={product.finalImageUrl || product.imageUrl} 
                   download={`BRQ-${product.name}-${product.productCode}.jpg`}
                   className="p-2 bg-black/50 backdrop-blur-md rounded-full border border-white/20 text-white hover:bg-black transition-colors flex items-center justify-center"

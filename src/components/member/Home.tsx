@@ -115,7 +115,7 @@ export default function Home() {
           <motion.div
             initial={{ opacity: 0, x: 50 }}
             animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.1 }}
+            transition={{ delay: 0.05 }}
             className="relative z-10 px-6 lg:px-12 w-full lg:w-2/3"
           >
             <span className="text-brq-gold text-sm md:text-base font-bold tracking-widest uppercase mb-2 block drop-shadow-md">
@@ -225,7 +225,7 @@ export default function Home() {
                 key={cat.id}
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.1 * (i % 8) }}
+                transition={{ delay: 0.05 * (i % 8) }}
               >
                 <Link
                   to={`/category/${cat.id}`}

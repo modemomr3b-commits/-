@@ -34,7 +34,6 @@ export default function ImageViewer({ src, alt, onClose }: ImageViewerProps) {
   }, [onClose]);
 
   useEffect(() => {
-    window.scrollTo(0, 0);
     // Disable body scroll when modal is open
     document.body.style.overflow = 'hidden';
     return () => {
@@ -43,15 +42,25 @@ export default function ImageViewer({ src, alt, onClose }: ImageViewerProps) {
   }, []);
 
   const [hasDragged, setHasDragged] = useState(false);
+  const [touchStart, setTouchStart] = useState<{ x: number, y: number, time: number } | null>(null);
+  const lastTap = useRef(0);
 
   const handlePointerDown = (e: React.PointerEvent) => {
     setHasDragged(false);
-    if (scale <= 1) return;
+    if (scale <= 1) {
+      setTouchStart({ x: e.clientX, y: e.clientY, time: Date.now() });
+      return;
+    }
     setIsDragging(true);
     setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y });
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
+    if (scale <= 1 && touchStart) {
+       const dy = e.clientY - touchStart.y;
+       if (Math.abs(dy) > 10) setHasDragged(true);
+       return;
+    }
     if (!isDragging || scale <= 1) return;
     setHasDragged(true);
     setPosition({
@@ -60,9 +69,16 @@ export default function ImageViewer({ src, alt, onClose }: ImageViewerProps) {
     });
   };
 
-  const handlePointerUp = () => {
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (scale <= 1 && touchStart) {
+       const dy = e.clientY - touchStart.y;
+       const dt = Date.now() - touchStart.time;
+       if (dy > 100 && dt < 400) {
+           onClose(); // Swipe down to close
+       }
+       setTouchStart(null);
+    }
     setIsDragging(false);
-    // hasDragged will be reset on next pointer down
   };
 
   const handleWrapperClick = () => {
@@ -77,7 +93,7 @@ export default function ImageViewer({ src, alt, onClose }: ImageViewerProps) {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-xl touch-none"
+        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-sm touch-none"
         onClick={handleWrapperClick}
       >
         {/* Controls Overlay */}
@@ -128,6 +144,19 @@ export default function ImageViewer({ src, alt, onClose }: ImageViewerProps) {
             onClick={(e) => {
               if (hasDragged) {
                 e.stopPropagation();
+                return;
+              }
+              const now = Date.now();
+              if (now - lastTap.current < 300) {
+                 if (scale > 1) {
+                    setScale(1);
+                    setPosition({ x: 0, y: 0 });
+                 } else {
+                    setScale(2.5);
+                 }
+                 e.stopPropagation();
+              } else {
+                 lastTap.current = now;
               }
             }}
           >

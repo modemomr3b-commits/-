@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 
 interface OptimizedImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
   src: string;
@@ -12,29 +12,15 @@ interface OptimizedImageProps extends React.ImgHTMLAttributes<HTMLImageElement> 
 
 export default function OptimizedImage({ src, alt, className = '', imgClassName = '', width, height, size = 'medium', ...props }: OptimizedImageProps) {
   const [isLoaded, setIsLoaded] = useState(false);
-  const [currentSrc, setCurrentSrc] = useState<string>('');
-
-  useEffect(() => {
-    let cdnUrl = src;
-    
-    // Determine target width to pull optimized size
-    const targetWidth = size === 'thumbnail' ? 200 : size === 'medium' ? 600 : 1200;
-
-    // Faking a CDN URL by converting an Unsplash direct link into an optimized parameter representation
-    if (src.includes('unsplash.com')) {
-       cdnUrl = src.includes('?') ? `${src}&q=80&fm=auto&w=${targetWidth}` : `${src}?q=80&fm=auto&w=${targetWidth}`;
-    } else if (src.includes('res.cloudinary.com')) {
-       // Auto-generate cloudinary sizes smartly
-       cdnUrl = src.replace('/upload/', `/upload/w_${targetWidth},q_auto,f_auto,c_limit/`);
-    }
-
-    const img = new Image();
-    img.src = cdnUrl;
-    img.onload = () => {
-      setCurrentSrc(cdnUrl);
-      setIsLoaded(true);
-    };
-  }, [src, size]);
+  
+  let cdnUrl = src;
+  const targetWidth = size === 'thumbnail' ? 200 : size === 'medium' ? 600 : 1200;
+  
+  if (src && src.includes('unsplash.com')) {
+      cdnUrl = src.includes('?') ? `${src}&q=80&fm=auto&w=${targetWidth}` : `${src}?q=80&fm=auto&w=${targetWidth}`;
+  } else if (src && src.includes('res.cloudinary.com')) {
+      cdnUrl = src.replace('/upload/', `/upload/w_${targetWidth},q_auto,f_auto,c_limit/`);
+  }
 
   return (
     <div className={`relative overflow-hidden flex items-center justify-center ${className}`} style={{ width: width ? '100%' : undefined, maxWidth: width }}>
@@ -45,10 +31,11 @@ export default function OptimizedImage({ src, alt, className = '', imgClassName 
       )}
       
       <img
-        src={currentSrc || undefined}
+        src={cdnUrl}
         alt={alt}
-        className={`w-full h-full transition-opacity duration-700 ${imgClassName || 'object-contain'} ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
+        className={`w-full h-full transition-opacity duration-300 ${imgClassName || 'object-contain'} ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
         loading="lazy"
+        onLoad={() => setIsLoaded(true)}
         width={width}
         height={height}
         {...props}
@@ -56,4 +43,3 @@ export default function OptimizedImage({ src, alt, className = '', imgClassName 
     </div>
   );
 }
-

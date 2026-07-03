@@ -33,81 +33,21 @@ export default function Login() {
 
     try {
       // First, check basic hardcoded admin just to make sure we don't lock out from the app
-      let finalUser: any = null;
-
-      if (cleanUsername === '1' && password === '100') {
-         finalUser = {
-           uid: 'demo_user_1',
-           username: '1',
-           fullName: 'المستخدم 1',
-           role: 'normal',
-           isActive: true
-         };
-         try {
-           const dbUser = await api.getUser('1');
-           if (!dbUser) {
-             await api.createUser({...finalUser, id: '1'});
-           } else {
-             if (dbUser.isActive === false) throw new Error('تم إيقاف هذا الحساب.');
-             // Force role to normal for user 1
-             if (dbUser.role !== 'normal') {
-                 await api.updateUser('1', { role: 'normal' });
-             }
-             finalUser = {...finalUser, ...dbUser, role: 'normal'};
-           }
-         } catch(e: any) {
-           if (e.message.includes('موقوف')) throw e;
-         }
-      } else if (cleanUsername === 'wafaa' && password === 'brq') {
-         finalUser = {
-           uid: 'admin_user_wafaa',
-           username: 'wafaa',
-           fullName: 'مدير النظام',
-           role: 'admin',
-           isActive: true
-         };
-         // Also attempt to get or create in DB
-         try {
-           const dbUser = await api.getUser('wafaa');
-           if (!dbUser) {
-             await api.createUser({...finalUser, id: 'wafaa'});
-           } else {
-             if (dbUser.isActive === false) throw new Error('تم إيقاف هذا الحساب.');
-             finalUser = {...finalUser, ...dbUser};
-           }
-         } catch(e: any) {
-           if (e.message.includes('موقوف')) throw e;
-         }
-      } else {
-         // Check Supabase
-         const { data: snapshot, error: fetchError } = await supabase.from('users').select('*').eq('username', cleanUsername);
-         if (fetchError || !snapshot || snapshot.length === 0) {
-            throw new Error('بيانات الدخول غير صحيحة');
-         }
-
-         const udoc = snapshot[0];
-         
-         // Verify password securely
-         const isBcryptHash = udoc.password && udoc.password.startsWith('$2');
-         let isPasswordCorrect = false;
-         
-         if (isBcryptHash) {
-             isPasswordCorrect = bcryptjs.compareSync(password, udoc.password);
-         } else {
-             // Legacy plain text password
-             isPasswordCorrect = (udoc.password === password);
-         }
-
-         if (!isPasswordCorrect) {
-             throw new Error('بيانات الدخول غير صحيحة');
-         }
-
-         if (udoc.status === 'inactive' || udoc.isActive === false) {
-            throw new Error('تم إيقاف هذا الحساب.');
-         }
-
-         const { password: _dbPassword, ...userWithoutPassword } = udoc;
-         finalUser = { id: udoc.id, ...userWithoutPassword, uid: udoc.id };
+            let finalUser: any = null;
+      try {
+        const response = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: cleanUsername, password })
+        });
+        
+        const data = await response.json();
+        if (!response.ok) {
+           throw new Error(data.error || 'بيانات الدخول غير صحيحة');
+        }
+        finalUser = data;
+      } catch (e: any) {
+        throw new Error(e.message || 'خطأ في الاتصال بالخادم');
       }
 
       setUser(finalUser);

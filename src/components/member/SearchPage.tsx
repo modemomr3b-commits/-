@@ -2,6 +2,7 @@ import { Search, SlidersHorizontal, Archive, ChevronLeft, History } from 'lucide
 import { useState, useEffect } from 'react';
 import { api } from '../../api';
 import { Product } from '../../types';
+import ImageViewer from '../ImageViewer';
 import { Link } from 'react-router';
 import OptimizedImage from '../OptimizedImage';
 import { PriceHistoryViewer } from './PriceHistoryViewer';
@@ -13,6 +14,7 @@ export default function SearchPage() {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [searchArchived, setSearchArchived] = useState(false);
+  const [fullscreenImage, setFullscreenImage] = useState<{ src: string, alt: string } | null>(null);
   const [historyProduct, setHistoryProduct] = useState<Product | null>(null);
 
   useEffect(() => {
@@ -131,7 +133,7 @@ export default function SearchPage() {
              ) : (
                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                  {filteredProducts.map(p => (
-                    <Link to={`/product/${p.id}`} key={p.id} className="glass-card rounded-2xl overflow-hidden flex flex-col border border-white/5 relative group hover:border-brq-gold transition-colors">
+                    <Link to={`/product/${p.id}`} state={{ product: p }} key={p.id} className="glass-card rounded-2xl overflow-hidden flex flex-col border border-white/5 relative group hover:border-brq-gold transition-colors">
                       <div className="w-full aspect-[4/5] bg-black/40 relative flex items-center justify-center p-0 overflow-hidden">
                          {p.finalImageUrl || p.imageUrl ? (
                            <div className="absolute inset-0">
