@@ -93,64 +93,55 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
     });
   };
 
-  const handlePriceAndPackaging = (
+  const updateProductCalculations = (
     index: number,
-    usdValue: number,
-    packaging: string,
-    customPieces: number,
-    forceStandardCrush: boolean = false,
+    updates: Partial<Product>
   ) => {
-    let pieces = forceStandardCrush ? 12 : (customPieces || 12);
-
-    const iqdValue = usdValue * usdRate;
-    const calcPieces = forceStandardCrush ? 12 : pieces;
-    const pieceUsd = calcPieces > 0 ? usdValue / calcPieces : 0;
-    const pieceIqd = calcPieces > 0 ? iqdValue / calcPieces : 0;
-
     setProducts(prev => {
       const newProducts = [...prev];
+      const target = { ...newProducts[index], ...updates };
+
+      const usdValue = target.dozenPriceUsd || 0;
+      const iqdValue = target.price || 0;
+      
+      const calcPieces = target.forceStandardCrush ? 12 : (target.piecesCount || 12);
+      
+      const pieceUsd = calcPieces > 0 ? usdValue / calcPieces : 0;
+      const pieceIqd = calcPieces > 0 ? iqdValue / calcPieces : 0;
+
       newProducts[index] = {
-        ...newProducts[index],
-        dozenPriceUsd: usdValue,
-        packaging,
-        piecesCount: pieces,
-        forceStandardCrush,
-        price: iqdValue,
-        piecePriceUsd: pieceUsd,
+        ...target,
+        piecePriceUsd: Number(pieceUsd.toFixed(2)),
         piecePriceIqd: pieceIqd,
       };
       return newProducts;
     });
   };
 
-  const handleIqdPriceChange = (
-    index: number,
-    iqdValue: number,
-    packaging: string,
-    customPieces: number,
-    forceStandardCrush: boolean = false,
-  ) => {
-    let pieces = forceStandardCrush ? 12 : (customPieces || 12);
+  const handleUsdPriceChange = (index: number, usdValue: number) => {
+    const iqdValue = usdValue * usdRate;
+    updateProductCalculations(index, { dozenPriceUsd: usdValue, price: iqdValue });
+  };
 
+  const handleIqdPriceChange = (index: number, iqdValue: number) => {
     const usdValue = usdRate > 0 ? iqdValue / usdRate : 0;
-    const calcPieces = forceStandardCrush ? 12 : pieces;
-    const pieceUsd = calcPieces > 0 ? usdValue / calcPieces : 0;
-    const pieceIqd = calcPieces > 0 ? iqdValue / calcPieces : 0;
+    updateProductCalculations(index, { dozenPriceUsd: Number(usdValue.toFixed(2)), price: iqdValue });
+  };
 
+  const handlePackagingTextChange = (index: number, packaging: string) => {
     setProducts(prev => {
       const newProducts = [...prev];
-      newProducts[index] = {
-        ...newProducts[index],
-        dozenPriceUsd: Number(usdValue.toFixed(2)),
-        packaging,
-        piecesCount: pieces,
-        forceStandardCrush,
-        price: iqdValue,
-        piecePriceUsd: Number(pieceUsd.toFixed(2)),
-        piecePriceIqd: pieceIqd,
-      };
+      newProducts[index] = { ...newProducts[index], packaging };
       return newProducts;
     });
+  };
+
+  const handleForceCrushChange = (index: number, forceStandardCrush: boolean) => {
+    updateProductCalculations(index, { forceStandardCrush });
+  };
+
+  const handlePiecesCountChange = (index: number, piecesCount: number) => {
+    updateProductCalculations(index, { piecesCount });
   };
 
   const handleImageUpload = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
@@ -358,15 +349,7 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
                   type="number"
                   step="0.01"
                   value={product.dozenPriceUsd || ''}
-                  onChange={(e) =>
-                    handlePriceAndPackaging(
-                      idx,
-                      Number(e.target.value),
-                      product.packaging || '',
-                      product.piecesCount || 12,
-                      product.forceStandardCrush
-                    )
-                  }
+                  onChange={(e) => handleUsdPriceChange(idx, Number(e.target.value))}
                   className="w-full bg-white border border-black rounded-lg px-2 py-1.5 text-xs focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
                 />
               </div>
@@ -376,13 +359,7 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
                 <input
                   type="number"
                   value={product.price || ''}
-                  onChange={(e) => handleIqdPriceChange(
-                    idx,
-                    Number(e.target.value),
-                    product.packaging || "",
-                    product.piecesCount || 12,
-                    product.forceStandardCrush
-                  )}
+                  onChange={(e) => handleIqdPriceChange(idx, Number(e.target.value))}
                   className="w-full bg-white border border-black rounded-lg px-2 py-1.5 text-xs focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
                 />
               </div>
@@ -393,17 +370,7 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
                   type="text"
                   value={product.packaging || ''}
                   placeholder="مثال: 12"
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    const num = parseInt(val) || 12;
-                    handlePriceAndPackaging(
-                      idx,
-                      product.dozenPriceUsd || 0,
-                      val,
-                      num,
-                      product.forceStandardCrush
-                    );
-                  }}
+                  onChange={(e) => handlePackagingTextChange(idx, e.target.value)}
                   className="w-full bg-white border border-black rounded-lg px-2 py-1.5 text-xs focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
                 />
               </div>
@@ -450,22 +417,24 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
                 </label>
                 <select
                   value={product.forceStandardCrush ? 'yes' : 'no'}
-                  onChange={(e) => {
-                    const forceCrush = e.target.value === 'yes';
-                    handlePriceAndPackaging(
-                      idx,
-                      product.dozenPriceUsd || 0,
-                      product.packaging || '',
-                      product.piecesCount || 12,
-                      forceCrush
-                    );
-                  }}
+                  onChange={(e) => handleForceCrushChange(idx, e.target.value === 'yes')}
                   className="w-full bg-white border border-black rounded-lg px-2 py-1.5 text-xs focus:border-brq-gold/50 outline-none text-black placeholder:text-gray-500"
                 >
                   <option value="no">لا</option>
                   <option value="yes">نعم</option>
                 </select>
               </div>
+              {!product.forceStandardCrush && (
+                <div>
+                  <label className="text-[10px] text-white/50 block mb-0.5">عدد القطع</label>
+                  <input
+                    type="number"
+                    value={product.piecesCount || ""}
+                    onChange={(e) => handlePiecesCountChange(idx, parseInt(e.target.value) || 1)}
+                    className="w-full bg-white border border-black rounded-lg px-2 py-1.5 text-xs focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
+                  />
+                </div>
+              )}
 
               {product.piecesCount ? (
                 <div className="bg-white/5 p-1.5 rounded border border-white/10 mt-1 text-center flex justify-between items-center">

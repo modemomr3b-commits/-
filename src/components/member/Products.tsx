@@ -8,6 +8,7 @@ import { useStore } from "../../store";
 import OptimizedImage from "../OptimizedImage";
 import { CategoryDownloadDialog } from "../shared/CategoryDownloadDialog";
 import { PriceHistoryViewer } from "./PriceHistoryViewer";
+import ImageViewer from "../ImageViewer";
 
 const MOCK_PRODUCTS: Product[] = [];
 
@@ -26,7 +27,8 @@ export default function Products() {
   const [categoryName, setCategoryName] = useState("جميع المنتجات");
   const [downloadProgress, setDownloadProgress] = useState<{ progress: number, total: number } | null>(null);
   const [initialLoading, setInitialLoading] = useState(true);
-  const [displayedCount, setDisplayedCount] = useState(30);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 100;
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false);
 
   const [isSelectionMode, setIsSelectionMode] = useState(false);
@@ -110,7 +112,6 @@ export default function Products() {
       setTimeout(() => {
         const savedScroll = sessionStorage.getItem(`scroll_${categoryId || 'all'}`);
         if (savedScroll) {
-          setDisplayedCount(Math.max(30, Math.ceil(parseInt(savedScroll) / 200) * 4 + 10));
           setTimeout(() => window.scrollTo(0, parseInt(savedScroll)), 100);
         }
       }, 0);
@@ -137,19 +138,21 @@ export default function Products() {
     ? products.filter((p) => p.subcategoryId === activeSub)
     : products;
   
-  const filteredProducts = filteredProductsAll.slice(0, displayedCount);
+  // Pagination logic
+  const totalPages = Math.ceil(filteredProductsAll.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const filteredProducts = filteredProductsAll.slice(startIndex, startIndex + itemsPerPage);
+
+  // Reset page when category changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeSub, categoryId]);
+  
+  // Pagination handled above
   
   
 
-  useEffect(() => {
-    const handleScrollForMore = () => {
-      if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 1000) {
-        setDisplayedCount(prev => prev + 20);
-      }
-    };
-    window.addEventListener('scroll', handleScrollForMore);
-    return () => window.removeEventListener('scroll', handleScrollForMore);
-  }, []);
+  
 
   const toggleSelection = (e: React.MouseEvent, id: string) => {
     e.preventDefault();
@@ -534,6 +537,28 @@ export default function Products() {
                 </div>
               </div>
             </Link>
+          ))}
+        </div>
+      )}
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && !loading && filteredProducts.length > 0 && (
+        <div className="flex flex-wrap justify-center items-center gap-2 mt-4 mb-16 pb-24" dir="ltr">
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNumber) => (
+            <button
+              key={pageNumber}
+              onClick={() => {
+                setCurrentPage(pageNumber);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className={`w-12 h-12 flex items-center justify-center rounded-xl font-bold text-lg transition-all ${
+                currentPage === pageNumber 
+                  ? 'bg-brq-gold text-black scale-110 shadow-[0_0_15px_rgba(255,215,0,0.4)] border-2 border-yellow-300' 
+                  : 'bg-brq-card border border-brq-border text-white hover:bg-white/10'
+              }`}
+            >
+              {pageNumber}
+            </button>
           ))}
         </div>
       )}

@@ -1,4 +1,6 @@
-import { useState, useEffect } from 'react';
+const fs = require('fs');
+
+const code = `import { useState, useEffect } from 'react';
 import { Search, SlidersHorizontal, Archive } from 'lucide-react';
 import { Link } from 'react-router';
 import { api } from '../../api';
@@ -96,7 +98,7 @@ export default function SearchPage() {
                 <div className="grid grid-cols-2 gap-3">
                    <button 
                      onClick={() => setSearchArchived(!searchArchived)}
-                     className={`p-4 rounded-xl flex flex-col items-center justify-center gap-2 border transition-colors ${searchArchived ? 'bg-brq-gold/10 border-brq-gold' : 'glass-panel border-white/5 hover:border-brq-gold/50'}`}
+                     className={\`p-4 rounded-xl flex flex-col items-center justify-center gap-2 border transition-colors \${searchArchived ? 'bg-brq-gold/10 border-brq-gold' : 'glass-panel border-white/5 hover:border-brq-gold/50'}\`}
                    >
                       <Archive className={searchArchived ? 'text-brq-gold mb-1' : 'text-white/50 mb-1'} />
                       <span className="text-sm font-bold text-white">المواد النافذة</span>
@@ -118,7 +120,7 @@ export default function SearchPage() {
                </h2>
                <button 
                  onClick={() => setSearchArchived(!searchArchived)}
-                 className={`text-xs px-2 py-1 rounded border transition-colors ${searchArchived ? 'bg-brq-gold text-black border-brq-gold font-bold' : 'bg-transparent text-white/50 border-white/10 hover:text-white'}`}
+                 className={\`text-xs px-2 py-1 rounded border transition-colors \${searchArchived ? 'bg-brq-gold text-black border-brq-gold font-bold' : 'bg-transparent text-white/50 border-white/10 hover:text-white'}\`}
                >
                  {searchArchived ? 'إخفاء المواد النافذة' : 'بحث في المواد النافذة'}
                </button>
@@ -133,7 +135,7 @@ export default function SearchPage() {
              ) : (
                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                  {filteredProducts.map(p => (
-                    <Link to={`/product/${p.id}`} state={{ product: p }} key={p.id} className="glass-card rounded-2xl overflow-hidden flex flex-col border border-white/5 relative group hover:border-brq-gold transition-colors">
+                    <Link to={\`/product/\${p.id}\`} state={{ product: p }} key={p.id} className="glass-card rounded-2xl overflow-hidden flex flex-col border border-white/5 relative group hover:border-brq-gold transition-colors">
                       <div className="w-full aspect-[4/5] bg-black/40 relative flex items-center justify-center p-0 overflow-hidden">
                          {p.finalImageUrl || p.imageUrl ? (
                            <div className="absolute inset-0">
@@ -157,7 +159,7 @@ export default function SearchPage() {
                            <div className="flex flex-col items-end">
                              <span className="font-bold text-brq-gold text-sm">{Number(p.price).toLocaleString()} <span className="text-[10px]">د.ع</span></span>
                              {user?.role === 'admin' && p.dozenPriceUsd !== undefined && (
-                               <span className="font-bold text-brq-blue text-xs font-mono">${p.dozenPriceUsd}</span>
+                               <span className="font-bold text-brq-blue text-xs font-mono">\${p.dozenPriceUsd}</span>
                              )}
                            </div>
                          </div>
@@ -177,11 +179,11 @@ export default function SearchPage() {
                        setCurrentPage(pageNumber);
                        window.scrollTo({ top: 0, behavior: 'smooth' });
                      }}
-                     className={`w-12 h-12 flex items-center justify-center rounded-xl font-bold text-lg transition-all ${
+                     className={\`w-12 h-12 flex items-center justify-center rounded-xl font-bold text-lg transition-all \${
                        currentPage === pageNumber 
                          ? 'bg-brq-gold text-black scale-110 shadow-[0_0_15px_rgba(255,215,0,0.4)] border-2 border-yellow-300' 
                          : 'bg-brq-card border border-brq-border text-white hover:bg-white/10'
-                     }`}
+                     }\`}
                    >
                      {pageNumber}
                    </button>
@@ -194,3 +196,6 @@ export default function SearchPage() {
     </div>
   );
 }
+`;
+
+fs.writeFileSync('src/components/member/SearchPage.tsx', code);

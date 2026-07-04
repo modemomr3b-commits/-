@@ -64,7 +64,8 @@ export const api = {
     const res = data.map((p: any) => ({
       ...p,
       isHidden: p.size?.isHidden || false,
-      oldPriceInfo: p.size?.oldPriceInfo || undefined
+      oldPriceInfo: p.size?.oldPriceInfo || undefined,
+      forceStandardCrush: p.size?.forceStandardCrush ?? true
     })).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
     memCache[cacheKey] = { data: res, timestamp: Date.now() };
     return res;
@@ -75,7 +76,8 @@ export const api = {
     return {
       ...data,
       isHidden: data.size?.isHidden || false,
-      oldPriceInfo: data.size?.oldPriceInfo || undefined
+      oldPriceInfo: data.size?.oldPriceInfo || undefined,
+      forceStandardCrush: data.size?.forceStandardCrush ?? true
     };
   },
   getProducts: async () => {
@@ -83,7 +85,8 @@ export const api = {
     return data.map((p: any) => ({
       ...p,
       isHidden: p.size?.isHidden || false,
-      oldPriceInfo: p.size?.oldPriceInfo || undefined
+      oldPriceInfo: p.size?.oldPriceInfo || undefined,
+      forceStandardCrush: p.size?.forceStandardCrush ?? true
     })).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   },
   createProduct: async (data: any) => { 
@@ -100,13 +103,14 @@ export const api = {
     safeData.size = { ...(safeData.size || {}) };
     if (safeData.isHidden !== undefined) safeData.size.isHidden = safeData.isHidden;
     if (safeData.oldPriceInfo !== undefined) safeData.size.oldPriceInfo = safeData.oldPriceInfo;
+    if (safeData.forceStandardCrush !== undefined) safeData.size.forceStandardCrush = safeData.forceStandardCrush;
     delete safeData.isHidden;
     delete safeData.oldPriceInfo;
     delete safeData.forceStandardCrush;
 
     const { data: r, error } = await supabase.from('products').insert(safeData).select().single(); 
     if (error) throw error; 
-    return { ...r, isHidden: r.size?.isHidden || false, oldPriceInfo: r.size?.oldPriceInfo || undefined }; 
+    return { ...r, isHidden: r.size?.isHidden || false, oldPriceInfo: r.size?.oldPriceInfo || undefined, forceStandardCrush: r.size?.forceStandardCrush ?? true }; 
   },
   updateProduct: async (id: string, data: any) => { 
     const safeData = { ...data };
@@ -121,13 +125,14 @@ export const api = {
     safeData.size = { ...(safeData.size || {}) };
     if (safeData.isHidden !== undefined) safeData.size.isHidden = safeData.isHidden;
     if (safeData.oldPriceInfo !== undefined) safeData.size.oldPriceInfo = safeData.oldPriceInfo;
+    if (safeData.forceStandardCrush !== undefined) safeData.size.forceStandardCrush = safeData.forceStandardCrush;
     delete safeData.isHidden;
     delete safeData.oldPriceInfo;
     delete safeData.forceStandardCrush;
 
     const { data: r, error } = await supabase.from('products').update(safeData).match({ id }).select().single(); 
     if (error) throw error; 
-    return { ...r, isHidden: r.size?.isHidden || false, oldPriceInfo: r.size?.oldPriceInfo || undefined }; 
+    return { ...r, isHidden: r.size?.isHidden || false, oldPriceInfo: r.size?.oldPriceInfo || undefined, forceStandardCrush: r.size?.forceStandardCrush ?? true }; 
   },
   deleteProduct: async (id: string, deletedBy?: string) => { 
     const { error } = await supabase.from('products').delete().match({ id }); 

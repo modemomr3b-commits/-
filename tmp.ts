@@ -187,7 +187,7 @@ export default function ProductManager() {
     if (!target) return;
     
     const iqdValue = usdValue * usdRate;
-    const calcPieces = (target.forceStandardCrush ?? true) ? 12 : (target.piecesCount || 12);
+    const calcPieces = target.forceStandardCrush ? 12 : (target.piecesCount || 12);
     const pieceUsd = calcPieces > 0 ? usdValue / calcPieces : 0;
     const pieceIqd = calcPieces > 0 ? iqdValue / calcPieces : 0;
 
@@ -211,7 +211,7 @@ export default function ProductManager() {
     if (!target) return;
     
     const usdValue = usdRate > 0 ? iqdValue / usdRate : 0;
-    const calcPieces = (target.forceStandardCrush ?? true) ? 12 : (target.piecesCount || 12);
+    const calcPieces = target.forceStandardCrush ? 12 : (target.piecesCount || 12);
     const pieceUsd = calcPieces > 0 ? usdValue / calcPieces : 0;
     const pieceIqd = calcPieces > 0 ? iqdValue / calcPieces : 0;
 
@@ -229,23 +229,16 @@ export default function ProductManager() {
 
   const handlePackagingChange = (
     packaging: string,
-    isEditing: boolean = false
-  ) => {
-    if (isEditing) {
-      setEditingProduct(prev => prev ? { ...prev, packaging } as any : prev);
-    } else {
-      setNewProduct(prev => prev ? { ...prev, packaging } as any : prev);
-    }
-  };
-
-  const handleForceStandardCrushChange = (
+    customPieces: number,
     forceStandardCrush: boolean,
     isEditing: boolean = false
   ) => {
     const target = isEditing ? editingProduct : newProduct;
     if (!target) return;
-
-    const calcPieces = forceStandardCrush ? 12 : (target.piecesCount || 12);
+    
+    let pieces = forceStandardCrush ? 12 : (customPieces || 12);
+    const calcPieces = forceStandardCrush ? 12 : pieces;
+    
     const usdValue = target.dozenPriceUsd || 0;
     const iqdValue = target.price || 0;
     
@@ -254,32 +247,9 @@ export default function ProductManager() {
 
     const updated = {
       ...target,
+      packaging,
+      piecesCount: pieces,
       forceStandardCrush,
-      piecePriceUsd: Number(pieceUsd.toFixed(2)),
-      piecePriceIqd: pieceIqd,
-    };
-
-    if (isEditing) setEditingProduct(updated as any);
-    else setNewProduct(updated as any);
-  };
-
-  const handlePiecesCountChange = (
-    piecesCount: number,
-    isEditing: boolean = false
-  ) => {
-    const target = isEditing ? editingProduct : newProduct;
-    if (!target) return;
-
-    const calcPieces = (target.forceStandardCrush ?? true) ? 12 : piecesCount;
-    const usdValue = target.dozenPriceUsd || 0;
-    const iqdValue = target.price || 0;
-    
-    const pieceUsd = calcPieces > 0 ? usdValue / calcPieces : 0;
-    const pieceIqd = calcPieces > 0 ? iqdValue / calcPieces : 0;
-
-    const updated = {
-      ...target,
-      piecesCount,
       piecePriceUsd: Number(pieceUsd.toFixed(2)),
       piecePriceIqd: pieceIqd,
     };
@@ -954,7 +924,11 @@ export default function ProductManager() {
                 type="text"
                 value={newProduct.packaging || ""}
                 placeholder="مثال: 12"
-                onChange={(e) => handlePackagingChange(e.target.value, false)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const num = parseInt(val) || 12;
+                  handlePackagingChange(val, num, newProduct.forceStandardCrush || false, false);
+                }}
                 className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
               />
             </div>
@@ -963,27 +937,17 @@ export default function ProductManager() {
                 تشغيل التكسير التلقائي (تقسيم سعر القطعة على 12 دائماً)
               </label>
               <select
-                value={(newProduct.forceStandardCrush ?? true) ? "yes" : "no"}
-                onChange={(e) => handleForceStandardCrushChange(e.target.value === "yes", false)}
+                value={newProduct.forceStandardCrush ? "yes" : "no"}
+                onChange={(e) => {
+                  const forceCrush = e.target.value === "yes";
+                  handlePackagingChange(newProduct.packaging || "", newProduct.piecesCount || 12, forceCrush, false);
+                }}
                 className="bg-white border border-black rounded-lg px-3 py-1.5 text-sm focus:border-brq-gold/50 outline-none text-black w-24 placeholder:text-gray-500"
               >
                 <option value="no">لا</option>
                 <option value="yes">نعم</option>
               </select>
             </div>
-            {!(newProduct.forceStandardCrush ?? true) && (
-              <div className="md:col-span-2">
-                <label className="text-xs text-white/50 block mb-1">
-                  عدد القطع للتقسيم (بما أن التكسير التلقائي مغلق)
-                </label>
-                <input
-                  type="number"
-                  value={newProduct.piecesCount || ""}
-                  onChange={(e) => handlePiecesCountChange(parseInt(e.target.value) || 1, false)}
-                  className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
-                />
-              </div>
-            )}
             {newProduct.piecesCount ? (
               <div className="md:col-span-2 bg-white/5 p-3 rounded-lg border border-white/10 mt-2 text-center">
                 <p className="text-xs text-white/50 mb-1">
@@ -1525,7 +1489,11 @@ export default function ProductManager() {
                   type="text"
                   value={editingProduct.packaging || ""}
                   placeholder="مثال: 12"
-                  onChange={(e) => handlePackagingChange(e.target.value, true)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    const num = parseInt(val) || 12;
+                    handlePackagingChange(val, num, editingProduct.forceStandardCrush || false, true);
+                  }}
                   className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
                 />
               </div>
@@ -1534,27 +1502,17 @@ export default function ProductManager() {
                   تشغيل التكسير التلقائي (تقسيم سعر القطعة على 12 دائماً)
                 </label>
                 <select
-                  value={(editingProduct.forceStandardCrush ?? true) ? "yes" : "no"}
-                  onChange={(e) => handleForceStandardCrushChange(e.target.value === "yes", true)}
+                  value={editingProduct.forceStandardCrush ? "yes" : "no"}
+                  onChange={(e) => {
+                    const forceCrush = e.target.value === "yes";
+                    handlePackagingChange(editingProduct.packaging || "", editingProduct.piecesCount || 12, forceCrush, true);
+                  }}
                   className="bg-white border border-black rounded-lg px-3 py-1.5 text-sm focus:border-brq-gold/50 outline-none text-black w-24 placeholder:text-gray-500"
                 >
                   <option value="no">لا</option>
                   <option value="yes">نعم</option>
                 </select>
               </div>
-              {!(editingProduct.forceStandardCrush ?? true) && (
-                <div className="md:col-span-2">
-                  <label className="text-xs text-white/50 block mb-1">
-                    عدد القطع للتقسيم (بما أن التكسير التلقائي مغلق)
-                  </label>
-                  <input
-                    type="number"
-                    value={editingProduct.piecesCount || ""}
-                    onChange={(e) => handlePiecesCountChange(parseInt(e.target.value) || 1, true)}
-                    className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
-                  />
-                </div>
-              )}
               {editingProduct.piecesCount ? (
                 <div className="md:col-span-2 bg-white/5 p-3 rounded-lg border border-white/10 mt-2 text-center">
                   <p className="text-xs text-white/50 mb-1">
