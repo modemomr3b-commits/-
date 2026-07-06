@@ -136,7 +136,7 @@ export default function Profile() {
                            <span className="font-bold text-white break-all flex items-center gap-2">
                              طلب #{order.orderNumber || order.id.slice(0,8).toUpperCase()}
                            </span>
-                           <span className="text-xs text-white/40" dir="ltr">{new Date(order.createdAt).toLocaleString('ar-IQ')}</span>
+                           <span className="text-xs text-white/40" dir="ltr">{(`${new Date(order.createdAt).getFullYear()}/${new Date(order.createdAt).getMonth() + 1}/${new Date(order.createdAt).getDate()} ${new Date(order.createdAt).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'})}`)}</span>
                         </div>
                         <div className="flex items-center gap-3">
                            <span className={`px-2 py-1 rounded border text-xs font-bold whitespace-nowrap ${statusMap[order.status || 'new']?.color}`}>

@@ -23,6 +23,7 @@ export interface User extends BaseEntity {
   isOnline?: boolean;
   allowedPages?: any;
   createdAt: number;
+  updatedAt?: number;
 }
 
 export interface Category extends BaseEntity {
@@ -54,6 +55,7 @@ export interface Product extends BaseEntity {
   isHidden?: boolean;
   views: number;
   createdAt: number;
+  updatedAt?: number;
   oldPriceInfo?: {
     price: number;
     piecePriceIqd?: number;
@@ -78,6 +80,7 @@ export interface ActivityLog {
   entityId?: string;
   details?: any;
   createdAt: number;
+  updatedAt?: number;
 }
 
 export interface Notification extends BaseEntity {
@@ -87,6 +90,7 @@ export interface Notification extends BaseEntity {
   type: string;
   read: boolean;
   createdAt: number;
+  updatedAt?: number;
 }
 
 export type OrderStatus = 'new' | 'reviewing' | 'contacted' | 'completed' | 'cancelled';
@@ -102,6 +106,7 @@ export interface Order extends BaseEntity {
   totalQuantity: number;
   notes?: string;
   createdAt: number;
+  updatedAt?: number;
 }
 
 export interface Update extends BaseEntity {
@@ -110,4 +115,5 @@ export interface Update extends BaseEntity {
   message: string;
   type: 'announcement' | 'offer' | 'new_product';
   createdAt: number;
+  updatedAt?: number;
 }

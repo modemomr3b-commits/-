@@ -65,7 +65,8 @@ export const api = {
       ...p,
       isHidden: p.size?.isHidden || false,
       oldPriceInfo: p.size?.oldPriceInfo || undefined,
-      forceStandardCrush: p.size?.forceStandardCrush ?? true
+      forceStandardCrush: p.size?.forceStandardCrush ?? true,
+      updatedAt: p.size?.updatedAt || p.createdAt
     })).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
     memCache[cacheKey] = { data: res, timestamp: Date.now() };
     return res;
@@ -86,11 +87,12 @@ export const api = {
       ...p,
       isHidden: p.size?.isHidden || false,
       oldPriceInfo: p.size?.oldPriceInfo || undefined,
-      forceStandardCrush: p.size?.forceStandardCrush ?? true
+      forceStandardCrush: p.size?.forceStandardCrush ?? true,
+      updatedAt: p.size?.updatedAt || p.createdAt
     })).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   },
   createProduct: async (data: any) => { 
-    const safeData = { ...data };
+    const safeData = { ...data, createdAt: data.createdAt || Date.now(), updatedAt: data.updatedAt || Date.now() };
     
     // Upload images if they are base64
     if (safeData.imageUrl?.startsWith('data:image')) {
@@ -104,6 +106,7 @@ export const api = {
     if (safeData.isHidden !== undefined) safeData.size.isHidden = safeData.isHidden;
     if (safeData.oldPriceInfo !== undefined) safeData.size.oldPriceInfo = safeData.oldPriceInfo;
     if (safeData.forceStandardCrush !== undefined) safeData.size.forceStandardCrush = safeData.forceStandardCrush;
+    if (safeData.updatedAt !== undefined) { safeData.size.updatedAt = safeData.updatedAt; delete safeData.updatedAt; }
     delete safeData.isHidden;
     delete safeData.oldPriceInfo;
     delete safeData.forceStandardCrush;
@@ -113,7 +116,7 @@ export const api = {
     return { ...r, isHidden: r.size?.isHidden || false, oldPriceInfo: r.size?.oldPriceInfo || undefined, forceStandardCrush: r.size?.forceStandardCrush ?? true }; 
   },
   updateProduct: async (id: string, data: any) => { 
-    const safeData = { ...data };
+    const safeData = { ...data, updatedAt: Date.now() };
     
     if (safeData.imageUrl?.startsWith('data:image')) {
         safeData.imageUrl = await api.uploadImage(safeData.imageUrl);
@@ -126,6 +129,7 @@ export const api = {
     if (safeData.isHidden !== undefined) safeData.size.isHidden = safeData.isHidden;
     if (safeData.oldPriceInfo !== undefined) safeData.size.oldPriceInfo = safeData.oldPriceInfo;
     if (safeData.forceStandardCrush !== undefined) safeData.size.forceStandardCrush = safeData.forceStandardCrush;
+    if (safeData.updatedAt !== undefined) { safeData.size.updatedAt = safeData.updatedAt; delete safeData.updatedAt; }
     delete safeData.isHidden;
     delete safeData.oldPriceInfo;
     delete safeData.forceStandardCrush;

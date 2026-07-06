@@ -122,7 +122,7 @@ export default function ReportManager() {
                                  <span className="font-bold text-sm text-brq-gold">{log.userName || log.userId}</span>
                                  <span className="text-sm text-white/70">قام بـ {log.action}</span>
                               </div>
-                              <span className="text-xs text-white/40" dir="ltr">{new Date(log.createdAt).toLocaleString('ar-IQ')}</span>
+                              <span className="text-xs text-white/40" dir="ltr">{(`${new Date(log.createdAt).getFullYear()}/${new Date(log.createdAt).getMonth() + 1}/${new Date(log.createdAt).getDate()} ${new Date(log.createdAt).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'})}`)}</span>
                            </div>
                            {(log.entityType || log.entityId) && (
                               <div className="text-xs text-white/50 mt-1 font-mono">

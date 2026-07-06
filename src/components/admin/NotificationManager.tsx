@@ -181,7 +181,7 @@ export default function NotificationManager() {
                            </div>
                            <div className="flex-1">
                               <p className={`text-sm ${notif.read ? 'text-white/70' : 'text-white font-bold'}`}>{notif.message}</p>
-                              <span className="text-xs text-white/40 mt-1 block">{new Date(notif.createdAt).toLocaleString('ar-IQ')}</span>
+                              <span className="text-xs text-white/40 mt-1 block">{(`${new Date(notif.createdAt).getFullYear()}/${new Date(notif.createdAt).getMonth() + 1}/${new Date(notif.createdAt).getDate()} ${new Date(notif.createdAt).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'})}`)}</span>
                            </div>
                            <button onClick={(e) => { e.stopPropagation(); notif.id && handleDeleteAdminNotif(notif.id); }} className="text-white/30 hover:text-red-400 p-2">
                               <Trash2 size={16} />
@@ -248,7 +248,7 @@ export default function NotificationManager() {
                            <div className="flex-1">
                               <h4 className="font-bold text-sm text-white mb-1">{a.title}</h4>
                               <p className="text-sm text-white/70">{a.message}</p>
-                              <span className="text-xs text-white/40 mt-2 block">{new Date(a.createdAt).toLocaleString('ar-IQ')}</span>
+                              <span className="text-xs text-white/40 mt-2 block">{(`${new Date(a.createdAt).getFullYear()}/${new Date(a.createdAt).getMonth() + 1}/${new Date(a.createdAt).getDate()} ${new Date(a.createdAt).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'})}`)}</span>
                            </div>
                            <button onClick={() => handleDeleteAnnouncement(a.id, a.title)} className="text-white/30 hover:text-red-400 p-2">
                               <Trash2 size={16} />

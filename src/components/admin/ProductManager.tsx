@@ -1279,6 +1279,7 @@ export default function ProductManager() {
                     <th className="p-4 font-medium">القسم</th>
                     <th className="p-4 font-medium">السعر</th>
                     <th className="p-4 font-medium">التعبئة</th>
+                    <th className="p-4 font-medium">التاريخ</th>
                     <th className="p-4 font-medium">المشاهدات</th>
                     <th className="p-4 font-medium rounded-tl-lg">الإجراءات</th>
                   </tr>
@@ -1375,6 +1376,14 @@ export default function ProductManager() {
                         <td className="p-4 text-xs">
                           {p.packaging || "-"}
                         </td>
+                        <td className="p-4 text-xs text-white/70">
+                          {p.createdAt ? (`${new Date(p.createdAt).getFullYear()}/${new Date(p.createdAt).getMonth() + 1}/${new Date(p.createdAt).getDate()}`) : "-"}
+                          {p.updatedAt && p.updatedAt !== p.createdAt && (
+                            <div className="text-[10px] text-white/40 mt-1">
+                              تحديث: {(`${new Date(p.updatedAt).getFullYear()}/${new Date(p.updatedAt).getMonth() + 1}/${new Date(p.updatedAt).getDate()}`)}
+                            </div>
+                          )}
+                        </td>
                         <td className="p-4">
                           <span className="flex items-center gap-1 text-white/60">
                             <Search size={12} /> {p.views || 0}
@@ -1462,6 +1471,21 @@ export default function ProductManager() {
             <h3 className="text-lg font-bold mb-4 border-b border-white/10 pb-2">
               تعديل المنتج
             </h3>
+            
+            <div className="flex gap-4 mb-4 text-xs text-white/50 bg-black/20 p-3 rounded-lg border border-white/5">
+              <div className="flex-1">
+                <span className="block opacity-60 mb-1">تاريخ نزول المنتج:</span>
+                <span className="font-mono text-white/90">
+                  {editingProduct.createdAt ? (`${new Date(editingProduct.createdAt).getFullYear()}/${new Date(editingProduct.createdAt).getMonth() + 1}/${new Date(editingProduct.createdAt).getDate()} ${new Date(editingProduct.createdAt).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'})}`) : 'غير متوفر'}
+                </span>
+              </div>
+              <div className="flex-1 border-r border-white/10 pr-4">
+                <span className="block opacity-60 mb-1">تاريخ اخر تحديث:</span>
+                <span className="font-mono text-white/90">
+                  {editingProduct.updatedAt ? (`${new Date(editingProduct.updatedAt).getFullYear()}/${new Date(editingProduct.updatedAt).getMonth() + 1}/${new Date(editingProduct.updatedAt).getDate()} ${new Date(editingProduct.updatedAt).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'})}`) : (editingProduct.createdAt ? (`${new Date(editingProduct.createdAt).getFullYear()}/${new Date(editingProduct.createdAt).getMonth() + 1}/${new Date(editingProduct.createdAt).getDate()} ${new Date(editingProduct.createdAt).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'})}`) : 'غير متوفر')}
+                </span>
+              </div>
+            </div>
             <form
               onSubmit={handleUpdate}
               className="flex flex-col gap-4"

@@ -294,7 +294,7 @@ export default function UserManager() {
                                const diffMins = Math.floor((Date.now() - user.lastActive)/60000);
                                if (diffMins < 1) lastActivityText = 'الآن';
                                else if (diffMins < 60) lastActivityText = `منذ ${diffMins} دقيقة`;
-                               else lastActivityText = new Date(user.lastActive).toLocaleDateString('ar-IQ');
+                               else lastActivityText = (`${new Date(user.lastActive).getFullYear()}/${new Date(user.lastActive).getMonth() + 1}/${new Date(user.lastActive).getDate()}`);
                            }
 
                            return (
