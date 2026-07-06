@@ -5,6 +5,12 @@ export async function subscribeToPushNotifications() {
   }
 
   try {
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') {
+      alert('الرجاء السماح بالإشعارات من إعدادات المتصفح.');
+      return false;
+    }
+
     const registration = await navigator.serviceWorker.ready;
     let subscription = await registration.pushManager.getSubscription();
 
@@ -12,7 +18,6 @@ export async function subscribeToPushNotifications() {
       const response = await fetch('/api/vapidPublicKey');
       const vapidPublicKey = await response.text();
       const convertedVapidKey = urlBase64ToUint8Array(vapidPublicKey);
-
       subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: convertedVapidKey
@@ -30,6 +35,7 @@ export async function subscribeToPushNotifications() {
     return true;
   } catch (error) {
     console.error('Error subscribing to push notifications:', error);
+    alert('حدث خطأ أثناء تفعيل الإشعارات: ' + (error as Error).message);
     return false;
   }
 }
