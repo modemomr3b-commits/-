@@ -11,7 +11,7 @@ export async function subscribeToPushNotifications() {
     }
 
     if (Notification.permission === 'denied') {
-      alert('الإشعارات محظورة. يرجى السماح بها من إعدادات المتصفح.');
+      alert('الإشعارات محظورة. يرجى فتح التطبيق في نافذة جديدة أو السماح بها من إعدادات المتصفح.');
       return false;
     }
 
