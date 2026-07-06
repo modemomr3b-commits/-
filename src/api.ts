@@ -163,7 +163,12 @@ export const api = {
 
     
       try {
-        await fetch('/api/notify-publish', {
+        await supabase.channel('public:announcements').send({
+          type: 'broadcast',
+          event: 'new_product',
+          payload: r
+        });
+        fetch('/api/notify-publish', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -208,7 +213,12 @@ export const api = {
     if (oldProduct && !safeData.size?.isHidden) {
       console.log("Sending visibility notification!");
       try {
-        await fetch('/api/notify-publish', {
+        await supabase.channel('public:announcements').send({
+          type: 'broadcast',
+          event: 'new_product',
+          payload: r
+        });
+        fetch('/api/notify-publish', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -349,7 +359,12 @@ export const api = {
     if (error) throw error; 
     
     try {
-      await fetch('/api/notify-publish', {
+      await supabase.channel('public:announcements').send({
+          type: 'broadcast',
+          event: 'new_product',
+          payload: r
+        });
+        fetch('/api/notify-publish', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

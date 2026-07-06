@@ -34,8 +34,12 @@ async function loadSubscriptions() {
 }
 async function saveSubscriptions() {
   try {
-    await supabaseAdmin.from('settings').upsert({ id: 'push_subs', data: subscriptions });
-  } catch (e) {}
+    const { error } = await supabaseAdmin.from('settings').upsert({ id: 'push_subs', data: subscriptions });
+    if (error) console.error("Error saving subs:", error);
+    else console.log("Saved subscriptions:", subscriptions.length);
+  } catch (e) {
+    console.error("Exception saving subs:", e);
+  }
 }
 
 loadSubscriptions();
@@ -46,9 +50,15 @@ app.get('/api/vapidPublicKey', (req, res) => {
 
 app.post('/api/subscribe', express.json(), async (req, res) => {
   const subscription = req.body;
-  if (!subscriptions.find(s => s.endpoint === subscription.endpoint)) {
-    subscriptions.push(subscription);
-    await saveSubscriptions();
+  try {
+    const { data } = await supabaseAdmin.from('settings').select('*').match({ id: 'push_subs' }).single();
+    let subs = data?.data || [];
+    if (!subs.find(s => s.endpoint === subscription.endpoint)) {
+      subs.push(subscription);
+      await supabaseAdmin.from('settings').upsert({ id: 'push_subs', data: subs });
+    }
+  } catch (e) {
+    console.error(e);
   }
   res.status(201).json({});
 });
@@ -61,16 +71,28 @@ app.post('/api/notify-publish', express.json(), async (req, res) => {
     url: '/'
   });
 
-  const promises = subscriptions.map(sub => 
-    webpush.sendNotification(sub, payload).catch(e => {
-      if (e.statusCode === 410) {
-        subscriptions = subscriptions.filter(s => s.endpoint !== sub.endpoint);
-      }
-    })
-  );
+  try {
+    const { data } = await supabaseAdmin.from('settings').select('*').match({ id: 'push_subs' }).single();
+    let subs = data?.data || [];
+    let updated = false;
+
+    const promises = subs.map(sub => 
+      webpush.sendNotification(sub, payload).catch(e => {
+        if (e.statusCode === 410 || e.statusCode === 404) {
+          subs = subs.filter(s => s.endpoint !== sub.endpoint);
+          updated = true;
+        }
+      })
+    );
+    
+    await Promise.all(promises);
+    if (updated) {
+      await supabaseAdmin.from('settings').upsert({ id: 'push_subs', data: subs });
+    }
+  } catch (e) {
+    console.error(e);
+  }
   
-  await Promise.all(promises);
-  await saveSubscriptions();
   res.status(200).json({ success: true });
 });
 

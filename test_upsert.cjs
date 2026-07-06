@@ -4,7 +4,7 @@ const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
 
 async function run() {
-  const { data, error } = await supabaseAdmin.from('settings').select('*').match({ id: 'push_subs' }).single();
-  console.log("Subscriptions data:", data ? data.data.length : 'none', error);
+  const { data, error } = await supabaseAdmin.from('settings').upsert({ id: 'push_subs', data: [] }).select();
+  console.log("Upsert:", data, error);
 }
 run();

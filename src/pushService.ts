@@ -81,7 +81,15 @@ export async function isSubscribed() {
       new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2000))
     ]);
     const subscription = await registration.pushManager.getSubscription();
-    return !!subscription;
+    if (subscription) {
+      fetch('/api/subscribe', {
+        method: 'POST',
+        body: JSON.stringify(subscription),
+        headers: { 'Content-Type': 'application/json' }
+      }).catch(console.error);
+      return true;
+    }
+    return false;
   } catch (e) {
     return false;
   }

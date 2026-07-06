@@ -6,5 +6,8 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
 async function run() {
   const { data, error } = await supabaseAdmin.from('settings').select('*').match({ id: 'push_subs' }).single();
   console.log("Subscriptions data:", data ? data.data.length : 'none', error);
+  if (data && data.data && data.data.length > 0) {
+     console.log("Endpoint preview:", data.data[0].endpoint.substring(0, 30) + '...');
+  }
 }
 run();

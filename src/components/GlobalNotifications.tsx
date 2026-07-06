@@ -19,24 +19,17 @@ export default function GlobalNotifications() {
 
   useEffect(() => {
     // Only show to regular users, not necessarily the admin who is adding it (optional, but good practice)
-    if (user?.role === 'admin') return;
+    // if (user?.role === 'admin') return; // Commented out so admin can see notifications for testing
 
     const channel = supabase
-      .channel('public:products:inserts')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'products' },
-        (payload) => {
-          const newProduct = payload.new as NotificationData;
-          // Add to notifications queue
-          setNotifications(prev => [...prev, newProduct]);
-          
-          // Auto dismiss after 8 seconds
-          setTimeout(() => {
-            setNotifications(prev => prev.filter(n => n.id !== newProduct.id));
-          }, 8000);
-        }
-      )
+      .channel('public:announcements', { config: { broadcast: { self: true } } })
+      .on('broadcast', { event: 'new_product' }, (payload) => {
+        const newProduct = payload.payload;
+        setNotifications(prev => [...prev, newProduct]);
+        setTimeout(() => {
+          setNotifications(prev => prev.filter(n => n.id !== newProduct.id));
+        }, 8000);
+      })
       .subscribe();
 
     return () => {
@@ -75,7 +68,7 @@ export default function GlobalNotifications() {
             <div className="flex items-center gap-3">
               {notif.imageUrl ? (
                 <div className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 border border-brq-gold/30">
-                  <img src={notif.imageUrl} alt={notif.name} className="w-full h-full object-cover" />
+                  <img src={notif.imageUrl} alt={notif.name || notif.title || 'إشعار جديد'} className="w-full h-full object-cover" />
                 </div>
               ) : (
                 <div className="w-16 h-16 rounded-lg bg-brq-gold/20 flex items-center justify-center flex-shrink-0 text-brq-gold">
@@ -88,7 +81,7 @@ export default function GlobalNotifications() {
                   <Bell size={12} className="animate-pulse" />
                   <span className="text-xs font-bold tracking-wider">شوفوا جديدنا! 🔥</span>
                 </div>
-                <h4 className="text-sm text-white font-medium line-clamp-1 mb-1">{notif.name}</h4>
+                <h4 className="text-sm text-white font-medium line-clamp-1 mb-1">{notif.name || notif.title || 'إشعار جديد'}</h4>
                 <p className="text-xs text-white/60">تم إضافة موديل حصري جديد، سارع بمشاهدته الآن.</p>
               </div>
             </div>
