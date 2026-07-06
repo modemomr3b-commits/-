@@ -15,9 +15,10 @@ export async function subscribeToPushNotifications() {
     let subscription = await registration.pushManager.getSubscription();
 
     if (!subscription) {
-      const response = await fetch('/api/vapidPublicKey');
-      const vapidPublicKey = await response.text();
+      
+      const vapidPublicKey = 'BLyNGvqb8WAkMzf7JPOzKihbeHnZR_fcVPCC3Hv1382Y1EoNhw3uDIBL4l6eF6lezioeP1XGmqr4Al2WPy--Qpk';
       const convertedVapidKey = urlBase64ToUint8Array(vapidPublicKey);
+
       subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: convertedVapidKey
