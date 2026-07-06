@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router';
 import { useStore } from '../store';
-import { LayoutDashboard, Users, ShoppingCart, Package, Settings, LogOut, Tags, Bell, FileText, Eye, Trash2 } from 'lucide-react';
+import { LayoutDashboard, Users, ShoppingCart, Package, Settings, LogOut, Tags, Bell, MessageSquare, FileText, Eye, Trash2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
@@ -69,6 +69,7 @@ export default function AdminLayout() {
     { icon: Tags, path: '/admin/categories', label: 'إدارة الأقسام' },
     { icon: ShoppingCart, path: '/admin/orders', label: 'إدارة الطلبات', badge: newOrdersCount },
     { icon: Users, path: '/admin/users', label: 'إدارة المستخدمين' },
+    { icon: MessageSquare, path: '/admin/notifications', label: 'الرسائل' },
     { icon: Trash2, path: '/admin/trash', label: 'سلة المحذوفات' },
     { icon: Settings, path: '/admin/settings', label: 'الإعدادات' }
   ];

@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation } from 'react-router';
 import { useStore } from '../store.ts';
-import { Home, Search, Heart, ShoppingBag, User, Download, X, Share } from 'lucide-react';
+import { Home, Search, Heart, ShoppingBag, User, Download, X, Share, MessageCircle } from 'lucide-react';
 import { cn } from '../lib/utils.ts';
 import { motion, AnimatePresence } from 'motion/react';
 import { usePWAInstall } from '../hooks/usePWAInstall';
@@ -20,6 +20,7 @@ export default function MemberLayout() {
     { icon: Search, path: '/search', label: 'بحث' },
     { icon: Heart, path: '/favorites', label: 'المفضلة' },
     { icon: ShoppingBag, path: '/cart', label: 'الطلبات', badge: cart.length },
+    { icon: MessageCircle, path: '/messages', label: 'الرسائل' },
     { icon: User, path: '/profile', label: 'حسابي' },
   ];
 

@@ -51,6 +51,8 @@ export default function NotificationManager() {
       await api.createUpdate({
         ...newNotif,
       });
+
+      
       setIsAdding(false);
       setNewNotif({ title: '', message: '', type: 'announcement' });
       const updated = await api.getUpdates();

@@ -15,6 +15,7 @@ import Favorites from './components/member/Favorites';
 import Cart from './components/member/Cart';
 import SearchPage from './components/member/SearchPage';
 import Profile from './components/member/Profile';
+import Messages from './components/member/Messages';
 
 import AdminDashboard from './components/admin/Dashboard';
 import ProductManager from './components/admin/ProductManager';
@@ -99,6 +100,7 @@ export default function App() {
             <Route path="cart" element={<Cart />} />
             <Route path="search" element={<SearchPage />} />
             <Route path="profile" element={<Profile />} />
+            <Route path="messages" element={<Messages />} />
           </Route>
 
           <Route 

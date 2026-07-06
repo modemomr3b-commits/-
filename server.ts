@@ -68,7 +68,7 @@ app.post('/api/notify-publish', express.json(), async (req, res) => {
     title: req.body.title || 'منتج جديد!',
     body: req.body.body || 'تمت إضافة منتج جديد في المتجر',
     icon: '/logo.jpeg.jpeg',
-    url: '/'
+    url: '/messages'
   });
 
   try {
