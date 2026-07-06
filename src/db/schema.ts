@@ -52,3 +52,12 @@ export const updates = pgTable('updates', {
   type: text('type').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
+
+export const pushSubscriptions = pgTable('push_subscriptions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: text('user_id'),
+  endpoint: text('endpoint').notNull(),
+  p256dh: text('p256dh').notNull(),
+  auth: text('auth').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});

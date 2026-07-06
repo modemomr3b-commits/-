@@ -1,5 +1,6 @@
 import { useStore } from '../../store';
-import { Download, Share, UserCircle, ShoppingBag, Eye, LogOut, ChevronDown, ChevronUp } from 'lucide-react';
+import { Download, Share, UserCircle, ShoppingBag, Eye, LogOut, ChevronDown, ChevronUp, Bell } from 'lucide-react';
+import { subscribeToPushNotifications, isSubscribed } from '../../pushService';
 import { useState, useEffect } from 'react';
 import { api } from '../../api';
 import { Order, OrderStatus } from '../../types';
@@ -19,6 +20,12 @@ export default function Profile() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+  const [pushEnabled, setPushEnabled] = useState(false);
+  useEffect(() => { isSubscribed().then(setPushEnabled); }, []);
+  const handleEnablePush = async () => {
+    const success = await subscribeToPushNotifications();
+    if (success) setPushEnabled(true);
+  };
   
   const isInstalled = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true;
 
@@ -86,6 +93,23 @@ export default function Profile() {
           <LogOut size={18} /> خروج
         </button>
       </div>
+
+      {!pushEnabled && (
+        <div className="glass-panel p-6 rounded-2xl border border-brq-royal/30 bg-brq-royal/10 mb-8 text-center flex flex-col items-center">
+          <Bell className="w-12 h-12 text-brq-gold mb-3 animate-pulse" />
+          <h3 className="text-lg font-bold text-white mb-2">تفعيل إشعارات الهاتف</h3>
+          <p className="text-sm text-white/60 mb-4 max-w-xs leading-relaxed">
+            احصل على تنبيهات فورية عند إضافة منتجات جديدة أو عروض مميزة، حتى والتطبيق مغلق.
+          </p>
+          <button 
+            onClick={handleEnablePush}
+            className="bg-brq-gold text-brq-navy px-6 py-3 rounded-full font-bold flex items-center justify-center gap-2 w-full max-w-xs hover:bg-brq-gold/90 transition-all active:scale-95"
+          >
+            <Bell className="w-4 h-4" />
+            تفعيل الإشعارات
+          </button>
+        </div>
+      )}
 
       {!isInstalled && (
         <div className="glass-panel p-6 rounded-2xl border border-brq-royal/30 bg-brq-royal/10">
