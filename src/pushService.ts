@@ -11,7 +11,18 @@ export async function subscribeToPushNotifications() {
       return false;
     }
 
-    const registration = await navigator.serviceWorker.ready;
+    
+    let registration;
+    try {
+      registration = await Promise.race([
+        navigator.serviceWorker.ready,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Service Worker timeout - لم يتم العثور على Service Worker')), 5000))
+      ]);
+    } catch (swErr) {
+      alert('خطأ: ' + swErr.message);
+      return false;
+    }
+  
     let subscription = await registration.pushManager.getSubscription();
 
     if (!subscription) {
@@ -51,6 +62,7 @@ export async function isSubscribed() {
 }
 
 function urlBase64ToUint8Array(base64String: string) {
+  base64String = base64String.trim();
   const padding = '='.repeat((4 - base64String.length % 4) % 4);
   const base64 = (base64String + padding)
     .replace(/\-/g, '+')
