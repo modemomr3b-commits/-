@@ -1,4 +1,6 @@
-export async function subscribeToPushNotifications() {
+const fs = require('fs');
+
+const code = `export async function subscribeToPushNotifications() {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
     alert('متصفحك لا يدعم الإشعارات');
     return false;
@@ -91,7 +93,7 @@ function urlBase64ToUint8Array(base64String: string) {
   base64String = base64String.trim();
   const padding = '='.repeat((4 - base64String.length % 4) % 4);
   const base64 = (base64String + padding)
-    .replace(/\-/g, '+')
+    .replace(/\\-/g, '+')
     .replace(/_/g, '/');
 
   const rawData = window.atob(base64);
@@ -102,3 +104,6 @@ function urlBase64ToUint8Array(base64String: string) {
   }
   return outputArray;
 }
+`;
+
+fs.writeFileSync('src/pushService.ts', code);
