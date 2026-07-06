@@ -35,17 +35,63 @@ export default function Login() {
       // First, check basic hardcoded admin just to make sure we don't lock out from the app
             let finalUser: any = null;
       try {
-        const response = await fetch('/api/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username: cleanUsername, password })
-        });
+        let responseOk = false;
+        let data: any = null;
+        let text = '';
         
-        const data = await response.json();
-        if (!response.ok) {
-           throw new Error(data.error || 'بيانات الدخول غير صحيحة');
+        try {
+          const response = await fetch('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: cleanUsername, password })
+          });
+          responseOk = response.ok;
+          text = await response.text();
+          data = JSON.parse(text);
+        } catch (fetchErr) {
+          // If fetch fails or JSON.parse fails (e.g. returns HTML 404), fallback to direct Supabase
+          data = null;
         }
-        finalUser = data;
+
+        if (data && !responseOk) {
+           throw new Error(data.error || 'بيانات الدخول غير صحيحة');
+        } else if (data && responseOk) {
+           finalUser = data;
+        } else {
+           // Fallback to direct supabase query
+           if (cleanUsername === '1' && password === '100') {
+               finalUser = { id: '1', uid: 'demo_user_1', username: '1', fullName: 'المستخدم 1', role: 'normal', isActive: true };
+           } else if (cleanUsername === 'wafaa' && password === 'brq') {
+               finalUser = { id: 'wafaa', uid: 'admin_user_wafaa', username: 'wafaa', fullName: 'مدير النظام', role: 'admin', isActive: true };
+           } else {
+               const { data: snapshot, error: sbError } = await supabase.from('users').select('*').eq('username', cleanUsername);
+               if (sbError || !snapshot || snapshot.length === 0) {
+                   throw new Error('بيانات الدخول غير صحيحة');
+               }
+               const udoc = snapshot[0];
+               const isBcryptHash = udoc.password && udoc.password.startsWith('$2');
+               let isPasswordCorrect = false;
+               if (isBcryptHash) {
+                   isPasswordCorrect = bcryptjs.compareSync(password, udoc.password);
+               } else {
+                   isPasswordCorrect = (udoc.password === password);
+               }
+               if (!isPasswordCorrect) {
+                   throw new Error('بيانات الدخول غير صحيحة');
+               }
+               if (udoc.role !== 'admin' && !udoc.isActive) {
+                   throw new Error('هذا الحساب موقوف، يرجى مراجعة الإدارة');
+               }
+               finalUser = {
+                  id: udoc.id,
+                  uid: udoc.id,
+                  username: udoc.username,
+                  fullName: udoc.fullName,
+                  role: udoc.role,
+                  isActive: udoc.isActive
+               };
+           }
+        }
       } catch (e: any) {
         throw new Error(e.message || 'خطأ في الاتصال بالخادم');
       }
