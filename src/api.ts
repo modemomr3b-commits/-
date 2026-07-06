@@ -161,13 +161,7 @@ export const api = {
     ];
     const randomTemplate = templates[Math.floor(Math.random() * templates.length)];
 
-    let history = [];
-    try { history = JSON.parse(localStorage.getItem('brq_push_history') || '[]'); } catch (e) {}
-    const now = Date.now();
-    // إرسال رسالتين كحد أقصى كل 4 ساعات
-    history = history.filter(time => now - time < 4 * 60 * 60 * 1000);
-
-    if (history.length < 2) {
+    
       try {
         fetch('/api/notify-publish', {
           method: 'POST',
@@ -177,14 +171,19 @@ export const api = {
             body: randomTemplate.body + '\nالموديل: ' + r.name
           })
         });
-        history.push(now);
-        localStorage.setItem('brq_push_history', JSON.stringify(history));
       } catch (e) {}
-    }
 
     return { ...r, isHidden: r.size?.isHidden || false, oldPriceInfo: r.size?.oldPriceInfo || undefined, forceStandardCrush: r.size?.forceStandardCrush ?? true }; 
   },
-  updateProduct: async (id: string, data: any) => { 
+  updateProduct: async (id: string, data: any) => {
+    // Check if it's being made visible
+    const wasHidden = data.isHidden === false; // If they passed isHidden: false
+    let oldProduct = null;
+    if (wasHidden) {
+      const { data: op } = await supabase.from('products').select('size').match({ id }).single();
+      if (op?.size?.isHidden) oldProduct = op;
+    }
+ 
     const safeData = { ...data, updatedAt: Date.now() };
     
     if (safeData.imageUrl?.startsWith('data:image')) {
@@ -204,7 +203,21 @@ export const api = {
     delete safeData.forceStandardCrush;
 
     const { data: r, error } = await supabase.from('products').update(safeData).match({ id }).select().single(); 
-    if (error) throw error; 
+    if (error) throw error;
+    
+    if (oldProduct && !safeData.size?.isHidden) {
+      try {
+        fetch('/api/notify-publish', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: '🚨 الموديل متاح الآن!',
+            body: 'الموديل ' + r.name + ' أصبح متوفراً الآن في متجر شركة الوفاء المتميز BRQ. تسوق الآن!'
+          })
+        });
+      } catch (e) {}
+    }
+ 
     return { ...r, isHidden: r.size?.isHidden || false, oldPriceInfo: r.size?.oldPriceInfo || undefined, forceStandardCrush: r.size?.forceStandardCrush ?? true }; 
   },
   deleteProduct: async (id: string, deletedBy?: string) => { 
