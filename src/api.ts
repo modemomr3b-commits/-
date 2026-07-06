@@ -102,7 +102,7 @@ export const api = {
         safeData.finalImageUrl = await api.uploadImage(safeData.finalImageUrl);
     }
 
-    safeData.size = { ...(safeData.size || {}) };
+    safeData.size = { ...existingSize, ...(safeData.size || {}) };
     if (safeData.isHidden !== undefined) safeData.size.isHidden = safeData.isHidden;
     if (safeData.oldPriceInfo !== undefined) safeData.size.oldPriceInfo = safeData.oldPriceInfo;
     if (safeData.forceStandardCrush !== undefined) safeData.size.forceStandardCrush = safeData.forceStandardCrush;
@@ -163,7 +163,7 @@ export const api = {
 
     
       try {
-        fetch('/api/notify-publish', {
+        await fetch('/api/notify-publish', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -176,16 +176,15 @@ export const api = {
     return { ...r, isHidden: r.size?.isHidden || false, oldPriceInfo: r.size?.oldPriceInfo || undefined, forceStandardCrush: r.size?.forceStandardCrush ?? true }; 
   },
   updateProduct: async (id: string, data: any) => {
-    // Check if it's being made visible
-    const wasHidden = data.isHidden === false; // If they passed isHidden: false
-    let oldProduct = null;
-    if (wasHidden) {
-      const { data: op } = await supabase.from('products').select('size').match({ id }).single();
-      if (op?.size?.isHidden) oldProduct = op;
-    }
- 
+    // Fetch the existing size first to avoid overwriting it
+    const { data: op } = await supabase.from('products').select('size').match({ id }).single();
+    const existingSize = op?.size || {};
+
+    const wasHidden = data.isHidden === false && existingSize.isHidden === true;
+    let oldProduct = wasHidden ? op : null;
+
     const safeData = { ...data, updatedAt: Date.now() };
-    
+
     if (safeData.imageUrl?.startsWith('data:image')) {
         safeData.imageUrl = await api.uploadImage(safeData.imageUrl);
     }
@@ -193,7 +192,7 @@ export const api = {
         safeData.finalImageUrl = await api.uploadImage(safeData.finalImageUrl);
     }
 
-    safeData.size = { ...(safeData.size || {}) };
+    safeData.size = { ...existingSize, ...(safeData.size || {}) };
     if (safeData.isHidden !== undefined) safeData.size.isHidden = safeData.isHidden;
     if (safeData.oldPriceInfo !== undefined) safeData.size.oldPriceInfo = safeData.oldPriceInfo;
     if (safeData.forceStandardCrush !== undefined) safeData.size.forceStandardCrush = safeData.forceStandardCrush;
@@ -205,9 +204,11 @@ export const api = {
     const { data: r, error } = await supabase.from('products').update(safeData).match({ id }).select().single(); 
     if (error) throw error;
     
+    console.log("oldProduct:", oldProduct, "safeData.size:", safeData.size);
     if (oldProduct && !safeData.size?.isHidden) {
+      console.log("Sending visibility notification!");
       try {
-        fetch('/api/notify-publish', {
+        await fetch('/api/notify-publish', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -348,7 +349,7 @@ export const api = {
     if (error) throw error; 
     
     try {
-      fetch('/api/notify-publish', {
+      await fetch('/api/notify-publish', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
