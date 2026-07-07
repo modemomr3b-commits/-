@@ -102,7 +102,7 @@ export const api = {
         safeData.finalImageUrl = await api.uploadImage(safeData.finalImageUrl);
     }
 
-    safeData.size = { ...existingSize, ...(safeData.size || {}) };
+    safeData.size = safeData.size || {};
     if (safeData.isHidden !== undefined) safeData.size.isHidden = safeData.isHidden;
     if (safeData.oldPriceInfo !== undefined) safeData.size.oldPriceInfo = safeData.oldPriceInfo;
     if (safeData.forceStandardCrush !== undefined) safeData.size.forceStandardCrush = safeData.forceStandardCrush;
