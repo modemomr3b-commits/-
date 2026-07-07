@@ -1,4 +1,9 @@
 self.addEventListener('push', function(event) {
+  event.waitUntil((async () => {
+    const clientList = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const isAdminOpen = clientList.some(client => client.url.includes('/admin'));
+    if (isAdminOpen) return;
+
   let payload = {};
   if (event.data) {
     try {
@@ -16,7 +21,8 @@ self.addEventListener('push', function(event) {
     data: { url: payload.url || '/' }
   };
 
-  event.waitUntil(self.registration.showNotification(title, options));
+  await self.registration.showNotification(title, options);
+  })());
 });
 
 self.addEventListener('notificationclick', function(event) {

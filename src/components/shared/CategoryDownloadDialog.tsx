@@ -54,6 +54,10 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
       return;
     }
 
+    if (!window.confirm(`هل أنت متأكد من رغبتك في تحميل صور هذا القسم؟ (${imagesWithData.length} صورة)`)) {
+      return;
+    }
+
     setDownloadProgress({ progress: 0, total: imagesWithData.length });
     let completed = 0;
 

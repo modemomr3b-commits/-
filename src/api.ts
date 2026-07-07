@@ -173,7 +173,7 @@ export const api = {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             title: randomTemplate.title,
-            body: randomTemplate.body + '\nالموديل: ' + r.name
+            body: randomTemplate.body
           })
         });
       } catch (e) {}
@@ -218,12 +218,27 @@ export const api = {
           event: 'new_product',
           payload: r
         });
+        const templates = [
+          {
+            title: '🚨 وصل الجديد!',
+            body: 'موديلات جديدة نزلت الآن في شركة الوفاء المتميز BRQ. لا تتأخر وشوفها قبل الجميع.'
+          },
+          {
+            title: '✨ تحديث جديد!',
+            body: 'أضفنا موديلات مميزة بأسعار محدثة. تصفح الجديد الآن مع شركة الوفاء المتميز BRQ.'
+          },
+          {
+            title: '📦 الجديد صار متوفر!',
+            body: 'أجمل الموديلات بانتظارك في تطبيق شركة الوفاء المتميز BRQ. سارع بالشراء!'
+          }
+        ];
+        const randomTemplate = templates[Math.floor(Math.random() * templates.length)];
         fetch('/api/notify-publish', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            title: '🚨 الموديل متاح الآن!',
-            body: 'الموديل ' + r.name + ' أصبح متوفراً الآن في متجر شركة الوفاء المتميز BRQ. تسوق الآن!'
+            title: randomTemplate.title,
+            body: randomTemplate.body
           })
         });
       } catch (e) {}

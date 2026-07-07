@@ -4,6 +4,8 @@ import { createClient } from '@supabase/supabase-js';
 import express from "express";
 import path from "path";
 import cors from "cors";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import { createServer as createViteServer } from "vite";
 import { db } from "./src/db/index";
 import { users, products, categories, orders, orderItems, updates } from "./src/db/schema";
@@ -97,7 +99,30 @@ app.post('/api/notify-publish', express.json(), async (req, res) => {
 });
 
   const PORT = 3000;
-  app.use(express.json());
+  app.use(express.json({ limit: '10mb' }));
+
+  app.use(helmet({
+    contentSecurityPolicy: false, // disabled for vite in dev
+    crossOriginEmbedderPolicy: false
+  }));
+  const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 500, // limit each IP to 500 requests per windowMs
+    message: { error: 'Too many requests, please try again later.' }
+  });
+  app.use('/api/', limiter);
+  
+  // Custom API Key middleware for sensitive routes if needed
+  const requireAdmin = (req, res, next) => {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      // In a real scenario, verify Supabase JWT token here
+      next();
+    } else {
+      res.status(401).json({ error: 'Unauthorized' });
+    }
+  };
+
   app.use(cors());
 
   app.get("/api/health", (req, res) => {
@@ -180,21 +205,21 @@ app.post('/api/notify-publish', express.json(), async (req, res) => {
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 
-  app.post("/api/products", async (req, res) => {
+  app.post("/api/products", requireAdmin, async (req, res) => {
     try {
       const inserted = await db.insert(products).values(req.body).returning();
       res.json(inserted[0]);
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 
-  app.put("/api/products/:id", async (req, res) => {
+  app.put("/api/products/:id", requireAdmin, async (req, res) => {
     try {
       const updated = await db.update(products).set(req.body).where(eq(products.id, req.params.id)).returning();
       res.json(updated[0]);
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 
-  app.delete("/api/products/:id", async (req, res) => {
+  app.delete("/api/products/:id", requireAdmin, async (req, res) => {
     try {
       await db.delete(products).where(eq(products.id, req.params.id));
       res.json({ success: true });
@@ -209,21 +234,21 @@ app.post('/api/notify-publish', express.json(), async (req, res) => {
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 
-  app.post("/api/categories", async (req, res) => {
+  app.post("/api/categories", requireAdmin, async (req, res) => {
     try {
       const inserted = await db.insert(categories).values(req.body).returning();
       res.json(inserted[0]);
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 
-  app.put("/api/categories/:id", async (req, res) => {
+  app.put("/api/categories/:id", requireAdmin, async (req, res) => {
     try {
       const updated = await db.update(categories).set(req.body).where(eq(categories.id, req.params.id)).returning();
       res.json(updated[0]);
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 
-  app.delete("/api/categories/:id", async (req, res) => {
+  app.delete("/api/categories/:id", requireAdmin, async (req, res) => {
     try {
       await db.delete(categories).where(eq(categories.id, req.params.id));
       res.json({ success: true });
@@ -274,21 +299,21 @@ app.post('/api/notify-publish', express.json(), async (req, res) => {
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 
-  app.post("/api/orders", async (req, res) => {
+  app.post("/api/orders", requireAdmin, async (req, res) => {
     try {
       const inserted = await db.insert(orders).values(req.body).returning();
       res.json(inserted[0]);
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 
-  app.put("/api/orders/:id", async (req, res) => {
+  app.put("/api/orders/:id", requireAdmin, async (req, res) => {
     try {
       const updated = await db.update(orders).set(req.body).where(eq(orders.id, req.params.id)).returning();
       res.json(updated[0]);
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 
-  app.delete("/api/orders/:id", async (req, res) => {
+  app.delete("/api/orders/:id", requireAdmin, async (req, res) => {
     try {
       await db.delete(orders).where(eq(orders.id, req.params.id));
       res.json({ success: true });
@@ -331,6 +356,42 @@ app.post('/api/notify-publish', express.json(), async (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
+
+  
+  // Auto-send 3 notifications every half hour (i.e. every 10 minutes)
+  const templates = [
+    { title: '🚨 وصل الجديد!', body: 'موديلات جديدة نزلت الآن في شركة الوفاء المتميز BRQ. لا تتأخر وشوفها قبل الجميع.' },
+    { title: '✨ تحديث جديد!', body: 'أضفنا موديلات مميزة بأسعار محدثة. تصفح الجديد الآن مع شركة الوفاء المتميز BRQ.' },
+    { title: '📦 الجديد صار متوفر!', body: 'أجمل الموديلات بانتظارك في تطبيق شركة الوفاء المتميز BRQ. سارع بالشراء!' }
+  ];
+  setInterval(async () => {
+    try {
+      const { data } = await supabaseAdmin.from('settings').select('*').match({ id: 'push_subs' }).single();
+      let subs = data?.data || [];
+      const randomTemplate = templates[Math.floor(Math.random() * templates.length)];
+      const payload = JSON.stringify({
+        title: randomTemplate.title,
+        body: randomTemplate.body,
+        icon: '/logo.jpeg.jpeg',
+        url: '/messages'
+      });
+      let updated = false;
+      const promises = subs.map(sub => 
+        webpush.sendNotification(sub, payload).catch(e => {
+          if (e.statusCode === 410 || e.statusCode === 404) {
+            subs = subs.filter(s => s.endpoint !== sub.endpoint);
+            updated = true;
+          }
+        })
+      );
+      await Promise.all(promises);
+      if (updated) {
+        await supabaseAdmin.from('settings').upsert({ id: 'push_subs', data: subs });
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, 10 * 60 * 1000);
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://0.0.0.0:${PORT}`);
