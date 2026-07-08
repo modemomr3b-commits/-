@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, SlidersHorizontal, Archive } from 'lucide-react';
+import { Search, SlidersHorizontal, Archive, Download, Loader2 } from 'lucide-react';
 import { Link } from 'react-router';
 import { api } from '../../api';
 import { Product } from '../../types';
@@ -10,6 +10,8 @@ export default function SearchPage() {
   const { user } = useStore();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
   
   const [query, setQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -66,6 +68,41 @@ export default function SearchPage() {
   useEffect(() => {
     setCurrentPage(1);
   }, [query, searchArchived]);
+
+  const handleDownloadSingle = async (e: React.MouseEvent, p: Product) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const imgUrl = p.finalImageUrl || p.imageUrl;
+    if (!imgUrl) {
+      alert("الصورة غير متوفرة");
+      return;
+    }
+
+    setDownloadingId(p.id!);
+    try {
+      const res = await fetch(imgUrl);
+      const blob = await res.blob();
+      const ext = blob.type.split('/')[1] || 'jpg';
+      const safeName = (p.productCode || p.name || 'product').replace(/[\\/\\?<>\\\\:\\*\\|":]/g, '-');
+      const filename = `${safeName}.${ext}`;
+      
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    } catch (err) {
+      console.error(`Failed to download ${p.name}`, err);
+      alert("حدث خطأ أثناء تحميل الصورة");
+    } finally {
+      setDownloadingId(null);
+    }
+  };
 
   return (
     <div className="p-4 flex flex-col min-h-[calc(100vh-60px)]">
@@ -146,6 +183,20 @@ export default function SearchPage() {
                            <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
                              <span className="bg-red-500/80 text-white px-3 py-1 rounded-full text-xs font-bold border border-white/20 backdrop-blur-md">غير متوفر</span>
                            </div>
+                         )}
+                         {(p.finalImageUrl || p.imageUrl) && (
+                           <button
+                             onClick={(e) => handleDownloadSingle(e, p)}
+                             disabled={downloadingId === p.id}
+                             className="absolute bottom-2 right-2 w-8 h-8 rounded-full bg-black/50 backdrop-blur-md border border-white/10 flex items-center justify-center text-white hover:bg-brq-gold hover:text-black hover:border-brq-gold transition-colors shadow-lg z-10"
+                             title="تحميل الصورة"
+                           >
+                             {downloadingId === p.id ? (
+                               <Loader2 size={16} className="animate-spin" />
+                             ) : (
+                               <Download size={16} />
+                             )}
+                           </button>
                          )}
                       </div>
                       <div className="p-3 flex flex-col flex-1">

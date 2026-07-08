@@ -7,6 +7,7 @@ import { Product, Category } from "../../types";
 import { useStore } from "../../store";
 import OptimizedImage from "../OptimizedImage";
 import { CategoryDownloadDialog } from "../shared/CategoryDownloadDialog";
+import { ConfirmDialog } from "../shared/ConfirmDialog";
 import { PriceHistoryViewer } from "./PriceHistoryViewer";
 import ImageViewer from "../ImageViewer";
 
@@ -26,6 +27,7 @@ export default function Products() {
 
   const [categoryName, setCategoryName] = useState("جميع المنتجات");
   const [downloadProgress, setDownloadProgress] = useState<{ progress: number, total: number } | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{ isOpen: boolean; message: string; onConfirm: () => void } | null>(null);
   const [initialLoading, setInitialLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 100;
@@ -307,41 +309,44 @@ export default function Products() {
                  return;
               }
               
-              if (!window.confirm(`هل أنت متأكد من رغبتك في تحميل صور هذا القسم؟ (${imagesWithData.length} صورة)`)) {
-                return;
-              }
-              
-              setDownloadProgress({ progress: 0, total: imagesWithData.length });
-              let completed = 0;
+              setConfirmDialog({
+                isOpen: true,
+                message: `هل تود البدء بتحميل جميع صور هذا القسم؟ (العدد: ${imagesWithData.length} صورة)`,
+                onConfirm: async () => {
+                  setConfirmDialog(null);
+                  setDownloadProgress({ progress: 0, total: imagesWithData.length });
+                  let completed = 0;
 
-              for (const p of imagesWithData) {
-                const imgUrl = p.finalImageUrl || p.imageUrl;
-                if (imgUrl) {
-                  try {
-                    const res = await fetch(imgUrl);
-                    const blob = await res.blob();
-                    const ext = blob.type.split('/')[1] || 'jpg';
-                    const safeName = (p.productCode || p.name || 'product').replace(/[\/\?<>\\:\*\|":]/g, '-');
-                    const filename = `${safeName}.${ext}`;
-                    
-                    const objectUrl = URL.createObjectURL(blob);
-                    const a = document.createElement("a");
-                    a.href = objectUrl;
-                    a.download = filename;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    
-                    await new Promise(resolve => setTimeout(resolve, 300));
-                    URL.revokeObjectURL(objectUrl);
-                  } catch (e) {
-                    console.error(`Failed to download ${p.name}`);
+                  for (const p of imagesWithData) {
+                    const imgUrl = p.finalImageUrl || p.imageUrl;
+                    if (imgUrl) {
+                      try {
+                        const res = await fetch(imgUrl);
+                        const blob = await res.blob();
+                        const ext = blob.type.split('/')[1] || 'jpg';
+                        const safeName = (p.productCode || p.name || 'product').replace(/[\\/\\?<>\\\\:\\*\\|":]/g, '-');
+                        const filename = `${safeName}.${ext}`;
+                        
+                        const objectUrl = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = objectUrl;
+                        a.download = filename;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        
+                        await new Promise(resolve => setTimeout(resolve, 300));
+                        URL.revokeObjectURL(objectUrl);
+                      } catch (e) {
+                        console.error(`Failed to download ${p.name}`);
+                      }
+                    }
+                    completed++;
+                    setDownloadProgress({ progress: completed, total: imagesWithData.length });
                   }
+                  setDownloadProgress(null);
                 }
-                completed++;
-                setDownloadProgress({ progress: completed, total: imagesWithData.length });
-              }
-              setDownloadProgress(null);
+              });
             }} 
             className="flex-[2] py-2 bg-brq-navy rounded-lg border border-brq-royal/50 flex gap-2 items-center justify-center text-xs text-brq-gold hover:bg-brq-navy/80 transition-colors disabled:opacity-50"
           >
@@ -602,6 +607,15 @@ export default function Products() {
       )}
       {fullscreenImage && (
         <ImageViewer src={fullscreenImage.src} alt={fullscreenImage.alt} onClose={() => setFullscreenImage(null)} />
+      )}
+      {confirmDialog && (
+        <ConfirmDialog
+          isOpen={confirmDialog.isOpen}
+          title="تحميل الصور"
+          message={confirmDialog.message}
+          onConfirm={confirmDialog.onConfirm}
+          onCancel={() => setConfirmDialog(null)}
+        />
       )}
     </div>
   );

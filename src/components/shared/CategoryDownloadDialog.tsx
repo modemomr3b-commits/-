@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Download, X, Loader2, Search } from "lucide-react";
 import { Category, Product } from "../../types";
+import { ConfirmDialog } from "./ConfirmDialog";
 
 interface CategoryDownloadDialogProps {
   categories: Category[];
@@ -11,6 +12,7 @@ interface CategoryDownloadDialogProps {
 export function CategoryDownloadDialog({ categories, products, onClose }: CategoryDownloadDialogProps) {
   const [downloadProgress, setDownloadProgress] = useState<{ progress: number; total: number } | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [confirmDialog, setConfirmDialog] = useState<{ isOpen: boolean; message: string; onConfirm: () => void } | null>(null);
   
   // Get all unique subcategory names to allow downloading all subcategories with the same name across parent categories
   const mainCategories = categories.filter(c => !c.parentId);
@@ -54,49 +56,51 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
       return;
     }
 
-    if (!window.confirm(`هل أنت متأكد من رغبتك في تحميل صور هذا القسم؟ (${imagesWithData.length} صورة)`)) {
-      return;
-    }
+    setConfirmDialog({
+      isOpen: true,
+      message: `هل تود البدء بتحميل جميع صور هذا القسم؟ (العدد: ${imagesWithData.length} صورة)`,
+      onConfirm: async () => {
+        setConfirmDialog(null);
+        setDownloadProgress({ progress: 0, total: imagesWithData.length });
+        let completed = 0;
 
-    setDownloadProgress({ progress: 0, total: imagesWithData.length });
-    let completed = 0;
-
-    for (const p of imagesWithData) {
-      const imgUrl = p.finalImageUrl || p.imageUrl;
-      if (imgUrl) {
-        try {
-          const res = await fetch(imgUrl);
-          const blob = await res.blob();
-          const ext = blob.type.split("/")[1] || "jpg";
-          
-          // Clean filename
-          const safeName = (p.productCode || p.name || "product").replace(/[\/\?<>\\:\*\|":]/g, '-');
-          const filename = `${safeName}.${ext}`;
-          
-          const objectUrl = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = objectUrl;
-          a.download = filename;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          
-          // Small delay to prevent browser from blocking multiple downloads
-          await new Promise(resolve => setTimeout(resolve, 300));
-          
-          URL.revokeObjectURL(objectUrl);
-        } catch (err) {
-          console.error(`Failed to download image for ${p.name}`, err);
+        for (const p of imagesWithData) {
+          const imgUrl = p.finalImageUrl || p.imageUrl;
+          if (imgUrl) {
+            try {
+              const res = await fetch(imgUrl);
+              const blob = await res.blob();
+              const ext = blob.type.split("/")[1] || "jpg";
+              
+              // Clean filename
+              const safeName = (p.productCode || p.name || "product").replace(/[\\/\\?<>\\\\:\\*\\|":]/g, '-');
+              const filename = `${safeName}.${ext}`;
+              
+              const objectUrl = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = objectUrl;
+              a.download = filename;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              
+              // Small delay to prevent browser from blocking multiple downloads
+              await new Promise(resolve => setTimeout(resolve, 300));
+              
+              URL.revokeObjectURL(objectUrl);
+            } catch (err) {
+              console.error(`Failed to download image for ${p.name}`, err);
+            }
+          }
+          completed++;
+          setDownloadProgress({
+            progress: completed,
+            total: imagesWithData.length,
+          });
         }
+        setDownloadProgress(null);
       }
-      completed++;
-      setDownloadProgress({
-        progress: completed,
-        total: imagesWithData.length,
-      });
-    }
-
-    setDownloadProgress(null);
+    });
   };
 
   const filteredMains = mainCategories.filter(c => c.name.includes(searchTerm));
@@ -201,6 +205,15 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
           </div>
         )}
       </div>
+      {confirmDialog && (
+        <ConfirmDialog
+          isOpen={confirmDialog.isOpen}
+          title="تحميل الصور"
+          message={confirmDialog.message}
+          onConfirm={confirmDialog.onConfirm}
+          onCancel={() => setConfirmDialog(null)}
+        />
+      )}
     </div>
   );
 }
