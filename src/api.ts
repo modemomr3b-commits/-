@@ -2,15 +2,63 @@ import { supabase } from './supabase';
 import { ActivityLog } from './types';
 
 const getData = async (table: string) => {
-  const { data, error } = await supabase.from(table).select('*').neq('isDeleted', true);
-  if (error) { console.error(error); return []; }
-  return data;
+  let allData: any[] = [];
+  let from = 0;
+  const limit = 1000;
+  
+  while (true) {
+    const { data, error } = await supabase
+      .from(table)
+      .select('*')
+      .neq('isDeleted', true)
+      .range(from, from + limit - 1);
+      
+    if (error) {
+      console.error(error);
+      return allData;
+    }
+    
+    if (data && data.length > 0) {
+      allData = [...allData, ...data];
+      if (data.length < limit) {
+        break;
+      }
+      from += limit;
+    } else {
+      break;
+    }
+  }
+  return allData;
 };
 
 const getDeletedData = async (table: string) => {
-  const { data, error } = await supabase.from(table).select('*').eq('isDeleted', true);
-  if (error) { console.error(error); return []; }
-  return data;
+  let allData: any[] = [];
+  let from = 0;
+  const limit = 1000;
+  
+  while (true) {
+    const { data, error } = await supabase
+      .from(table)
+      .select('*')
+      .eq('isDeleted', true)
+      .range(from, from + limit - 1);
+      
+    if (error) {
+      console.error(error);
+      return allData;
+    }
+    
+    if (data && data.length > 0) {
+      allData = [...allData, ...data];
+      if (data.length < limit) {
+        break;
+      }
+      from += limit;
+    } else {
+      break;
+    }
+  }
+  return allData;
 };
 
 
@@ -56,12 +104,33 @@ export const api = {
     if (memCache[cacheKey] && Date.now() - memCache[cacheKey].timestamp < CACHE_TTL) {
       return memCache[cacheKey].data;
     }
-    const { data, error } = await supabase.from('products')
-      .select('*')
-      .eq('categoryId', categoryId)
-      .neq('isDeleted', true);
-    if (error) { console.error(error); return []; }
-    const res = data.map((p: any) => ({
+    
+    let allData: any[] = [];
+    let from = 0;
+    const limit = 1000;
+    
+    while (true) {
+      const { data, error } = await supabase.from('products')
+        .select('*')
+        .eq('categoryId', categoryId)
+        .neq('isDeleted', true)
+        .range(from, from + limit - 1);
+        
+      if (error) {
+        console.error(error);
+        return [];
+      }
+      
+      if (data && data.length > 0) {
+        allData = [...allData, ...data];
+        if (data.length < limit) break;
+        from += limit;
+      } else {
+        break;
+      }
+    }
+    
+    const res = allData.map((p: any) => ({
       ...p,
       isHidden: p.size?.isHidden || false,
       oldPriceInfo: p.size?.oldPriceInfo || undefined,
