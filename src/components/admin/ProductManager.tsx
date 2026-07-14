@@ -70,6 +70,7 @@ export default function ProductManager() {
 
   const [filterStatus, setFilterStatus] = useState<"active" | "archived" | "inactive" | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchDate, setSearchDate] = useState("");
   const [filterCategoryId, setFilterCategoryId] = useState("");
 
   const autoSelectSubcategory = (name: string, categoryId: string, currentSubcategoryId?: string) => {
@@ -803,15 +804,24 @@ export default function ProductManager() {
       return false;
     }
 
+    let matchesSearch = true;
     if (searchQuery) {
       const q = searchQuery.toLowerCase().trim().replace(/[-_]/g, '');
-      const matchesSearch = 
+      matchesSearch = 
         (p.name && p.name.toLowerCase().replace(/[-_]/g, '').includes(q)) ||
         (p.productCode && p.productCode.toLowerCase().replace(/[-_]/g, '').startsWith(q)) ||
         (p.modelNumber && p.modelNumber.toLowerCase().replace(/[-_]/g, '').startsWith(q)) ||
         (p.barcode && p.barcode.toLowerCase().replace(/[-_]/g, '').startsWith(q));
-      
-      if (!matchesSearch) return false;
+    }
+
+    let matchesDate = true;
+    if (searchDate) {
+      const productDateStr = new Date(p.createdAt || 0).toLocaleDateString('en-CA');
+      matchesDate = productDateStr === searchDate;
+    }
+
+    if (searchQuery || searchDate) {
+      if (!matchesSearch || !matchesDate) return false;
     } else {
       if (filterStatus === 'archived') {
         if (!p.isArchived) return false;
@@ -1137,18 +1147,27 @@ export default function ProductManager() {
 
           <div className="glass-panel border border-white/5 rounded-2xl overflow-hidden p-1">
             <div className="p-4 border-b border-white/5 flex flex-col sm:flex-row gap-3 justify-between items-center">
-              <div className="flex items-center gap-4 w-full sm:w-auto">
-                <div className="relative flex-1 sm:w-64">
+              <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
+                <div className="relative w-full sm:w-64">
                   <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 w-4 h-4" />
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="w-full bg-white border border-black rounded-lg pr-10 pl-4 py-2.5 text-sm text-black placeholder:text-gray-500 focus:outline-none focus:border-brq-gold/50"
-                    placeholder="بحث بالاسم، الكود، الباركود..."
+                    placeholder="بحث بالاسم، الكود..."
                   />
                 </div>
-                <div className="relative">
+                <div className="relative w-full sm:w-48">
+                  <input
+                    type="date"
+                    value={searchDate}
+                    onChange={(e) => setSearchDate(e.target.value)}
+                    className="w-full bg-white border border-black rounded-lg px-4 py-2.5 text-sm text-black placeholder:text-gray-500 focus:outline-none focus:border-brq-gold/50"
+                    placeholder="بحث بالتاريخ..."
+                  />
+                </div>
+                <div className="relative w-full sm:w-auto">
                   <select
                     value={filterCategoryId}
                     onChange={(e) => setFilterCategoryId(e.target.value)}

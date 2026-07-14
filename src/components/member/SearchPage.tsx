@@ -33,7 +33,6 @@ export default function SearchPage() {
          if (mounted) setLoading(false);
       }
     };
-
     fetchProducts();
     return () => { mounted = false; };
   }, []);
@@ -41,23 +40,22 @@ export default function SearchPage() {
   const filteredProductsAll = products.filter(p => {
     if (p.isHidden) return false;
     
-    if (!query) return false; 
-    const q = query.toLowerCase().trim().replace(/[-_]/g, '');
+    let matchesQuery = true;
+    if (query) {
+      const q = query.toLowerCase().trim().replace(/[-_]/g, '');
+      matchesQuery = (p.name && p.name.toLowerCase().replace(/[-_]/g, '').includes(q)) ||
+        (p.productCode && p.productCode.toLowerCase().replace(/[-_]/g, '').startsWith(q)) ||
+        (p.modelNumber && p.modelNumber.toLowerCase().replace(/[-_]/g, '').startsWith(q)) ||
+        (p.barcode && p.barcode.toLowerCase().replace(/[-_]/g, '').startsWith(q));
+    }
+
+    if (!query) return false;
+    if (!matchesQuery) return false;
+
     if (searchArchived) {
-      if (!p.isArchived) return false;
-      return (
-        (p.productCode && p.productCode.toLowerCase().replace(/[-_]/g, '').startsWith(q)) ||
-        (p.modelNumber && p.modelNumber.toLowerCase().replace(/[-_]/g, '').startsWith(q)) ||
-        (p.barcode && p.barcode.toLowerCase().replace(/[-_]/g, '').startsWith(q))
-      );
+      return p.isArchived;
     } else {
-      if (p.isArchived) return false;
-      return (
-        (p.name && p.name.toLowerCase().replace(/[-_]/g, '').includes(q)) ||
-        (p.productCode && p.productCode.toLowerCase().replace(/[-_]/g, '').startsWith(q)) ||
-        (p.modelNumber && p.modelNumber.toLowerCase().replace(/[-_]/g, '').startsWith(q)) ||
-        (p.barcode && p.barcode.toLowerCase().replace(/[-_]/g, '').startsWith(q))
-      );
+      return !p.isArchived;
     }
   });
 

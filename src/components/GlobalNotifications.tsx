@@ -19,7 +19,7 @@ export default function GlobalNotifications() {
 
   useEffect(() => {
     // Only show to regular users, not necessarily the admin who is adding it (optional, but good practice)
-    // if (user?.role === 'admin') return; // Commented out so admin can see notifications for testing
+    if (user?.role === 'admin') return; 
 
     const channel = supabase
       .channel('public:announcements', { config: { broadcast: { self: true } } })
