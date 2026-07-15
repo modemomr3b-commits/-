@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Search, SlidersHorizontal, Archive, Download, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Link } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
@@ -14,6 +14,7 @@ export default function SearchPage() {
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   
   const [query, setQuery] = useState('');
+  const [searchInput, setSearchInput] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 24;
   
@@ -37,7 +38,14 @@ export default function SearchPage() {
     return () => { mounted = false; };
   }, []);
 
-  const filteredProductsAll = products.filter(p => {
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setQuery(searchInput);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  const filteredProductsAll = useMemo(() => products.filter(p => {
     if (p.isHidden) return false;
     
     let matchesQuery = true;
@@ -57,11 +65,11 @@ export default function SearchPage() {
     } else {
       return !p.isArchived;
     }
-  });
+  }), [products, query, searchArchived]);
 
   const totalPages = Math.ceil(filteredProductsAll.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const filteredProducts = filteredProductsAll.slice(startIndex, startIndex + itemsPerPage);
+  const filteredProducts = useMemo(() => filteredProductsAll.slice(startIndex, startIndex + itemsPerPage), [filteredProductsAll, startIndex, itemsPerPage]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -114,8 +122,8 @@ export default function SearchPage() {
         </div>
         <input 
           type="text" 
-          value={query}
-          onChange={e => setQuery(e.target.value)}
+          value={searchInput}
+          onChange={e => setSearchInput(e.target.value)}
           className="w-full glass-card pl-12 pr-10 py-3.5 rounded-xl text-sm placeholder-white/40 focus:outline-none focus:border-brq-gold focus:ring-1 focus:ring-brq-gold transition-all text-white"
           placeholder="ابحث عن منتج، موديل، كود..."
           autoFocus

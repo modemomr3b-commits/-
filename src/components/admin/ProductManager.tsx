@@ -22,7 +22,7 @@ import {
   ChevronRight,
   ChevronLeft,
 } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { api } from "../../api";
 import { supabase } from "../../supabase";
@@ -72,12 +72,21 @@ export default function ProductManager() {
     isHidden: true,
   });
 
-  const [filterStatus, setFilterStatus] = useState<"all" | "active" | "archived" | "inactive" | "duplicates" | null>("all");
+  const [filterStatus, setFilterStatus] = useState<"all" | "active" | "archived" | "inactive" | "duplicates" | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchInput, setSearchInput] = useState("");
   const [searchDate, setSearchDate] = useState("");
   const [filterCategoryId, setFilterCategoryId] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 30;
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearchQuery(searchInput);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
 
   // Reset page on filter changes
   useEffect(() => {
@@ -790,30 +799,24 @@ export default function ProductManager() {
     return categories.find((c) => c.id === id)?.name || "بدون قسم";
   };
 
-  if (loading) {
-    return (
-      <div className="flex-1 flex flex-col justify-center items-center h-[60vh]">
-        <Loader2 className="animate-spin text-brq-gold w-12 h-12 mb-4" />
-        <p className="text-white/50">جاري تحميل المنتجات...</p>
-      </div>
-    );
-  }
-
-  const duplicatesSet = new Set<string>();
-  const modelMap = new Map<string, string[]>();
-  products.forEach(p => {
-    const key = p.modelNumber || p.productCode;
-    if (key) {
-      if (modelMap.has(key)) {
-         duplicatesSet.add(key);
-         modelMap.get(key)!.push(p.id);
-      } else {
-         modelMap.set(key, [p.id]);
+  const { duplicatesSet, modelMap } = useMemo(() => {
+    const dups = new Set<string>();
+    const map = new Map<string, string[]>();
+    products.forEach(p => {
+      const key = p.modelNumber || p.productCode;
+      if (key) {
+        if (map.has(key)) {
+           dups.add(key);
+           map.get(key)!.push(p.id!);
+        } else {
+           map.set(key, [p.id!]);
+        }
       }
-    }
-  });
+    });
+    return { duplicatesSet: dups, modelMap: map };
+  }, [products]);
 
-  const filteredProducts = products.filter(p => {
+  const filteredProducts = useMemo(() => products.filter(p => {
     if (filterCategoryId && p.categoryId !== filterCategoryId) {
       return false;
     }
@@ -852,11 +855,20 @@ export default function ProductManager() {
       }
     }
     return true;
-  });
+  }), [products, filterCategoryId, searchQuery, searchDate, filterStatus, duplicatesSet]);
 
   const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedProducts = filteredProducts.slice(startIndex, startIndex + itemsPerPage);
+  const paginatedProducts = useMemo(() => filteredProducts.slice(startIndex, startIndex + itemsPerPage), [filteredProducts, startIndex, itemsPerPage]);
+
+  if (loading) {
+    return (
+      <div className="flex-1 flex flex-col justify-center items-center h-[60vh]">
+        <Loader2 className="animate-spin text-brq-gold w-12 h-12 mb-4" />
+        <p className="text-white/50">جاري تحميل المنتجات...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -1186,8 +1198,8 @@ export default function ProductManager() {
                   <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 w-4 h-4" />
                   <input
                     type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
                     className="w-full bg-white border border-black rounded-lg pr-10 pl-4 py-2.5 text-sm text-black placeholder:text-gray-500 focus:outline-none focus:border-brq-gold/50"
                     placeholder="بحث بالاسم، الكود..."
                   />

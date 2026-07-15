@@ -1,6 +1,6 @@
 import { useParams, Link, useNavigate } from "react-router";
 import { ChevronRight, Filter, Download, ShoppingCart, Layers, Share2, CheckSquare, Square, History } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { api } from "../../api";
 import { supabase } from "../../supabase";
 import { Product, Category } from "../../types";
@@ -136,14 +136,14 @@ export default function Products() {
     }
   };
 
-  const filteredProductsAll = activeSub
+  const filteredProductsAll = useMemo(() => activeSub
     ? products.filter((p) => p.subcategoryId === activeSub)
-    : products;
+    : products, [activeSub, products]);
   
   // Pagination logic
   const totalPages = Math.ceil(filteredProductsAll.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const filteredProducts = filteredProductsAll.slice(startIndex, startIndex + itemsPerPage);
+  const filteredProducts = useMemo(() => filteredProductsAll.slice(startIndex, startIndex + itemsPerPage), [filteredProductsAll, startIndex, itemsPerPage]);
 
   // Reset page when category changes
   useEffect(() => {

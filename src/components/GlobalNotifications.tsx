@@ -8,6 +8,7 @@ import { useStore } from '../store';
 interface NotificationData {
   id: string;
   name: string;
+  title?: string;
   imageUrl?: string;
   price?: number;
 }

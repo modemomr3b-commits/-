@@ -79,7 +79,7 @@ export async function isSubscribed() {
     const registration = await Promise.race([
       navigator.serviceWorker.ready,
       new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2000))
-    ]);
+    ]) as ServiceWorkerRegistration;
     const subscription = await registration.pushManager.getSubscription();
     if (subscription) {
       fetch('/api/subscribe', {
