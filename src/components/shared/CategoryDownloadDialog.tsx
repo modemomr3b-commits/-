@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Download, X, Loader2, Search } from "lucide-react";
 import { Category, Product } from "../../types";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { useStore } from "../../store";
 
 interface CategoryDownloadDialogProps {
   categories: Category[];
@@ -10,6 +11,7 @@ interface CategoryDownloadDialogProps {
 }
 
 export function CategoryDownloadDialog({ categories, products, onClose }: CategoryDownloadDialogProps) {
+  const { showToast } = useStore();
   const [downloadProgress, setDownloadProgress] = useState<{ progress: number; total: number } | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [confirmDialog, setConfirmDialog] = useState<{ isOpen: boolean; message: string; onConfirm: () => void } | null>(null);
@@ -52,7 +54,7 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
     const imagesWithData = productsToDownload.filter((p) => p.finalImageUrl || p.imageUrl);
 
     if (imagesWithData.length === 0) {
-      alert("لا توجد صور للمنتجات في هذا القسم.");
+      showToast("لا توجد صور للمنتجات في هذا القسم.", "error");
       return;
     }
 

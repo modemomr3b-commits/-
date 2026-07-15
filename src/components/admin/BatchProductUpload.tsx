@@ -26,7 +26,7 @@ export const autoSelectSubcategory = (name: string, categoryId: string, currentS
   ];
   
   for (const match of matches) {
-      if (new RegExp('(^|\\s)' + match.key + '(\\s|$)').test(lowerName)) {
+      if (lowerName.includes(match.key)) {
           const foundSub = subs.find(s => s.name.includes(match.term) || s.name.includes(match.key));
           if (foundSub) {
               return foundSub.id;
@@ -266,16 +266,6 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
       setIsSuccess(true);
       onAdded();
       
-      setTimeout(() => {
-        setProducts(Array.from({ length: 10 }).map(() => ({
-          ...emptyProduct(),
-          categoryId: batchCategoryId
-        })));
-        setUploadSessionId(Date.now());
-        setIsSuccess(false);
-        setIsSubmitting(false);
-      }, 1500);
-
     } catch (error: any) {
       console.error('Error creating products:', error);
       setIsSubmitting(false);
@@ -286,11 +276,48 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
   return (
     <div className="space-y-4">
       {isSuccess && (
-          <div className="glass-panel p-6 rounded-2xl border border-emerald-500/50 flex flex-col items-center justify-center gap-3">
-              <CheckCircle2 className="w-16 h-16 text-emerald-500" />
-              <h3 className="text-xl font-bold text-emerald-400">تم إضافة المنتجات بنجاح</h3>
-              <p className="text-white/50 text-sm">جاري التجهيز لدفعة جديدة...</p>
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/80 backdrop-blur-md"
+            onClick={() => {
+              setProducts(Array.from({ length: 10 }).map(() => ({
+                ...emptyProduct(),
+                categoryId: batchCategoryId
+              })));
+              setUploadSessionId(Date.now());
+              setIsSuccess(false);
+              setIsSubmitting(false);
+            }}
+          />
+          <div
+            className="relative w-full max-w-sm bg-brq-card border border-brq-gold/30 rounded-2xl p-8 shadow-[0_0_40px_rgba(212,175,55,0.15)] flex flex-col items-center text-center overflow-hidden"
+            dir="rtl"
+          >
+            <div className="w-20 h-20 rounded-full bg-brq-gold/10 flex items-center justify-center mb-6 border border-brq-gold/20">
+              <CheckCircle2 size={40} className="text-brq-gold" />
+            </div>
+            <h3 className="text-2xl font-bold text-white mb-2">
+              تم النشر بنجاح!
+            </h3>
+            <p className="text-white/70 mb-8">
+              تم النشر بنجاح داخل التطبيق
+            </p>
+            <button
+              onClick={() => {
+                setProducts(Array.from({ length: 10 }).map(() => ({
+                  ...emptyProduct(),
+                  categoryId: batchCategoryId
+                })));
+                setUploadSessionId(Date.now());
+                setIsSuccess(false);
+                setIsSubmitting(false);
+              }}
+              className="w-full py-3 px-4 rounded-xl font-bold text-black bg-brq-gold hover:bg-yellow-500 transition-colors"
+            >
+              فهمت
+            </button>
           </div>
+        </div>
       )}
 
       <div className="flex flex-col gap-4 bg-black/40 p-4 rounded-xl border border-white/10">

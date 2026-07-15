@@ -18,6 +18,9 @@ import {
   Share2,
   History,
   AlertCircle,
+  CheckCircle,
+  ChevronRight,
+  ChevronLeft,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
@@ -48,6 +51,7 @@ export default function ProductManager() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ isBulk: boolean; ids?: string[]; name?: string; count?: number; } | null>(null);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
+  const [publishSuccess, setPublishSuccess] = useState(false);
   const [duplicateConfirm, setDuplicateConfirm] = useState<{ atNumber: string; existingName: string; type: 'create' | 'update'; payload: any } | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [downloadProgress, setDownloadProgress] = useState<{
@@ -68,10 +72,17 @@ export default function ProductManager() {
     isHidden: true,
   });
 
-  const [filterStatus, setFilterStatus] = useState<"active" | "archived" | "inactive" | null>(null);
+  const [filterStatus, setFilterStatus] = useState<"all" | "active" | "archived" | "inactive" | "duplicates" | null>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchDate, setSearchDate] = useState("");
   const [filterCategoryId, setFilterCategoryId] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 30;
+
+  // Reset page on filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, searchDate, filterCategoryId, filterStatus]);
 
   const autoSelectSubcategory = (name: string, categoryId: string, currentSubcategoryId?: string) => {
     if (!categoryId || !name) return currentSubcategoryId || "";
@@ -95,7 +106,7 @@ export default function ProductManager() {
     ];
     
     for (const match of matches) {
-        if (new RegExp('(^|\\s)' + match.key + '(\\s|$)').test(lowerName)) {
+        if (lowerName.includes(match.key)) {
             const foundSub = subs.find(s => s.name.includes(match.term) || s.name.includes(match.key));
             if (foundSub) {
                 return foundSub.id;
@@ -375,18 +386,7 @@ export default function ProductManager() {
         details: { name: payloadToCreate.name, code: payloadToCreate.productCode },
       });
       // setIsAdding(false); removed to keep form open
-      setNewProduct({
-        name: "",
-        price: 0,
-        dozenPriceUsd: 0,
-        modelNumber: "",
-        productCode: "",
-        barcode: "",
-        categoryId: "",
-        imageUrl: "",
-        forceStandardCrush: true,
-        isHidden: true,
-      });
+      setPublishSuccess(true);
       const updated = await api.getProducts();
       setProducts(updated);
     } catch (error: any) {
@@ -799,6 +799,20 @@ export default function ProductManager() {
     );
   }
 
+  const duplicatesSet = new Set<string>();
+  const modelMap = new Map<string, string[]>();
+  products.forEach(p => {
+    const key = p.modelNumber || p.productCode;
+    if (key) {
+      if (modelMap.has(key)) {
+         duplicatesSet.add(key);
+         modelMap.get(key)!.push(p.id);
+      } else {
+         modelMap.set(key, [p.id]);
+      }
+    }
+  });
+
   const filteredProducts = products.filter(p => {
     if (filterCategoryId && p.categoryId !== filterCategoryId) {
       return false;
@@ -829,12 +843,20 @@ export default function ProductManager() {
         if (!p.isHidden || p.isArchived) return false;
       } else if (filterStatus === 'active') {
         if (p.isHidden || p.isArchived) return false;
+      } else if (filterStatus === 'duplicates') {
+        if (!duplicatesSet.has(p.modelNumber || p.productCode)) return false;
+      } else if (filterStatus === 'all') {
+        if (p.isArchived) return false;
       } else if (filterStatus === null) {
         return false;
       }
     }
     return true;
   });
+
+  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedProducts = filteredProducts.slice(startIndex, startIndex + itemsPerPage);
 
   return (
     <div className="space-y-6">
@@ -1124,7 +1146,13 @@ export default function ProductManager() {
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="flex gap-4 border-b border-white/10 pb-0">
+          <div className="flex gap-4 border-b border-white/10 pb-0 overflow-x-auto">
+            <button
+              onClick={() => setFilterStatus("all")}
+              className={`pb-2 px-2 text-sm font-bold border-b-2 transition-colors whitespace-nowrap ${filterStatus === "all" ? "border-brq-gold text-brq-gold" : "border-transparent text-white/50 hover:text-white"}`}
+            >
+              الكل
+            </button>
             <button
               onClick={() => setFilterStatus("active")}
               className={`pb-2 px-2 text-sm font-bold border-b-2 transition-colors ${filterStatus === "active" ? "border-brq-gold text-brq-gold" : "border-transparent text-white/50 hover:text-white"}`}
@@ -1142,6 +1170,12 @@ export default function ProductManager() {
               className={`pb-2 px-2 text-sm font-bold border-b-2 transition-colors ${filterStatus === "archived" ? "border-brq-gold text-brq-gold" : "border-transparent text-white/50 hover:text-white"}`}
             >
               المواد النافذة
+            </button>
+            <button
+              onClick={() => setFilterStatus("duplicates")}
+              className={`pb-2 px-2 text-sm font-bold border-b-2 transition-colors ${filterStatus === "duplicates" ? "border-brq-gold text-brq-gold" : "border-transparent text-white/50 hover:text-white"}`}
+            >
+              المواد المكررة
             </button>
           </div>
 
@@ -1304,7 +1338,14 @@ export default function ProductManager() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5 text-white/90">
-                  {filteredProducts.map((p) => (
+                  {paginatedProducts.length === 0 ? (
+                    <tr>
+                      <td colSpan={10} className="p-8 text-center text-white/50">
+                        لا توجد منتجات مطابقة في هذا القسم
+                      </td>
+                    </tr>
+                  ) : (
+                    paginatedProducts.map((p) => (
                       <tr
                         key={p.id}
                         className={`hover:bg-white/5 transition-colors ${selectedIds.has(p.id!) ? "bg-brq-gold/5" : ""}`}
@@ -1374,6 +1415,18 @@ export default function ProductManager() {
                         </td>
                         <td className="p-4 font-mono text-white/80">
                           {p.modelNumber || "-"}
+                          {filterStatus === 'duplicates' && (
+                            <div className="mt-1 flex flex-wrap gap-1">
+                              {modelMap.get(p.modelNumber || p.productCode)?.filter(id => id !== p.id).map(id => {
+                                const dup = products.find(prod => prod.id === id);
+                                return dup ? (
+                                  <span key={id} className="px-1.5 py-0.5 rounded text-[10px] bg-red-500/20 text-red-400 border border-red-500/30 whitespace-nowrap" title={`الكود: ${dup.productCode}`}>
+                                    مكرر مع: {dup.productCode}
+                                  </span>
+                                ) : null;
+                              })}
+                            </div>
+                          )}
                         </td>
                         <td className="p-4 text-xs bg-black/20">
                           <span className="px-2 py-1 rounded bg-brq-navy/50 border border-white/10">
@@ -1469,11 +1522,41 @@ export default function ProductManager() {
                           </div>
                         </td>
                       </tr>
-                    ))}
+                    ))
+                  )}
                 </tbody>
               </table>
               )}
             </div>
+            
+            {/* Pagination Controls */}
+            {totalPages > 1 && filterStatus !== null && (
+              <div className="flex items-center justify-between px-6 py-4 border-t border-white/10 bg-black/20">
+                <p className="text-sm text-white/50">
+                  عرض {startIndex + 1} إلى {Math.min(startIndex + itemsPerPage, filteredProducts.length)} من أصل {filteredProducts.length} منتج
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    className="p-2 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-white"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                  <span className="text-sm text-white font-medium px-2">
+                    {currentPage} / {totalPages}
+                  </span>
+                  <button
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    className="p-2 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-white"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                </div>
+              </div>
+            )}
+            
           </div>
         </div>
       )}
@@ -1831,6 +1914,65 @@ export default function ProductManager() {
               </button>
             </div>
           </motion.div>
+        </div>
+      )}
+
+      {publishSuccess && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/80 backdrop-blur-md"
+            onClick={() => {
+              setPublishSuccess(false);
+              setNewProduct({
+                name: "",
+                price: 0,
+                dozenPriceUsd: 0,
+                modelNumber: "",
+                productCode: "",
+                barcode: "",
+                categoryId: "",
+                subcategoryId: "",
+                imageUrl: "",
+                forceStandardCrush: true,
+                isHidden: true,
+              });
+            }}
+          />
+          <div
+            className="relative w-full max-w-sm bg-brq-card border border-brq-gold/30 rounded-2xl p-8 shadow-[0_0_40px_rgba(212,175,55,0.15)] flex flex-col items-center text-center overflow-hidden"
+            dir="rtl"
+          >
+            <div className="w-20 h-20 rounded-full bg-brq-gold/10 flex items-center justify-center mb-6 border border-brq-gold/20">
+              <CheckCircle size={40} className="text-brq-gold" />
+            </div>
+            <h3 className="text-2xl font-bold text-white mb-2">
+              تم النشر بنجاح!
+            </h3>
+            <p className="text-white/70 mb-8">
+              تم النشر بنجاح داخل التطبيق
+            </p>
+            <button
+              onClick={() => {
+                setPublishSuccess(false);
+                setNewProduct({
+                  name: "",
+                  price: 0,
+                  dozenPriceUsd: 0,
+                  modelNumber: "",
+                  productCode: "",
+                  barcode: "",
+                  categoryId: "",
+                  subcategoryId: "",
+                  imageUrl: "",
+                  forceStandardCrush: true,
+                  isHidden: true,
+                });
+              }}
+              className="w-full py-3 px-4 rounded-xl font-bold text-black bg-brq-gold hover:bg-yellow-500 transition-colors"
+            >
+              فهمت
+            </button>
+          </div>
         </div>
       )}
 

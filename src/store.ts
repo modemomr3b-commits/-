@@ -12,6 +12,9 @@ interface AppState {
   removeFromCart: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
   clearCart: () => void;
+  toast: { message: string, type: 'success' | 'error' | 'loading' } | null;
+  showToast: (message: string, type?: 'success' | 'error' | 'loading') => void;
+  hideToast: () => void;
 }
 
 export const useStore = create<AppState>()(
@@ -23,7 +26,6 @@ export const useStore = create<AppState>()(
         set({ user });
       },
       initialize: () => {
-        // Since we use persist middleware, state is loaded synchronously from localStorage
         set({ loading: false });
       },
       cart: [],
@@ -48,6 +50,14 @@ export const useStore = create<AppState>()(
           cart: state.cart.map(item => item.product.id === productId ? { ...item, quantity: Math.max(1, quantity) } : item)
         })),
       clearCart: () => set({ cart: [] }),
+      toast: null,
+      showToast: (message, type = 'success') => {
+        set({ toast: { message, type } });
+        if (type !== 'loading') {
+          setTimeout(() => set({ toast: null }), 3000);
+        }
+      },
+      hideToast: () => set({ toast: null }),
     }),
     {
       name: 'brq-storage',

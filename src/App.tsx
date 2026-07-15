@@ -28,6 +28,7 @@ import ReportManager from './components/admin/ReportManager';
 import TrashManager from './components/admin/TrashManager';
 
 import GlobalNotifications from './components/GlobalNotifications';
+import GlobalToast from './components/GlobalToast';
 
 export default function App() {
   const { initialize, user, loading } = useStore();
@@ -84,6 +85,7 @@ export default function App() {
 
   return (
     <BrowserRouter>
+      <GlobalToast />
       <GlobalNotifications />
       <div dir="rtl" className="min-h-screen bg-brq-black text-brq-white antialiased">
         <Routes>

@@ -21,7 +21,7 @@ export default function Products() {
   const [allCategories, setAllCategories] = useState<Category[]>([]);
   const [activeSub, setActiveSub] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const { addToCart, updateQuantity, removeFromCart, cart, user } = useStore();
+  const { addToCart, updateQuantity, removeFromCart, cart, user, showToast } = useStore();
   const [historyProduct, setHistoryProduct] = useState<Product | null>(null);
   const [fullscreenImage, setFullscreenImage] = useState<{ src: string, alt: string } | null>(null);
 
@@ -30,7 +30,7 @@ export default function Products() {
   const [confirmDialog, setConfirmDialog] = useState<{ isOpen: boolean; message: string; onConfirm: () => void } | null>(null);
   const [initialLoading, setInitialLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 100;
+  const itemsPerPage = 24;
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false);
 
   const [isSelectionMode, setIsSelectionMode] = useState(false);
@@ -172,10 +172,11 @@ export default function Products() {
     const imagesWithData = productsToShare.filter((p) => p.finalImageUrl || p.imageUrl);
 
     if (imagesWithData.length === 0) {
-      alert("لا توجد صور للمنتجات المحددة.");
+      showToast("لا توجد صور للمنتجات المحددة.", "error");
       return;
     }
 
+    showToast("بدأ التنزيل...", "loading");
     setDownloadProgress({ progress: 0, total: imagesWithData.length });
     let completed = 0;
     const files: File[] = [];
@@ -212,11 +213,13 @@ export default function Products() {
           });
           setSelectedIds(new Set());
           setIsSelectionMode(false);
+          showToast("تمت المشاركة بنجاح", "success");
         } catch (error) {
           console.error('Error sharing files', error);
+          showToast("حدث خطأ أثناء محاولة المشاركة.", "error");
         }
       } else {
-        alert("متصفحك لا يدعم مشاركة هذه الصور مباشرة.");
+        showToast("متصفحك لا يدعم مشاركة هذه الصور مباشرة.", "error");
       }
     }
   };
@@ -227,7 +230,7 @@ export default function Products() {
     
     const imgUrl = p.finalImageUrl || p.imageUrl;
     if (!imgUrl) {
-      alert("لا توجد صورة لهذا المنتج.");
+      showToast("لا توجد صورة لهذا المنتج.", "error");
       return;
     }
 
@@ -244,12 +247,13 @@ export default function Products() {
           files: [file],
           title: p.name,
         });
+        showToast("تمت المشاركة بنجاح", "success");
       } else {
-        alert("متصفحك لا يدعم مشاركة هذه الصورة مباشرة.");
+        showToast("متصفحك لا يدعم مشاركة هذه الصورة مباشرة.", "error");
       }
     } catch (error) {
       console.error('Error sharing file', error);
-      alert("حدث خطأ أثناء محاولة المشاركة.");
+      showToast("حدث خطأ أثناء محاولة المشاركة.", "error");
     }
   };
 
@@ -300,12 +304,12 @@ export default function Products() {
             disabled={downloadProgress !== null}
             onClick={async () => {
               if (filteredProducts.length === 0) {
-                 alert("لا توجد منتجات بصور لتحميلها");
+                 showToast("لا توجد منتجات بصور لتحميلها", "error");
                  return;
               }
               const imagesWithData = filteredProducts.filter(p => p.finalImageUrl || p.imageUrl);
               if (imagesWithData.length === 0) {
-                 alert("لا توجد صور للمنتجات لتحميلها.");
+                 showToast("لا توجد صور للمنتجات لتحميلها.", "error");
                  return;
               }
               

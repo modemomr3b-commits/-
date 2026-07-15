@@ -1,21 +1,21 @@
 import { useState, useEffect } from 'react';
-import { Search, SlidersHorizontal, Archive, Download, Loader2 } from 'lucide-react';
+import { Search, SlidersHorizontal, Archive, Download, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Link } from 'react-router';
+import { motion, AnimatePresence } from 'motion/react';
 import { api } from '../../api';
 import { Product } from '../../types';
 import OptimizedImage from '../OptimizedImage';
 import { useStore } from '../../store';
 
 export default function SearchPage() {
-  const { user } = useStore();
+  const { user, showToast } = useStore();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
-
   
   const [query, setQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 100;
+  const itemsPerPage = 24;
   
   const [searchArchived, setSearchArchived] = useState(false);
 
@@ -73,11 +73,12 @@ export default function SearchPage() {
     
     const imgUrl = p.finalImageUrl || p.imageUrl;
     if (!imgUrl) {
-      alert("الصورة غير متوفرة");
+      showToast("الصورة غير متوفرة", "error");
       return;
     }
 
     setDownloadingId(p.id!);
+    showToast("جاري التنزيل...", "loading");
     try {
       const res = await fetch(imgUrl);
       const blob = await res.blob();
@@ -94,9 +95,10 @@ export default function SearchPage() {
       document.body.removeChild(a);
       
       setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+      showToast("تم التنزيل بنجاح", "success");
     } catch (err) {
       console.error(`Failed to download ${p.name}`, err);
-      alert("حدث خطأ أثناء تحميل الصورة");
+      showToast("حدث خطأ أثناء التنزيل", "error");
     } finally {
       setDownloadingId(null);
     }

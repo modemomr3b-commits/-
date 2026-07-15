@@ -14,7 +14,7 @@ export default function ProductDetail() {
   const location = useLocation();
   const [product, setProduct] = useState<Product | null>(location.state?.product || null);
   const [loading, setLoading] = useState(!location.state?.product);
-  const { addToCart, updateQuantity, removeFromCart, cart, user } = useStore();
+  const { addToCart, updateQuantity, removeFromCart, cart, user, showToast } = useStore();
   const [historyProduct, setHistoryProduct] = useState<Product | null>(null);
   const [fullscreenImage, setFullscreenImage] = useState<{ src: string, alt: string } | null>(null);
 
@@ -93,15 +93,39 @@ export default function ProductDetail() {
 
          {(product.finalImageUrl || product.imageUrl) && (
             <div className="absolute top-4 left-4 flex flex-col gap-2 z-10">
-               <a 
-                  onClick={(e) => e.stopPropagation()}
-                  href={product.finalImageUrl || product.imageUrl} 
-                  download={`BRQ-${product.name}-${product.productCode}.jpg`}
+               <button 
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    const imgUrl = product.finalImageUrl || product.imageUrl;
+                    if (!imgUrl) return;
+                    showToast("جاري التنزيل...", "loading");
+                    try {
+                      const res = await fetch(imgUrl);
+                      const blob = await res.blob();
+                      const ext = blob.type.split('/')[1] || 'jpg';
+                      const safeName = (product.productCode || product.name || 'product').replace(/[\\/\\?<>\\\\:\\*\\|":]/g, '-');
+                      const filename = `BRQ-${safeName}.${ext}`;
+                      
+                      const objectUrl = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = objectUrl;
+                      a.download = filename;
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                      
+                      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+                      showToast("تم التنزيل بنجاح", "success");
+                    } catch (err) {
+                      console.error(`Failed to download ${product.name}`, err);
+                      showToast("حدث خطأ أثناء التنزيل", "error");
+                    }
+                  }}
                   className="p-2 bg-black/50 backdrop-blur-md rounded-full border border-white/20 text-white hover:bg-black transition-colors flex items-center justify-center"
                   title="تحميل الصورة النهائية"
                >
                   <Download size={24} />
-               </a>
+               </button>
                <button
                  onClick={async () => {
                     try {
@@ -119,12 +143,13 @@ export default function ProductDetail() {
                           files: [file],
                           title: product.name,
                         });
+                        showToast("تمت المشاركة بنجاح", "success");
                       } else {
-                        alert("متصفحك لا يدعم مشاركة هذه الصورة مباشرة.");
+                        showToast("متصفحك لا يدعم مشاركة هذه الصورة مباشرة.", "error");
                       }
                     } catch (error) {
                       console.error('Error sharing file', error);
-                      alert("حدث خطأ أثناء محاولة المشاركة.");
+                      showToast("حدث خطأ أثناء محاولة المشاركة.", "error");
                     }
                  }}
                  className="p-2 bg-black/50 backdrop-blur-md rounded-full border border-white/20 text-white hover:bg-black transition-colors flex items-center justify-center"
