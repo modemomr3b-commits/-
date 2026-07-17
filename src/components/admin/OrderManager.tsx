@@ -1,3 +1,4 @@
+import { formatDateTime, formatDate } from '../../utils/time';
 import { Search, Filter, Download, Eye, MoreVertical, Loader2, BellRing, UserCircle, Edit, Check, Trash2, Printer } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { api } from '../../api';
@@ -121,7 +122,7 @@ export default function OrderManager() {
   };
 
   const handlePrintOrder = (order: Order) => {
-    const date = (`${new Date(order.createdAt).getFullYear()}/${new Date(order.createdAt).getMonth() + 1}/${new Date(order.createdAt).getDate()} ${new Date(order.createdAt).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'})}`);
+    const date = formatDateTime(order.createdAt);
     
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
@@ -331,8 +332,6 @@ export default function OrderManager() {
                  </thead>
                  <tbody className="divide-y divide-white/5 text-white/90">
                     {filteredOrders.map((o) => {
-                       const date = (`${new Date(o.createdAt).getFullYear()}/${new Date(o.createdAt).getMonth() + 1}/${new Date(o.createdAt).getDate()}`);
-                       const time = new Date(o.createdAt).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'});
                        return (
                        <tr key={o.id} className="hover:bg-white/5 transition-colors">
                           <td className="p-4 font-mono font-bold text-brq-gold">
@@ -348,7 +347,7 @@ export default function OrderManager() {
                              </div>
                           </td>
                           <td className="p-4 font-mono">{o.totalQuantity || o.items?.reduce((acc, i) => acc+i.quantity,0)} قطعة/علبة</td>
-                          <td className="p-4 text-white/60 text-xs" dir="ltr">{time} - {date}</td>
+                          <td className="p-4 text-white/60 text-xs" dir="ltr">{formatDateTime(o.createdAt)}</td>
                           <td className="p-4">
                              <div className="group relative w-fit">
                                <select 
@@ -395,7 +394,7 @@ export default function OrderManager() {
                         <h2 className="text-xl font-bold text-white flex items-center gap-2">
                            طلب رقم: <span className="text-brq-gold font-mono">{selectedOrder.orderNumber}</span>
                         </h2>
-                        <p className="text-sm text-white/50" dir="ltr">{(`${new Date(selectedOrder.createdAt).getFullYear()}/${new Date(selectedOrder.createdAt).getMonth() + 1}/${new Date(selectedOrder.createdAt).getDate()} ${new Date(selectedOrder.createdAt).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'})}`)}</p>
+                        <p className="text-sm text-white/50" dir="ltr">{formatDateTime(selectedOrder.createdAt)}</p>
                      </div>
                      <span className={`px-3 py-1 rounded-full border text-xs font-bold ml-4 ${statusMap[selectedOrder.status || 'new']?.color}`}>
                         {statusMap[selectedOrder.status || 'new']?.label}

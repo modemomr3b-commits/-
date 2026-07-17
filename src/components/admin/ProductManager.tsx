@@ -1,3 +1,4 @@
+import { formatDateTime, formatDate } from '../../utils/time';
 import {
   Plus,
   Search,
@@ -833,7 +834,7 @@ export default function ProductManager() {
 
     let matchesDate = true;
     if (searchDate) {
-      const productDateStr = new Date(p.createdAt || 0).toLocaleDateString('en-CA');
+      const productDateStr = new Date(p.createdAt || 0).toLocaleDateString('en-CA', { timeZone: 'Asia/Baghdad' });
       matchesDate = productDateStr === searchDate;
     }
 
@@ -1034,7 +1035,7 @@ export default function ProductManager() {
                   سعر القطعة (بالدينار)
                 </p>
                 <p className="font-mono text-lg font-bold text-brq-gold">
-                  {newProduct.piecePriceIqd?.toLocaleString()}{" "}
+                  {newProduct.piecePriceIqd?.toLocaleString("en-US")}{" "}
                   <span className="text-sm">د.ع</span>
                 </p>
               </div>
@@ -1448,7 +1449,7 @@ export default function ProductManager() {
                         <td className="p-4">
                           <div className="flex flex-col items-end">
                             <span className="font-mono font-bold text-brq-gold">
-                              {(p.price || 0).toLocaleString("ar-IQ")} د.ع
+                              {(p.price || 0).toLocaleString("en-US")} د.ع
                             </span>
                             {p.dozenPriceUsd !== undefined && (
                               <span className="font-mono text-xs text-brq-blue mt-0.5">
@@ -1461,10 +1462,10 @@ export default function ProductManager() {
                           {p.packaging || "-"}
                         </td>
                         <td className="p-4 text-xs text-white/70">
-                          {p.createdAt ? (`${new Date(p.createdAt).getFullYear()}/${new Date(p.createdAt).getMonth() + 1}/${new Date(p.createdAt).getDate()}`) : "-"}
+                          {p.createdAt ? formatDate(p.createdAt) : "-"}
                           {p.updatedAt && p.updatedAt !== p.createdAt && (
                             <div className="text-[10px] text-white/40 mt-1">
-                              تحديث: {(`${new Date(p.updatedAt).getFullYear()}/${new Date(p.updatedAt).getMonth() + 1}/${new Date(p.updatedAt).getDate()}`)}
+                              تحديث: {formatDate(p.updatedAt)}
                             </div>
                           )}
                         </td>
@@ -1590,13 +1591,13 @@ export default function ProductManager() {
               <div className="flex-1">
                 <span className="block opacity-60 mb-1">تاريخ نزول المنتج:</span>
                 <span className="font-mono text-white/90">
-                  {editingProduct.createdAt ? (`${new Date(editingProduct.createdAt).getFullYear()}/${new Date(editingProduct.createdAt).getMonth() + 1}/${new Date(editingProduct.createdAt).getDate()} ${new Date(editingProduct.createdAt).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'})}`) : 'غير متوفر'}
+                  {editingProduct.createdAt ? formatDateTime(editingProduct.createdAt) : 'غير متوفر'}
                 </span>
               </div>
               <div className="flex-1 border-r border-white/10 pr-4">
                 <span className="block opacity-60 mb-1">تاريخ اخر تحديث:</span>
                 <span className="font-mono text-white/90">
-                  {editingProduct.updatedAt ? (`${new Date(editingProduct.updatedAt).getFullYear()}/${new Date(editingProduct.updatedAt).getMonth() + 1}/${new Date(editingProduct.updatedAt).getDate()} ${new Date(editingProduct.updatedAt).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'})}`) : (editingProduct.createdAt ? (`${new Date(editingProduct.createdAt).getFullYear()}/${new Date(editingProduct.createdAt).getMonth() + 1}/${new Date(editingProduct.createdAt).getDate()} ${new Date(editingProduct.createdAt).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'})}`) : 'غير متوفر')}
+                  {editingProduct.updatedAt ? formatDateTime(editingProduct.updatedAt) : (editingProduct.createdAt ? formatDateTime(editingProduct.createdAt) : 'غير متوفر')}
                 </span>
               </div>
             </div>
@@ -1699,7 +1700,7 @@ export default function ProductManager() {
                     سعر القطعة (بالدينار)
                   </p>
                   <p className="font-mono text-lg font-bold text-brq-gold">
-                    {editingProduct.piecePriceIqd?.toLocaleString()}{" "}
+                    {editingProduct.piecePriceIqd?.toLocaleString("en-US")}{" "}
                     <span className="text-sm">د.ع</span>
                   </p>
                 </div>

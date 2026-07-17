@@ -4,6 +4,7 @@ import {createRoot} from 'react-dom/client';
 import { registerSW } from 'virtual:pwa-register';
 import App from './App.tsx';
 import './index.css';
+import { ErrorBoundary } from './ErrorBoundary.tsx';
 
 // Register PWA Service Worker
 if ('serviceWorker' in navigator) {
@@ -12,6 +13,8 @@ if ('serviceWorker' in navigator) {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
   </StrictMode>,
 );

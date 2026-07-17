@@ -24,7 +24,7 @@ export function PriceHistoryViewer({ product, onClose }: { product: Product, onC
             <div className="text-center py-2 bg-black/30 rounded-xl border border-white/10">
               <span className="text-white/50 text-sm block">السعر القديم</span>
               <span className="text-xl font-bold font-mono text-white/70 line-through">
-                {(product.oldPriceInfo.piecePriceIqd || product.oldPriceInfo.price)?.toLocaleString()} د.ع
+                {(product.oldPriceInfo.piecePriceIqd || product.oldPriceInfo.price)?.toLocaleString("en-US")} د.ع
               </span>
             </div>
             <div className="flex-1 bg-black/40 rounded-xl overflow-hidden border border-white/5">
@@ -40,7 +40,7 @@ export function PriceHistoryViewer({ product, onClose }: { product: Product, onC
             <div className="text-center py-2 bg-brq-gold/10 rounded-xl border border-brq-gold/30">
               <span className="text-brq-gold/80 text-sm block">السعر الجديد</span>
               <span className="text-xl font-bold font-mono text-brq-gold">
-                {(product.piecePriceIqd || product.price)?.toLocaleString()} د.ع
+                {(product.piecePriceIqd || product.price)?.toLocaleString("en-US")} د.ع
               </span>
             </div>
             <div className="flex-1 bg-black/40 rounded-xl overflow-hidden border border-brq-gold/20">

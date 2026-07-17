@@ -1,3 +1,4 @@
+import { formatDateTime, formatDate } from '../../utils/time';
 import { useParams, Link, useNavigate } from "react-router";
 import { ChevronRight, Filter, Download, ShoppingCart, Layers, Share2, CheckSquare, Square, History } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
@@ -492,7 +493,7 @@ export default function Products() {
                 <div className="flex items-end justify-between mt-1">
                   <div>
                     <p className="text-brq-gold font-bold text-sm">
-                      {p.price?.toLocaleString()}
+                      {p.price?.toLocaleString("en-US")}
                     </p>
                     <p className="text-[9px] text-white/40">د.ع / الجملة</p>
                     {user?.role === 'admin' && p.dozenPriceUsd !== undefined && (
@@ -518,11 +519,11 @@ export default function Products() {
                 <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/5">
                   <div className="flex flex-col">
                     <p className="text-[9px] text-white/40 mb-0.5">تاريخ النزول</p>
-                    <p className="text-[10px] text-white/70 font-mono tracking-tight">{p.createdAt ? (`${new Date(p.createdAt).getFullYear()}/${new Date(p.createdAt).getMonth() + 1}/${new Date(p.createdAt).getDate()}`) : '---'}</p>
+                    <p className="text-[10px] text-white/70 font-mono tracking-tight">{p.createdAt ? formatDate(p.createdAt) : '---'}</p>
                   </div>
                   <div className="flex flex-col items-end">
                     <p className="text-[9px] text-white/40 mb-0.5">أخر تحديث</p>
-                    <p className="text-[10px] text-white/70 font-mono tracking-tight">{p.updatedAt ? (`${new Date(p.updatedAt).getFullYear()}/${new Date(p.updatedAt).getMonth() + 1}/${new Date(p.updatedAt).getDate()}`) : (p.createdAt ? (`${new Date(p.createdAt).getFullYear()}/${new Date(p.createdAt).getMonth() + 1}/${new Date(p.createdAt).getDate()}`) : '---')}</p>
+                    <p className="text-[10px] text-white/70 font-mono tracking-tight">{p.updatedAt ? formatDate(p.updatedAt) : (p.createdAt ? formatDate(p.createdAt) : '---')}</p>
                   </div>
                 </div>
                 <div className="mt-2">

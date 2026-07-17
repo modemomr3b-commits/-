@@ -89,7 +89,7 @@ export const burnProductOverlay = (product: any, rawImageUrl: string): Promise<s
         ctx.fillText('سعر الجملة (الدرزن)', doxX + doxW - (20 * scale), boxY + (15 * scale));
         ctx.fillStyle = '#d4af37';
         ctx.font = `bold ${36 * scale}px Arial`;
-        ctx.fillText(Number(product.price || 0).toLocaleString() + ' د.ع', doxX + doxW - (20 * scale), boxY + (45 * scale));
+        ctx.fillText(Number(product.price || 0).toLocaleString("en-US") + ' د.ع', doxX + doxW - (20 * scale), boxY + (45 * scale));
 
         // Piece Box (Left Side)
         const pceW = 380 * scale;
@@ -114,7 +114,7 @@ export const burnProductOverlay = (product: any, rawImageUrl: string): Promise<s
         ctx.fillText('سعر المفرد (القطعة)', pceX + pceW - (20 * scale), boxY + (15 * scale));
         ctx.fillStyle = '#000000'; // Black text for price
         ctx.font = `bold ${36 * scale}px Arial`;
-        ctx.fillText((product.piecePriceIqd ? Number(product.piecePriceIqd).toLocaleString() : '---') + ' د.ع', pceX + pceW - (20 * scale), boxY + (45 * scale));
+        ctx.fillText((product.piecePriceIqd ? Number(product.piecePriceIqd).toLocaleString("en-US") : '---') + ' د.ع', pceX + pceW - (20 * scale), boxY + (45 * scale));
 
         // --- Middle BRQ Text inside ribbon ---
         ctx.textAlign = 'center';

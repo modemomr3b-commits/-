@@ -1,3 +1,4 @@
+import { formatDateTime, formatDate } from '../../utils/time';
 import { useParams, useNavigate, useLocation } from 'react-router';
 import { ChevronRight, Heart, ShoppingCart, Loader2, Download, Share2, History } from 'lucide-react';
 import { useState, useEffect } from 'react';
@@ -183,7 +184,7 @@ export default function ProductDetail() {
             
             <div className="flex flex-col gap-1 mb-4">
               <div className="flex gap-4 items-baseline">
-                <p className="text-brq-gold text-2xl font-bold">{product.price?.toLocaleString()} <span className="text-sm">د.ع</span></p>
+                <p className="text-brq-gold text-2xl font-bold">{product.price?.toLocaleString("en-US")} <span className="text-sm">د.ع</span></p>
                 {product.packaging && <span className="text-xs text-white/50 bg-white/10 px-2 py-1 rounded">{product.packaging}</span>}
               </div>
               {user?.role === 'admin' && product.dozenPriceUsd !== undefined && (
@@ -208,15 +209,15 @@ export default function ProductDetail() {
                 </div>
                 <div className="glass-panel p-3 rounded-xl border border-white/5 bg-black/20">
                    <p className="text-[10px] text-white/50 uppercase tracking-widest mb-1">سعر القطعة (د.ع)</p>
-                   <p className="font-mono text-sm font-bold text-white">{product.piecePriceIqd ? product.piecePriceIqd.toLocaleString() : '---'}</p>
+                   <p className="font-mono text-sm font-bold text-white">{product.piecePriceIqd ? product.piecePriceIqd.toLocaleString("en-US") : '---'}</p>
                 </div>
                 <div className="glass-panel p-3 rounded-xl border border-white/5 bg-black/20">
                    <p className="text-[10px] text-white/50 uppercase tracking-widest mb-1">تاريخ النزول</p>
-                   <p className="font-mono text-xs font-bold text-white tracking-tight">{product.createdAt ? (`${new Date(product.createdAt).getFullYear()}/${new Date(product.createdAt).getMonth() + 1}/${new Date(product.createdAt).getDate()}`) : '---'}</p>
+                   <p className="font-mono text-xs font-bold text-white tracking-tight">{product.createdAt ? formatDate(product.createdAt) : '---'}</p>
                 </div>
                 <div className="glass-panel p-3 rounded-xl border border-white/5 bg-black/20">
                    <p className="text-[10px] text-white/50 uppercase tracking-widest mb-1">أخر تحديث</p>
-                   <p className="font-mono text-xs font-bold text-white tracking-tight">{product.updatedAt ? (`${new Date(product.updatedAt).getFullYear()}/${new Date(product.updatedAt).getMonth() + 1}/${new Date(product.updatedAt).getDate()}`) : (product.createdAt ? (`${new Date(product.createdAt).getFullYear()}/${new Date(product.createdAt).getMonth() + 1}/${new Date(product.createdAt).getDate()}`) : '---')}</p>
+                   <p className="font-mono text-xs font-bold text-white tracking-tight">{product.updatedAt ? formatDate(product.updatedAt) : (product.createdAt ? formatDate(product.createdAt) : '---')}</p>
                 </div>
             </div>
          </div>

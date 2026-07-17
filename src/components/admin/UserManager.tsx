@@ -1,3 +1,4 @@
+import { formatDateTime, formatDate } from '../../utils/time';
 import { Users, Plus, Search, Filter, Edit, ShieldX, CheckCircle, KeyRound, MoreVertical, Loader2, X, Trash2, Smartphone, Monitor, Globe } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import bcryptjs from 'bcryptjs';
@@ -294,7 +295,7 @@ export default function UserManager() {
                                const diffMins = Math.floor((Date.now() - user.lastActive)/60000);
                                if (diffMins < 1) lastActivityText = 'الآن';
                                else if (diffMins < 60) lastActivityText = `منذ ${diffMins} دقيقة`;
-                               else lastActivityText = (`${new Date(user.lastActive).getFullYear()}/${new Date(user.lastActive).getMonth() + 1}/${new Date(user.lastActive).getDate()}`);
+                               else lastActivityText = formatDate(user.lastActive);
                            }
 
                            return (

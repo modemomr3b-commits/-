@@ -1,3 +1,4 @@
+import { formatDateTime, formatDate } from '../../utils/time';
 import { useState, useEffect } from 'react';
 import { api } from '../../api';
 import { Bell, MessageCircle } from 'lucide-react';
@@ -60,7 +61,7 @@ export default function Messages() {
                   <div className="flex justify-between items-start mb-2">
                     <h3 className="text-lg font-bold text-white">{msg.title}</h3>
                     <span className="text-xs text-white/40" dir="ltr">
-                      {new Date(msg.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' })}
+                      {formatDate(msg.createdAt)}
                     </span>
                   </div>
                   <p className="text-white/80 leading-relaxed text-sm whitespace-pre-wrap">{msg.message}</p>

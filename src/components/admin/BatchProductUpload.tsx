@@ -467,7 +467,7 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
                 <div className="bg-white/5 p-1.5 rounded border border-white/10 mt-1 text-center flex justify-between items-center">
                   <span className="text-[10px] text-white/50">سعر القطعة:</span>
                   <span className="font-mono text-xs font-bold text-brq-gold">
-                    {product.piecePriceIqd?.toLocaleString()} د.ع
+                    {product.piecePriceIqd?.toLocaleString("en-US")} د.ع
                   </span>
                 </div>
               ) : null}

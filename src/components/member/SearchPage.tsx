@@ -214,7 +214,7 @@ export default function SearchPage() {
                          <div className="flex justify-between items-end mt-auto pt-2 border-t border-white/5">
                            <span className="text-xs font-mono text-white/50">{p.productCode}</span>
                            <div className="flex flex-col items-end">
-                             <span className="font-bold text-brq-gold text-sm">{Number(p.price).toLocaleString()} <span className="text-[10px]">د.ع</span></span>
+                             <span className="font-bold text-brq-gold text-sm">{Number(p.price).toLocaleString("en-US")} <span className="text-[10px]">د.ع</span></span>
                              {user?.role === 'admin' && p.dozenPriceUsd !== undefined && (
                                <span className="font-bold text-brq-blue text-xs font-mono">${p.dozenPriceUsd}</span>
                              )}

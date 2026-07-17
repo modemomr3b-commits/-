@@ -1,3 +1,4 @@
+import { formatDateTime, formatDate } from '../../utils/time';
 import { TrendingUp, FileText, Download, Calendar, Loader2, Activity } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { api } from '../../api';
@@ -76,7 +77,7 @@ export default function ReportManager() {
              <TrendingUp size={24} />
           </div>
           <h3 className="font-bold text-lg mb-1">إجمالي المبيعات التقديرية</h3>
-          <p className="text-2xl font-mono text-brq-gold mb-4">{stats.sales.toLocaleString('ar-IQ')} د.ع</p>
+          <p className="text-2xl font-mono text-brq-gold mb-4">{stats.sales.toLocaleString('en-US')} د.ع</p>
           <div className="w-full bg-white/5 h-2 rounded-full overflow-hidden">
              <div className="bg-brq-gold h-full w-[60%] rounded-full"></div>
           </div>
@@ -122,7 +123,7 @@ export default function ReportManager() {
                                  <span className="font-bold text-sm text-brq-gold">{log.userName || log.userId}</span>
                                  <span className="text-sm text-white/70">قام بـ {log.action}</span>
                               </div>
-                              <span className="text-xs text-white/40" dir="ltr">{(`${new Date(log.createdAt).getFullYear()}/${new Date(log.createdAt).getMonth() + 1}/${new Date(log.createdAt).getDate()} ${new Date(log.createdAt).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'})}`)}</span>
+                              <span className="text-xs text-white/40" dir="ltr">{formatDateTime(log.createdAt)}</span>
                            </div>
                            {(log.entityType || log.entityId) && (
                               <div className="text-xs text-white/50 mt-1 font-mono">

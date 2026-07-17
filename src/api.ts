@@ -1,3 +1,4 @@
+import { getServerTime } from './utils/time';
 import { supabase } from './supabase';
 import { ActivityLog } from './types';
 
@@ -161,7 +162,8 @@ export const api = {
     })).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   },
   createProduct: async (data: any) => { 
-    const safeData = { ...data, createdAt: data.createdAt || Date.now(), updatedAt: data.updatedAt || Date.now() };
+    const serverTime = await getServerTime();
+    const safeData = { ...data, createdAt: data.createdAt || serverTime, updatedAt: data.updatedAt || serverTime };
     
     // Upload images if they are base64
     if (safeData.imageUrl?.startsWith('data:image')) {
@@ -257,7 +259,8 @@ export const api = {
     const wasHidden = data.isHidden === false && existingSize.isHidden === true;
     let oldProduct = wasHidden ? op : null;
 
-    const safeData = { ...data, updatedAt: Date.now() };
+    const serverTime = await getServerTime();
+    const safeData = { ...data, updatedAt: serverTime };
 
     if (safeData.imageUrl?.startsWith('data:image')) {
         safeData.imageUrl = await api.uploadImage(safeData.imageUrl);
@@ -481,7 +484,8 @@ export const api = {
   },
   logAction: async (log: Omit<ActivityLog, 'id' | 'createdAt'>) => {
     try {
-      await supabase.from('activity_logs').insert({ ...log, createdAt: Date.now() });
+      const serverTime = await getServerTime();
+      await supabase.from('activity_logs').insert({ ...log, createdAt: serverTime });
     } catch (e) {
       console.error('Failed to log action', e);
     }
@@ -495,7 +499,8 @@ export const api = {
     return data;
   },
   createNotification: async (data: any) => {
-    await supabase.from('notifications').insert({ ...data, createdAt: Date.now() });
+    const serverTime = await getServerTime();
+    await supabase.from('notifications').insert({ ...data, createdAt: serverTime });
   },
   markNotificationRead: async (id: string) => {
     await supabase.from('notifications').update({ read: true }).match({ id });

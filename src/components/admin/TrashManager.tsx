@@ -217,7 +217,7 @@ export default function TrashManager() {
                     </td>
                     <td className="p-4 text-white/60 text-xs" dir="ltr">
                       {item.deletedAt
-                        ? new Date(item.deletedAt).toLocaleString("ar-IQ")
+                        ? new Date(item.deletedAt).toLocaleString("en-US")
                         : "غير معروف"}
                     </td>
                     <td className="p-4 text-white/60 text-xs font-mono">
