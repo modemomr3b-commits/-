@@ -26,7 +26,7 @@ export default function ProductDetail() {
       try {
         const found = await api.getProductById(productId as string);
         if (mounted) {
-          if (found && found.isHidden) {
+          if (found && (found.isHidden || found.isLocked)) {
             setProduct(null);
           } else {
             setProduct(found || null);

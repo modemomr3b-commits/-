@@ -46,7 +46,7 @@ export default function SearchPage() {
   }, [searchInput]);
 
   const filteredProductsAll = useMemo(() => products.filter(p => {
-    if (p.isHidden) return false;
+    if (p.isHidden || p.isLocked) return false;
     
     let matchesQuery = true;
     if (query) {

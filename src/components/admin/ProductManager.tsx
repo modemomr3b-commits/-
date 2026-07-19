@@ -22,6 +22,9 @@ import {
   CheckCircle,
   ChevronRight,
   ChevronLeft,
+  Lock,
+  Unlock,
+  FolderInput,
 } from "lucide-react";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
@@ -73,12 +76,15 @@ export default function ProductManager() {
     isHidden: true,
   });
 
-  const [filterStatus, setFilterStatus] = useState<"all" | "active" | "archived" | "inactive" | "duplicates" | null>(null);
+  const [filterStatus, setFilterStatus] = useState<"all" | "active" | "archived" | "inactive" | "duplicates" | "locked" | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [searchDate, setSearchDate] = useState("");
   const [filterCategoryId, setFilterCategoryId] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
+  const [moveToCategoryId, setMoveToCategoryId] = useState("");
+  const [moveToSubcategoryId, setMoveToSubcategoryId] = useState("");
   const itemsPerPage = 30;
 
   // Debounce search input
@@ -633,6 +639,55 @@ export default function ProductManager() {
     }
   };
 
+  const handleBulkToggleLock = async (lock: boolean) => {
+    if (selectedIds.size === 0) return;
+    
+    try {
+      setProducts((prev) =>
+        prev.map((prod) =>
+          selectedIds.has(prod.id!) ? { ...prod, isLocked: lock } : prod
+        )
+      );
+      
+      const ids = Array.from(selectedIds);
+      await Promise.all(ids.map(id => api.updateProduct(id, { isLocked: lock })));
+      
+      setSelectedIds(new Set());
+    } catch (e: any) {
+      console.error("Error bulk toggling lock:", e);
+      const updated = await api.getProducts();
+      setProducts(updated);
+      setAlertMessage("فشل التحديث المجمع: " + e.message);
+    }
+  };
+
+  const handleBulkMoveCategory = async () => {
+    if (selectedIds.size === 0 || !moveToCategoryId) return;
+    setIsSubmitting(true);
+    try {
+      setProducts((prev) =>
+        prev.map((prod) =>
+          selectedIds.has(prod.id!) ? { ...prod, categoryId: moveToCategoryId, subcategoryId: moveToSubcategoryId } : prod
+        )
+      );
+      
+      const ids = Array.from(selectedIds);
+      await Promise.all(ids.map(id => api.updateProduct(id, { categoryId: moveToCategoryId, subcategoryId: moveToSubcategoryId })));
+      
+      setSelectedIds(new Set());
+      setIsMoveModalOpen(false);
+      setMoveToCategoryId("");
+      setMoveToSubcategoryId("");
+    } catch (e: any) {
+      console.error("Error bulk moving categories:", e);
+      const updated = await api.getProducts();
+      setProducts(updated);
+      setAlertMessage("فشل نقل الأقسام: " + e.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleBulkShare = async () => {
     if (selectedIds.size === 0) return;
 
@@ -818,8 +873,11 @@ export default function ProductManager() {
   const filteredProducts = useMemo(() => products.filter(p => {
     if (filterStatus === 'archived') {
       if (!p.isArchived) return false;
+    } else if (filterStatus === 'locked') {
+      if (!p.isLocked) return false;
     } else {
       if (p.isArchived) return false;
+      if (p.isLocked) return false;
       
       if (filterStatus === 'inactive' && !p.isHidden) return false;
       if (filterStatus === 'active' && p.isHidden) return false;
@@ -827,7 +885,7 @@ export default function ProductManager() {
       if (filterStatus === null && !searchQuery) return false;
     }
 
-    if (filterStatus !== 'archived') {
+    if (filterStatus !== 'archived' && filterStatus !== 'locked') {
       if (filterCategoryId && p.categoryId !== filterCategoryId) {
         return false;
       }
@@ -1174,6 +1232,12 @@ export default function ProductManager() {
             >
               المواد المكررة
             </button>
+            <button
+              onClick={() => setFilterStatus("locked")}
+              className={`pb-2 px-2 text-sm font-bold border-b-2 transition-colors ${filterStatus === "locked" ? "border-brq-gold text-brq-gold" : "border-transparent text-white/50 hover:text-white"}`}
+            >
+              المواد المقفلة
+            </button>
           </div>
 
           <div className="glass-panel border border-white/5 rounded-2xl overflow-hidden p-1">
@@ -1245,6 +1309,33 @@ export default function ProductManager() {
                     >
                       <EyeOff size={16} />
                       إخفاء
+                    </button>
+                  )}
+                  {selectedIds.size > 0 && filterStatus !== 'locked' && (
+                    <button
+                      onClick={() => handleBulkToggleLock(true)}
+                      className="flex items-center gap-2 px-4 py-2 bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded-lg text-sm hover:bg-purple-500/30 transition-colors font-bold whitespace-nowrap"
+                    >
+                      <Lock size={16} />
+                      نقل للمواد المقفلة
+                    </button>
+                  )}
+                  {selectedIds.size > 0 && filterStatus === 'locked' && (
+                    <button
+                      onClick={() => handleBulkToggleLock(false)}
+                      className="flex items-center gap-2 px-4 py-2 bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded-lg text-sm hover:bg-purple-500/30 transition-colors font-bold whitespace-nowrap"
+                    >
+                      <Unlock size={16} />
+                      استرجاع من المواد المقفلة
+                    </button>
+                  )}
+                  {selectedIds.size > 0 && (
+                    <button
+                      onClick={() => setIsMoveModalOpen(true)}
+                      className="flex items-center gap-2 px-4 py-2 bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 rounded-lg text-sm hover:bg-indigo-500/30 transition-colors font-bold whitespace-nowrap"
+                    >
+                      <FolderInput size={16} />
+                      نقل الأقسام
                     </button>
                   )}
                   {selectedIds.size > 0 && (
@@ -1512,6 +1603,21 @@ export default function ProductManager() {
                               }
                             >
                               <Package size={16} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedIds(new Set([p.id!]));
+                                handleBulkToggleLock(!p.isLocked);
+                              }}
+                              className="p-1.5 hover:bg-purple-500/20 text-purple-400 rounded transition-colors"
+                              title={
+                                p.isLocked
+                                  ? "استرجاع من المواد المقفلة"
+                                  : "نقل للمواد المقفلة"
+                              }
+                            >
+                              {p.isLocked ? <Unlock size={16} /> : <Lock size={16} />}
                             </button>
                             <button
                               type="button"
@@ -1974,6 +2080,78 @@ export default function ProductManager() {
             >
               فهمت
             </button>
+          </div>
+        </div>
+      )}
+
+      {isMoveModalOpen && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[200] backdrop-blur-sm">
+          <div className="bg-brq-card border border-brq-border rounded-xl p-6 max-w-sm w-full relative overflow-hidden" dir="rtl">
+            <h3 className="text-xl font-bold text-white mb-4">نقل {selectedIds.size} منتجات</h3>
+            
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="block text-sm font-medium text-white mb-1">
+                  القسم الرئيسي <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={moveToCategoryId}
+                  onChange={(e) => {
+                    setMoveToCategoryId(e.target.value);
+                    setMoveToSubcategoryId("");
+                  }}
+                  className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-white focus:border-brq-gold focus:outline-none"
+                  required
+                >
+                  <option value="">اختر القسم الرئيسي...</option>
+                  {categories
+                    .filter((c) => !c.parentId && !c.isHidden)
+                    .map((cat) => (
+                      <option key={cat.id} value={cat.id}>
+                        {cat.name}
+                      </option>
+                    ))}
+                </select>
+              </div>
+              
+              {moveToCategoryId && categories.some(c => c.parentId === moveToCategoryId && !c.isHidden) && (
+                <div>
+                  <label className="block text-sm font-medium text-white mb-1">
+                    القسم الفرعي
+                  </label>
+                  <select
+                    value={moveToSubcategoryId}
+                    onChange={(e) => setMoveToSubcategoryId(e.target.value)}
+                    className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-white focus:border-brq-gold focus:outline-none"
+                  >
+                    <option value="">بدون قسم فرعي (اختياري)</option>
+                    {categories
+                      .filter((c) => c.parentId === moveToCategoryId && !c.isHidden)
+                      .map((cat) => (
+                        <option key={cat.id} value={cat.id}>
+                          {cat.name}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              )}
+            </div>
+            
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setIsMoveModalOpen(false)}
+                className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-lg transition-all text-sm"
+              >
+                إلغاء
+              </button>
+              <button
+                onClick={handleBulkMoveCategory}
+                disabled={!moveToCategoryId || isSubmitting}
+                className="px-4 py-2 bg-indigo-500/20 hover:bg-indigo-500 text-indigo-400 hover:text-white border border-indigo-500/50 rounded-lg transition-all font-bold text-sm disabled:opacity-50"
+              >
+                {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : "نقل"}
+              </button>
+            </div>
           </div>
         </div>
       )}
