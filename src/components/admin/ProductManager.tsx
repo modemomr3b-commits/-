@@ -1294,12 +1294,7 @@ export default function ProductManager() {
             </div>
 
             <div className="overflow-x-auto min-h-[400px]">
-              {loading ? (
-                <div className="flex flex-col items-center justify-center h-[400px] text-center p-8 space-y-6">
-                  <Loader2 className="animate-spin text-brq-gold w-12 h-12 mb-4" />
-                  <p className="text-white/50">جاري تحميل المنتجات...</p>
-                </div>
-              ) : filterStatus === null && !searchQuery ? (
+              {filterStatus === null && !searchQuery ? (
                 <div className="flex flex-col items-center justify-center h-[400px] text-center p-8 space-y-6">
                   <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center text-white/30 border border-white/10">
                     <Package size={40} />
@@ -1310,6 +1305,11 @@ export default function ProductManager() {
                       قم باختيار المنتجات الفعالة، غير الفعالة، أو النافذة من القائمة العلوية لعرض المنتجات، أو ابدأ بالبحث مباشرة.
                     </p>
                   </div>
+                </div>
+              ) : loading ? (
+                <div className="flex flex-col items-center justify-center h-[400px] text-center p-8 space-y-6">
+                  <Loader2 className="animate-spin text-brq-gold w-12 h-12 mb-4" />
+                  <p className="text-white/50">جاري تحميل المنتجات...</p>
                 </div>
               ) : (
               <table className="w-full text-sm text-right">
