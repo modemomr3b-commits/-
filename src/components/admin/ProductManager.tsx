@@ -818,43 +818,38 @@ export default function ProductManager() {
   }, [products]);
 
   const filteredProducts = useMemo(() => products.filter(p => {
-    if (filterCategoryId && p.categoryId !== filterCategoryId) {
-      return false;
+    if (filterStatus === 'archived') {
+      if (!p.isArchived) return false;
+    } else {
+      if (p.isArchived) return false;
+      
+      if (filterStatus === 'inactive' && !p.isHidden) return false;
+      if (filterStatus === 'active' && p.isHidden) return false;
+      if (filterStatus === 'duplicates' && !duplicatesSet.has(p.modelNumber || p.productCode)) return false;
+      if (filterStatus === null && !searchQuery) return false;
     }
 
-    let matchesSearch = true;
+    if (filterStatus !== 'archived') {
+      if (filterCategoryId && p.categoryId !== filterCategoryId) {
+        return false;
+      }
+    }
+
     if (searchQuery) {
       const q = searchQuery.toLowerCase().trim().replace(/[-_]/g, '');
-      matchesSearch = 
+      const matchesSearch = 
         (p.name && p.name.toLowerCase().replace(/[-_]/g, '').includes(q)) ||
         (p.productCode && p.productCode.toLowerCase().replace(/[-_]/g, '').startsWith(q)) ||
         (p.modelNumber && p.modelNumber.toLowerCase().replace(/[-_]/g, '').startsWith(q)) ||
         (p.barcode && p.barcode.toLowerCase().replace(/[-_]/g, '').startsWith(q));
+      if (!matchesSearch) return false;
     }
 
-    let matchesDate = true;
     if (searchDate) {
       const productDateStr = new Date(p.createdAt || 0).toLocaleDateString('en-CA', { timeZone: 'Asia/Baghdad' });
-      matchesDate = productDateStr === searchDate;
+      if (productDateStr !== searchDate) return false;
     }
 
-    if (searchQuery || searchDate) {
-      if (!matchesSearch || !matchesDate) return false;
-    } else {
-      if (filterStatus === 'archived') {
-        if (!p.isArchived) return false;
-      } else if (filterStatus === 'inactive') {
-        if (!p.isHidden || p.isArchived) return false;
-      } else if (filterStatus === 'active') {
-        if (p.isHidden || p.isArchived) return false;
-      } else if (filterStatus === 'duplicates') {
-        if (!duplicatesSet.has(p.modelNumber || p.productCode)) return false;
-      } else if (filterStatus === 'all') {
-        if (p.isArchived) return false;
-      } else if (filterStatus === null) {
-        return false;
-      }
-    }
     return true;
   }), [products, filterCategoryId, searchQuery, searchDate, filterStatus, duplicatesSet]);
 
