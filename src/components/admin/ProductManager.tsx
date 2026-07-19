@@ -128,21 +128,19 @@ export default function ProductManager() {
 
   const loadData = async () => {
     try {
-      const [cats, prods, settings] = await Promise.all([
-        api.getCategories(),
-        api.getProducts(),
-        api.getSettings(),
-      ]);
-      setCategories(cats);
+      api.getCategories().then(cats => setCategories(cats));
+      api.getSettings().then(settings => {
+        if (settings?.usdExchangeRate) {
+          setUsdRate(settings.usdExchangeRate);
+        }
+      });
+      const prods = await api.getProducts();
       setProducts(
         prods.map((p: any) => ({
           ...p,
           createdAt: p.createdAt ? new Date(p.createdAt).getTime() : Date.now(),
         })),
       );
-      if (settings?.usdExchangeRate) {
-        setUsdRate(settings.usdExchangeRate);
-      }
     } catch (e) {
       console.error(e);
     }
@@ -857,15 +855,6 @@ export default function ProductManager() {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedProducts = useMemo(() => filteredProducts.slice(startIndex, startIndex + itemsPerPage), [filteredProducts, startIndex, itemsPerPage]);
 
-  if (loading) {
-    return (
-      <div className="flex-1 flex flex-col justify-center items-center h-[60vh]">
-        <Loader2 className="animate-spin text-brq-gold w-12 h-12 mb-4" />
-        <p className="text-white/50">جاري تحميل المنتجات...</p>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -1305,7 +1294,12 @@ export default function ProductManager() {
             </div>
 
             <div className="overflow-x-auto min-h-[400px]">
-              {filterStatus === null && !searchQuery ? (
+              {loading ? (
+                <div className="flex flex-col items-center justify-center h-[400px] text-center p-8 space-y-6">
+                  <Loader2 className="animate-spin text-brq-gold w-12 h-12 mb-4" />
+                  <p className="text-white/50">جاري تحميل المنتجات...</p>
+                </div>
+              ) : filterStatus === null && !searchQuery ? (
                 <div className="flex flex-col items-center justify-center h-[400px] text-center p-8 space-y-6">
                   <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center text-white/30 border border-white/10">
                     <Package size={40} />
