@@ -11,8 +11,10 @@ import {
   Layers,
   Download,
   CheckCircle,
+  AlertCircle,
 } from "lucide-react";
 import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "motion/react";
 import { api } from "../../api";
 import { supabase } from "../../supabase";
 import { Category, Product } from "../../types";
@@ -25,6 +27,8 @@ export default function CategoryManager() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [newCatName, setNewCatName] = useState("");
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
+  const [alertMessage, setAlertMessage] = useState<string | null>(null);
 
   const fetchCats = async () => {
     try {
@@ -97,6 +101,13 @@ export default function CategoryManager() {
   };
 
   const handleDelete = async (id: string, name: string) => {
+    setDeleteConfirm({ id, name });
+  };
+
+  const executeDelete = async () => {
+    if (!deleteConfirm) return;
+    const { id, name } = deleteConfirm;
+    setDeleteConfirm(null);
     try {
       // Optimistic update
       setCategories((prev) => prev.filter((c) => c.id !== id && c.parentId !== id));
@@ -117,12 +128,18 @@ export default function CategoryManager() {
       });
       const updated = await api.getCategories();
       setCategories(updated);
+      
+      if (productsInCat.length > 0) {
+        setAlertMessage(`تم حذف القسم "${name}". تم العثور على ${productsInCat.length} منتجات تابعة لهذا القسم، ستحتاج إلى إعادة تعيين أقسامها من إدارة المنتجات.`);
+      } else {
+        setAlertMessage(`تم حذف القسم "${name}" بنجاح.`);
+      }
     } catch (e) {
       console.error(e);
       // Revert optimistic update
       const updated = await api.getCategories();
       setCategories(updated);
-      alert("حدث خطأ أثناء الحذف");
+      setAlertMessage("حدث خطأ أثناء الحذف");
     }
   };
 
@@ -624,6 +641,76 @@ export default function CategoryManager() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      <AnimatePresence>
+        {deleteConfirm && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/80 backdrop-blur-md"
+              onClick={() => setDeleteConfirm(null)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-md bg-white border-2 border-brq-royal rounded-2xl p-8 shadow-[0_0_40px_rgba(30,94,255,0.2)] flex flex-col items-center text-center overflow-hidden"
+              dir="rtl"
+            >
+              <div className="absolute top-0 right-0 w-full h-1 bg-gradient-to-r from-brq-gold to-brq-royal"></div>
+              <div className="w-20 h-20 rounded-full bg-blue-50 border-2 border-brq-gold flex items-center justify-center mb-6 shadow-inner">
+                <Trash2 size={40} className="text-brq-royal" />
+              </div>
+              <h3 className="text-3xl font-black text-black mb-4 tracking-tight">
+                تنبيه هام!
+              </h3>
+              <p className="text-black text-xl font-bold mb-8 leading-relaxed">
+                هل أنت متأكد من حذف القسم "{deleteConfirm.name}" بشكل نهائي ولا يمكن التراجع؟
+              </p>
+              
+              <div className="flex gap-4 w-full">
+                <button
+                  onClick={() => setDeleteConfirm(null)}
+                  className="flex-1 py-4 px-4 rounded-xl font-black text-lg text-white bg-black hover:bg-gray-800 transition-colors"
+                >
+                  إلغاء التراجع
+                </button>
+                <button
+                  onClick={executeDelete}
+                  className="flex-1 py-4 px-4 rounded-xl font-black text-lg text-white bg-brq-royal hover:opacity-90 border border-brq-gold transition-colors shadow-[0_4px_14px_0_rgba(30,94,255,0.39)]"
+                >
+                  نعم، احذف القسم
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {alertMessage && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[300] backdrop-blur-sm">
+          <div className="bg-white border-2 border-brq-royal rounded-xl p-6 max-w-sm w-full relative overflow-hidden shadow-[0_0_40px_rgba(30,94,255,0.2)]" dir="rtl">
+            <div className="absolute top-0 right-0 w-full h-1 bg-gradient-to-r from-brq-gold to-brq-royal"></div>
+            <h3 className="text-xl font-bold text-black mb-3 flex items-center gap-2">
+              <AlertCircle className="w-6 h-6 text-brq-royal" />
+              تنبيه
+            </h3>
+            <p className="text-black mb-6 leading-relaxed whitespace-pre-wrap font-medium">
+              {alertMessage}
+            </p>
+            <div className="flex justify-end">
+              <button 
+                onClick={() => setAlertMessage(null)}
+                className="px-6 py-2 bg-brq-royal text-white border border-brq-gold rounded-lg transition-all font-bold text-sm shadow-[0_4px_14px_0_rgba(30,94,255,0.39)] hover:opacity-90"
+              >
+                حسناً
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -1052,7 +1052,7 @@ export default function ProductManager() {
               <select
                 value={(newProduct.forceStandardCrush ?? true) ? "yes" : "no"}
                 onChange={(e) => handleForceStandardCrushChange(e.target.value === "yes", false)}
-                className="bg-white border border-black rounded-lg px-3 py-1.5 text-sm focus:border-brq-gold/50 outline-none text-black w-24 placeholder:text-gray-500"
+                className="bg-white border-2 border-brq-royal rounded-lg px-3 py-1.5 text-sm font-bold focus:border-brq-gold outline-none text-black w-24 shadow-sm"
               >
                 <option value="no">لا</option>
                 <option value="yes">نعم</option>
@@ -1266,7 +1266,7 @@ export default function ProductManager() {
                   <select
                     value={filterCategoryId}
                     onChange={(e) => setFilterCategoryId(e.target.value)}
-                    className="appearance-none pl-8 pr-10 py-2.5 bg-black/40 border border-white/10 rounded-lg text-sm text-white hover:bg-white/5 transition-colors focus:outline-none focus:border-brq-gold/50"
+                    className="appearance-none pl-8 pr-10 py-2.5 bg-white border-2 border-brq-royal rounded-lg text-sm font-bold text-black hover:bg-gray-50 transition-colors focus:outline-none focus:border-brq-gold shadow-sm"
                   >
                     <option value="">جميع الأقسام</option>
                     {categories.filter(c => !c.parentId).map(c => (
@@ -1770,7 +1770,7 @@ export default function ProductManager() {
                 <select
                   value={(editingProduct.forceStandardCrush ?? true) ? "yes" : "no"}
                   onChange={(e) => handleForceStandardCrushChange(e.target.value === "yes", true)}
-                  className="bg-white border border-black rounded-lg px-3 py-1.5 text-sm focus:border-brq-gold/50 outline-none text-black w-24 placeholder:text-gray-500"
+                  className="bg-white border-2 border-brq-royal rounded-lg px-3 py-1.5 text-sm font-bold focus:border-brq-gold outline-none text-black w-24 shadow-sm"
                 >
                   <option value="no">لا</option>
                   <option value="yes">نعم</option>
@@ -1992,16 +1992,17 @@ export default function ProductManager() {
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            className="relative w-full max-w-md bg-white border-2 border-red-500 rounded-2xl p-8 shadow-2xl flex flex-col items-center text-center overflow-hidden"
+            className="relative w-full max-w-md bg-white border-2 border-brq-royal rounded-2xl p-8 shadow-[0_0_40px_rgba(30,94,255,0.2)] flex flex-col items-center text-center overflow-hidden"
             dir="rtl"
           >
-            <div className="w-20 h-20 rounded-full bg-red-100 flex items-center justify-center mb-6">
-              <Trash2 size={40} className="text-red-600" />
+            <div className="absolute top-0 right-0 w-full h-1 bg-gradient-to-r from-brq-gold to-brq-royal"></div>
+            <div className="w-20 h-20 rounded-full bg-blue-50 border-2 border-brq-gold flex items-center justify-center mb-6 shadow-inner">
+              <Trash2 size={40} className="text-brq-royal" />
             </div>
-            <h3 className="text-3xl font-black text-gray-900 mb-4 tracking-tight">
+            <h3 className="text-3xl font-black text-black mb-4 tracking-tight">
               تنبيه هام!
             </h3>
-            <p className="text-gray-800 text-xl font-bold mb-8 leading-relaxed">
+            <p className="text-black text-xl font-bold mb-8 leading-relaxed">
               {deleteConfirm.isBulk 
                 ? `هل أنت متأكد من حذف (${deleteConfirm.count}) منتجات بشكل نهائي ولا يمكن التراجع؟` 
                 : `هل أنت متأكد من حذف المنتج "${deleteConfirm.name}" بشكل نهائي ولا يمكن التراجع؟`}
@@ -2010,13 +2011,13 @@ export default function ProductManager() {
             <div className="flex gap-4 w-full">
               <button
                 onClick={() => setDeleteConfirm(null)}
-                className="flex-1 py-4 px-4 rounded-xl font-black text-lg text-gray-700 bg-gray-200 hover:bg-gray-300 transition-colors"
+                className="flex-1 py-4 px-4 rounded-xl font-black text-lg text-white bg-black hover:bg-gray-800 transition-colors"
               >
                 إلغاء التراجع
               </button>
               <button
                 onClick={executeDelete}
-                className="flex-1 py-4 px-4 rounded-xl font-black text-lg text-white bg-red-600 hover:bg-red-700 transition-colors shadow-lg shadow-red-500/30"
+                className="flex-1 py-4 px-4 rounded-xl font-black text-lg text-white bg-brq-royal hover:opacity-90 border border-brq-gold transition-colors shadow-[0_4px_14px_0_rgba(30,94,255,0.39)]"
               >
                 نعم، احذف الموديل
               </button>
@@ -2100,7 +2101,7 @@ export default function ProductManager() {
                     setMoveToCategoryId(e.target.value);
                     setMoveToSubcategoryId("");
                   }}
-                  className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-white focus:border-brq-gold focus:outline-none"
+                  className="w-full bg-white border-2 border-brq-royal rounded-lg px-3 py-2 text-black font-bold focus:border-brq-gold focus:outline-none shadow-sm"
                   required
                 >
                   <option value="">اختر القسم الرئيسي...</option>
@@ -2122,7 +2123,7 @@ export default function ProductManager() {
                   <select
                     value={moveToSubcategoryId}
                     onChange={(e) => setMoveToSubcategoryId(e.target.value)}
-                    className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-white focus:border-brq-gold focus:outline-none"
+                    className="w-full bg-white border-2 border-brq-royal rounded-lg px-3 py-2 text-black font-bold focus:border-brq-gold focus:outline-none shadow-sm"
                   >
                     <option value="">بدون قسم فرعي (اختياري)</option>
                     {categories
@@ -2158,19 +2159,19 @@ export default function ProductManager() {
 
       {alertMessage && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[300] backdrop-blur-sm">
-          <div className="bg-brq-card border border-brq-border rounded-xl p-6 max-w-sm w-full relative overflow-hidden" dir="rtl">
-            <div className="absolute top-0 right-0 w-full h-1 bg-gradient-to-r from-red-500 to-red-700"></div>
-            <h3 className="text-xl font-bold text-white mb-3 flex items-center gap-2">
-              <AlertCircle className="w-6 h-6 text-red-500" />
+          <div className="bg-white border-2 border-brq-royal rounded-xl p-6 max-w-sm w-full relative overflow-hidden shadow-[0_0_40px_rgba(30,94,255,0.2)]" dir="rtl">
+            <div className="absolute top-0 right-0 w-full h-1 bg-gradient-to-r from-brq-gold to-brq-royal"></div>
+            <h3 className="text-xl font-bold text-black mb-3 flex items-center gap-2">
+              <AlertCircle className="w-6 h-6 text-brq-royal" />
               تنبيه
             </h3>
-            <p className="text-white/80 mb-6 leading-relaxed whitespace-pre-wrap">
+            <p className="text-black mb-6 leading-relaxed whitespace-pre-wrap font-medium">
               {alertMessage}
             </p>
             <div className="flex justify-end">
               <button 
                 onClick={() => setAlertMessage(null)}
-                className="px-6 py-2 bg-red-500/20 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/50 hover:border-red-500 rounded-lg transition-all font-bold text-sm"
+                className="px-6 py-2 bg-brq-royal text-white border border-brq-gold rounded-lg transition-all font-bold text-sm shadow-[0_4px_14px_0_rgba(30,94,255,0.39)] hover:opacity-90"
               >
                 حسناً
               </button>

@@ -134,6 +134,7 @@ export const api = {
     const res = allData.map((p: any) => ({
       ...p,
       isHidden: p.size?.isHidden || false,
+      isLocked: p.size?.isLocked || false,
       oldPriceInfo: p.size?.oldPriceInfo || undefined,
       forceStandardCrush: p.size?.forceStandardCrush ?? true,
       updatedAt: p.size?.updatedAt || p.createdAt
@@ -147,6 +148,7 @@ export const api = {
     return {
       ...data,
       isHidden: data.size?.isHidden || false,
+      isLocked: data.size?.isLocked || false,
       oldPriceInfo: data.size?.oldPriceInfo || undefined,
       forceStandardCrush: data.size?.forceStandardCrush ?? true
     };
@@ -156,6 +158,7 @@ export const api = {
     return data.map((p: any) => ({
       ...p,
       isHidden: p.size?.isHidden || false,
+      isLocked: p.size?.isLocked || false,
       oldPriceInfo: p.size?.oldPriceInfo || undefined,
       forceStandardCrush: p.size?.forceStandardCrush ?? true,
       updatedAt: p.size?.updatedAt || p.createdAt
@@ -175,10 +178,12 @@ export const api = {
 
     safeData.size = safeData.size || {};
     if (safeData.isHidden !== undefined) safeData.size.isHidden = safeData.isHidden;
+    if (safeData.isLocked !== undefined) safeData.size.isLocked = safeData.isLocked;
     if (safeData.oldPriceInfo !== undefined) safeData.size.oldPriceInfo = safeData.oldPriceInfo;
     if (safeData.forceStandardCrush !== undefined) safeData.size.forceStandardCrush = safeData.forceStandardCrush;
     if (safeData.updatedAt !== undefined) { safeData.size.updatedAt = safeData.updatedAt; delete safeData.updatedAt; }
     delete safeData.isHidden;
+    delete safeData.isLocked;
     delete safeData.oldPriceInfo;
     delete safeData.forceStandardCrush;
 
@@ -249,7 +254,7 @@ export const api = {
         });
       } catch (e) {}
 
-    return { ...r, isHidden: r.size?.isHidden || false, oldPriceInfo: r.size?.oldPriceInfo || undefined, forceStandardCrush: r.size?.forceStandardCrush ?? true }; 
+    return { ...r, isHidden: r.size?.isHidden || false, isLocked: r.size?.isLocked || false, oldPriceInfo: r.size?.oldPriceInfo || undefined, forceStandardCrush: r.size?.forceStandardCrush ?? true }; 
   },
   updateProduct: async (id: string, data: any) => {
     // Fetch the existing size first to avoid overwriting it
@@ -271,10 +276,12 @@ export const api = {
 
     safeData.size = { ...existingSize, ...(safeData.size || {}) };
     if (safeData.isHidden !== undefined) safeData.size.isHidden = safeData.isHidden;
+    if (safeData.isLocked !== undefined) safeData.size.isLocked = safeData.isLocked;
     if (safeData.oldPriceInfo !== undefined) safeData.size.oldPriceInfo = safeData.oldPriceInfo;
     if (safeData.forceStandardCrush !== undefined) safeData.size.forceStandardCrush = safeData.forceStandardCrush;
     if (safeData.updatedAt !== undefined) { safeData.size.updatedAt = safeData.updatedAt; delete safeData.updatedAt; }
     delete safeData.isHidden;
+    delete safeData.isLocked;
     delete safeData.oldPriceInfo;
     delete safeData.forceStandardCrush;
 
@@ -316,7 +323,7 @@ export const api = {
       } catch (e) {}
     }
  
-    return { ...r, isHidden: r.size?.isHidden || false, oldPriceInfo: r.size?.oldPriceInfo || undefined, forceStandardCrush: r.size?.forceStandardCrush ?? true }; 
+    return { ...r, isHidden: r.size?.isHidden || false, isLocked: r.size?.isLocked || false, oldPriceInfo: r.size?.oldPriceInfo || undefined, forceStandardCrush: r.size?.forceStandardCrush ?? true }; 
   },
   deleteProduct: async (id: string, deletedBy?: string) => { 
     const { error } = await supabase.from('products').delete().match({ id }); 

@@ -99,3 +99,13 @@ body {
 .admin-theme .placeholder-white\/50::placeholder { color: rgba(15, 23, 42, 0.5) !important; }
 
 
+
+select option {
+  background-color: white !important;
+  color: black !important;
+  font-weight: bold;
+}
+select option:checked {
+  background-color: var(--color-brq-royal) !important;
+  color: white !important;
+}
