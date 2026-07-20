@@ -1,6 +1,6 @@
 import { ShoppingBag, CheckCircle, Send, Plus, Minus, Trash2, ArrowRight } from 'lucide-react';
 import { useStore } from '../../store';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { api } from '../../api';
 import { useNavigate, Link } from 'react-router';
 import OptimizedImage from '../OptimizedImage';
@@ -12,7 +12,17 @@ export default function Cart() {
   const [transport, setTransport] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
   const navigate = useNavigate();
+
+  const itemsPerPage = 25;
+  const totalPages = Math.ceil(cart.length / itemsPerPage);
+  const paginatedCart = cart.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(totalPages);
+    }
+  }, [cart.length, currentPage, totalPages]);
 
   const totalPieces = cart.reduce((acc, item) => {
     // If we are selling pieces or dozens, here the quantity is just what user selected
@@ -46,6 +56,8 @@ export default function Cart() {
                     text: text,
                     files: filesArray
                 });
+                clearCart();
+                setSuccess(true);
                 return;
             }
         } catch (err) {
@@ -56,6 +68,8 @@ export default function Cart() {
     // Fallback to standard WhatsApp link if Web Share API with files fails or is unsupported
     const textFallback = `*طلب جديد* 🛒\n\n*اسم الوكيل:* ${agentName}\n*اسم الزبون:* ${customerName || '---'}\n*النقليات:* ${transport || '---'}\n${notes ? `*الملاحظات:* ${notes}\n\n` : '\n'}*المنتجات:*\n${cart.map((item, index) => `${index+1}- ${item.product.name}\n  *الكود: ${item.product.productCode || '---'}*\n  الموديل: ${item.product.modelNumber || '---'}\n  *الكمية: ${item.quantity}*\n  الصورة: ${item.product.finalImageUrl || item.product.imageUrl || ''}`).join('\n\n')}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(textFallback)}`, '_blank');
+    clearCart();
+    setSuccess(true);
   };
 
   const handleSubmitOptions = async () => {
@@ -158,7 +172,7 @@ export default function Cart() {
       </div>
       
       <div className="flex-1 space-y-4">
-         {cart.map((item) => (
+         {paginatedCart.map((item) => (
              <div key={item.product.id} className="glass-card p-3 rounded-2xl flex gap-3 relative">
                 <Link to={`/product/${item.product.id}`} className="shrink-0">
                   {item.product.finalImageUrl || item.product.imageUrl ? (
@@ -180,6 +194,27 @@ export default function Cart() {
              </div>
          ))}
 
+         {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-4 py-4" dir="ltr">
+               <button 
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  className="p-2 bg-white/10 rounded-lg text-white disabled:opacity-50 hover:bg-white/20 transition-colors"
+               >
+                  <ArrowRight size={20} className="rotate-180" />
+               </button>
+               <span className="text-white font-bold text-sm">
+                  {currentPage} / {totalPages}
+               </span>
+               <button 
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  className="p-2 bg-white/10 rounded-lg text-white disabled:opacity-50 hover:bg-white/20 transition-colors"
+               >
+                  <ArrowRight size={20} />
+               </button>
+            </div>
+         )}
          <div className="glass-panel p-4 rounded-xl mt-6 space-y-4 border border-white/5">
              <div className="space-y-1">
                  <label className="text-xs text-white/70 font-bold block">اسم الزبون (اختياري)</label>
