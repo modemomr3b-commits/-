@@ -15,6 +15,7 @@ export interface User extends BaseEntity {
   password?: string;
   fullName: string;
   phone?: string;
+  userNumber?: number;
   role: UserRole;
   status: UserStatus;
   allowedDevice: DeviceAccess;

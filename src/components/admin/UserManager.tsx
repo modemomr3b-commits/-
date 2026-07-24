@@ -1,5 +1,5 @@
 import { formatDateTime, formatDate } from '../../utils/time';
-import { Users, Plus, Search, Filter, Edit, ShieldX, CheckCircle, KeyRound, MoreVertical, Loader2, X, Trash2, Smartphone, Monitor, Globe } from 'lucide-react';
+import { Users, Eye, EyeOff, Plus, Search, Filter, Edit, ShieldX, CheckCircle, KeyRound, MoreVertical, Loader2, X, Trash2, Smartphone, Monitor, Globe } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import bcryptjs from 'bcryptjs';
 import { api } from '../../api';
@@ -16,6 +16,7 @@ export default function UserManager() {
     username: '', password: '', fullName: '', phone: '', role: 'normal', status: 'active', allowedDevice: 'all'
   });
   const [searchQuery, setSearchQuery] = useState('');
+  const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     let mounted = true;
@@ -44,13 +45,13 @@ export default function UserManager() {
     if (!newUser.username || !newUser.fullName || isSubmitting) return;
     setIsSubmitting(true);
     try {
-      const salt = bcryptjs.genSaltSync(10);
-      const hashedPassword = newUser.password ? bcryptjs.hashSync(newUser.password, salt) : '';
+      
+      
       const userToCreate = {
         id: newUser.username,
         uid: newUser.username,
         username: newUser.username,
-        password: hashedPassword,
+        password: newUser.password,
         fullName: newUser.fullName,
         phone: newUser.phone || '',
         role: newUser.role || 'normal',
@@ -127,7 +128,7 @@ export default function UserManager() {
 
   const filteredUsers = users.filter(u => 
     (u.username && u.username.toLowerCase().includes(searchQuery.toLowerCase())) ||
-    (u.fullName && u.fullName.toLowerCase().includes(searchQuery.toLowerCase()))
+    (u.fullName && u.fullName.toLowerCase().includes(searchQuery.toLowerCase())) || (u.phone && u.phone.includes(searchQuery))
   );
 
   const getRoleLabel = (role: UserRole) => {
@@ -198,8 +199,8 @@ export default function UserManager() {
                   <input required type="text" value={newUser.fullName} onChange={e => setNewUser({...newUser, fullName: e.target.value})} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white" />
                </div>
                <div>
-                  <label className="text-xs text-white/50 block mb-1">رقم الهاتف (اختياري)</label>
-                  <input type="text" value={newUser.phone} onChange={e => setNewUser({...newUser, phone: e.target.value})} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white font-mono" />
+                  <label className="text-xs text-white/50 block mb-1">رقم المستخدم (اختياري)</label>
+                  <input type="text" value={newUser.phone} onChange={e => setNewUser({...newUser, phone: e.target.value})} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white font-mono" placeholder="مثلاً: 1، 2، 3..." />
                </div>
                <div>
                   <label className="text-xs text-white/50 block mb-1">صلاحية المستخدم</label>
@@ -269,7 +270,7 @@ export default function UserManager() {
                          value={searchQuery}
                          onChange={(e) => setSearchQuery(e.target.value)}
                          className="w-full bg-black/40 border border-white/10 rounded-lg pr-10 pl-4 py-2.5 text-sm focus:outline-none focus:border-brq-gold/50 text-white"
-                         placeholder="بحث بالاسم أو اسم المستخدم..."
+                         placeholder="بحث بالاسم، اسم المستخدم، أو رقم المستخدم..."
                       />
                    </div>
                </div>
@@ -280,6 +281,8 @@ export default function UserManager() {
                         <tr>
                            <th className="p-4 font-medium rounded-tr-lg">اسم المستخدم</th>
                            <th className="p-4 font-medium">الاسم الكامل</th>
+                           <th className="p-4 font-medium">رقم المستخدم</th>
+                           <th className="p-4 font-medium">كلمة السر</th>
                            <th className="p-4 font-medium">الصلاحية</th>
                            <th className="p-4 font-medium">الدخول</th>
                            <th className="p-4 font-medium">الحالة</th>
@@ -307,6 +310,27 @@ export default function UserManager() {
                                  </div>
                               </td>
                               <td className="p-4">{user.fullName}</td>
+                              <td className="p-4 font-mono text-white/70" dir="ltr">{user.phone || "-"}</td>
+                              <td className="p-4">
+                                 <div className="flex items-center gap-2">
+                                    <span className="font-mono text-white/70">
+                                       {visiblePasswords.has(user.uid) ? (user.password || "---") : "••••••"}
+                                    </span>
+                                    {user.password && (
+                                       <button 
+                                          onClick={() => {
+                                             const newVisible = new Set(visiblePasswords);
+                                             if (newVisible.has(user.uid)) newVisible.delete(user.uid);
+                                             else newVisible.add(user.uid);
+                                             setVisiblePasswords(newVisible);
+                                          }}
+                                          className="text-white/40 hover:text-white transition-colors"
+                                       >
+                                          {visiblePasswords.has(user.uid) ? <EyeOff size={14} /> : <Eye size={14} />}
+                                       </button>
+                                    )}
+                                 </div>
+                              </td>
                               <td className="p-4 text-xs font-bold">
                                   <span className={`px-2 py-1 rounded border border-white/10 ${
                                       user.role === 'admin' ? 'bg-brq-gold/20 text-brq-gold' : 
