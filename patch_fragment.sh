@@ -1,0 +1,2 @@
+sed -i '/{user.role !== '"'admin'"' \&\& (/c \                                    {user.role !== '"'admin'"' \&\& (\n                                       <>' src/components/admin/UserManager.tsx
+sed -i '/<X size={16} \/><\/button>/c \                                       <button onClick={() => handleDelete(user.uid, user.username, user.role)} title="حذف" className="p-1.5 hover:bg-red-500/20 text-red-400 rounded transition-colors"><X size={16} /></button>\n                                       </>' src/components/admin/UserManager.tsx
