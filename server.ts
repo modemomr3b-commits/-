@@ -168,7 +168,7 @@ app.post('/api/notify-publish', express.json(), async (req, res) => {
     }
   });
 
-  app.get("/api/secure/users", async (req, res) => {
+  app.get("/api/secure/users", async (req, res) => { console.log("GET /api/secure/users called");
     try {
       const { data, error } = await supabaseAdmin.from('users').select('*');
       if (error) throw error;

@@ -365,8 +365,8 @@ export const api = {
   getUsers: async () => {
     try {
       const res = await fetch('/api/secure/users?_t=' + Date.now(), { cache: 'no-store' });
-      if (!res.ok) throw new Error('Failed to fetch users');
-      return await res.json();
+      if (!res.ok) { const text = await res.text(); console.error('Error fetching users:', res.status, text); throw new Error('Failed to fetch users'); }
+      const data = await res.json(); console.log("api.ts getUsers got data:", data); return data;
     } catch (e) {
       console.error(e);
       return [];

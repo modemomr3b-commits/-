@@ -1,12 +1,8 @@
 const fs = require('fs');
-
-let code = fs.readFileSync('src/api.ts', 'utf8');
-
-code = code.replace(
-  /if \(oldProduct && !safeData\.size\?\.isHidden\) \{/,
-  `console.log("oldProduct:", oldProduct, "safeData.size:", safeData.size);
-    if (oldProduct && !safeData.size?.isHidden) {
-      console.log("Sending visibility notification!");`
+const file = 'src/api.ts';
+let content = fs.readFileSync(file, 'utf-8');
+content = content.replace(
+  'return await res.json();',
+  'const data = await res.json(); console.log("api.ts getUsers got data:", data); return data;'
 );
-
-fs.writeFileSync('src/api.ts', code);
+fs.writeFileSync(file, content);
