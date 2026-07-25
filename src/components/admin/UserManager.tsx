@@ -6,10 +6,12 @@ import { api } from '../../api';
 import { User, UserRole, DeviceAccess, UserStatus } from '../../types';
 import { useStore } from '../../store';
 
-export default function UserManager() {
+import { UserManagerErrorBoundary } from "./UserManagerErrorBoundary";
+
+function UserManagerContent() {
   const { user: currentUser } = useStore();
   const [users, setUsers] = useState<User[]>([]);
-  const [fetchError, setFetchError] = useState<string | null>(null);
+  
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -27,11 +29,11 @@ export default function UserManager() {
         const dbUsers = await api.getUsers();
         if (mounted) {
           console.log("Fetched users:", dbUsers);
-          if (!Array.isArray(dbUsers)) { setFetchError("API did not return an array: " + JSON.stringify(dbUsers).slice(0, 50)); setUsers([]); } else { setUsers(dbUsers.map((u: any) => ({...u, uid: u.id}))); setFetchError("Success, array length: " + dbUsers.length); }
+          if (!Array.isArray(dbUsers)) {  setUsers([]); } else { setUsers(dbUsers.map((u: any) => ({...u, uid: u.id})));  }
           setLoading(false);
         }
       } catch (e) {
-        console.error("Error fetching users in UserManager:", e); setFetchError(e.message || String(e));
+        console.error("Error fetching users in UserManager:", e); 
         if (mounted) setLoading(false);
       }
     };
@@ -202,6 +204,7 @@ export default function UserManager() {
   }
 
   const filteredUsers = users.filter(u => {
+    if (!searchQuery) return true;
     const sq = searchQuery.toLowerCase();
     return (
       (u.username && String(u.username).toLowerCase().includes(sq)) ||
@@ -356,7 +359,6 @@ export default function UserManager() {
             {users.length === 0 && !isAdding ? (
                <div className="flex-1 flex flex-col justify-center items-center h-48 text-center">
                   <p className="text-white/50 mb-4">لا يوجد مستخدمون حالياً.</p>
-                  {fetchError && <p className="text-red-400 mt-2">Error: {fetchError}</p>}
                </div>
             ) : (
             <>
@@ -476,3 +478,10 @@ export default function UserManager() {
                         )})}
                      </tbody>
                   </table></div></>)}</div></div></div>);}
+export default function UserManager() {
+  return (
+    <UserManagerErrorBoundary>
+      <UserManagerContent />
+    </UserManagerErrorBoundary>
+  );
+}
