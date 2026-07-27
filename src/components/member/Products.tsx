@@ -1,6 +1,6 @@
 import { formatDateTime, formatDate } from '../../utils/time';
 import { useParams, Link, useNavigate } from "react-router";
-import { ChevronRight, Filter, Download, ShoppingCart, Layers, Share2, CheckSquare, Square, History } from "lucide-react";
+import { ChevronRight, Filter, Download, ShoppingCart, Layers, Share2, CheckSquare, Square, History, Loader2 } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { api } from "../../api";
 import { supabase } from "../../supabase";
@@ -36,6 +36,7 @@ export default function Products() {
 
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   const fetchProducts = async () => {
     try {
@@ -258,6 +259,42 @@ export default function Products() {
     }
   };
 
+  const handleDownloadSingle = async (e: React.MouseEvent, p: Product) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const imgUrl = p.finalImageUrl || p.imageUrl;
+    if (!imgUrl) {
+      showToast("لا توجد صورة لهذا المنتج.", "error");
+      return;
+    }
+
+    setDownloadingId(p.id!);
+    showToast("بدأ التنزيل...", "loading");
+    try {
+      const res = await fetch(imgUrl);
+      const blob = await res.blob();
+      const ext = blob.type.split("/")[1] || "jpg";
+      const safeName = (p.productCode || p.name || "product").replace(/[\/\?<>\\:\*\|":]/g, '-');
+      const filename = `${safeName}.${ext}`;
+      
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(objectUrl);
+      showToast("تم التنزيل بنجاح", "success");
+    } catch (error) {
+      console.error('Error downloading file', error);
+      showToast("حدث خطأ أثناء التنزيل.", "error");
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
   return (
     <div className="flex flex-col bg-brq-black min-h-[calc(100vh-60px)]">
       <div className="glass-panel sticky top-0 z-40 p-4 border-b border-brq-gold/20 shadow-lg">
@@ -445,6 +482,14 @@ export default function Products() {
                     title="مشاركة الصورة"
                   >
                     <Share2 size={16} />
+                  </button>
+                  <button
+                    onClick={(e) => handleDownloadSingle(e, p)}
+                    disabled={downloadingId === p.id}
+                    className="p-1.5 rounded-lg bg-black/40 backdrop-blur-sm border border-white/20 text-white hover:bg-emerald-500/50 hover:text-white transition-colors disabled:opacity-50"
+                    title="تنزيل الصورة"
+                  >
+                    {downloadingId === p.id ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
                   </button>
                   {p.oldPriceInfo && (
                     <button
