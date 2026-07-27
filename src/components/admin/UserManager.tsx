@@ -9,7 +9,7 @@ import { useStore } from '../../store';
 import { UserManagerErrorBoundary } from "./UserManagerErrorBoundary";
 
 function UserManagerContent() {
-  const { user: currentUser } = useStore();
+  const { user: currentUser, showToast } = useStore();
   const [users, setUsers] = useState<User[]>([]);
   const [debugMsg, setDebugMsg] = useState("");
   
@@ -102,6 +102,10 @@ function UserManagerContent() {
         allowedDevice: newUser.allowedDevice || 'all',
         createdAt: Date.now()
       };
+      
+      // Optimistic update
+      setUsers(prev => [...prev, { ...userToCreate, uid: userToCreate.id }]);
+      
       await api.createUser(userToCreate);
       
       // log action
@@ -116,11 +120,19 @@ function UserManagerContent() {
 
       setIsAdding(false);
       setNewUser({ username: '', password: '', fullName: '', phone: '', role: 'normal', status: 'active', allowedDevice: 'all' });
+      
+      try { showToast('تمت إضافة المستخدم بنجاح', 'success'); } catch(e) {}
+      
       const updated = await api.getUsers();
       setUsers(updated.map((u: any) => ({...u, uid: u.id})));
-    } catch(e) {
+    } catch(e: any) {
       console.error(e);
-      alert('فشل إنشاء المستخدم. ربما اسم المستخدم موجود مسبقاً.');
+      try { showToast('فشل إنشاء المستخدم. ربما اسم المستخدم موجود مسبقاً.', 'error'); } catch(err) {}
+      alert('فشل إنشاء المستخدم. ربما اسم المستخدم موجود مسبقاً. الخطأ: ' + e.message);
+      
+      // Revert optimistic update
+      const updated = await api.getUsers();
+      setUsers(updated.map((u: any) => ({...u, uid: u.id})));
     } finally {
       setIsSubmitting(false);
     }
