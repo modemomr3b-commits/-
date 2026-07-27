@@ -372,7 +372,7 @@ function UserManagerContent() {
          <div className="lg:col-span-3 glass-panel border border-white/5 rounded-2xl overflow-hidden p-1">
             {users.length === 0 && !isAdding ? (
                <div className="flex-1 flex flex-col justify-center items-center h-48 text-center">
-                  <p className="text-white/50 mb-4">لا يوجد مستخدمون حالياً.</p>
+                  <p className="text-white/50 mb-4">لا يوجد مستخدمون حالياً. {debugMsg}</p>
                </div>
             ) : (
             <>

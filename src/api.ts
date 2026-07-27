@@ -369,7 +369,7 @@ export const api = {
       const data = await res.json(); console.log("api.ts getUsers got data:", data); return data;
     } catch (e) {
       console.error(e);
-      return [];
+      throw e;
     }
   },
   getUser: async (id: string) => { 

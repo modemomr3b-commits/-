@@ -99,7 +99,7 @@ app.post('/api/notify-publish', express.json(), async (req, res) => {
 
   const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 500, // limit each IP to 500 requests per windowMs
+    max: 10000, // limit each IP to 10000 requests per windowMs
     message: { error: 'Too many requests, please try again later.' }
   });
   app.use('/api/', limiter);
@@ -170,14 +170,19 @@ app.post('/api/notify-publish', express.json(), async (req, res) => {
 
   app.get(["/api/secure/users", "/api/secure/users_v2"], async (req, res) => { console.log("GET /api/secure/users called");
     try {
+      console.log('GET /api/secure/users called at ' + new Date().toISOString());
       const { data, error } = await supabaseAdmin.from('users').select('*');
-      if (error) throw error;
+      if (error) { console.error('Error: ' + error.message); throw error; }
+      console.log('Success fetched users count: ' + data.length);
       const safeUsers = data.map((u: any) => {
         const { password, ...rest } = u;
         return rest;
       });
       res.json(safeUsers);
-    } catch (e: any) { res.status(500).json({ error: e.message }); }
+    } catch (e: any) { 
+      console.error('Catch Error: ' + e.message);
+      res.status(500).json({ error: e.message }); 
+    }
   });
 
   app.get("/api/secure/users/:id", async (req, res) => {
