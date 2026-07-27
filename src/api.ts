@@ -364,9 +364,10 @@ export const api = {
   // USERS
   getUsers: async () => {
     try {
-      const res = await fetch('/api/secure/users_v2?_t=' + Date.now(), { cache: 'no-store' });
-      if (!res.ok) { const text = await res.text(); console.error('Error fetching users:', res.status, text); throw new Error('Failed to fetch users'); }
-      const data = await res.json(); console.log("api.ts getUsers got data:", data); return data;
+      const { data, error } = await supabase.from('users').select('*').neq('isDeleted', true);
+      if (error) { console.error('Error fetching users:', error); throw error; }
+      console.log("api.ts getUsers got data length:", data?.length); 
+      return data || [];
     } catch (e) {
       console.error(e);
       throw e;
@@ -374,9 +375,9 @@ export const api = {
   },
   getUser: async (id: string) => { 
     try {
-      const res = await fetch(`/api/secure/users/${id}`);
-      if (!res.ok) return null;
-      return await res.json();
+      const { data, error } = await supabase.from('users').select('*').eq('id', id).single();
+      if (error) return null;
+      return data;
     } catch (e) {
       return null;
     }
