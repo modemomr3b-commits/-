@@ -11,6 +11,7 @@ import { UserManagerErrorBoundary } from "./UserManagerErrorBoundary";
 function UserManagerContent() {
   const { user: currentUser } = useStore();
   const [users, setUsers] = useState<User[]>([]);
+  const [debugMsg, setDebugMsg] = useState("");
   
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -29,11 +30,12 @@ function UserManagerContent() {
         const dbUsers = await api.getUsers();
         if (mounted) {
           console.log("Fetched users:", dbUsers);
+          setDebugMsg("Fetched " + (dbUsers ? dbUsers.length : "null"));
           if (!Array.isArray(dbUsers)) {  setUsers([]); } else { setUsers(dbUsers.map((u: any) => ({...u, uid: u.id})));  }
           setLoading(false);
         }
       } catch (e) {
-        console.error("Error fetching users in UserManager:", e); 
+        console.error("Error fetching users in UserManager:", e); setDebugMsg(String(e)); 
         if (mounted) setLoading(false);
       }
     };
