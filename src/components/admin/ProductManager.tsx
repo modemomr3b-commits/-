@@ -524,11 +524,11 @@ export default function ProductManager() {
 
   const executeDelete = async () => {
     if (!deleteConfirm || !deleteConfirm.ids) return;
-    
+    setIsSubmitting(true);
     try {
       if (deleteConfirm.isBulk) {
         setProducts((prev) => prev.filter((prod) => !deleteConfirm.ids!.includes(prod.id!)));
-        await Promise.all(deleteConfirm.ids.map(id => api.deleteProduct(id, user?.username)));
+        await api.bulkDeleteProducts(deleteConfirm.ids, user?.username);
         await api.logAction({
           userId: user?.uid || "",
           userName: user?.username || "System",
@@ -558,6 +558,9 @@ export default function ProductManager() {
       const updated = await api.getProducts();
       setProducts(updated);
       setAlertMessage("فشل الحذف: " + e.message);
+    } finally {
+      setIsSubmitting(false);
+      setDeleteConfirm(null);
     }
   };
 
@@ -576,6 +579,24 @@ export default function ProductManager() {
       const updated = await api.getProducts();
       setProducts(updated);
       setAlertMessage("فشل تغيير حالة المنتج");
+    }
+  };
+
+  const handleToggleLock = async (p: Product) => {
+    // Optimistic update
+    setProducts((prev) =>
+      prev.map((prod) =>
+        prod.id === p.id ? { ...prod, isLocked: !prod.isLocked } : prod
+      )
+    );
+    try {
+      await api.updateProduct(p.id!, { isLocked: !p.isLocked });
+    } catch (e) {
+      console.error(e);
+      // Revert optimistic update
+      const updated = await api.getProducts();
+      setProducts(updated);
+      setAlertMessage("فشل تغيير حالة القفل");
     }
   };
 
@@ -619,7 +640,7 @@ export default function ProductManager() {
 
   const handleBulkToggleHide = async (hide: boolean) => {
     if (selectedIds.size === 0) return;
-    
+    setIsSubmitting(true);
     try {
       setProducts((prev) =>
         prev.map((prod) =>
@@ -628,7 +649,7 @@ export default function ProductManager() {
       );
       
       const ids = Array.from(selectedIds);
-      await Promise.all(ids.map(id => api.updateProduct(id, { isHidden: hide })));
+      await api.bulkUpdateProducts(ids, { isHidden: hide });
       
       setSelectedIds(new Set());
     } catch (e: any) {
@@ -636,12 +657,14 @@ export default function ProductManager() {
       const updated = await api.getProducts();
       setProducts(updated);
       setAlertMessage("فشل التحديث المجمع: " + e.message);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleBulkToggleLock = async (lock: boolean) => {
     if (selectedIds.size === 0) return;
-    
+    setIsSubmitting(true);
     try {
       setProducts((prev) =>
         prev.map((prod) =>
@@ -650,7 +673,7 @@ export default function ProductManager() {
       );
       
       const ids = Array.from(selectedIds);
-      await Promise.all(ids.map(id => api.updateProduct(id, { isLocked: lock })));
+      await api.bulkUpdateProducts(ids, { isLocked: lock });
       
       setSelectedIds(new Set());
     } catch (e: any) {
@@ -658,6 +681,8 @@ export default function ProductManager() {
       const updated = await api.getProducts();
       setProducts(updated);
       setAlertMessage("فشل التحديث المجمع: " + e.message);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -672,7 +697,7 @@ export default function ProductManager() {
       );
       
       const ids = Array.from(selectedIds);
-      await Promise.all(ids.map(id => api.updateProduct(id, { categoryId: moveToCategoryId, subcategoryId: moveToSubcategoryId })));
+      await api.bulkUpdateProducts(ids, { categoryId: moveToCategoryId, subcategoryId: moveToSubcategoryId });
       
       setSelectedIds(new Set());
       setIsMoveModalOpen(false);
@@ -1287,7 +1312,8 @@ export default function ProductManager() {
                   {selectedIds.size > 0 && (
                     <button
                       onClick={handleBulkDelete}
-                      className="flex items-center gap-2 px-4 py-2 bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg text-sm hover:bg-red-500/30 transition-colors font-bold whitespace-nowrap"
+                      disabled={isSubmitting}
+                      className="flex items-center gap-2 px-4 py-2 bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg text-sm hover:bg-red-500/30 transition-colors font-bold whitespace-nowrap disabled:opacity-50"
                     >
                       <Trash2 size={16} />
                       حذف
@@ -1296,43 +1322,48 @@ export default function ProductManager() {
                   {selectedIds.size > 0 && (
                     <button
                       onClick={() => handleBulkToggleHide(false)}
-                      className="flex items-center gap-2 px-4 py-2 bg-green-500/20 text-green-400 border border-green-500/30 rounded-lg text-sm hover:bg-green-500/30 transition-colors font-bold whitespace-nowrap"
+                      disabled={isSubmitting}
+                      className="flex items-center gap-2 px-4 py-2 bg-green-500/20 text-green-400 border border-green-500/30 rounded-lg text-sm hover:bg-green-500/30 transition-colors font-bold whitespace-nowrap disabled:opacity-50"
                     >
-                      <Eye size={16} />
+                      {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Eye size={16} />}
                       تفعيل
                     </button>
                   )}
                   {selectedIds.size > 0 && (
                     <button
                       onClick={() => handleBulkToggleHide(true)}
-                      className="flex items-center gap-2 px-4 py-2 bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 rounded-lg text-sm hover:bg-yellow-500/30 transition-colors font-bold whitespace-nowrap"
+                      disabled={isSubmitting}
+                      className="flex items-center gap-2 px-4 py-2 bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 rounded-lg text-sm hover:bg-yellow-500/30 transition-colors font-bold whitespace-nowrap disabled:opacity-50"
                     >
-                      <EyeOff size={16} />
+                      {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <EyeOff size={16} />}
                       إخفاء
                     </button>
                   )}
                   {selectedIds.size > 0 && filterStatus !== 'locked' && (
                     <button
                       onClick={() => handleBulkToggleLock(true)}
-                      className="flex items-center gap-2 px-4 py-2 bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded-lg text-sm hover:bg-purple-500/30 transition-colors font-bold whitespace-nowrap"
+                      disabled={isSubmitting}
+                      className="flex items-center gap-2 px-4 py-2 bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded-lg text-sm hover:bg-purple-500/30 transition-colors font-bold whitespace-nowrap disabled:opacity-50"
                     >
-                      <Lock size={16} />
+                      {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Lock size={16} />}
                       نقل للمواد المقفلة
                     </button>
                   )}
                   {selectedIds.size > 0 && filterStatus === 'locked' && (
                     <button
                       onClick={() => handleBulkToggleLock(false)}
-                      className="flex items-center gap-2 px-4 py-2 bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded-lg text-sm hover:bg-purple-500/30 transition-colors font-bold whitespace-nowrap"
+                      disabled={isSubmitting}
+                      className="flex items-center gap-2 px-4 py-2 bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded-lg text-sm hover:bg-purple-500/30 transition-colors font-bold whitespace-nowrap disabled:opacity-50"
                     >
-                      <Unlock size={16} />
+                      {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Unlock size={16} />}
                       استرجاع من المواد المقفلة
                     </button>
                   )}
                   {selectedIds.size > 0 && (
                     <button
                       onClick={() => setIsMoveModalOpen(true)}
-                      className="flex items-center gap-2 px-4 py-2 bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 rounded-lg text-sm hover:bg-indigo-500/30 transition-colors font-bold whitespace-nowrap"
+                      disabled={isSubmitting}
+                      className="flex items-center gap-2 px-4 py-2 bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 rounded-lg text-sm hover:bg-indigo-500/30 transition-colors font-bold whitespace-nowrap disabled:opacity-50"
                     >
                       <FolderInput size={16} />
                       نقل الأقسام
@@ -1606,10 +1637,7 @@ export default function ProductManager() {
                             </button>
                             <button
                               type="button"
-                              onClick={() => {
-                                setSelectedIds(new Set([p.id!]));
-                                handleBulkToggleLock(!p.isLocked);
-                              }}
+                              onClick={() => handleToggleLock(p)}
                               className="p-1.5 hover:bg-purple-500/20 text-purple-400 rounded transition-colors"
                               title={
                                 p.isLocked

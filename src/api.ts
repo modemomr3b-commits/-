@@ -325,6 +325,22 @@ export const api = {
  
     return { ...r, isHidden: r.size?.isHidden || false, isLocked: r.size?.isLocked || false, oldPriceInfo: r.size?.oldPriceInfo || undefined, forceStandardCrush: r.size?.forceStandardCrush ?? true }; 
   },
+  bulkUpdateProducts: async (ids: string[], data: any) => {
+    const chunkSize = 15;
+    for (let i = 0; i < ids.length; i += chunkSize) {
+      const chunk = ids.slice(i, i + chunkSize);
+      await Promise.all(chunk.map(id => api.updateProduct(id, data)));
+    }
+    return { success: true };
+  },
+  bulkDeleteProducts: async (ids: string[], deletedBy?: string) => {
+    const chunkSize = 15;
+    for (let i = 0; i < ids.length; i += chunkSize) {
+      const chunk = ids.slice(i, i + chunkSize);
+      await Promise.all(chunk.map(id => api.deleteProduct(id, deletedBy)));
+    }
+    return { success: true };
+  },
   deleteProduct: async (id: string, deletedBy?: string) => { 
     const { error } = await supabase.from('products').delete().match({ id }); 
     if (error) throw error; return { success: true }; 
