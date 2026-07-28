@@ -18,7 +18,7 @@ function UserManagerContent() {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [newUser, setNewUser] = useState<Partial<User>>({
-    username: '', password: '', fullName: '', phone: '', role: 'normal', status: 'active', allowedDevice: 'all'
+    username: '', password: '', phone: '', userNumber: undefined, role: 'normal', status: 'active', allowedDevice: 'all'
   });
   const [searchQuery, setSearchQuery] = useState('');
   const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set());
@@ -53,7 +53,6 @@ function UserManagerContent() {
     setIsSubmitting(true);
     try {
       await api.updateUser(editingUser.uid, {
-        fullName: editingUser.fullName,
         phone: editingUser.phone || "",
         role: editingUser.role,
         allowedDevice: editingUser.allowedDevice
@@ -70,7 +69,7 @@ function UserManagerContent() {
         action: "تعديل مستخدم",
         entityType: "user",
         entityId: editingUser.uid,
-        details: { role: editingUser.role, fullName: editingUser.fullName }
+        details: { role: editingUser.role }
       });
       setEditingUser(null);
       const updated = await api.getUsers();
@@ -85,7 +84,7 @@ function UserManagerContent() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newUser.username || !newUser.fullName || isSubmitting) return;
+    if (!newUser.username || isSubmitting || !newUser.userNumber) return;
     setIsSubmitting(true);
     try {
       
@@ -95,8 +94,9 @@ function UserManagerContent() {
         uid: newUser.username,
         username: newUser.username,
         password: newUser.password,
-        fullName: newUser.fullName,
+        fullName: newUser.username,
         phone: newUser.phone || '',
+        userNumber: newUser.userNumber,
         role: newUser.role || 'normal',
         status: newUser.status || 'active',
         allowedDevice: newUser.allowedDevice || 'all',
@@ -115,11 +115,11 @@ function UserManagerContent() {
         action: 'إنشاء مستخدم',
         entityType: 'user',
         entityId: newUser.username,
-        details: { role: newUser.role, fullName: newUser.fullName }
+        details: { role: newUser.role }
       });
 
       setIsAdding(false);
-      setNewUser({ username: '', password: '', fullName: '', phone: '', role: 'normal', status: 'active', allowedDevice: 'all' });
+      setNewUser({ username: '', password: '', phone: '', userNumber: undefined, role: 'normal', status: 'active', allowedDevice: 'all' });
       
       try { showToast('تمت إضافة المستخدم بنجاح', 'success'); } catch(e) {}
       
@@ -235,7 +235,13 @@ function UserManagerContent() {
              <h2 className="text-2xl font-bold text-white mb-1">إدارة المستخدمين</h2>
              <p className="text-sm text-white/50">التحكم في الصلاحيات والمستخدمين النشطين</p>
          </div>
-         <button onClick={() => setIsAdding(!isAdding)} className="flex items-center justify-center gap-2 py-2.5 px-4 bg-brq-royal hover:bg-blue-600 text-white rounded-xl transition-all text-sm font-bold shadow-[0_4px_15px_rgba(30,94,255,0.3)]">
+         <button onClick={() => {
+            if (!isAdding) {
+               const maxNum = users.reduce((max, u) => Math.max(max, u.userNumber || 0), 0);
+               setNewUser(prev => ({ ...prev, userNumber: maxNum + 1 }));
+            }
+            setIsAdding(!isAdding);
+         }} className="flex items-center justify-center gap-2 py-2.5 px-4 bg-brq-royal hover:bg-blue-600 text-white rounded-xl transition-all text-sm font-bold shadow-[0_4px_15px_rgba(30,94,255,0.3)]">
              <Plus size={18} /> إضافة مستخدم
          </button>
       </div>
@@ -249,19 +255,19 @@ function UserManagerContent() {
             <form onSubmit={handleCreate} className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
                <div>
                   <label className="text-xs text-white/50 block mb-1">اسم المستخدم *</label>
-                  <input required type="text" value={newUser.username} onChange={e => setNewUser({...newUser, username: e.target.value.trim()})} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white font-mono" />
+                  <input required type="text" value={newUser.username} onChange={e => setNewUser({...newUser, username: e.target.value.replace(/[^ \u0600-\u06FF]/g, '')})} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white font-mono" placeholder="أحرف عربية فقط" />
                </div>
                <div>
                   <label className="text-xs text-white/50 block mb-1">كلمة المرور *</label>
                   <input required type="text" value={newUser.password} onChange={e => setNewUser({...newUser, password: e.target.value})} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white font-mono" />
                </div>
                <div>
-                  <label className="text-xs text-white/50 block mb-1">الاسم الكامل *</label>
-                  <input required type="text" value={newUser.fullName} onChange={e => setNewUser({...newUser, fullName: e.target.value})} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white" />
+                  <label className="text-xs text-white/50 block mb-1">رقم المستخدم *</label>
+                  <input required type="number" value={newUser.userNumber || ""} onChange={e => setNewUser({...newUser, userNumber: parseInt(e.target.value) || undefined})} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white font-mono" />
                </div>
                <div>
-                  <label className="text-xs text-white/50 block mb-1">رقم المستخدم (اختياري)</label>
-                  <input type="text" value={newUser.phone} onChange={e => setNewUser({...newUser, phone: e.target.value})} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white font-mono" placeholder="مثلاً: 1، 2، 3..." />
+                  <label className="text-xs text-white/50 block mb-1">رقم الهاتف (اختياري)</label>
+                  <input type="text" value={newUser.phone} onChange={e => setNewUser({...newUser, phone: e.target.value})} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white font-mono" placeholder="مثلاً: 07..." />
                </div>
                <div>
                   <label className="text-xs text-white/50 block mb-1">صلاحية المستخدم</label>
@@ -300,12 +306,8 @@ function UserManagerContent() {
                </div>
                <form onSubmit={handleUpdate} className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                     <label className="text-xs text-white/50 block mb-1">الاسم الكامل *</label>
-                     <input required type="text" value={editingUser.fullName} onChange={e => setEditingUser({...editingUser, fullName: e.target.value})} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white" />
-                  </div>
-                  <div>
-                     <label className="text-xs text-white/50 block mb-1">رقم المستخدم</label>
-                     <input type="text" value={editingUser.userNumber || ""} onChange={e => setEditingUser({...editingUser, userNumber: e.target.value ? parseInt(e.target.value) : undefined})} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white font-mono" />
+                     <label className="text-xs text-white/50 block mb-1">رقم المستخدم *</label>
+                     <input required type="number" value={editingUser.userNumber || ""} onChange={e => setEditingUser({...editingUser, userNumber: parseInt(e.target.value) || undefined})} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-white font-mono" />
                   </div>
                   <div>
                      <label className="text-xs text-white/50 block mb-1">كلمة المرور (اتركها فارغة لعدم التغيير)</label>
@@ -394,8 +396,8 @@ function UserManagerContent() {
                      <thead className="bg-black/40 text-white/60">
                         <tr>
                            <th className="p-4 font-medium rounded-tr-lg">اسم المستخدم</th>
-                           <th className="p-4 font-medium">الاسم الكامل</th>
                            <th className="p-4 font-medium">رقم المستخدم</th>
+                           <th className="p-4 font-medium">رقم الهاتف</th>
                            <th className="p-4 font-medium">كلمة السر</th>
                            <th className="p-4 font-medium">الصلاحية</th>
                            <th className="p-4 font-medium">الدخول</th>
@@ -423,7 +425,7 @@ function UserManagerContent() {
                                     <span className="font-mono text-white/70 font-bold">{user.username}</span>
                                  </div>
                               </td>
-                              <td className="p-4">{user.fullName}</td>
+                              <td className="p-4 font-mono text-white/70">{user.userNumber || "-"}</td>
                               <td className="p-4 font-mono text-white/70" dir="ltr">{user.phone || "-"}</td>
                               <td className="p-4">
                                  <div className="flex items-center gap-2">
