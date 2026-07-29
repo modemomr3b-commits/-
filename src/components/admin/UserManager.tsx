@@ -89,6 +89,8 @@ function UserManagerContent() {
     try {
       
       
+      const existingUser = users.find(u => u.username === newUser.username);
+
       const userToCreate = {
         id: newUser.username,
         uid: newUser.username,
@@ -100,13 +102,17 @@ function UserManagerContent() {
         role: newUser.role || 'normal',
         status: newUser.status || 'active',
         allowedDevice: newUser.allowedDevice || 'all',
-        createdAt: Date.now()
+        createdAt: existingUser ? existingUser.createdAt : Date.now()
       };
       
-      // Optimistic update
-      setUsers(prev => [...prev, { ...userToCreate, uid: userToCreate.id }]);
-      
-      await api.createUser(userToCreate);
+      if (existingUser) {
+        setUsers(prev => prev.map(u => u.username === newUser.username ? { ...userToCreate, uid: userToCreate.id } : u));
+        await api.updateUser(userToCreate.id, userToCreate);
+      } else {
+        // Optimistic update
+        setUsers(prev => [...prev, { ...userToCreate, uid: userToCreate.id }]);
+        await api.createUser(userToCreate);
+      }
       
       // log action
       await api.logAction({
@@ -127,8 +133,8 @@ function UserManagerContent() {
       setUsers(updated.map((u: any) => ({...u, uid: u.id})));
     } catch(e: any) {
       console.error(e);
-      try { showToast('فشل إنشاء المستخدم. ربما اسم المستخدم موجود مسبقاً.', 'error'); } catch(err) {}
-      alert('فشل إنشاء المستخدم. ربما اسم المستخدم موجود مسبقاً. الخطأ: ' + e.message);
+      try { showToast('فشل حفظ المستخدم.', 'error'); } catch(err) {}
+      alert('فشل حفظ المستخدم. الخطأ: ' + e.message);
       
       // Revert optimistic update
       const updated = await api.getUsers();
