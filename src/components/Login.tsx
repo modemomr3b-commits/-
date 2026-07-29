@@ -60,9 +60,9 @@ export default function Login() {
         } else {
            // Fallback to direct supabase query
            if (cleanUsername === '1' && password === '100') {
-               finalUser = { id: '1', uid: 'demo_user_1', username: '1', fullName: 'المستخدم 1', role: 'normal', isActive: true };
+               finalUser = { id: '1', uid: 'demo_user_1', username: '1', fullName: 'المستخدم 1', role: 'normal', status: 'active' };
            } else if (cleanUsername === 'wafaa' && password === 'brq') {
-               finalUser = { id: 'wafaa', uid: 'admin_user_wafaa', username: 'wafaa', fullName: 'مدير النظام', role: 'admin', isActive: true };
+               finalUser = { id: 'wafaa', uid: 'admin_user_wafaa', username: 'wafaa', fullName: 'مدير النظام', role: 'admin', status: 'active' };
            } else {
                const { data: snapshot, error: sbError } = await supabase.from('users').select('*').eq('username', cleanUsername);
                if (sbError || !snapshot || snapshot.length === 0) {
@@ -79,7 +79,7 @@ export default function Login() {
                if (!isPasswordCorrect) {
                    throw new Error('بيانات الدخول غير صحيحة');
                }
-               if (udoc.role !== 'admin' && !udoc.isActive) {
+               if (udoc.role !== 'admin' && udoc.status !== 'active') {
                    throw new Error('هذا الحساب موقوف، يرجى مراجعة الإدارة');
                }
                finalUser = {
@@ -88,7 +88,7 @@ export default function Login() {
                   username: udoc.username,
                   fullName: udoc.fullName,
                   role: udoc.role,
-                  isActive: udoc.isActive
+                  status: udoc.status
                };
            }
         }
