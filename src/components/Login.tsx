@@ -79,8 +79,11 @@ export default function Login() {
                if (!isPasswordCorrect) {
                    throw new Error('بيانات الدخول غير صحيحة');
                }
-               if (udoc.role !== 'admin' && udoc.status !== 'active') {
-                   throw new Error('هذا الحساب موقوف، يرجى مراجعة الإدارة');
+               if (udoc.role !== 'admin') {
+                   const isAccountActive = udoc.status === 'active' || udoc.isActive === true || (udoc.status === undefined && udoc.isActive === undefined);
+                   if (!isAccountActive) {
+                       throw new Error('هذا الحساب موقوف، يرجى مراجعة الإدارة');
+                   }
                }
                finalUser = {
                   id: udoc.id,
@@ -88,7 +91,7 @@ export default function Login() {
                   username: udoc.username,
                   fullName: udoc.fullName,
                   role: udoc.role,
-                  status: udoc.status
+                  status: udoc.status || (udoc.isActive ? 'active' : 'suspended')
                };
            }
         }
