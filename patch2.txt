@@ -1,0 +1,13 @@
+            <button
+              onClick={() => setFilterStatus("locked")}
+              className={`pb-2 px-2 text-sm font-bold border-b-2 transition-colors ${filterStatus === "locked" ? "border-brq-gold text-brq-gold" : "border-transparent text-white/50 hover:text-white"}`}
+            >
+              المواد المقفلة
+            </button>
+            <button
+              onClick={() => setIsDownloadDialogOpen(true)}
+              className="pb-2 px-2 text-sm font-bold border-b-2 border-transparent text-brq-gold hover:text-white transition-colors flex items-center gap-1"
+            >
+              <Download size={14} /> تحميل جميع الصور (Zip)
+            </button>
+          </div>

@@ -274,44 +274,20 @@ export default function CategoryManager() {
         total: imagesWithData.length,
       });
 
-      let completed = 0;
-
-      for (const p of imagesWithData) {
-        const imgUrl = p.finalImageUrl || p.imageUrl;
-        if (imgUrl) {
-          try {
-            // Fetch the image as blob
-            const res = await fetch(imgUrl);
-            const blob = await res.blob();
-
-            // Download directly
-            const ext = blob.type.split("/")[1] || "jpg";
-            const safeName = (p.productCode || p.name || "product").replace(/[\/\?<>\\:\*\|":]/g, '-');
-            const filename = `${safeName}.${ext}`;
-
-            const objectUrl = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = objectUrl;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-
-            // Small delay to prevent browser from blocking multiple downloads
-            await new Promise(resolve => setTimeout(resolve, 300));
-
-            URL.revokeObjectURL(objectUrl);
-          } catch (err) {
-            console.error(`Failed to download image for ${p.name}`, err);
-          }
-        }
-        completed++;
-        setDownloadProgress({
-          id: catId,
-          progress: completed,
-          total: imagesWithData.length,
+      const imagesToDownload = imagesWithData
+        .filter(p => p.finalImageUrl || p.imageUrl)
+        .map(p => {
+          const imgUrl = p.finalImageUrl || p.imageUrl;
+          const ext = imgUrl!.split('.').pop()?.split('?')[0] || 'jpg';
+          const safeName = (p.productCode || p.name || 'product').replace(/[\\/\\?<>\\\\:\\*\\|":]/g, '-');
+          const filename = `${safeName}.${ext}`;
+          return { url: imgUrl!, filename };
         });
-      }
+
+      const { downloadImages } = await import('../../utils/download');
+      await downloadImages(imagesToDownload, (progress, total) => {
+        setDownloadProgress({ id: catId, progress, total });
+      });
 
       setDownloadProgress(null);
 

@@ -727,52 +727,25 @@ export default function ProductManager() {
     }
 
     setDownloadProgress({ progress: 0, total: imagesWithData.length });
-    let completed = 0;
-    const files: File[] = [];
-
-    for (const p of imagesWithData) {
-      const imgUrl = p.finalImageUrl || p.imageUrl;
-      if (imgUrl) {
-        try {
-          const res = await fetch(imgUrl);
-          const blob = await res.blob();
-          const ext = blob.type.split("/")[1] || "jpg";
-          const safeName = (p.productCode || p.name || "product").replace(/[\/\?<>\\:\*\|":]/g, '-');
-          const filename = `${safeName}.${ext}`;
-          files.push(new File([blob], filename, { type: blob.type }));
-        } catch (err) {
-          console.error(`Failed to fetch image for ${p.name}`, err);
-        }
-      }
-      completed++;
-      setDownloadProgress({
-        progress: completed,
-        total: imagesWithData.length,
+    setDownloadProgress({ progress: 0, total: imagesWithData.length });
+    const imagesToDownload = imagesWithData
+      .filter(p => p.finalImageUrl || p.imageUrl)
+      .map(p => {
+        const imgUrl = p.finalImageUrl || p.imageUrl;
+        const ext = imgUrl!.split('.').pop()?.split('?')[0] || 'jpg';
+        const safeName = (p.productCode || p.name || 'product').replace(/[\\/\\?<>\\\\:\\*\\|":]/g, '-');
+        const filename = `${safeName}.${ext}`;
+        return { url: imgUrl!, filename };
       });
-    }
-
+    const { downloadImages } = await import('../../utils/download');
+    await downloadImages(imagesToDownload, (progress, total) => {
+      setDownloadProgress({ progress, total });
+    });
     setDownloadProgress(null);
-
-    if (files.length > 0) {
-      if (navigator.canShare && navigator.canShare({ files })) {
-        try {
-          await navigator.share({
-            files,
-            title: 'منتجات BRQ',
-          });
-          setSelectedIds(new Set());
-        } catch (error) {
-          console.error('Error sharing files', error);
-        }
-      } else {
-        setAlertMessage("متصفحك لا يدعم مشاركة هذه الصور مباشرة. جرب تحميلها بدلاً من ذلك.");
-      }
-    }
+    setSelectedIds(new Set());
   };
-
   const handleBulkDownload = async () => {
     if (selectedIds.size === 0) return;
-
     const productsToDownload = products.filter((p) => selectedIds.has(p.id!));
     const imagesWithData = productsToDownload.filter(
       (p) => p.finalImageUrl || p.imageUrl,
@@ -784,41 +757,21 @@ export default function ProductManager() {
     }
 
     setDownloadProgress({ progress: 0, total: imagesWithData.length });
-    let completed = 0;
-
-    for (const p of imagesWithData) {
-      const imgUrl = p.finalImageUrl || p.imageUrl;
-      if (imgUrl) {
-        try {
-          const res = await fetch(imgUrl);
-          const blob = await res.blob();
-          const ext = blob.type.split("/")[1] || "jpg";
-          
-          const safeName = (p.productCode || p.name || "product").replace(/[\/\?<>\\:\*\|":]/g, '-');
-          const filename = `${safeName}.${ext}`;
-          
-          const objectUrl = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = objectUrl;
-          a.download = filename;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          
-          // Small delay to prevent browser from blocking multiple downloads
-          await new Promise(resolve => setTimeout(resolve, 300));
-          
-          URL.revokeObjectURL(objectUrl);
-        } catch (err) {
-          console.error(`Failed to download image for ${p.name}`, err);
-        }
-      }
-      completed++;
-      setDownloadProgress({
-        progress: completed,
-        total: imagesWithData.length,
+    
+    const imagesToDownload = imagesWithData
+      .filter(p => p.finalImageUrl || p.imageUrl)
+      .map(p => {
+        const imgUrl = p.finalImageUrl || p.imageUrl;
+        const ext = imgUrl!.split('.').pop()?.split('?')[0] || 'jpg';
+        const safeName = (p.productCode || p.name || 'product').replace(/[\/\?<>\\:\*\|":]/g, '-');
+        const filename = `${safeName}.${ext}`;
+        return { url: imgUrl!, filename };
       });
-    }
+
+    const { downloadImages } = await import('../../utils/download');
+    await downloadImages(imagesToDownload, (progress, total) => {
+      setDownloadProgress({ progress, total });
+    });
 
     setDownloadProgress(null);
     setSelectedIds(new Set());
@@ -836,44 +789,24 @@ export default function ProductManager() {
     }
 
     setDownloadProgress({ progress: 0, total: imagesWithData.length });
-    let completed = 0;
-
-    for (const p of imagesWithData) {
-      const imgUrl = p.finalImageUrl || p.imageUrl;
-      if (imgUrl) {
-        try {
-          const res = await fetch(imgUrl);
-          const blob = await res.blob();
-          const ext = blob.type.split("/")[1] || "jpg";
-          
-          const safeName = (p.productCode || p.name || "product").replace(/[\/\?<>\\:\*\|":]/g, '-');
-          const filename = `${safeName}.${ext}`;
-          
-          const objectUrl = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = objectUrl;
-          a.download = filename;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          
-          await new Promise(resolve => setTimeout(resolve, 300));
-          
-          URL.revokeObjectURL(objectUrl);
-        } catch (err) {
-          console.error(`Failed to download image for ${p.name}`, err);
-        }
-      }
-      completed++;
-      setDownloadProgress({
-        progress: completed,
-        total: imagesWithData.length,
+    
+    const imagesToDownload = imagesWithData
+      .filter(p => p.finalImageUrl || p.imageUrl)
+      .map(p => {
+        const imgUrl = p.finalImageUrl || p.imageUrl;
+        const ext = imgUrl!.split('.').pop()?.split('?')[0] || 'jpg';
+        const safeName = (p.productCode || p.name || 'product').replace(/[\/\?<>\\:\*\|":]/g, '-');
+        const filename = `${safeName}.${ext}`;
+        return { url: imgUrl!, filename };
       });
-    }
+
+    const { downloadImages } = await import('../../utils/download');
+    await downloadImages(imagesToDownload, (progress, total) => {
+      setDownloadProgress({ progress, total });
+    });
 
     setDownloadProgress(null);
   };
-
   const getCategoryName = (id: string) => {
     return categories.find((c) => c.id === id)?.name || "بدون قسم";
   };
@@ -1263,6 +1196,12 @@ export default function ProductManager() {
             >
               المواد المقفلة
             </button>
+            <button
+              onClick={() => setIsDownloadDialogOpen(true)}
+              className="pb-2 px-2 text-sm font-bold border-b-2 border-transparent text-brq-gold hover:text-white transition-colors flex items-center gap-1"
+            >
+              <Download size={14} /> تحميل جميع الصور (Zip)
+            </button>
           </div>
 
           <div className="glass-panel border border-white/5 rounded-2xl overflow-hidden p-1">
@@ -1647,6 +1586,7 @@ export default function ProductManager() {
                             >
                               {p.isLocked ? <Unlock size={16} /> : <Lock size={16} />}
                             </button>
+
                             <button
                               type="button"
                               onClick={() => handleDelete(p.id, p.name)}

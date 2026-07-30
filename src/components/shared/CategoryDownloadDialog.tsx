@@ -12,7 +12,7 @@ interface CategoryDownloadDialogProps {
 
 export function CategoryDownloadDialog({ categories, products, onClose }: CategoryDownloadDialogProps) {
   const { showToast } = useStore();
-  const [downloadProgress, setDownloadProgress] = useState<{ progress: number; total: number } | null>(null);
+  const [downloadProgress, setDownloadProgress] = useState<{ progress: number; total: number; message?: string } | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [confirmDialog, setConfirmDialog] = useState<{ isOpen: boolean; message: string; onConfirm: () => void } | null>(null);
   
@@ -39,10 +39,6 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
   };
   
   const downloadSelected = async (categoryIds: string[], zipName: string, isMainCategory: boolean) => {
-    // Find products in these categories
-    // If it's a main category, we check if product.categoryId == categoryId OR product.subcategoryId in subs
-    // If it's a subcategory group, we check if product.subcategoryId in catIds
-    
     const productsToDownload = products.filter((p) => {
       if (isMainCategory) {
         return categoryIds.includes(p.categoryId!) || (p.subcategoryId && categoryIds.includes(p.subcategoryId));
@@ -60,45 +56,42 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
 
     setConfirmDialog({
       isOpen: true,
-      message: `هل تود البدء بتحميل جميع صور هذا القسم؟ (العدد: ${imagesWithData.length} صورة)`,
+      message: `هل تود البدء بتحميل جميع صور هذا القسم؟ (العدد: ${imagesWithData.length} صورة) كملف مضغوط مرتب حسب الأقسام الفرعية؟`,
       onConfirm: async () => {
         setConfirmDialog(null);
-        setDownloadProgress({ progress: 0, total: imagesWithData.length });
-        let completed = 0;
+        setDownloadProgress({ progress: 0, total: imagesWithData.length, message: 'جاري تحضير الملفات...' });
 
-        for (const p of imagesWithData) {
-          const imgUrl = p.finalImageUrl || p.imageUrl;
-          if (imgUrl) {
-            try {
-              const res = await fetch(imgUrl);
-              const blob = await res.blob();
-              const ext = blob.type.split("/")[1] || "jpg";
-              
-              // Clean filename
-              const safeName = (p.productCode || p.name || "product").replace(/[\\/\\?<>\\\\:\\*\\|":]/g, '-');
-              const filename = `${safeName}.${ext}`;
-              
-              const objectUrl = URL.createObjectURL(blob);
-              const a = document.createElement("a");
-              a.href = objectUrl;
-              a.download = filename;
-              document.body.appendChild(a);
-              a.click();
-              document.body.removeChild(a);
-              
-              // Small delay to prevent browser from blocking multiple downloads
-              await new Promise(resolve => setTimeout(resolve, 300));
-              
-              URL.revokeObjectURL(objectUrl);
-            } catch (err) {
-              console.error(`Failed to download image for ${p.name}`, err);
+        const imagesToDownload = imagesWithData
+          .map(p => {
+            const imgUrl = p.finalImageUrl || p.imageUrl;
+            const ext = imgUrl!.split('.').pop()?.split('?')[0] || 'jpg';
+            const safeName = (p.productCode || p.name || 'product').replace(/[\\/\\?<>\\\\:\\*\\|":]/g, '-');
+            const filename = `${safeName}.${ext}`;
+            
+            // Determine folder name based on subcategory
+            let folderName = 'أخرى';
+            if (p.subcategoryId) {
+              const subCat = categories.find(c => c.id === p.subcategoryId);
+              if (subCat) {
+                folderName = subCat.name;
+              }
+            } else if (p.categoryId) {
+               const cat = categories.find(c => c.id === p.categoryId);
+               if (cat) folderName = cat.name;
             }
-          }
-          completed++;
-          setDownloadProgress({
-            progress: completed,
-            total: imagesWithData.length,
+            
+            return { url: imgUrl!, filename, folderName };
           });
+        
+        const { downloadAsZip } = await import('../../utils/zipDownload');
+        const success = await downloadAsZip(zipName, imagesToDownload, (progress, total, message) => {
+          setDownloadProgress({ progress, total, message });
+        });
+        
+        if (success) {
+           showToast("تم تحميل الملف بنجاح", "success");
+        } else {
+           showToast("حدث خطأ أثناء تحميل الملف", "error");
         }
         setDownloadProgress(null);
       }
@@ -113,7 +106,7 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
       <div className="glass-panel w-full max-w-2xl rounded-2xl border border-white/10 overflow-hidden flex flex-col max-h-[90vh]">
         <div className="p-4 border-b border-white/10 flex justify-between items-center bg-black/20">
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <Download size={20} className="text-brq-gold" /> تحميل صور الأقسام
+            <Download size={20} className="text-brq-gold" /> تحميل صور الأقسام (Zip)
           </h2>
           <button
             onClick={onClose}
@@ -128,7 +121,7 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
           <div className="p-12 flex flex-col items-center justify-center gap-4 flex-1">
             <Loader2 size={48} className="animate-spin text-brq-gold" />
             <div className="text-center">
-              <h3 className="text-xl font-bold text-white mb-2">جاري تحميل الصور...</h3>
+              <h3 className="text-xl font-bold text-white mb-2">{downloadProgress.message || 'جاري تحميل الصور...'}</h3>
               <p className="text-brq-gold text-lg font-mono">
                 {downloadProgress.progress} / {downloadProgress.total}
               </p>

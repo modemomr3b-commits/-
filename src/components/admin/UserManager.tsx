@@ -102,7 +102,6 @@ function UserManagerContent() {
         userNumber: newUser.userNumber,
         role: newUser.role || 'normal',
         status: newUser.status || 'active',
-        isActive: (newUser.status || 'active') === 'active',
         allowedDevice: newUser.allowedDevice || 'all',
         createdAt: existingUser ? existingUser.createdAt : Date.now()
       };

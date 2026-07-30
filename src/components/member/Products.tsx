@@ -272,21 +272,18 @@ export default function Products() {
     setDownloadingId(p.id!);
     showToast("بدأ التنزيل...", "loading");
     try {
-      const res = await fetch(imgUrl);
-      const blob = await res.blob();
-      const ext = blob.type.split("/")[1] || "jpg";
+      const ext = imgUrl.split('.').pop()?.split('?')[0] || "jpg";
       const safeName = (p.productCode || p.name || "product").replace(/[\/\?<>\\:\*\|":]/g, '-');
       const filename = `${safeName}.${ext}`;
       
-      const objectUrl = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = objectUrl;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(objectUrl);
-      showToast("تم التنزيل بنجاح", "success");
+      const { downloadImages } = await import('../../utils/download');
+      const success = await downloadImages([{ url: imgUrl, filename }]);
+      
+      if (success) {
+        showToast("تم الحفظ بنجاح", "success");
+      } else {
+        showToast("حدث خطأ أثناء التنزيل.", "error");
+      }
     } catch (error) {
       console.error('Error downloading file', error);
       showToast("حدث خطأ أثناء التنزيل.", "error");
@@ -357,36 +354,24 @@ export default function Products() {
                 onConfirm: async () => {
                   setConfirmDialog(null);
                   setDownloadProgress({ progress: 0, total: imagesWithData.length });
-                  let completed = 0;
-
-                  for (const p of imagesWithData) {
-                    const imgUrl = p.finalImageUrl || p.imageUrl;
-                    if (imgUrl) {
-                      try {
-                        const res = await fetch(imgUrl);
-                        const blob = await res.blob();
-                        const ext = blob.type.split('/')[1] || 'jpg';
-                        const safeName = (p.productCode || p.name || 'product').replace(/[\\/\\?<>\\\\:\\*\\|":]/g, '-');
-                        const filename = `${safeName}.${ext}`;
-                        
-                        const objectUrl = URL.createObjectURL(blob);
-                        const a = document.createElement("a");
-                        a.href = objectUrl;
-                        a.download = filename;
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                        
-                        await new Promise(resolve => setTimeout(resolve, 300));
-                        URL.revokeObjectURL(objectUrl);
-                      } catch (e) {
-                        console.error(`Failed to download ${p.name}`);
-                      }
-                    }
-                    completed++;
-                    setDownloadProgress({ progress: completed, total: imagesWithData.length });
-                  }
+                  
+                  const imagesToDownload = imagesWithData
+                    .filter(p => p.finalImageUrl || p.imageUrl)
+                    .map(p => {
+                      const imgUrl = p.finalImageUrl || p.imageUrl;
+                      const ext = imgUrl!.split('.').pop()?.split('?')[0] || 'jpg';
+                      const safeName = (p.productCode || p.name || 'product').replace(/[\\/\\?<>\\\\:\\*\\|":]/g, '-');
+                      const filename = `${safeName}.${ext}`;
+                      return { url: imgUrl!, filename };
+                    });
+                  
+                  const { downloadImages } = await import('../../utils/download');
+                  await downloadImages(imagesToDownload, (progress, total) => {
+                    setDownloadProgress({ progress, total });
+                  });
+                  
                   setDownloadProgress(null);
+                  showToast("تم الحفظ بنجاح", "success");
                 }
               });
             }} 

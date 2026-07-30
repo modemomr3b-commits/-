@@ -101,22 +101,18 @@ export default function ProductDetail() {
                     if (!imgUrl) return;
                     showToast("جاري التنزيل...", "loading");
                     try {
-                      const res = await fetch(imgUrl);
-                      const blob = await res.blob();
-                      const ext = blob.type.split('/')[1] || 'jpg';
+                      const ext = imgUrl.split('.').pop()?.split('?')[0] || 'jpg';
                       const safeName = (product.productCode || product.name || 'product').replace(/[\\/\\?<>\\\\:\\*\\|":]/g, '-');
                       const filename = `BRQ-${safeName}.${ext}`;
                       
-                      const objectUrl = URL.createObjectURL(blob);
-                      const a = document.createElement("a");
-                      a.href = objectUrl;
-                      a.download = filename;
-                      document.body.appendChild(a);
-                      a.click();
-                      document.body.removeChild(a);
+                      const { downloadImages } = await import('../../utils/download');
+                      const success = await downloadImages([{ url: imgUrl, filename }]);
                       
-                      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
-                      showToast("تم التنزيل بنجاح", "success");
+                      if (success) {
+                        showToast("تم الحفظ بنجاح", "success");
+                      } else {
+                        showToast("حدث خطأ أثناء التنزيل", "error");
+                      }
                     } catch (err) {
                       console.error(`Failed to download ${product.name}`, err);
                       showToast("حدث خطأ أثناء التنزيل", "error");

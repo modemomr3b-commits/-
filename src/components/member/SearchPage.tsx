@@ -88,22 +88,18 @@ export default function SearchPage() {
     setDownloadingId(p.id!);
     showToast("جاري التنزيل...", "loading");
     try {
-      const res = await fetch(imgUrl);
-      const blob = await res.blob();
-      const ext = blob.type.split('/')[1] || 'jpg';
+      const ext = imgUrl.split('.').pop()?.split('?')[0] || 'jpg';
       const safeName = (p.productCode || p.name || 'product').replace(/[\\/\\?<>\\\\:\\*\\|":]/g, '-');
       const filename = `${safeName}.${ext}`;
       
-      const objectUrl = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = objectUrl;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      const { downloadImages } = await import('../../utils/download');
+      const success = await downloadImages([{ url: imgUrl, filename }]);
       
-      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
-      showToast("تم التنزيل بنجاح", "success");
+      if (success) {
+        showToast("تم الحفظ بنجاح", "success");
+      } else {
+        showToast("حدث خطأ أثناء التنزيل", "error");
+      }
     } catch (err) {
       console.error(`Failed to download ${p.name}`, err);
       showToast("حدث خطأ أثناء التنزيل", "error");
