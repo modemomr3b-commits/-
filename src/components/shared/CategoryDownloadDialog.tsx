@@ -66,7 +66,7 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
 
     setConfirmDialog({
       isOpen: true,
-      message: `هل تود البدء بتحميل جميع صور هذا القسم؟ (العدد: ${imagesWithData.length} صورة) كملف مضغوط مرتب حسب الأقسام الفرعية؟`,
+      message: `هل تود البدء بتحميل جميع الصور المحددة؟ (العدد: ${imagesWithData.length} صورة). سيتم حفظ الملفات داخل مجلدات مقسمة حسب القسم الرئيسي ثم القسم الفرعي (مثال: رياضة/رياضة رجالي).`,
       onConfirm: async () => {
         setConfirmDialog(null);
         setDownloadProgress({ progress: 0, total: imagesWithData.length, message: 'جاري تحضير الملفات...' });
@@ -177,7 +177,7 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
                   >
                     <div>
                        <span className="font-bold text-brq-gold text-lg block mb-1">تحميل جميع صور المتجر</span>
-                       <span className="text-white/50 text-sm">سيتم تقسيم الصور في مجلدات حسب الأقسام الفرعية</span>
+                       <span className="text-white/50 text-sm">سيتم تقسيم الصور في مجلدات حسب الأقسام (رئيسي/فرعي)</span>
                     </div>
                     <Download size={24} className="text-brq-gold/70 group-hover:text-brq-gold group-hover:scale-110 transition-all" />
                   </button>
