@@ -66,7 +66,7 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
 
     setConfirmDialog({
       isOpen: true,
-      message: `هل تود البدء بتحميل جميع الصور المحددة؟ (العدد: ${imagesWithData.length} صورة). سيتم حفظ الملفات داخل مجلدات مقسمة حسب القسم الرئيسي ثم القسم الفرعي (مثال: رياضة/رياضة رجالي).`,
+      message: `هل تود البدء بتحميل جميع الصور المحددة؟ (العدد: ${imagesWithData.length} صورة). سيتم حفظ الملفات داخل مجلدات مقسمة حسب القسم الرئيسي ونوع المنتج بناءً على اسمه (مثال: رجالي/رياضة).`,
       onConfirm: async () => {
         setConfirmDialog(null);
         setDownloadProgress({ progress: 0, total: imagesWithData.length, message: 'جاري تحضير الملفات...' });
@@ -78,27 +78,32 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
             const safeName = (p.productCode || p.name || 'product').replace(/[\\/\\?<>\\\\:\\*\\|":]/g, '-');
             const filename = `${safeName}.${ext}`;
             
-            // Determine folder name based on main and subcategory
-            let mainCatName = '';
-            let subCatName = '';
+            // Determine folder name based on main category and product name keywords
+            let mainCatName = 'عام';
             
             if (p.categoryId) {
               const mainCat = categories.find(c => c.id === p.categoryId);
               if (mainCat) mainCatName = mainCat.name;
             }
-            if (p.subcategoryId) {
-              const subCat = categories.find(c => c.id === p.subcategoryId);
-              if (subCat) subCatName = subCat.name;
-            }
 
-            let folderName = 'أخرى';
-            if (mainCatName && subCatName) {
-              folderName = `${mainCatName}/${subCatName}`;
-            } else if (subCatName) {
-              folderName = subCatName;
-            } else if (mainCatName) {
-              folderName = `${mainCatName}/عام`;
-            }
+            const getProductType = (name: string) => {
+              if (!name) return 'أخرى';
+              const lowerName = name.toLowerCase();
+              if (lowerName.includes('رياض')) return 'رياضة';
+              if (lowerName.includes('شحاط')) return 'شحاطة';
+              if (lowerName.includes('صندل') || lowerName.includes('صنادل')) return 'صندل';
+              if (lowerName.includes('سليبر')) return 'سليبر';
+              if (lowerName.includes('حذاء') || lowerName.includes('احذية') || lowerName.includes('أحذية')) return 'أحذية';
+              if (lowerName.includes('لاستيك')) return 'لاستيك';
+              if (lowerName.includes('ايفا') || lowerName.includes('إيفا')) return 'ايفا';
+              if (lowerName.includes('قندر') || lowerName.includes('قنادر')) return 'قنادر';
+              if (lowerName.includes('بوت') || lowerName.includes('جزم') || lowerName.includes('بسطال')) return 'بوت وجزم';
+              if (lowerName.includes('نص')) return 'نصف';
+              return 'أخرى';
+            };
+
+            const productType = getProductType(p.name);
+            const folderName = `${mainCatName}/${productType}`;
             
             return { url: imgUrl!, filename, folderName };
           });
@@ -177,7 +182,7 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
                   >
                     <div>
                        <span className="font-bold text-brq-gold text-lg block mb-1">تحميل جميع صور المتجر</span>
-                       <span className="text-white/50 text-sm">سيتم تقسيم الصور في مجلدات حسب الأقسام (رئيسي/فرعي)</span>
+                       <span className="text-white/50 text-sm">سيتم تقسيم الصور في مجلدات حسب القسم الرئيسي ثم نوع المنتج (مثال: رجالي/رياضة)</span>
                     </div>
                     <Download size={24} className="text-brq-gold/70 group-hover:text-brq-gold group-hover:scale-110 transition-all" />
                   </button>
