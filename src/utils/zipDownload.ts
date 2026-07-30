@@ -18,11 +18,8 @@ export const downloadAsZip = async (
         const res = await fetch(img.url);
         const blob = await res.blob();
         
-        if (img.folderName) {
-          zip.folder(img.folderName)?.file(img.filename, blob);
-        } else {
-          zip.file(img.filename, blob);
-        }
+        const finalPath = img.folderName ? `${img.folderName}/${img.filename}` : img.filename;
+        zip.file(finalPath, blob);
         
         completed++;
         if (onProgress) {

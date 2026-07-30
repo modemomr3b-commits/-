@@ -38,8 +38,18 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
     await downloadSelected(catIds, subName, false);
   };
   
+  const handleDownloadAll = async () => {
+    // Collect all category IDs
+    const catIds = categories.map(c => c.id!);
+    
+    await downloadSelected(catIds, "جميع الأقسام", true);
+  };
+  
   const downloadSelected = async (categoryIds: string[], zipName: string, isMainCategory: boolean) => {
     const productsToDownload = products.filter((p) => {
+      // If downloading all (categoryIds includes all categories), just include everything that has an image
+      if (categoryIds.length === categories.length) return true;
+      
       if (isMainCategory) {
         return categoryIds.includes(p.categoryId!) || (p.subcategoryId && categoryIds.includes(p.subcategoryId));
       } else {
@@ -149,6 +159,20 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-6">
+              {!searchTerm && (
+                <div>
+                  <button
+                    onClick={handleDownloadAll}
+                    className="w-full p-4 bg-gradient-to-r from-brq-gold/10 to-brq-gold/5 border border-brq-gold/30 rounded-xl hover:bg-brq-gold/20 hover:border-brq-gold/60 transition-all text-right group flex justify-between items-center"
+                  >
+                    <div>
+                       <span className="font-bold text-brq-gold text-lg block mb-1">تحميل جميع صور المتجر</span>
+                       <span className="text-white/50 text-sm">سيتم تقسيم الصور في مجلدات حسب الأقسام الفرعية</span>
+                    </div>
+                    <Download size={24} className="text-brq-gold/70 group-hover:text-brq-gold group-hover:scale-110 transition-all" />
+                  </button>
+                </div>
+              )}
               {filteredSubs.length > 0 && (
                 <div>
                   <h3 className="text-sm font-bold text-brq-gold mb-3 flex items-center gap-2">
