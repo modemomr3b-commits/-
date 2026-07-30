@@ -18,8 +18,18 @@ export const downloadAsZip = async (
         const res = await fetch(img.url);
         const blob = await res.blob();
         
-        const finalPath = img.folderName ? `${img.folderName}/${img.filename}` : img.filename;
-        zip.file(finalPath, blob);
+        if (img.folderName) {
+          // By explicitly creating the folder first, we ensure it has a directory entry
+          // which helps some extraction tools (like Windows Explorer) show the folders properly
+          const folderParts = img.folderName.split('/');
+          let currentFolder = zip;
+          for (const part of folderParts) {
+            currentFolder = currentFolder.folder(part);
+          }
+          currentFolder.file(img.filename, blob);
+        } else {
+          zip.file(img.filename, blob);
+        }
         
         completed++;
         if (onProgress) {

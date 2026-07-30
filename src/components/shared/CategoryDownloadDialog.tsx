@@ -78,16 +78,26 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
             const safeName = (p.productCode || p.name || 'product').replace(/[\\/\\?<>\\\\:\\*\\|":]/g, '-');
             const filename = `${safeName}.${ext}`;
             
-            // Determine folder name based on subcategory
-            let folderName = 'أخرى';
+            // Determine folder name based on main and subcategory
+            let mainCatName = '';
+            let subCatName = '';
+            
+            if (p.categoryId) {
+              const mainCat = categories.find(c => c.id === p.categoryId);
+              if (mainCat) mainCatName = mainCat.name;
+            }
             if (p.subcategoryId) {
               const subCat = categories.find(c => c.id === p.subcategoryId);
-              if (subCat) {
-                folderName = subCat.name;
-              }
-            } else if (p.categoryId) {
-               const cat = categories.find(c => c.id === p.categoryId);
-               if (cat) folderName = cat.name;
+              if (subCat) subCatName = subCat.name;
+            }
+
+            let folderName = 'أخرى';
+            if (mainCatName && subCatName) {
+              folderName = `${mainCatName}/${subCatName}`;
+            } else if (subCatName) {
+              folderName = subCatName;
+            } else if (mainCatName) {
+              folderName = `${mainCatName}/عام`;
             }
             
             return { url: imgUrl!, filename, folderName };
