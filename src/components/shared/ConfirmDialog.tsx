@@ -41,7 +41,7 @@ export function ConfirmDialog({
           
           <h3 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-white to-white/70 mb-3">{title}</h3>
           
-          <p className="text-white/60 mb-8 leading-relaxed text-sm">{message}</p>
+          <p className="text-brq-gold font-bold mb-8 leading-relaxed text-base">{message}</p>
           
           <div className="flex flex-col sm:flex-row gap-3 w-full relative z-10">
             <button
