@@ -284,8 +284,8 @@ export default function CategoryManager() {
           return { url: imgUrl!, filename };
         });
 
-      const { downloadImages } = await import('../../utils/download');
-      await downloadImages(imagesToDownload, (progress, total) => {
+      const { downloadAsZip } = await import('../../utils/zipDownload');
+      await downloadAsZip(catName, imagesToDownload, (progress, total) => {
         setDownloadProgress({ id: catId, progress, total });
       });
 

@@ -8,6 +8,7 @@ import { Product, Category } from "../../types";
 import { useStore } from "../../store";
 import OptimizedImage from "../OptimizedImage";
 import { CategoryDownloadDialog } from "../shared/CategoryDownloadDialog";
+import { ShareDialog } from "../shared/ShareDialog";
 import { ConfirmDialog } from "../shared/ConfirmDialog";
 import { PriceHistoryViewer } from "./PriceHistoryViewer";
 import ImageViewer from "../ImageViewer";
@@ -28,6 +29,8 @@ export default function Products() {
 
   const [categoryName, setCategoryName] = useState("جميع المنتجات");
   const [downloadProgress, setDownloadProgress] = useState<{ progress: number, total: number } | null>(null);
+  const [readyToShareFiles, setReadyToShareFiles] = useState<File[] | null>(null);
+  const [shareChunks, setShareChunks] = useState<File[][] | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{ isOpen: boolean; message: string; onConfirm: () => void } | null>(null);
   const [initialLoading, setInitialLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
@@ -392,14 +395,28 @@ export default function Products() {
                     });
                   
                   if ((user?.role !== 'admin' && user?.role !== 'sales')) {
-                    const { downloadImages } = await import('../../utils/download');
-                    const success = await downloadImages(imagesToDownload, (progress, total) => {
+                    const { fetchImageFiles } = await import('../../utils/download');
+                    const files = await fetchImageFiles(imagesToDownload, (progress, total) => {
                       setDownloadProgress({ progress, total });
                     });
-                    if (success) {
-                       showToast("تم الحفظ في الاستوديو بنجاح", "success");
+                    
+                    if (files.length === 0) {
+                       showToast("حدث خطأ أثناء تحميل الصور", "error");
+                       setDownloadProgress(null);
+                       return;
+                    }
+                    
+                    setDownloadProgress(null);
+                    
+                    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+                    if (isIOS && files.length > 10) {
+                       const chunks = [];
+                       for (let i = 0; i < files.length; i += 10) {
+                          chunks.push(files.slice(i, i + 10));
+                       }
+                       setShareChunks(chunks);
                     } else {
-                       showToast("حدث خطأ أثناء الحفظ", "error");
+                       setReadyToShareFiles(files);
                     }
                   } else {
                     const { downloadAsZip } = await import('../../utils/zipDownload');
@@ -458,246 +475,74 @@ export default function Products() {
           onClose={() => setIsDownloadDialogOpen(false)}
         />
       )}
-
+      <ShareDialog
+        readyToShareFiles={readyToShareFiles}
+        shareChunks={shareChunks}
+        onClose={() => {
+           setReadyToShareFiles(null);
+           setShareChunks(null);
+        }}
+        showToast={showToast}
+      />
       {initialLoading ? (
         <div className="flex-1 flex justify-center items-center h-64">
           <div className="w-10 h-10 border-4 border-brq-gold border-t-transparent rounded-full animate-spin"></div>
         </div>
       ) : filteredProducts.length === 0 ? (
         <div className="flex-1 flex flex-col justify-center items-center text-white/50 p-8 text-center h-64">
-          <div className="text-4xl text-brq-gold mb-4 opacity-50">📦</div>
-          <p className="text-lg font-bold text-white mb-2">لا توجد منتجات</p>
-          <p className="text-sm">
-            هذا القسم لا يحتوي على منتجات حالياً. سيتم إضافة منتجات قريباً.
-          </p>
-          <button
-            onClick={() => navigate("/")}
-            className="mt-6 px-6 py-2 bg-brq-gold text-black rounded-lg font-bold"
-          >
-            العودة للرئيسية
-          </button>
+          <Layers size={48} className="mb-4 opacity-20" />
+          <p>لا توجد منتجات في هذا القسم</p>
         </div>
       ) : (
-        <div className="p-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 pb-24">
-          {filteredProducts.map((p) => (
-            <Link to={`/product/${p.id}`} state={{ product: p }}
-              key={p.id}
-              className={`glass-card rounded-2xl overflow-hidden flex flex-col border relative group transition-colors shadow-lg ${
-                selectedIds.has(p.id!) ? "border-blue-500 bg-blue-500/10" : "border-white/5 hover:border-brq-gold"
-              }`}
-              onClick={(e) => {
-                if (isSelectionMode) {
-                  toggleSelection(e, p.id!);
-                }
-              }}
-            >
-              {isSelectionMode && (
-                <div className="absolute top-2 right-2 z-10">
-                  <button
-                    onClick={(e) => toggleSelection(e, p.id!)}
-                    className="p-1.5 rounded-lg bg-black/40 backdrop-blur-sm border border-white/20 text-white transition-colors"
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-2 pb-24">
+          <div className="grid grid-cols-2 gap-2">
+            {filteredProducts.map((product) => (
+              <Link 
+                to={`/products/${product.id}`}
+                key={product.id} 
+                className={`bg-white/5 rounded-xl border ${selectedIds.has(product.id!) ? 'border-blue-500 bg-blue-500/10' : 'border-white/10'} overflow-hidden hover:bg-white/10 transition-colors relative block`}
+              >
+                {isSelectionMode && (
+                  <div 
+                    className="absolute top-2 right-2 z-10"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      toggleSelection(product.id!);
+                    }}
                   >
-                    {selectedIds.has(p.id!) ? (
-                      <CheckSquare size={18} className="text-blue-400" />
-                    ) : (
-                      <Square size={18} className="text-white/60" />
-                    )}
-                  </button>
-                </div>
-              )}
-              
-              {!isSelectionMode && (
-                <div className="absolute top-2 left-2 z-10 flex flex-col gap-1">
-                  <button
-                    onClick={(e) => handleShareSingle(e, p)}
-                    className="p-1.5 rounded-lg bg-black/40 backdrop-blur-sm border border-white/20 text-white hover:bg-blue-500/50 hover:text-white transition-colors"
-                    title="مشاركة الصورة"
-                  >
-                    <Share2 size={16} />
-                  </button>
-                  <button
-                    onClick={(e) => handleDownloadSingle(e, p)}
-                    disabled={downloadingId === p.id}
-                    className="p-1.5 rounded-lg bg-black/40 backdrop-blur-sm border border-white/20 text-white hover:bg-emerald-500/50 hover:text-white transition-colors disabled:opacity-50"
-                    title="تنزيل الصورة"
-                  >
-                    {downloadingId === p.id ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
-                  </button>
-                  {p.oldPriceInfo && (
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setHistoryProduct(p);
-                      }}
-                      className="p-1.5 rounded-lg bg-brq-gold/20 backdrop-blur-sm border border-brq-gold/40 text-brq-gold hover:bg-brq-gold hover:text-black transition-colors shadow-[0_0_10px_rgba(212,175,55,0.3)]"
-                      title="تم تغيير السعر - عرض التاريخ"
-                    >
-                      <History size={16} />
-                    </button>
-                  )}
-                </div>
-              )}
-              
-              <div className="w-full aspect-[4/5] bg-black/40 relative flex items-center justify-center border-b border-white/5 p-0 overflow-hidden">
-                {p.finalImageUrl || p.imageUrl ? (
-                  <div className="absolute inset-0">
+                    <div className={`w-6 h-6 rounded-md flex items-center justify-center border transition-colors ${
+                      selectedIds.has(product.id!) 
+                        ? 'bg-blue-500 border-blue-500 text-white' 
+                        : 'bg-black/50 border-white/30 text-transparent hover:border-white/60'
+                    }`}>
+                      <CheckSquare size={16} />
+                    </div>
+                  </div>
+                )}
+                
+                {product.finalImageUrl ? (
+                  <div className="aspect-square relative">
                     <OptimizedImage
-                      src={p.finalImageUrl || p.imageUrl}
-                      alt={p.name}
-                      size="medium"
-                      className="w-full h-full"
-                      imgClassName="object-contain w-full h-full hover:scale-105 transition-transform duration-500"
+                      src={product.finalImageUrl}
+                      alt={product.name}
+                      className="w-full h-full object-cover"
                     />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none" />
                   </div>
                 ) : (
-                  <div className="text-white/30 text-3xl">👟</div>
+                  <div className="aspect-square bg-white/5 flex items-center justify-center relative">
+                    <ImageIcon size={32} className="text-white/20" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none" />
+                  </div>
                 )}
-              </div>
-              <div className="p-3 flex flex-col gap-2 bg-gradient-to-b from-transparent to-black/40">
-                <div className="flex justify-between items-start gap-2">
-                  <h3
-                    className="font-bold text-white text-xs leading-tight line-clamp-2"
-                    dir="rtl"
-                  >
-                    {p.name}
-                  </h3>
-                  <span className="text-[10px] text-white/60 bg-white/10 px-1 py-0.5 rounded font-mono shrink-0">
-                    {p.productCode || "---"}
-                  </span>
+                <div className="p-2 absolute bottom-0 left-0 right-0">
+                  <div className="text-xs text-brq-gold font-bold mb-1 truncate">{product.productCode}</div>
+                  <h3 className="font-bold text-white text-xs line-clamp-1 truncate">{product.name}</h3>
                 </div>
-
-                <div className="flex items-end justify-between mt-1">
-                  <div>
-                    <p className="text-brq-gold font-bold text-sm">
-                      {p.price?.toLocaleString("en-US")}
-                    </p>
-                    <p className="text-[9px] text-white/40">د.ع / الجملة</p>
-                    {user?.role === 'admin' && p.dozenPriceUsd !== undefined && (
-                      <div className="mt-1">
-                        <p className="text-brq-blue text-xs font-bold font-mono">
-                          ${p.dozenPriceUsd}
-                        </p>
-                        <p className="text-[9px] text-white/40">دولار / الجملة</p>
-                      </div>
-                    )}
-                  </div>
-                  {p.piecesCount && (
-                    <div className="flex flex-col items-end">
-                      <p className="text-white font-mono text-xs">
-                        {p.piecesCount}
-                      </p>
-                      <p className="text-[9px] text-white/40">
-                        الكمية/عدد القطع
-                      </p>
-                    </div>
-                  )}
-                </div>
-                <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/5">
-                  <div className="flex flex-col">
-                    <p className="text-[9px] text-white/40 mb-0.5">تاريخ النزول</p>
-                    <p className="text-[10px] text-white/70 font-mono tracking-tight">{p.createdAt ? formatDate(p.createdAt) : '---'}</p>
-                  </div>
-                  <div className="flex flex-col items-end">
-                    <p className="text-[9px] text-white/40 mb-0.5">أخر تحديث</p>
-                    <p className="text-[10px] text-white/70 font-mono tracking-tight">{p.updatedAt ? formatDate(p.updatedAt) : (p.createdAt ? formatDate(p.createdAt) : '---')}</p>
-                  </div>
-                </div>
-                <div className="mt-2">
-                  {(() => {
-                    const cartItem = cart.find(item => item.product.id === p.id);
-                    if (cartItem) {
-                      return (
-                        <div className="flex items-center justify-between w-full h-8 bg-brq-royal/20 border border-brq-royal/50 rounded-lg">
-                          <button
-                            onClick={(e) => handleUpdateQuantity(e, p, cartItem.quantity + 1)}
-                            className="h-full px-3 text-white hover:bg-brq-royal/50 rounded-r-lg transition-colors"
-                          >
-                            +
-                          </button>
-                          <span className="text-white font-bold text-xs">{cartItem.quantity}</span>
-                          <button
-                            onClick={(e) => handleUpdateQuantity(e, p, cartItem.quantity - 1)}
-                            className="h-full px-3 text-white hover:bg-brq-royal/50 rounded-l-lg transition-colors"
-                          >
-                            -
-                          </button>
-                        </div>
-                      );
-                    }
-                    return (
-                      <button
-                        onClick={(e) => handleAddToCart(e, p)}
-                        className="w-full py-1.5 bg-brq-royal/20 hover:bg-brq-royal border border-brq-royal/50 rounded-lg text-white font-medium text-xs flex items-center justify-center gap-1.5 transition-colors"
-                      >
-                        <ShoppingCart size={14} /> إضافة
-                      </button>
-                    );
-                  })()}
-                </div>
-              </div>
-            </Link>
-          ))}
-        </div>
-      )}
-
-      {/* Pagination Controls */}
-      {totalPages > 1 && !loading && filteredProducts.length > 0 && (
-        <div className="flex flex-wrap justify-center items-center gap-2 mt-4 mb-16 pb-24" dir="ltr">
-          {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNumber) => (
-            <button
-              key={pageNumber}
-              onClick={() => {
-                setCurrentPage(pageNumber);
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              className={`w-12 h-12 flex items-center justify-center rounded-xl font-bold text-lg transition-all ${
-                currentPage === pageNumber 
-                  ? 'bg-brq-gold text-black scale-110 shadow-[0_0_15px_rgba(255,215,0,0.4)] border-2 border-yellow-300' 
-                  : 'bg-brq-card border border-brq-border text-white hover:bg-white/10'
-              }`}
-            >
-              {pageNumber}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {selectedIds.size > 0 && (
-        <div className="fixed bottom-20 left-0 right-0 z-50 px-4 animate-in slide-in-from-bottom-10 fade-in duration-300">
-          <div className="max-w-md mx-auto bg-blue-900/90 backdrop-blur-md border border-blue-500/50 rounded-2xl shadow-2xl p-4 flex items-center justify-between">
-            <div className="flex flex-col">
-              <span className="text-white font-bold text-sm">
-                تم تحديد {selectedIds.size} منتج
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleShareSelected}
-                disabled={downloadProgress !== null}
-                className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-bold text-sm transition-colors flex items-center gap-2"
-              >
-                <Share2 size={16} /> مشاركة
-              </button>
-            </div>
+              </Link>
+            ))}
           </div>
         </div>
-      )}
-
-      {historyProduct && (
-        <PriceHistoryViewer product={historyProduct} onClose={() => setHistoryProduct(null)} />
-      )}
-      {fullscreenImage && (
-        <ImageViewer src={fullscreenImage.src} alt={fullscreenImage.alt} onClose={() => setFullscreenImage(null)} />
-      )}
-      {confirmDialog && (
-        <ConfirmDialog
-          isOpen={confirmDialog.isOpen}
-          title="تحميل الصور"
-          message={confirmDialog.message}
-          onConfirm={confirmDialog.onConfirm}
-          onCancel={() => setConfirmDialog(null)}
-        />
       )}
     </div>
   );
