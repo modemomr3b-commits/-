@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import { Download, X, Loader2, Search } from "lucide-react";
 import { Category, Product } from "../../types";
 import { ConfirmDialog } from "./ConfirmDialog";
-import { ShareDialog } from "./ShareDialog";
 import { useStore } from "../../store";
 
 interface CategoryDownloadDialogProps {
@@ -16,8 +15,6 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
   const [downloadProgress, setDownloadProgress] = useState<{ progress: number; total: number; message?: string } | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [confirmDialog, setConfirmDialog] = useState<{ isOpen: boolean; message: string; onConfirm: () => void } | null>(null);
-  const [readyToShareFiles, setReadyToShareFiles] = useState<File[] | null>(null);
-  const [shareChunks, setShareChunks] = useState<File[][] | null>(null);
   
   // Get all unique subcategory names to allow downloading all subcategories with the same name across parent categories
   const mainCategories = categories.filter(c => !c.parentId);
@@ -114,29 +111,14 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
           });
         
         if ((user?.role !== 'admin' && user?.role !== 'sales')) {
-          const { fetchImageFiles } = await import('../../utils/download');
-          const files = await fetchImageFiles(imagesToDownload, (progress, total) => {
-            setDownloadProgress({ progress, total, message: 'جاري تحضير الصور للاستوديو...' });
+          const { downloadImages } = await import('../../utils/download');
+          const success = await downloadImages(imagesToDownload, (progress, total) => {
+            setDownloadProgress({ progress, total, message: 'جاري تحميل الصور للاستوديو...' });
           });
-          
-          if (files.length === 0) {
-             showToast("حدث خطأ أثناء تحميل الصور", "error");
-             setDownloadProgress(null);
-             return;
-          }
-          
-          setDownloadProgress(null);
-          
-          // Check if we need to chunk for iOS (limit to 10-15 per share)
-          const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-          if (isIOS && files.length > 10) {
-             const chunks = [];
-             for (let i = 0; i < files.length; i += 10) {
-                chunks.push(files.slice(i, i + 10));
-             }
-             setShareChunks(chunks);
+          if (success) {
+             showToast("تم حفظ الصور في الاستوديو بنجاح", "success");
           } else {
-             setReadyToShareFiles(files);
+             showToast("حدث خطأ أثناء حفظ الصور أو تم إلغاء العملية", "error");
           }
         } else {
           const { downloadAsZip } = await import('../../utils/zipDownload');
@@ -150,8 +132,7 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
              showToast("حدث خطأ أثناء تحميل الملف", "error");
           }
         }
-        
-        // setDownloadProgress(null); is not needed here as we handle it above or inside ShareDialog
+        setDownloadProgress(null);
       }
     });
   };
