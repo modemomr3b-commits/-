@@ -1,6 +1,6 @@
 import { formatDateTime, formatDate } from '../../utils/time';
 import { useParams, Link, useNavigate } from "react-router";
-import { Image as ImageIcon, ChevronRight, Filter, Download, ShoppingCart, Layers, Share2, CheckSquare, Square, History, Loader2 } from "lucide-react";
+import { Image as ImageIcon, ChevronRight, Lock, Filter, Download, ShoppingCart, Layers, Share2, CheckSquare, Square, History, Loader2 } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { api } from "../../api";
 import { supabase } from "../../supabase";
@@ -252,6 +252,21 @@ const toggleSelection = (e: React.MouseEvent, id: string) => {
     if (next.has(id)) next.delete(id);
     else next.add(id);
     setSelectedIds(next);
+  };
+
+  const handleToggleLock = async (e: React.MouseEvent, product: Product) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    try {
+      await api.updateProduct(product.id!, { isLocked: true });
+      showToast("تم النقل للمواد المقفلة بنجاح", "success");
+      
+      setProducts(prev => prev.filter(p => p.id !== product.id));
+    } catch (err) {
+      console.error("Error locking product:", err);
+      showToast("حدث خطأ أثناء نقل المنتج للمواد المقفلة", "error");
+    }
   };
 
   const handleShareSelected = async () => {
@@ -525,6 +540,17 @@ const toggleSelection = (e: React.MouseEvent, id: string) => {
                         : 'bg-black/50 border-white/30 text-transparent hover:border-white/60'
                     }`}>
                       <CheckSquare size={16} />
+                    </div>
+                  </div>
+                )}
+                
+                {user?.role === 'admin' && (
+                  <div
+                    className="absolute top-2 left-2 z-10"
+                    onClick={(e) => handleToggleLock(e, product)}
+                  >
+                    <div className="w-8 h-8 rounded-md bg-black/50 border border-white/20 hover:border-purple-500 hover:text-purple-400 text-white/70 transition-colors flex items-center justify-center backdrop-blur-sm shadow-[0_0_10px_rgba(0,0,0,0.5)]" title="نقل للمواد المقفلة">
+                      <Lock size={16} />
                     </div>
                   </div>
                 )}
