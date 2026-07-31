@@ -1,6 +1,6 @@
 import { formatDateTime, formatDate } from '../../utils/time';
 import { useParams, useNavigate, useLocation } from 'react-router';
-import { ChevronRight, Lock, Heart, ShoppingCart, Loader2, Download, Share2, History } from 'lucide-react';
+import { ChevronRight, Heart, ShoppingCart, Loader2, Download, Share2, History } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { api } from '../../api';
 import { Product } from '../../types';
@@ -18,18 +18,6 @@ export default function ProductDetail() {
   const { addToCart, updateQuantity, removeFromCart, cart, user, showToast } = useStore();
   const [historyProduct, setHistoryProduct] = useState<Product | null>(null);
   const [fullscreenImage, setFullscreenImage] = useState<{ src: string, alt: string } | null>(null);
-
-  const handleToggleLock = async () => {
-    if (!product) return;
-    try {
-      await api.updateProduct(product.id!, { isLocked: true });
-      showToast("تم النقل للمواد المقفلة بنجاح", "success");
-      navigate(-1);
-    } catch (err) {
-      console.error("Error locking product:", err);
-      showToast("حدث خطأ أثناء نقل المنتج للمواد المقفلة", "error");
-    }
-  };
 
   useEffect(() => {
     window.scrollTo(0, 0);
