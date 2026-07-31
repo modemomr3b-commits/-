@@ -3,7 +3,6 @@ import { Download, X, Loader2, Search } from "lucide-react";
 import { Category, Product } from "../../types";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { ShareDialog } from "./ShareDialog";
-import { DownloadModeDialog } from "./DownloadModeDialog";
 import { useStore } from "../../store";
 
 interface CategoryDownloadDialogProps {
@@ -17,7 +16,6 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
   const [downloadProgress, setDownloadProgress] = useState<{ progress: number; total: number; message?: string } | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [confirmDialog, setConfirmDialog] = useState<{ isOpen: boolean; message: string; onConfirm: () => void } | null>(null);
-  const [downloadModeState, setDownloadModeState] = useState<{ isOpen: boolean; imagesWithData: any[]; zipName: string } | null>(null);
   const [readyToShareFiles, setReadyToShareFiles] = useState<File[] | null>(null);
   const [shareChunks, setShareChunks] = useState<File[][] | null>(null);
   
@@ -69,19 +67,14 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
       return;
     }
 
-    setDownloadModeState({
+    setConfirmDialog({
       isOpen: true,
-      imagesWithData,
-      zipName
-    });
-  };
-
-  const executeDownload = async (mode: 'gallery' | 'zip') => {
-    if (!downloadModeState) return;
-    const { imagesWithData, zipName } = downloadModeState;
-    setDownloadModeState(null);
-    setDownloadProgress({ progress: 0, total: imagesWithData.length, message: 'جاري تحضير الملفات...' });
-
+      message: (user?.role !== 'admin' && user?.role !== 'sales') 
+        ? `هل تود البدء بتحميل جميع الصور المحددة؟ (العدد: ${imagesWithData.length} صورة). سيتم حفظ الصور مباشرة في الاستوديو الخاص بك.`
+        : `هل تود البدء بتحميل جميع الصور المحددة؟ (العدد: ${imagesWithData.length} صورة). سيتم حفظ الملفات داخل مجلدات مقسمة حسب القسم الرئيسي ونوع المنتج بناءً على اسمه (مثال: رجالي/رياضة).`,
+      onConfirm: async () => {
+        setConfirmDialog(null);
+        setDownloadProgress({ progress: 0, total: imagesWithData.length, message: 'جاري تحضير الملفات...' });
 
         const imagesToDownload = imagesWithData
           .map(p => {
@@ -120,7 +113,7 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
             return { url: imgUrl!, filename, folderName };
           });
         
-        if (mode === 'gallery') {
+        if ((user?.role !== 'admin' && user?.role !== 'sales')) {
           const { fetchImageFiles } = await import('../../utils/download');
           const files = await fetchImageFiles(imagesToDownload, (progress, total) => {
             setDownloadProgress({ progress, total, message: 'جاري تحضير الصور للاستوديو...' });
@@ -156,8 +149,11 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
           } else {
              showToast("حدث خطأ أثناء تحميل الملف", "error");
           }
-          setDownloadProgress(null);
         }
+        
+        // setDownloadProgress(null); is not needed here as we handle it above or inside ShareDialog
+      }
+    });
   };
 
   const filteredMains = mainCategories.filter(c => c.name.includes(searchTerm));
@@ -283,15 +279,6 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
           message={confirmDialog.message}
           onConfirm={confirmDialog.onConfirm}
           onCancel={() => setConfirmDialog(null)}
-        />
-      )}
-      
-      {downloadModeState && (
-        <DownloadModeDialog
-          isOpen={downloadModeState.isOpen}
-          imageCount={downloadModeState.imagesWithData.length}
-          onSelectOption={executeDownload}
-          onCancel={() => setDownloadModeState(null)}
         />
       )}
     </div>
