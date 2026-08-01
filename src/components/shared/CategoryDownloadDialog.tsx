@@ -14,7 +14,7 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
   const { showToast, user } = useStore();
   const [downloadProgress, setDownloadProgress] = useState<{ progress: number; total: number; message?: string } | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [downloadChoiceDialog, setDownloadChoiceDialog] = useState<{ isOpen: boolean; message: string; onDownloadStudio: () => void; onDownloadZip: () => void } | null>(null);
+  const [downloadChoiceDialog, setDownloadChoiceDialog] = useState<{ isOpen: boolean; message: string; onDownloadStudio: () => void; onDownloadZip: () => void; onDownloadAllElastic?: () => void } | null>(null);
   
   // Get all unique subcategory names to allow downloading all subcategories with the same name across parent categories
   const mainCategories = categories.filter(c => !c.parentId);
@@ -270,6 +270,7 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
           message={downloadChoiceDialog.message}
           onDownloadStudio={downloadChoiceDialog.onDownloadStudio}
           onDownloadZip={downloadChoiceDialog.onDownloadZip}
+          onDownloadAllElastic={downloadChoiceDialog.onDownloadAllElastic}
           onCancel={() => setDownloadChoiceDialog(null)}
         />
       )}

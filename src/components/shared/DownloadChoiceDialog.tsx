@@ -7,6 +7,7 @@ interface DownloadChoiceDialogProps {
   message: string;
   onDownloadStudio: () => void;
   onDownloadZip: () => void;
+  onDownloadAllElastic?: () => void;
   onCancel: () => void;
 }
 
@@ -16,6 +17,7 @@ export function DownloadChoiceDialog({
   message,
   onDownloadStudio,
   onDownloadZip,
+  onDownloadAllElastic,
   onCancel
 }: DownloadChoiceDialogProps) {
   if (!isOpen) return null;
@@ -54,6 +56,15 @@ export function DownloadChoiceDialog({
             >
               <FileArchive size={20} /> تحميل كملف مضغوط (ZIP)
             </button>
+
+            {onDownloadAllElastic && (
+              <button
+                onClick={onDownloadAllElastic}
+                className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-400 text-white hover:from-emerald-500 hover:to-emerald-300 transition-all font-bold flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:shadow-[0_0_30px_rgba(16,185,129,0.5)] hover:-translate-y-0.5"
+              >
+                <FileArchive size={20} /> تحميل جميع اللاستيك في الموقع (ZIP)
+              </button>
+            )}
 
             <button
               onClick={onCancel}

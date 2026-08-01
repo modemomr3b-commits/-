@@ -28,7 +28,7 @@ export default function Products() {
 
   const [categoryName, setCategoryName] = useState("جميع المنتجات");
   const [downloadProgress, setDownloadProgress] = useState<{ progress: number, total: number } | null>(null);
-  const [downloadChoiceDialog, setDownloadChoiceDialog] = useState<{ isOpen: boolean; message: string; onDownloadStudio: () => void; onDownloadZip: () => void } | null>(null);
+  const [downloadChoiceDialog, setDownloadChoiceDialog] = useState<{ isOpen: boolean; message: string; onDownloadStudio: () => void; onDownloadZip: () => void; onDownloadAllElastic?: () => void } | null>(null);
   const [initialLoading, setInitialLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 24;
@@ -309,49 +309,49 @@ export default function Products() {
                 {categoryName}
               </h2>
               <p className="text-[10px] text-white/50">
-                {filteredProducts.length} منتجات القائمة
+                {filteredProducts.length} منتجات
               </p>
             </div>
           </div>
-        </div>
-
-        {subCategories.length > 0 && (
-          <div className="flex gap-2 overflow-x-auto pb-2 mb-2 no-scrollbar">
-            <button
-              onClick={() => setActiveSub(null)}
-              className={`whitespace-nowrap px-4 py-1.5 rounded-full text-xs transition-colors border ${!activeSub ? "bg-brq-gold text-black font-bold border-brq-gold" : "bg-black/40 text-white/70 border-white/10 hover:border-brq-gold/50"}`}
+          <div className="flex gap-2">
+            <button 
+              onClick={() => setIsFilterModalOpen(true)}
+              className="p-2 bg-white/5 rounded-lg border border-white/10 text-white hover:bg-white/10 transition-colors"
             >
-              الكل
+              <Filter size={18} />
             </button>
-            {subCategories.map((sub) => (
-              <button
-                key={sub.id}
-                onClick={() => setActiveSub(sub.id)}
-                className={`whitespace-nowrap px-4 py-1.5 rounded-full text-xs transition-colors border ${activeSub === sub.id ? "bg-brq-gold text-black font-bold border-brq-gold" : "bg-black/40 text-white/70 border-white/10 hover:border-brq-gold/50"}`}
-              >
-                {sub.name}
-              </button>
-            ))}
           </div>
-        )}
+        </div>
+        
+        <div className="relative mb-3 shrink-0">
+          <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+            <Search className="w-4 h-4 text-brq-gold" />
+          </div>
+          <input
+            type="text"
+            className="w-full bg-white/5 border border-white/10 text-white text-sm rounded-lg focus:ring-brq-gold focus:border-brq-gold block pl-3 pr-10 py-2.5 transition-colors placeholder:text-white/30"
+            placeholder="ابحث في هذا القسم..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
 
         <div className="flex gap-2 w-full">
           <button 
-            disabled={downloadProgress !== null}
-            onClick={async () => {
-              if (filteredProducts.length === 0) {
-                 showToast("لا توجد منتجات بصور لتحميلها", "error");
-                 return;
-              }
-              const imagesWithData = filteredProducts.filter(p => p.finalImageUrl || p.imageUrl);
+            disabled={filteredProducts.length === 0}
+            onClick={() => {
+              const imagesWithData = isSelectionMode 
+                ? filteredProducts.filter(p => selectedIds.has(p.id!))
+                : filteredProducts;
+                
               if (imagesWithData.length === 0) {
-                 showToast("لا توجد صور للمنتجات لتحميلها.", "error");
+                 showToast("الرجاء تحديد منتج واحد على الأقل", "error");
                  return;
               }
-              
+
               setDownloadChoiceDialog({
                 isOpen: true,
-                message: `كيف تود تحميل جميع صور هذا القسم؟ (العدد: ${imagesWithData.length} صورة)`,
+                message: `كيف تود تحميل الصور ${isSelectionMode ? 'المحددة' : 'في القسم'}؟ (العدد: ${imagesWithData.length} صورة).`,
                 onDownloadStudio: async () => {
                   setDownloadChoiceDialog(null);
                   setDownloadProgress({ progress: 0, total: imagesWithData.length });
@@ -361,7 +361,7 @@ export default function Products() {
                     .map(p => {
                       const imgUrl = p.finalImageUrl || p.imageUrl;
                       const ext = imgUrl!.split('.').pop()?.split('?')[0] || 'jpg';
-                      const safeName = (p.productCode || p.name || 'product').replace(/[\\/\\?<>\\\\:\\*\\|":]/g, '-');
+                      const safeName = (p.productCode || p.name || 'product').replace(/[\\/\\?<>\\:\\*\\|":]/g, '-');
                       const filename = `${safeName}.${ext}`;
                       return { url: imgUrl!, filename };
                     });
@@ -381,38 +381,32 @@ export default function Products() {
                   setDownloadChoiceDialog(null);
                   setDownloadProgress({ progress: 0, total: imagesWithData.length });
                   
+                  const isSpecialUser = user?.name === "نصيف عبد الرزاق";
+                  
                   const imagesToDownload = imagesWithData
                     .filter(p => p.finalImageUrl || p.imageUrl)
                     .map(p => {
                       const imgUrl = p.finalImageUrl || p.imageUrl;
                       const ext = imgUrl!.split('.').pop()?.split('?')[0] || 'jpg';
-                      const safeName = (p.productCode || p.name || 'product').replace(/[\\/\\?<>\\\\:\\*\\|":]/g, '-');
+                      const safeName = (p.productCode || p.name || 'product').replace(/[\\/\\?<>\\:\\*\\|":]/g, '-');
                       const filename = `${safeName}.${ext}`;
                       
-                      let mainCatName = 'عام';
-                      if (p.categoryId) {
-                        const mainCat = allCategories.find(c => c.id === p.categoryId);
-                        if (mainCat) mainCatName = mainCat.name;
-                      }
+                      let folderName = undefined;
                       
-                      const getProductType = (name: string) => {
-                        if (!name) return 'أخرى';
-                        const lowerName = name.toLowerCase();
-                        if (lowerName.includes('رياض')) return 'رياضة';
-                        if (lowerName.includes('شحاط')) return 'شحاطة';
-                        if (lowerName.includes('صندل') || lowerName.includes('صنادل')) return 'صندل';
-                        if (lowerName.includes('سليبر')) return 'سليبر';
-                        if (lowerName.includes('حذاء') || lowerName.includes('احذية') || lowerName.includes('أحذية')) return 'أحذية';
-                        if (lowerName.includes('لاستيك')) return 'لاستيك';
-                        if (lowerName.includes('ايفا') || lowerName.includes('إيفا')) return 'ايفا';
-                        if (lowerName.includes('قندر') || lowerName.includes('قنادر')) return 'قنادر';
-                        if (lowerName.includes('بوت') || lowerName.includes('جزم') || lowerName.includes('بسطال')) return 'بوت وجزم';
-                        if (lowerName.includes('نص')) return 'نصف';
-                        return 'أخرى';
-                      };
-
-                      const productType = getProductType(p.name);
-                      const folderName = `${mainCatName}/${productType}`;
+                      if (isSpecialUser) {
+                        const getProductType = (name: string) => {
+                          if (!name) return 'أخرى';
+                          const lowerName = name.toLowerCase();
+                          if (lowerName.includes('رياض')) return 'رياضة';
+                          if (lowerName.includes('شحاط')) return 'شحاطة';
+                          if (lowerName.includes('احذي') || lowerName.includes('أحذي') || lowerName.includes('حذاء')) return 'احذية';
+                          if (lowerName.includes('لابجين')) return 'لابجين';
+                          if (lowerName.includes('لاستيك')) return 'لاستيك';
+                          if (lowerName.includes('صندل') || lowerName.includes('صنادل')) return 'صندل';
+                          return 'أخرى';
+                        };
+                        folderName = getProductType(p.name);
+                      }
 
                       return { url: imgUrl!, filename, folderName };
                     });
@@ -426,15 +420,67 @@ export default function Products() {
                   const success = await downloadAsZip(catName, imagesToDownload, (progress, total) => {
                     setDownloadProgress({ progress, total });
                   });
+
                   if (success) {
                      showToast("تم تحميل الملف المضغوط بنجاح", "success");
                   } else {
                      showToast("حدث خطأ أثناء التحميل", "error");
                   }
                   setDownloadProgress(null);
-                }
+                },
+                onDownloadAllElastic: (user?.name === "نصيف عبد الرزاق") ? async () => {
+                  setDownloadChoiceDialog(null);
+                  
+                  // Fetch all products to get all elastic products in the site
+                  showToast("جاري تجهيز جميع منتجات اللاستيك...", "loading");
+                  let allProducts = [];
+                  try {
+                    allProducts = await api.getProducts();
+                  } catch (e) {
+                    showToast("حدث خطأ أثناء جلب المنتجات", "error");
+                    return;
+                  }
+                  
+                  const elasticProducts = allProducts.filter(p => !p.isArchived && !p.isHidden && !p.isLocked && p.name && (p.name.toLowerCase().includes('لاستيك') || p.name.toLowerCase().includes('استيك')));
+                  
+                  if (elasticProducts.length === 0) {
+                     showToast("لا توجد منتجات لاستيك", "error");
+                     return;
+                  }
+                  
+                  setDownloadProgress({ progress: 0, total: elasticProducts.length });
+                  
+                  const imagesToDownload = elasticProducts
+                    .filter(p => p.finalImageUrl || p.imageUrl)
+                    .map(p => {
+                      const imgUrl = p.finalImageUrl || p.imageUrl;
+                      const ext = imgUrl.split('.').pop()?.split('?')[0] || 'jpg';
+                      const safeName = (p.productCode || p.name || 'product').replace(/[\\/\\?<>\\:\\*\\|":]/g, '-');
+                      const filename = `${safeName}.${ext}`;
+                      
+                      let mainCatName = 'أخرى';
+                      if (p.categoryId) {
+                        const mainCat = allCategories.find(c => c.id === p.categoryId);
+                        if (mainCat) mainCatName = mainCat.name;
+                      }
+                      
+                      return { url: imgUrl, filename, folderName: mainCatName };
+                    });
+
+                  const { downloadAsZip } = await import('../../utils/zipDownload');
+                  const success = await downloadAsZip('جميع اللاستيك', imagesToDownload, (progress, total) => {
+                    setDownloadProgress({ progress, total });
+                  });
+
+                  if (success) {
+                     showToast("تم تحميل الملف المضغوط بنجاح", "success");
+                  } else {
+                     showToast("حدث خطأ أثناء التحميل", "error");
+                  }
+                  setDownloadProgress(null);
+                } : undefined
               });
-            }} 
+            }}
             className="flex-[2] py-2 bg-brq-navy rounded-lg border border-brq-royal/50 flex gap-2 items-center justify-center text-xs text-brq-gold hover:bg-brq-navy/80 transition-colors disabled:opacity-50"
           >
             <Download size={14} /> {downloadProgress ? `جاري التحميل ${downloadProgress.progress}/${downloadProgress.total}` : 'حفظ القسم'}
@@ -710,6 +756,7 @@ export default function Products() {
           message={downloadChoiceDialog.message}
           onDownloadStudio={downloadChoiceDialog.onDownloadStudio}
           onDownloadZip={downloadChoiceDialog.onDownloadZip}
+          onDownloadAllElastic={downloadChoiceDialog.onDownloadAllElastic}
           onCancel={() => setDownloadChoiceDialog(null)}
         />
       )}
