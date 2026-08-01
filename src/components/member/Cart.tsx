@@ -2,12 +2,13 @@ import { ShoppingBag, CheckCircle, Send, Plus, Minus, Trash2, ArrowRight } from 
 import { useStore } from '../../store';
 import { useState, useEffect } from 'react';
 import { compressImage } from '../../utils/compressImage';
+
 import { api } from '../../api';
 import { useNavigate, Link } from 'react-router';
 import OptimizedImage from '../OptimizedImage';
 
 export default function Cart() {
-  const { cart, removeFromCart, updateQuantity, clearCart, user } = useStore();
+  const { cart, removeFromCart, updateQuantity, clearCart, user, showToast } = useStore();
   const [notes, setNotes] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [transport, setTransport] = useState('');
@@ -37,24 +38,33 @@ export default function Cart() {
     
     if (navigator.share && navigator.canShare) {
         try {
-            for (let i = 0; i < cart.length; i++) {
-                const url = cart[i].product.finalImageUrl || cart[i].product.imageUrl;
-                if (url) {
+            const fetchCartItemImage = async (item: any, i: number) => {
+                const url = item.product.finalImageUrl || item.product.imageUrl;
+                if (!url) return;
+                try {
+                    const response = await fetch(url);
+                    let blob = await response.blob();
                     try {
-                        const response = await fetch(url);
-                        let blob = await response.blob();
-                        try {
-                          blob = await compressImage(blob, 1000, 0.7);
-                        } catch (e) { console.error(e); }
+                      const count = cart.length;
+                      const size = count > 50 ? 600 : (count > 20 ? 800 : 1000);
+                      const qual = count > 50 ? 0.5 : (count > 20 ? 0.6 : 0.8);
+                      blob = await compressImage(blob, size, qual);
+                    } catch (e) { console.error(e); }
                         
-                        let type = blob.type;
-                        if (!type || !type.startsWith('image/')) type = 'image/jpeg';
-                        const extension = type.split('/')[1] || 'jpeg';
-                        filesArray.push(new File([blob], `product-${cart[i].product.productCode || i+1}.${extension}`, { type }));
-                    } catch (fetchErr) {
-                        console.error("Failed to fetch image for sharing:", fetchErr);
-                    }
+                    let type = blob.type;
+                    if (!type || !type.startsWith('image/')) type = 'image/jpeg';
+                    const extension = type.split('/')[1] || 'jpeg';
+                    filesArray.push(new File([blob], `product-${item.product.productCode || i+1}.${extension}`, { type }));
+                } catch (fetchErr) {
+                    console.error("Failed to fetch image for sharing:", fetchErr);
                 }
+            };
+            
+            showToast("جاري تجهيز الصور للطلب...", "loading");
+            const batchSize = 10;
+            for (let i = 0; i < cart.length; i += batchSize) {
+                const batch = cart.slice(i, i + batchSize);
+                await Promise.all(batch.map((item, idx) => fetchCartItemImage(item, i + idx)));
             }
             
             if (filesArray.length > 0 && navigator.canShare({ files: filesArray })) {

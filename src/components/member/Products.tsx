@@ -190,6 +190,10 @@ export default function Products() {
     if (next.has(id)) {
       next.delete(id);
     } else {
+      if (next.size >= 100) {
+        showToast("الحد الأقصى هو 100 منتج", "error");
+        return;
+      }
       next.add(id);
     }
     setSelectedIds(next);
@@ -206,43 +210,47 @@ export default function Products() {
       return;
     }
 
-    showToast("بدأ التنزيل...", "loading");
+    showToast("جاري التجهيز...", "loading");
     setDownloadProgress({ progress: 0, total: imagesWithData.length });
     let completed = 0;
     const files: File[] = [];
 
-    for (const p of imagesWithData) {
+    // Run in parallel with concurrency limit of 10 to speed up and avoid user gesture timeout
+    const fetchAndCompress = async (p: Product) => {
       const imgUrl = p.finalImageUrl || p.imageUrl;
-      if (imgUrl) {
+      if (!imgUrl) return;
+      try {
+        const res = await fetch(imgUrl);
+        let blob = await res.blob();
+        
         try {
-          const res = await fetch(imgUrl);
-          let blob = await res.blob();
-          
-          try {
-            const count = imagesWithData.length;
-            // Compress very aggressively to fit in Android Share Intent limits (~1-2MB total limit)
-            const size = count > 100 ? 300 : (count > 50 ? 400 : (count > 30 ? 500 : (count > 10 ? 800 : 1000)));
-            const qual = count > 100 ? 0.2 : (count > 50 ? 0.3 : (count > 30 ? 0.5 : (count > 10 ? 0.6 : 0.8)));
-            blob = await compressImage(blob, size, qual);
-          } catch (e) {
-            console.error('Compression failed', e);
-          }
-          
-          let type = blob.type;
-          if (!type || !type.startsWith('image/')) type = 'image/jpeg';
-          const ext = type.split("/")[1] || "jpg";
-          const safeName = (p.productCode || p.name || "product").replace(/[\/\?<>\\:\*\|":]/g, '-');
-          const filename = `${safeName}.${ext}`;
-          files.push(new File([blob], filename, { type }));
-        } catch (err) {
-          console.error(`Failed to fetch image for ${p.name}`, err);
+          const count = imagesWithData.length;
+          const size = count > 50 ? 600 : (count > 20 ? 800 : 1000);
+          const qual = count > 50 ? 0.5 : (count > 20 ? 0.6 : 0.8);
+          blob = await compressImage(blob, size, qual);
+        } catch (e) {
+          console.error('Compression failed', e);
         }
+        
+        let type = blob.type;
+        if (!type || !type.startsWith('image/')) type = 'image/jpeg';
+        const ext = type.split("/")[1] || "jpg";
+        const safeName = (p.productCode || p.name || "product").replace(/[\/\?<>\\:\*\|":]/g, '-');
+        const filename = `${safeName}.${ext}`;
+        files.push(new File([blob], filename, { type }));
+      } catch (err) {
+        console.error(`Failed to fetch image for ${p.name}`, err);
+      } finally {
+        completed++;
+        setDownloadProgress(prev => prev ? { ...prev, progress: completed } : null);
       }
-      completed++;
-      setDownloadProgress({
-        progress: completed,
-        total: imagesWithData.length,
-      });
+    };
+
+    // Process in batches of 10 to not overwhelm the browser but still be fast
+    const batchSize = 20;
+    for (let i = 0; i < imagesWithData.length; i += batchSize) {
+      const batch = imagesWithData.slice(i, i + batchSize);
+      await Promise.all(batch.map(fetchAndCompress));
     }
 
     setDownloadProgress(null);
@@ -460,18 +468,26 @@ export default function Products() {
                       return { url: imgUrl!, filename, folderName };
                     });
 
-                  const { downloadAsZip } = await import('../../utils/zipDownload');
-                  
                   const catName = categoryId 
                     ? allCategories.find(c => c.id === categoryId)?.name || "category"
                     : "category";
 
-                  const success = await downloadAsZip(catName, imagesToDownload, (progress, total) => {
-                    setDownloadProgress({ progress, total });
-                  });
+                  let success = false;
+                  if ('showDirectoryPicker' in window) {
+                    const { downloadToFolder } = await import('../../utils/folderDownload');
+                    success = await downloadToFolder(imagesToDownload, (progress, total) => {
+                      setDownloadProgress({ progress, total });
+                    });
+                  } else {
+                    // Fallback to multiple file download if folder picker not supported
+                    const { downloadImages } = await import('../../utils/download');
+                    success = await downloadImages(imagesToDownload.map(img => ({ url: img.url, filename: img.filename })), (progress, total) => {
+                      setDownloadProgress({ progress, total });
+                    });
+                  }
 
                   if (success) {
-                     showToast("تم تحميل الملف المضغوط بنجاح", "success");
+                     showToast("تم الحفظ بنجاح", "success");
                   } else {
                      showToast("حدث خطأ أثناء التحميل", "error");
                   }
@@ -522,7 +538,7 @@ export default function Products() {
                   });
 
                   if (success) {
-                     showToast("تم تحميل الملف المضغوط بنجاح", "success");
+                     showToast("تم الحفظ بنجاح", "success");
                   } else {
                      showToast("حدث خطأ أثناء التحميل", "error");
                   }
