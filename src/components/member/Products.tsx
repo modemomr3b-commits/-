@@ -2,6 +2,7 @@ import { formatDateTime, formatDate } from '../../utils/time';
 import { useParams, Link, useNavigate } from "react-router";
 import { ChevronRight, Filter, Download, ShoppingCart, Layers, Share2, CheckSquare, Square, History, Loader2, Search, Lock } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
+import { compressImage } from '../../utils/compressImage';
 import { api } from "../../api";
 import { supabase } from "../../supabase";
 import { Product, Category } from "../../types";
@@ -186,8 +187,11 @@ export default function Products() {
     e.preventDefault();
     e.stopPropagation();
     const next = new Set(selectedIds);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
     setSelectedIds(next);
   };
 
@@ -212,11 +216,24 @@ export default function Products() {
       if (imgUrl) {
         try {
           const res = await fetch(imgUrl);
-          const blob = await res.blob();
-          const ext = blob.type.split("/")[1] || "jpg";
+          let blob = await res.blob();
+          
+          try {
+            const count = imagesWithData.length;
+            // Compress very aggressively to fit in Android Share Intent limits (~1-2MB total limit)
+            const size = count > 100 ? 300 : (count > 50 ? 400 : (count > 30 ? 500 : (count > 10 ? 800 : 1000)));
+            const qual = count > 100 ? 0.2 : (count > 50 ? 0.3 : (count > 30 ? 0.5 : (count > 10 ? 0.6 : 0.8)));
+            blob = await compressImage(blob, size, qual);
+          } catch (e) {
+            console.error('Compression failed', e);
+          }
+          
+          let type = blob.type;
+          if (!type || !type.startsWith('image/')) type = 'image/jpeg';
+          const ext = type.split("/")[1] || "jpg";
           const safeName = (p.productCode || p.name || "product").replace(/[\/\?<>\\:\*\|":]/g, '-');
           const filename = `${safeName}.${ext}`;
-          files.push(new File([blob], filename, { type: blob.type }));
+          files.push(new File([blob], filename, { type }));
         } catch (err) {
           console.error(`Failed to fetch image for ${p.name}`, err);
         }
@@ -238,7 +255,8 @@ export default function Products() {
         showToast("تمت المشاركة بنجاح", "success");
       } catch (error) {
         console.error('Error sharing files:', error);
-        showToast("حدث خطأ أثناء المشاركة، قد يكون عدد الصور كبيراً جداً.", "error");
+        showToast("فشلت المشاركة المباشرة (قد يكون العدد كبير جداً). يمكنك تجربة تحميلها بدلاً من ذلك، أو تقليل العدد.", "error");
+        // We do NOT clear selection here, so the user can deselect some and try again
       }
     }
   };
@@ -372,7 +390,7 @@ export default function Products() {
             disabled={filteredProducts.length === 0}
             onClick={() => {
               const imagesWithData = isSelectionMode 
-                ? filteredProducts.filter(p => selectedIds.has(p.id!))
+                ? products.filter(p => selectedIds.has(p.id!))
                 : filteredProducts;
                 
               if (imagesWithData.length === 0) {

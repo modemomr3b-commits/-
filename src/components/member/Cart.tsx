@@ -1,6 +1,7 @@
 import { ShoppingBag, CheckCircle, Send, Plus, Minus, Trash2, ArrowRight } from 'lucide-react';
 import { useStore } from '../../store';
 import { useState, useEffect } from 'react';
+import { compressImage } from '../../utils/compressImage';
 import { api } from '../../api';
 import { useNavigate, Link } from 'react-router';
 import OptimizedImage from '../OptimizedImage';
@@ -41,7 +42,11 @@ export default function Cart() {
                 if (url) {
                     try {
                         const response = await fetch(url);
-                        const blob = await response.blob();
+                        let blob = await response.blob();
+                        try {
+                          blob = await compressImage(blob, 1000, 0.7);
+                        } catch (e) { console.error(e); }
+                        
                         let type = blob.type;
                         if (!type || !type.startsWith('image/')) type = 'image/jpeg';
                         const extension = type.split('/')[1] || 'jpeg';
@@ -64,6 +69,8 @@ export default function Cart() {
             }
         } catch (err) {
             console.error("Error sharing files:", err);
+            showToast("جهازك لا يدعم إرسال هذا العدد من الصور دفعة واحدة. سيتم إرسال الطلب كنص...", "loading");
+            // Fallthrough to text share below
         }
     }
     
