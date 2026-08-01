@@ -106,21 +106,33 @@ export default function Products() {
 
   
   useEffect(() => {
-    const handleScroll = () => {
-      sessionStorage.setItem(`scroll_${categoryId || 'all'}`, window.scrollY.toString());
-    };
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, [categoryId]);
-
-  useEffect(() => {
     if (!loading) {
-      setTimeout(() => {
-        const savedScroll = sessionStorage.getItem(`scroll_${categoryId || 'all'}`);
+      const returnCat = sessionStorage.getItem('return_category');
+      if (returnCat === (categoryId || 'all')) {
+        const savedPage = sessionStorage.getItem('return_page');
+        if (savedPage) setCurrentPage(parseInt(savedPage));
+        
+        const savedSub = sessionStorage.getItem('return_sub');
+        if (savedSub) setActiveSub(savedSub);
+        
+        const savedScroll = sessionStorage.getItem('return_scroll');
         if (savedScroll) {
           setTimeout(() => window.scrollTo(0, parseInt(savedScroll)), 100);
         }
-      }, 0);
+        
+        const savedSearch = sessionStorage.getItem('return_searchTerm');
+        if (savedSearch) setSearchTerm(savedSearch);
+        
+        sessionStorage.removeItem('return_category');
+        sessionStorage.removeItem('return_searchTerm');
+        sessionStorage.removeItem('return_page');
+        sessionStorage.removeItem('return_scroll');
+        sessionStorage.removeItem('return_sub');
+      } else {
+        setCurrentPage(1);
+        setActiveSub(null);
+        setTimeout(() => window.scrollTo(0, 0), 50);
+      }
     }
   }, [loading, categoryId]);
 
@@ -140,19 +152,29 @@ export default function Products() {
     }
   };
 
-  const filteredProductsAll = useMemo(() => activeSub
-    ? products.filter((p) => p.subcategoryId === activeSub)
-    : products, [activeSub, products]);
+  const filteredProductsAll = useMemo(() => {
+    let result = products;
+    if (activeSub) {
+      result = result.filter((p) => p.subcategoryId === activeSub);
+    }
+    if (searchTerm) {
+      const q = searchTerm.toLowerCase().trim().replace(/[-_]/g, '');
+      result = result.filter((p) => {
+        return (p.name && p.name.toLowerCase().replace(/[-_]/g, '').includes(q)) ||
+               (p.productCode && p.productCode.toLowerCase().replace(/[-_]/g, '').startsWith(q)) ||
+               (p.modelNumber && p.modelNumber.toLowerCase().replace(/[-_]/g, '').startsWith(q)) ||
+               (p.barcode && p.barcode.toLowerCase().replace(/[-_]/g, '').startsWith(q));
+      });
+    }
+    return result;
+  }, [activeSub, products, searchTerm]);
   
   // Pagination logic
   const totalPages = Math.ceil(filteredProductsAll.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const filteredProducts = useMemo(() => filteredProductsAll.slice(startIndex, startIndex + itemsPerPage), [filteredProductsAll, startIndex, itemsPerPage]);
 
-  // Reset page when category changes
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [activeSub, categoryId]);
+
   
   // Pagination handled above
   

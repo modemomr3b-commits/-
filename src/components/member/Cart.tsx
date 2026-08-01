@@ -42,8 +42,10 @@ export default function Cart() {
                     try {
                         const response = await fetch(url);
                         const blob = await response.blob();
-                        const extension = blob.type.split('/')[1] || 'jpeg';
-                        filesArray.push(new File([blob], `product-${cart[i].product.productCode || i+1}.${extension}`, { type: blob.type }));
+                        let type = blob.type;
+                        if (!type || !type.startsWith('image/')) type = 'image/jpeg';
+                        const extension = type.split('/')[1] || 'jpeg';
+                        filesArray.push(new File([blob], `product-${cart[i].product.productCode || i+1}.${extension}`, { type }));
                     } catch (fetchErr) {
                         console.error("Failed to fetch image for sharing:", fetchErr);
                     }
