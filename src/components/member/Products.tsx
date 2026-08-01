@@ -18,6 +18,8 @@ export default function Products() {
   const { categoryId } = useParams();
   const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [subCategories, setSubCategories] = useState<any[]>([]);
   const [allCategories, setAllCategories] = useState<Category[]>([]);
   const [activeSub, setActiveSub] = useState<string | null>(null);
