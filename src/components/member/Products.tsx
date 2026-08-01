@@ -8,7 +8,7 @@ import { Product, Category } from "../../types";
 import { useStore } from "../../store";
 import OptimizedImage from "../OptimizedImage";
 import { CategoryDownloadDialog } from "../shared/CategoryDownloadDialog";
-import { ConfirmDialog } from "../shared/ConfirmDialog";
+import { DownloadChoiceDialog } from "../shared/DownloadChoiceDialog";
 import { PriceHistoryViewer } from "./PriceHistoryViewer";
 import ImageViewer from "../ImageViewer";
 
@@ -28,7 +28,7 @@ export default function Products() {
 
   const [categoryName, setCategoryName] = useState("جميع المنتجات");
   const [downloadProgress, setDownloadProgress] = useState<{ progress: number, total: number } | null>(null);
-  const [confirmDialog, setConfirmDialog] = useState<{ isOpen: boolean; message: string; onConfirm: () => void } | null>(null);
+  const [downloadChoiceDialog, setDownloadChoiceDialog] = useState<{ isOpen: boolean; message: string; onDownloadStudio: () => void; onDownloadZip: () => void } | null>(null);
   const [initialLoading, setInitialLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 24;
@@ -269,26 +269,56 @@ export default function Products() {
       return;
     }
 
-    setDownloadingId(p.id!);
-    showToast("بدأ التنزيل...", "loading");
     try {
       const ext = imgUrl.split('.').pop()?.split('?')[0] || "jpg";
-      const safeName = (p.productCode || p.name || "product").replace(/[\/\?<>\\:\*\|":]/g, '-');
+      const safeName = (p.productCode || p.name || "product").replace(/[\\/\\?<>\\\\:\\*\\|":]/g, '-');
       const filename = `${safeName}.${ext}`;
       
-      const { downloadImages } = await import('../../utils/download');
-      const success = await downloadImages([{ url: imgUrl, filename }]);
-      
-      if (success) {
-        showToast("تم الحفظ بنجاح", "success");
-      } else {
-        showToast("حدث خطأ أثناء التنزيل.", "error");
-      }
+      setDownloadChoiceDialog({
+        isOpen: true,
+        message: 'كيف تود تحميل صورة هذا المنتج؟',
+        onDownloadStudio: async () => {
+          setDownloadChoiceDialog(null);
+          setDownloadingId(p.id!);
+          showToast("بدأ التنزيل للاستوديو...", "loading");
+          try {
+            const { downloadImages } = await import('../../utils/download');
+            const success = await downloadImages([{ url: imgUrl, filename }]);
+            if (success) {
+              showToast("تم الحفظ في الاستوديو بنجاح", "success");
+            } else {
+              showToast("حدث خطأ أثناء التنزيل.", "error");
+            }
+          } catch (error) {
+            console.error('Error downloading file', error);
+            showToast("حدث خطأ أثناء التنزيل.", "error");
+          } finally {
+            setDownloadingId(null);
+          }
+        },
+        onDownloadZip: async () => {
+          setDownloadChoiceDialog(null);
+          setDownloadingId(p.id!);
+          showToast("بدأ التحميل كملف مضغوط...", "loading");
+          try {
+            const { downloadAsZip } = await import('../../utils/zipDownload');
+            const success = await downloadAsZip(safeName, [{ url: imgUrl, filename }]);
+            if (success) {
+              showToast("تم تحميل الملف المضغوط بنجاح", "success");
+            } else {
+              showToast("حدث خطأ أثناء التحميل.", "error");
+            }
+          } catch (error) {
+            console.error('Error downloading file', error);
+            showToast("حدث خطأ أثناء التحميل.", "error");
+          } finally {
+            setDownloadingId(null);
+          }
+        }
+      });
     } catch (error) {
-      console.error('Error downloading file', error);
-      showToast("حدث خطأ أثناء التنزيل.", "error");
-    } finally {
-      setDownloadingId(null);
+      console.error('Error in download setup', error);
+      showToast("حدث خطأ.", "error");
     }
   };
 
@@ -348,11 +378,11 @@ export default function Products() {
                  return;
               }
               
-              setConfirmDialog({
+              setDownloadChoiceDialog({
                 isOpen: true,
-                message: `هل تود البدء بتحميل جميع صور هذا القسم؟ (العدد: ${imagesWithData.length} صورة)`,
-                onConfirm: async () => {
-                  setConfirmDialog(null);
+                message: `كيف تود تحميل جميع صور هذا القسم؟ (العدد: ${imagesWithData.length} صورة)`,
+                onDownloadStudio: async () => {
+                  setDownloadChoiceDialog(null);
                   setDownloadProgress({ progress: 0, total: imagesWithData.length });
                   
                   const imagesToDownload = imagesWithData
@@ -360,7 +390,32 @@ export default function Products() {
                     .map(p => {
                       const imgUrl = p.finalImageUrl || p.imageUrl;
                       const ext = imgUrl!.split('.').pop()?.split('?')[0] || 'jpg';
-                      const safeName = (p.productCode || p.name || 'product').replace(/[\/\?<>\\:\*\|":]/g, '-');
+                      const safeName = (p.productCode || p.name || 'product').replace(/[\\/\\?<>\\\\:\\*\\|":]/g, '-');
+                      const filename = `${safeName}.${ext}`;
+                      return { url: imgUrl!, filename };
+                    });
+                  
+                  const { downloadImages } = await import('../../utils/download');
+                  const success = await downloadImages(imagesToDownload, (progress, total) => {
+                    setDownloadProgress({ progress, total });
+                  });
+                  if (success) {
+                     showToast("تم الحفظ في الاستوديو بنجاح", "success");
+                  } else {
+                     showToast("حدث خطأ أثناء الحفظ", "error");
+                  }
+                  setDownloadProgress(null);
+                },
+                onDownloadZip: async () => {
+                  setDownloadChoiceDialog(null);
+                  setDownloadProgress({ progress: 0, total: imagesWithData.length });
+                  
+                  const imagesToDownload = imagesWithData
+                    .filter(p => p.finalImageUrl || p.imageUrl)
+                    .map(p => {
+                      const imgUrl = p.finalImageUrl || p.imageUrl;
+                      const ext = imgUrl!.split('.').pop()?.split('?')[0] || 'jpg';
+                      const safeName = (p.productCode || p.name || 'product').replace(/[\\/\\?<>\\\\:\\*\\|":]/g, '-');
                       const filename = `${safeName}.${ext}`;
                       
                       let mainCatName = 'عام';
@@ -390,34 +445,21 @@ export default function Products() {
 
                       return { url: imgUrl!, filename, folderName };
                     });
-                  
-                  if ((user?.role !== 'admin' && user?.role !== 'sales')) {
-                    const { downloadImages } = await import('../../utils/download');
-                    const success = await downloadImages(imagesToDownload, (progress, total) => {
-                      setDownloadProgress({ progress, total });
-                    });
-                    if (success) {
-                       showToast("تم الحفظ في الاستوديو بنجاح", "success");
-                    } else {
-                       showToast("حدث خطأ أثناء الحفظ", "error");
-                    }
-                  } else {
-                    const { downloadAsZip } = await import('../../utils/zipDownload');
-                    
-                    const catName = activeCategory 
-                      ? allCategories.find(c => c.id === activeCategory)?.name || "category"
-                      : "category";
 
-                    const success = await downloadAsZip(catName, imagesToDownload, (progress, total) => {
-                      setDownloadProgress({ progress, total });
-                    });
-                    if (success) {
-                       showToast("تم تحميل الملف المضغوط بنجاح", "success");
-                    } else {
-                       showToast("حدث خطأ أثناء التحميل", "error");
-                    }
-                  }
+                  const { downloadAsZip } = await import('../../utils/zipDownload');
                   
+                  const catName = activeCategory 
+                    ? allCategories.find(c => c.id === activeCategory)?.name || "category"
+                    : "category";
+
+                  const success = await downloadAsZip(catName, imagesToDownload, (progress, total) => {
+                    setDownloadProgress({ progress, total });
+                  });
+                  if (success) {
+                     showToast("تم تحميل الملف المضغوط بنجاح", "success");
+                  } else {
+                     showToast("حدث خطأ أثناء التحميل", "error");
+                  }
                   setDownloadProgress(null);
                 }
               });
@@ -690,13 +732,14 @@ export default function Products() {
       {fullscreenImage && (
         <ImageViewer src={fullscreenImage.src} alt={fullscreenImage.alt} onClose={() => setFullscreenImage(null)} />
       )}
-      {confirmDialog && (
-        <ConfirmDialog
-          isOpen={confirmDialog.isOpen}
+      {downloadChoiceDialog && (
+        <DownloadChoiceDialog
+          isOpen={downloadChoiceDialog.isOpen}
           title="تحميل الصور"
-          message={confirmDialog.message}
-          onConfirm={confirmDialog.onConfirm}
-          onCancel={() => setConfirmDialog(null)}
+          message={downloadChoiceDialog.message}
+          onDownloadStudio={downloadChoiceDialog.onDownloadStudio}
+          onDownloadZip={downloadChoiceDialog.onDownloadZip}
+          onCancel={() => setDownloadChoiceDialog(null)}
         />
       )}
     </div>

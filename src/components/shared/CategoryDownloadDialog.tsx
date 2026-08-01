@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Download, X, Loader2, Search } from "lucide-react";
 import { Category, Product } from "../../types";
-import { ConfirmDialog } from "./ConfirmDialog";
+import { DownloadChoiceDialog } from "./DownloadChoiceDialog";
 import { useStore } from "../../store";
 
 interface CategoryDownloadDialogProps {
@@ -14,7 +14,7 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
   const { showToast, user } = useStore();
   const [downloadProgress, setDownloadProgress] = useState<{ progress: number; total: number; message?: string } | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [confirmDialog, setConfirmDialog] = useState<{ isOpen: boolean; message: string; onConfirm: () => void } | null>(null);
+  const [downloadChoiceDialog, setDownloadChoiceDialog] = useState<{ isOpen: boolean; message: string; onDownloadStudio: () => void; onDownloadZip: () => void } | null>(null);
   
   // Get all unique subcategory names to allow downloading all subcategories with the same name across parent categories
   const mainCategories = categories.filter(c => !c.parentId);
@@ -64,13 +64,35 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
       return;
     }
 
-    setConfirmDialog({
+    setDownloadChoiceDialog({
       isOpen: true,
-      message: (user?.role !== 'admin' && user?.role !== 'sales') 
-        ? `هل تود البدء بتحميل جميع الصور المحددة؟ (العدد: ${imagesWithData.length} صورة). سيتم حفظ الصور مباشرة في الاستوديو الخاص بك.`
-        : `هل تود البدء بتحميل جميع الصور المحددة؟ (العدد: ${imagesWithData.length} صورة). سيتم حفظ الملفات داخل مجلدات مقسمة حسب القسم الرئيسي ونوع المنتج بناءً على اسمه (مثال: رجالي/رياضة).`,
-      onConfirm: async () => {
-        setConfirmDialog(null);
+      message: `كيف تود تحميل جميع الصور المحددة؟ (العدد: ${imagesWithData.length} صورة).`,
+      onDownloadStudio: async () => {
+        setDownloadChoiceDialog(null);
+        setDownloadProgress({ progress: 0, total: imagesWithData.length, message: 'جاري تحضير الملفات...' });
+
+        const imagesToDownload = imagesWithData
+          .map(p => {
+            const imgUrl = p.finalImageUrl || p.imageUrl;
+            const ext = imgUrl!.split('.').pop()?.split('?')[0] || 'jpg';
+            const safeName = (p.productCode || p.name || 'product').replace(/[\\/\\?<>\\\\:\\*\\|":]/g, '-');
+            const filename = `${safeName}.${ext}`;
+            return { url: imgUrl!, filename };
+          });
+        
+        const { downloadImages } = await import('../../utils/download');
+        const success = await downloadImages(imagesToDownload, (progress, total) => {
+          setDownloadProgress({ progress, total, message: 'جاري تحميل الصور للاستوديو...' });
+        });
+        if (success) {
+           showToast("تم حفظ الصور في الاستوديو بنجاح", "success");
+        } else {
+           showToast("حدث خطأ أثناء حفظ الصور أو تم إلغاء العملية", "error");
+        }
+        setDownloadProgress(null);
+      },
+      onDownloadZip: async () => {
+        setDownloadChoiceDialog(null);
         setDownloadProgress({ progress: 0, total: imagesWithData.length, message: 'جاري تحضير الملفات...' });
 
         const imagesToDownload = imagesWithData
@@ -110,27 +132,15 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
             return { url: imgUrl!, filename, folderName };
           });
         
-        if ((user?.role !== 'admin' && user?.role !== 'sales')) {
-          const { downloadImages } = await import('../../utils/download');
-          const success = await downloadImages(imagesToDownload, (progress, total) => {
-            setDownloadProgress({ progress, total, message: 'جاري تحميل الصور للاستوديو...' });
-          });
-          if (success) {
-             showToast("تم حفظ الصور في الاستوديو بنجاح", "success");
-          } else {
-             showToast("حدث خطأ أثناء حفظ الصور أو تم إلغاء العملية", "error");
-          }
+        const { downloadAsZip } = await import('../../utils/zipDownload');
+        const success = await downloadAsZip(zipName, imagesToDownload, (progress, total, message) => {
+          setDownloadProgress({ progress, total, message });
+        });
+        
+        if (success) {
+           showToast("تم تحميل الملف بنجاح", "success");
         } else {
-          const { downloadAsZip } = await import('../../utils/zipDownload');
-          const success = await downloadAsZip(zipName, imagesToDownload, (progress, total, message) => {
-            setDownloadProgress({ progress, total, message });
-          });
-          
-          if (success) {
-             showToast("تم تحميل الملف بنجاح", "success");
-          } else {
-             showToast("حدث خطأ أثناء تحميل الملف", "error");
-          }
+           showToast("حدث خطأ أثناء تحميل الملف", "error");
         }
         setDownloadProgress(null);
       }
@@ -253,13 +263,14 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
           </div>
         )}
       </div>
-      {confirmDialog && (
-        <ConfirmDialog
-          isOpen={confirmDialog.isOpen}
+      {downloadChoiceDialog && (
+        <DownloadChoiceDialog
+          isOpen={downloadChoiceDialog.isOpen}
           title="تحميل الصور"
-          message={confirmDialog.message}
-          onConfirm={confirmDialog.onConfirm}
-          onCancel={() => setConfirmDialog(null)}
+          message={downloadChoiceDialog.message}
+          onDownloadStudio={downloadChoiceDialog.onDownloadStudio}
+          onDownloadZip={downloadChoiceDialog.onDownloadZip}
+          onCancel={() => setDownloadChoiceDialog(null)}
         />
       )}
     </div>

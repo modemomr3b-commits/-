@@ -6,12 +6,14 @@ import { api } from '../../api';
 import { Product } from '../../types';
 import OptimizedImage from '../OptimizedImage';
 import { useStore } from '../../store';
+import { DownloadChoiceDialog } from '../shared/DownloadChoiceDialog';
 
 export default function SearchPage() {
   const { user, showToast } = useStore();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [downloadChoiceDialog, setDownloadChoiceDialog] = useState<{ isOpen: boolean; message: string; onDownloadStudio: () => void; onDownloadZip: () => void } | null>(null);
   
   const [query, setQuery] = useState('');
   const [searchInput, setSearchInput] = useState('');
@@ -85,26 +87,56 @@ export default function SearchPage() {
       return;
     }
 
-    setDownloadingId(p.id!);
-    showToast("جاري التنزيل...", "loading");
     try {
       const ext = imgUrl.split('.').pop()?.split('?')[0] || 'jpg';
       const safeName = (p.productCode || p.name || 'product').replace(/[\\/\\?<>\\\\:\\*\\|":]/g, '-');
       const filename = `${safeName}.${ext}`;
       
-      const { downloadImages } = await import('../../utils/download');
-      const success = await downloadImages([{ url: imgUrl, filename }]);
-      
-      if (success) {
-        showToast("تم الحفظ بنجاح", "success");
-      } else {
-        showToast("حدث خطأ أثناء التنزيل", "error");
-      }
+      setDownloadChoiceDialog({
+        isOpen: true,
+        message: 'كيف تود تحميل صورة هذا المنتج؟',
+        onDownloadStudio: async () => {
+          setDownloadChoiceDialog(null);
+          setDownloadingId(p.id!);
+          showToast("بدأ التنزيل للاستوديو...", "loading");
+          try {
+            const { downloadImages } = await import('../../utils/download');
+            const success = await downloadImages([{ url: imgUrl, filename }]);
+            if (success) {
+              showToast("تم الحفظ في الاستوديو بنجاح", "success");
+            } else {
+              showToast("حدث خطأ أثناء التنزيل", "error");
+            }
+          } catch (err) {
+            console.error(`Failed to download ${p.name}`, err);
+            showToast("حدث خطأ أثناء التنزيل", "error");
+          } finally {
+            setDownloadingId(null);
+          }
+        },
+        onDownloadZip: async () => {
+          setDownloadChoiceDialog(null);
+          setDownloadingId(p.id!);
+          showToast("بدأ التحميل كملف مضغوط...", "loading");
+          try {
+            const { downloadAsZip } = await import('../../utils/zipDownload');
+            const success = await downloadAsZip(safeName, [{ url: imgUrl, filename }]);
+            if (success) {
+              showToast("تم تحميل الملف المضغوط بنجاح", "success");
+            } else {
+              showToast("حدث خطأ أثناء التحميل", "error");
+            }
+          } catch (err) {
+            console.error(`Failed to download ${p.name}`, err);
+            showToast("حدث خطأ أثناء التحميل", "error");
+          } finally {
+            setDownloadingId(null);
+          }
+        }
+      });
     } catch (err) {
-      console.error(`Failed to download ${p.name}`, err);
-      showToast("حدث خطأ أثناء التنزيل", "error");
-    } finally {
-      setDownloadingId(null);
+      console.error(`Error in download setup`, err);
+      showToast("حدث خطأ", "error");
     }
   };
 
@@ -246,6 +278,17 @@ export default function SearchPage() {
            </div>
          )}
       </div>
+
+      {downloadChoiceDialog && (
+        <DownloadChoiceDialog
+          isOpen={downloadChoiceDialog.isOpen}
+          title="تحميل الصورة"
+          message={downloadChoiceDialog.message}
+          onDownloadStudio={downloadChoiceDialog.onDownloadStudio}
+          onDownloadZip={downloadChoiceDialog.onDownloadZip}
+          onCancel={() => setDownloadChoiceDialog(null)}
+        />
+      )}
     </div>
   );
 }
