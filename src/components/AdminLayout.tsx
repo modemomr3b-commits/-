@@ -146,6 +146,7 @@ export default function AdminLayout() {
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col h-full overflow-hidden relative">
         <header className="glass-panel border-b border-white/10 h-16 flex flex-shrink-0 items-center px-6 justify-between rounded-none">
+          {/* Mobile Menu Toggle could go here, but we'll use a scrollable bottom nav */}
           <h1 className="text-lg font-semibold text-white">
             {menu.find(m => m.path === location.pathname)?.label || 'لوحة القيادة'}
           </h1>
@@ -163,6 +164,45 @@ export default function AdminLayout() {
           <Outlet />
         </div>
       </main>
+
+      {/* Mobile Bottom Navigation */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 glass-panel border-t border-white/10 z-50 flex overflow-x-auto no-scrollbar pb-safe">
+        {menu.map((item) => {
+          const isActive = location.pathname === item.path || (item.path !== '/admin' && location.pathname.startsWith(item.path));
+          const Icon = item.icon;
+          return (
+            <Link
+              key={item.path}
+              to={item.path}
+              className={cn(
+                "flex flex-col items-center justify-center min-w-[72px] py-3 gap-1 relative",
+                isActive ? "text-white" : "text-white/50 hover:text-white"
+              )}
+            >
+              <Icon size={20} />
+              <span className="text-[9px] font-medium whitespace-nowrap">{item.label}</span>
+              {isActive && (
+                <motion.div
+                  layoutId="admin-bottom-nav"
+                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-brq-gold"
+                />
+              )}
+              {item.badge !== undefined && item.badge > 0 && (
+                <span className="absolute top-1 right-2 bg-red-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                  {item.badge > 9 ? '9+' : item.badge}
+                </span>
+              )}
+            </Link>
+          );
+        })}
+        <button
+           onClick={handleLogout}
+           className="flex flex-col items-center justify-center min-w-[72px] py-3 gap-1 text-red-400/80 hover:text-red-400"
+        >
+          <LogOut size={20} />
+          <span className="text-[9px] font-medium whitespace-nowrap">خروج</span>
+        </button>
+      </nav>
     </div>
   );
 }

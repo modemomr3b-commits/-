@@ -1,6 +1,6 @@
 import { formatDateTime, formatDate } from '../../utils/time';
 import { useParams, Link, useNavigate } from "react-router";
-import { ChevronRight, Filter, Download, ShoppingCart, Layers, Share2, CheckSquare, Square, History, Loader2, Search } from "lucide-react";
+import { ChevronRight, Filter, Download, ShoppingCart, Layers, Share2, CheckSquare, Square, History, Loader2, Search, Lock } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { api } from "../../api";
 import { supabase } from "../../supabase";
@@ -209,22 +209,58 @@ export default function Products() {
     setDownloadProgress(null);
 
     if (files.length > 0) {
-      if (navigator.canShare && navigator.canShare({ files })) {
-        try {
-          await navigator.share({
-            files,
-            title: 'منتجات BRQ',
-          });
+      try {
+        if (navigator.canShare && navigator.canShare({ files })) {
+          await navigator.share({ files, title: 'منتجات BRQ' });
           setSelectedIds(new Set());
           setIsSelectionMode(false);
           showToast("تمت المشاركة بنجاح", "success");
-        } catch (error) {
-          console.error('Error sharing files', error);
-          showToast("حدث خطأ أثناء محاولة المشاركة.", "error");
+        } else {
+          // If we can't share as files (too many or not supported), let's just try anyway or use Zip
+          try {
+            await navigator.share({ files, title: 'منتجات BRQ' });
+            setSelectedIds(new Set());
+            setIsSelectionMode(false);
+            showToast("تمت المشاركة بنجاح", "success");
+          } catch(e) {
+            throw e;
+          }
         }
-      } else {
-        showToast("متصفحك لا يدعم مشاركة هذه الصور مباشرة.", "error");
+      } catch (error) {
+        console.error('Error sharing files, falling back to zip:', error);
+        showToast("عدد الصور كبير، سيتم مشاركتها كملف مضغوط...", "loading");
+        const { downloadAsZip } = await import('../../utils/zipDownload');
+        const imagesToZip = imagesWithData.map(p => {
+          const imgUrl = p.finalImageUrl || p.imageUrl;
+          const ext = imgUrl!.split('.').pop()?.split('?')[0] || 'jpg';
+          const safeName = (p.productCode || p.name || 'product').replace(/[\/\?<>\:\*\|":]/g, '-');
+          return { url: imgUrl!, filename: `${safeName}.${ext}` };
+        });
+        
+        // We can just download the zip and share it
+        // Or if downloadAsZip just saves it, it will save it.
+        await downloadAsZip('منتجات', imagesToZip, (progress, total) => {
+           setDownloadProgress({ progress, total });
+        });
+        setDownloadProgress(null);
+        setSelectedIds(new Set());
+        setIsSelectionMode(false);
+        showToast("تم تنزيل الملف المضغوط.", "success");
       }
+    }
+  };
+
+    const handleLockProduct = async (e: React.MouseEvent, p: Product) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      showToast("جاري القفل...", "loading");
+      await api.updateProduct(p.id!, { isHidden: true });
+      showToast("تم قفل المنتج بنجاح", "success");
+      setProducts(prev => prev.filter(item => item.id !== p.id));
+    } catch (err) {
+      console.error(err);
+      showToast("حدث خطأ أثناء قفل المنتج", "error");
     }
   };
 
@@ -569,6 +605,15 @@ export default function Products() {
               
               {!isSelectionMode && (
                 <div className="absolute top-2 left-2 z-10 flex flex-col gap-1">
+                  {user?.role === 'admin' && (
+                    <button
+                      onClick={(e) => handleLockProduct(e, p)}
+                      className="p-1.5 rounded-lg bg-black/40 backdrop-blur-sm border border-white/20 text-white hover:bg-red-500/50 hover:text-white transition-colors"
+                      title="قفل المنتج (للمسؤولين فقط)"
+                    >
+                      <Lock size={16} />
+                    </button>
+                  )}
                   <button
                     onClick={(e) => handleShareSingle(e, p)}
                     className="p-1.5 rounded-lg bg-black/40 backdrop-blur-sm border border-white/20 text-white hover:bg-blue-500/50 hover:text-white transition-colors"
