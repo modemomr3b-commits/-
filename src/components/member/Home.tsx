@@ -1,5 +1,6 @@
 import {
   Search,
+  Lock,
   ChevronLeft,
   Bell,
   Zap,

@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation } from 'react-router';
 import { useStore } from '../store.ts';
-import { Home, Search, Heart, ShoppingBag, User, Download, X, Share, MessageCircle } from 'lucide-react';
+import { Home, Search, Heart, ShoppingBag, User, Download, X, Share, MessageCircle, LayoutDashboard } from 'lucide-react';
 import { cn } from '../lib/utils.ts';
 import { motion, AnimatePresence } from 'motion/react';
 import { usePWAInstall } from '../hooks/usePWAInstall';
@@ -79,9 +79,9 @@ export default function MemberLayout() {
                <p className="text-xs text-brq-gold truncate uppercase text-left dir-ltr">{user?.role || 'member'}</p>
              </div>
           </div>
-          {user?.role === 'admin' && (
-            <Link to="/admin" className="mt-3 flex items-center justify-center w-full py-2.5 bg-brq-royal/20 text-white rounded-xl border border-white/20 text-sm font-bold font-mono hover:bg-brq-royal/40 transition-colors gap-2">
-              <User size={16} /> Admin Panel
+          {(user?.role === 'admin' || user?.role === 'sales') && (
+            <Link to="/admin" className="mt-3 flex items-center justify-center w-full py-2.5 bg-gradient-to-r from-brq-gold/20 to-brq-royal/40 text-brq-gold rounded-xl border border-brq-gold/30 text-sm font-bold font-mono hover:from-brq-gold/30 hover:to-brq-royal/50 transition-colors gap-2 shadow-lg shadow-brq-gold/10">
+              <LayoutDashboard size={16} /> لوحة التحكم
             </Link>
           )}
         </div>
@@ -102,9 +102,10 @@ export default function MemberLayout() {
             </div>
           </div>
           <div className="flex gap-2 items-center">
-            {user?.role === 'admin' && (
-              <Link to="/admin" className="px-3 py-1.5 bg-brq-royal/20 text-white rounded-lg border border-white/20 text-xs font-bold font-mono hover:bg-brq-royal/40">
-                Admin
+            {(user?.role === 'admin' || user?.role === 'sales') && (
+              <Link to="/admin" className="px-3 py-1.5 bg-brq-royal/20 text-brq-gold rounded-lg border border-brq-gold/30 text-xs font-bold font-mono hover:bg-brq-royal/40 flex items-center gap-1 shadow-lg shadow-brq-gold/10">
+                <LayoutDashboard size={14} />
+                لوحة التحكم
               </Link>
             )}
             <div className="w-10 h-10 rounded-full bg-brq-black border border-brq-gold/30 flex items-center justify-center">

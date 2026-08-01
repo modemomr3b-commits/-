@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Search, SlidersHorizontal, Archive, Download, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Search, Lock, SlidersHorizontal, Archive, Download, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Link } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
 import { api } from '../../api';
@@ -186,6 +186,54 @@ export default function SearchPage() {
                          {p.isArchived && (
                            <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
                              <span className="bg-red-500/80 text-white px-3 py-1 rounded-full text-xs font-bold border border-white/20 backdrop-blur-md">غير متوفر</span>
+                           </div>
+                         )}
+                         {(p.finalImageUrl || p.imageUrl) && (
+                           <div className="absolute top-2 left-2 flex flex-col gap-1 z-10">
+                              {user?.role === 'admin' && (
+                                <button
+                                  onClick={async (e) => {
+                                     e.preventDefault(); e.stopPropagation();
+                                     showToast("جاري القفل...", "loading");
+                                     try {
+                                       await api.updateProduct(p.id!, { isHidden: true });
+                                       setProducts(prev => prev.filter(x => x.id !== p.id));
+                                       showToast("تم قفل المنتج بنجاح", "success");
+                                     } catch (err) {
+                                       console.error(err);
+                                       showToast("حدث خطأ", "error");
+                                     }
+                                  }}
+                                  className="w-8 h-8 rounded-full bg-black/50 backdrop-blur-md border border-white/10 flex items-center justify-center text-white hover:bg-red-500 hover:text-white transition-colors shadow-lg"
+                                  title="قفل المنتج"
+                                >
+                                  <Lock size={16} />
+                                </button>
+                              )}
+                           </div>
+                         )}
+                         {(p.finalImageUrl || p.imageUrl) && (
+                           <div className="absolute top-2 left-2 flex flex-col gap-1 z-10">
+                              {user?.role === 'admin' && (
+                                <button
+                                  onClick={async (e) => {
+                                     e.preventDefault(); e.stopPropagation();
+                                     showToast("جاري القفل...", "loading");
+                                     try {
+                                       await api.updateProduct(p.id!, { isHidden: true });
+                                       setProducts(prev => prev.filter(x => x.id !== p.id));
+                                       showToast("تم قفل المنتج بنجاح", "success");
+                                     } catch (err) {
+                                       console.error(err);
+                                       showToast("حدث خطأ", "error");
+                                     }
+                                  }}
+                                  className="w-8 h-8 rounded-full bg-black/50 backdrop-blur-md border border-white/10 flex items-center justify-center text-white hover:bg-red-500 hover:text-white transition-colors shadow-lg"
+                                  title="قفل المنتج"
+                                >
+                                  <Lock size={16} />
+                                </button>
+                              )}
                            </div>
                          )}
                          {(p.finalImageUrl || p.imageUrl) && (

@@ -210,42 +210,13 @@ export default function Products() {
 
     if (files.length > 0) {
       try {
-        if (navigator.canShare && navigator.canShare({ files })) {
-          await navigator.share({ files, title: 'منتجات BRQ' });
-          setSelectedIds(new Set());
-          setIsSelectionMode(false);
-          showToast("تمت المشاركة بنجاح", "success");
-        } else {
-          // If we can't share as files (too many or not supported), let's just try anyway or use Zip
-          try {
-            await navigator.share({ files, title: 'منتجات BRQ' });
-            setSelectedIds(new Set());
-            setIsSelectionMode(false);
-            showToast("تمت المشاركة بنجاح", "success");
-          } catch(e) {
-            throw e;
-          }
-        }
-      } catch (error) {
-        console.error('Error sharing files, falling back to zip:', error);
-        showToast("عدد الصور كبير، سيتم مشاركتها كملف مضغوط...", "loading");
-        const { downloadAsZip } = await import('../../utils/zipDownload');
-        const imagesToZip = imagesWithData.map(p => {
-          const imgUrl = p.finalImageUrl || p.imageUrl;
-          const ext = imgUrl!.split('.').pop()?.split('?')[0] || 'jpg';
-          const safeName = (p.productCode || p.name || 'product').replace(/[\/\?<>\:\*\|":]/g, '-');
-          return { url: imgUrl!, filename: `${safeName}.${ext}` };
-        });
-        
-        // We can just download the zip and share it
-        // Or if downloadAsZip just saves it, it will save it.
-        await downloadAsZip('منتجات', imagesToZip, (progress, total) => {
-           setDownloadProgress({ progress, total });
-        });
-        setDownloadProgress(null);
+        await navigator.share({ files, title: 'منتجات BRQ' });
         setSelectedIds(new Set());
         setIsSelectionMode(false);
-        showToast("تم تنزيل الملف المضغوط.", "success");
+        showToast("تمت المشاركة بنجاح", "success");
+      } catch (error) {
+        console.error('Error sharing files:', error);
+        showToast("حدث خطأ أثناء المشاركة، قد يكون عدد الصور كبيراً جداً.", "error");
       }
     }
   };

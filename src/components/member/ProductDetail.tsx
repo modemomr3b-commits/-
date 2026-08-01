@@ -123,6 +123,44 @@ export default function ProductDetail() {
                >
                   <Download size={24} />
                </button>
+               {user?.role === 'admin' && (
+                 <button
+                   onClick={async () => {
+                     try {
+                       showToast("جاري القفل...", "loading");
+                       await api.updateProduct(product.id!, { isHidden: true });
+                       showToast("تم قفل المنتج بنجاح", "success");
+                       navigate(-1);
+                     } catch (error) {
+                       console.error(error);
+                       showToast("حدث خطأ أثناء قفل المنتج", "error");
+                     }
+                   }}
+                   className="p-2 bg-black/50 backdrop-blur-md rounded-full border border-white/20 text-white hover:bg-red-500/50 hover:text-white transition-colors flex items-center justify-center"
+                   title="قفل المنتج (للمسؤولين فقط)"
+                 >
+                    <Lock size={24} />
+                 </button>
+               )}
+               {user?.role === 'admin' && (
+                 <button
+                   onClick={async () => {
+                     try {
+                       showToast("جاري القفل...", "loading");
+                       await api.updateProduct(product.id!, { isHidden: true });
+                       showToast("تم قفل المنتج بنجاح", "success");
+                       navigate(-1);
+                     } catch (error) {
+                       console.error(error);
+                       showToast("حدث خطأ أثناء قفل المنتج", "error");
+                     }
+                   }}
+                   className="p-2 bg-black/50 backdrop-blur-md rounded-full border border-white/20 text-white hover:bg-red-500/50 hover:text-white transition-colors flex items-center justify-center"
+                   title="قفل المنتج (للمسؤولين فقط)"
+                 >
+                    <Lock size={24} />
+                 </button>
+               )}
                <button
                  onClick={async () => {
                     try {
