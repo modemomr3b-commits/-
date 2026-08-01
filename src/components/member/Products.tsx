@@ -1,6 +1,6 @@
 import { formatDateTime, formatDate } from '../../utils/time';
 import { useParams, Link, useNavigate } from "react-router";
-import { ChevronRight, Filter, Download, ShoppingCart, Layers, Share2, CheckSquare, Square, History, Loader2 } from "lucide-react";
+import { ChevronRight, Filter, Download, ShoppingCart, Layers, Share2, CheckSquare, Square, History, Loader2, Search } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { api } from "../../api";
 import { supabase } from "../../supabase";
