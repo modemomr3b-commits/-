@@ -8,7 +8,6 @@ import { useStore } from '../../store';
 import OptimizedImage from '../OptimizedImage';
 import { PriceHistoryViewer } from './PriceHistoryViewer';
 import ImageViewer from '../ImageViewer';
-import { DownloadChoiceDialog } from '../shared/DownloadChoiceDialog';
 
 export default function ProductDetail() {
   const { productId } = useParams();
@@ -19,7 +18,6 @@ export default function ProductDetail() {
   const { addToCart, updateQuantity, removeFromCart, cart, user, showToast } = useStore();
   const [historyProduct, setHistoryProduct] = useState<Product | null>(null);
   const [fullscreenImage, setFullscreenImage] = useState<{ src: string, alt: string } | null>(null);
-  const [downloadChoiceDialog, setDownloadChoiceDialog] = useState<{ isOpen: boolean; message: string; onDownloadStudio: () => void; onDownloadZip: () => void } | null>(null);
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -107,45 +105,17 @@ export default function ProductDetail() {
                       const safeName = (product.productCode || product.name || 'product').replace(/[\\/\\?<>\\\\:\\*\\|":]/g, '-');
                       const filename = `BRQ-${safeName}.${ext}`;
                       
-                      setDownloadChoiceDialog({
-                        isOpen: true,
-                        message: 'كيف تود تحميل صورة هذا المنتج؟',
-                        onDownloadStudio: async () => {
-                          setDownloadChoiceDialog(null);
-                          showToast("بدأ التنزيل للاستوديو...", "loading");
-                          try {
-                            const { downloadImages } = await import('../../utils/download');
-                            const success = await downloadImages([{ url: imgUrl, filename }]);
-                            if (success) {
-                              showToast("تم الحفظ في الاستوديو بنجاح", "success");
-                            } else {
-                              showToast("حدث خطأ أثناء التنزيل", "error");
-                            }
-                          } catch (err) {
-                            console.error(`Failed to download ${product.name}`, err);
-                            showToast("حدث خطأ أثناء التنزيل", "error");
-                          }
-                        },
-                        onDownloadZip: async () => {
-                          setDownloadChoiceDialog(null);
-                          showToast("بدأ التحميل كملف مضغوط...", "loading");
-                          try {
-                            const { downloadAsZip } = await import('../../utils/zipDownload');
-                            const success = await downloadAsZip(safeName, [{ url: imgUrl, filename }]);
-                            if (success) {
-                              showToast("تم تحميل الملف المضغوط بنجاح", "success");
-                            } else {
-                              showToast("حدث خطأ أثناء التحميل", "error");
-                            }
-                          } catch (err) {
-                            console.error(`Failed to download ${product.name}`, err);
-                            showToast("حدث خطأ أثناء التحميل", "error");
-                          }
-                        }
-                      });
+                      const { downloadImages } = await import('../../utils/download');
+                      const success = await downloadImages([{ url: imgUrl, filename }]);
+                      
+                      if (success) {
+                        showToast("تم الحفظ بنجاح", "success");
+                      } else {
+                        showToast("حدث خطأ أثناء التنزيل", "error");
+                      }
                     } catch (err) {
-                      console.error(`Error in download setup`, err);
-                      showToast("حدث خطأ", "error");
+                      console.error(`Failed to download ${product.name}`, err);
+                      showToast("حدث خطأ أثناء التنزيل", "error");
                     }
                   }}
                   className="p-2 bg-black/50 backdrop-blur-md rounded-full border border-white/20 text-white hover:bg-black transition-colors flex items-center justify-center"
@@ -280,17 +250,6 @@ export default function ProductDetail() {
 
       {historyProduct && (
         <PriceHistoryViewer product={historyProduct} onClose={() => setHistoryProduct(null)} />
-      )}
-      
-      {downloadChoiceDialog && (
-        <DownloadChoiceDialog
-          isOpen={downloadChoiceDialog.isOpen}
-          title="تحميل الصورة"
-          message={downloadChoiceDialog.message}
-          onDownloadStudio={downloadChoiceDialog.onDownloadStudio}
-          onDownloadZip={downloadChoiceDialog.onDownloadZip}
-          onCancel={() => setDownloadChoiceDialog(null)}
-        />
       )}
     </div>
   );

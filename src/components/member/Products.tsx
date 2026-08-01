@@ -274,51 +274,22 @@ export default function Products() {
       const safeName = (p.productCode || p.name || "product").replace(/[\\/\\?<>\\\\:\\*\\|":]/g, '-');
       const filename = `${safeName}.${ext}`;
       
-      setDownloadChoiceDialog({
-        isOpen: true,
-        message: 'كيف تود تحميل صورة هذا المنتج؟',
-        onDownloadStudio: async () => {
-          setDownloadChoiceDialog(null);
-          setDownloadingId(p.id!);
-          showToast("بدأ التنزيل للاستوديو...", "loading");
-          try {
-            const { downloadImages } = await import('../../utils/download');
-            const success = await downloadImages([{ url: imgUrl, filename }]);
-            if (success) {
-              showToast("تم الحفظ في الاستوديو بنجاح", "success");
-            } else {
-              showToast("حدث خطأ أثناء التنزيل.", "error");
-            }
-          } catch (error) {
-            console.error('Error downloading file', error);
-            showToast("حدث خطأ أثناء التنزيل.", "error");
-          } finally {
-            setDownloadingId(null);
-          }
-        },
-        onDownloadZip: async () => {
-          setDownloadChoiceDialog(null);
-          setDownloadingId(p.id!);
-          showToast("بدأ التحميل كملف مضغوط...", "loading");
-          try {
-            const { downloadAsZip } = await import('../../utils/zipDownload');
-            const success = await downloadAsZip(safeName, [{ url: imgUrl, filename }]);
-            if (success) {
-              showToast("تم تحميل الملف المضغوط بنجاح", "success");
-            } else {
-              showToast("حدث خطأ أثناء التحميل.", "error");
-            }
-          } catch (error) {
-            console.error('Error downloading file', error);
-            showToast("حدث خطأ أثناء التحميل.", "error");
-          } finally {
-            setDownloadingId(null);
-          }
-        }
-      });
+      setDownloadingId(p.id!);
+      showToast("بدأ التنزيل للاستوديو...", "loading");
+      
+      const { downloadImages } = await import('../../utils/download');
+      const success = await downloadImages([{ url: imgUrl, filename }]);
+      
+      if (success) {
+        showToast("تم الحفظ بنجاح", "success");
+      } else {
+        showToast("حدث خطأ أثناء التنزيل.", "error");
+      }
     } catch (error) {
-      console.error('Error in download setup', error);
-      showToast("حدث خطأ.", "error");
+      console.error('Error downloading file', error);
+      showToast("حدث خطأ أثناء التنزيل.", "error");
+    } finally {
+      setDownloadingId(null);
     }
   };
 
@@ -448,8 +419,8 @@ export default function Products() {
 
                   const { downloadAsZip } = await import('../../utils/zipDownload');
                   
-                  const catName = activeCategory 
-                    ? allCategories.find(c => c.id === activeCategory)?.name || "category"
+                  const catName = categoryId 
+                    ? allCategories.find(c => c.id === categoryId)?.name || "category"
                     : "category";
 
                   const success = await downloadAsZip(catName, imagesToDownload, (progress, total) => {
