@@ -23,15 +23,18 @@ export const downloadImages = async (
 
     if (files.length === 0) return false;
 
-    // Check if we can share (iOS "Save Image" native feature)
-    if (navigator.canShare && navigator.canShare({ files })) {
+    // Detect if the device is iOS (iPhone, iPad, iPod)
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+    // Only use share sheet for iOS (so they get the "Save to Photos" prompt)
+    if (isIOS && navigator.canShare && navigator.canShare({ files })) {
       await navigator.share({
         files,
         title: 'حفظ الصور',
       });
       return true;
     } else {
-      // Fallback for desktop/unsupported browsers
+      // Fallback for Android and desktop for direct download
       for (const file of files) {
         const objectUrl = URL.createObjectURL(file);
         const a = document.createElement("a");
