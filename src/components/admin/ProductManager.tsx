@@ -766,30 +766,23 @@ export default function ProductManager() {
         const safeName = (p.productCode || p.name || 'product').replace(/[\/\?<>\\:\*\|":]/g, '-');
         const filename = `${safeName}.${ext}`;
         
-        let mainCatName = 'عام';
-        if (p.categoryId) {
-          const mainCat = categories.find(c => c.id === p.categoryId);
-          if (mainCat) mainCatName = mainCat.name;
-        }
+        const isSpecialUser = user?.fullName === "نصيف عبد الرزاق" || user?.fullName === "نصيف عبدالرزاق" || user?.username === "modemomr3b@gmail.com" || user?.fullName?.includes("نصيف");
+        let folderName = undefined;
         
-        const getProductType = (name) => {
-          if (!name) return 'أخرى';
-          const lowerName = name.toLowerCase();
-          if (lowerName.includes('رياض')) return 'رياضة';
-          if (lowerName.includes('شحاط')) return 'شحاطة';
-          if (lowerName.includes('صندل') || lowerName.includes('صنادل')) return 'صندل';
-          if (lowerName.includes('سليبر')) return 'سليبر';
-          if (lowerName.includes('حذاء') || lowerName.includes('احذية') || lowerName.includes('أحذية')) return 'أحذية';
-          if (lowerName.includes('لاستيك')) return 'لاستيك';
-          if (lowerName.includes('ايفا') || lowerName.includes('إيفا')) return 'ايفا';
-          if (lowerName.includes('قندر') || lowerName.includes('قنادر')) return 'قنادر';
-          if (lowerName.includes('بوت') || lowerName.includes('جزم') || lowerName.includes('بسطال')) return 'بوت وجزم';
-          if (lowerName.includes('نص')) return 'نصف';
-          return 'أخرى';
-        };
-
-        const productType = getProductType(p.name);
-        const folderName = `${mainCatName}/${productType}`;
+        if (isSpecialUser) {
+          const getProductType = (name: string) => {
+            if (!name) return 'أخرى';
+            const lowerName = name.toLowerCase();
+            if (lowerName.includes('رياض')) return 'رياضة';
+            if (lowerName.includes('شحاط')) return 'شحاطة';
+            if (lowerName.includes('احذي') || lowerName.includes('أحذي') || lowerName.includes('حذاء')) return 'احذية';
+            if (lowerName.includes('لابجين')) return 'لابجين';
+            if (lowerName.includes('لاستيك')) return 'لاستيك';
+            if (lowerName.includes('صندل') || lowerName.includes('صنادل')) return 'صندل';
+            return 'أخرى';
+          };
+          folderName = getProductType(p.name);
+        }
 
         return { url: imgUrl!, filename, folderName };
       });
@@ -824,30 +817,23 @@ export default function ProductManager() {
         const safeName = (p.productCode || p.name || 'product').replace(/[\/\?<>\\:\*\|":]/g, '-');
         const filename = `${safeName}.${ext}`;
         
-        let mainCatName = 'عام';
-        if (p.categoryId) {
-          const mainCat = categories.find(c => c.id === p.categoryId);
-          if (mainCat) mainCatName = mainCat.name;
-        }
+        const isSpecialUser = user?.fullName === "نصيف عبد الرزاق" || user?.fullName === "نصيف عبدالرزاق" || user?.username === "modemomr3b@gmail.com" || user?.fullName?.includes("نصيف");
+        let folderName = undefined;
         
-        const getProductType = (name) => {
-          if (!name) return 'أخرى';
-          const lowerName = name.toLowerCase();
-          if (lowerName.includes('رياض')) return 'رياضة';
-          if (lowerName.includes('شحاط')) return 'شحاطة';
-          if (lowerName.includes('صندل') || lowerName.includes('صنادل')) return 'صندل';
-          if (lowerName.includes('سليبر')) return 'سليبر';
-          if (lowerName.includes('حذاء') || lowerName.includes('احذية') || lowerName.includes('أحذية')) return 'أحذية';
-          if (lowerName.includes('لاستيك')) return 'لاستيك';
-          if (lowerName.includes('ايفا') || lowerName.includes('إيفا')) return 'ايفا';
-          if (lowerName.includes('قندر') || lowerName.includes('قنادر')) return 'قنادر';
-          if (lowerName.includes('بوت') || lowerName.includes('جزم') || lowerName.includes('بسطال')) return 'بوت وجزم';
-          if (lowerName.includes('نص')) return 'نصف';
-          return 'أخرى';
-        };
-
-        const productType = getProductType(p.name);
-        const folderName = `${mainCatName}/${productType}`;
+        if (isSpecialUser) {
+          const getProductType = (name: string) => {
+            if (!name) return 'أخرى';
+            const lowerName = name.toLowerCase();
+            if (lowerName.includes('رياض')) return 'رياضة';
+            if (lowerName.includes('شحاط')) return 'شحاطة';
+            if (lowerName.includes('احذي') || lowerName.includes('أحذي') || lowerName.includes('حذاء')) return 'احذية';
+            if (lowerName.includes('لابجين')) return 'لابجين';
+            if (lowerName.includes('لاستيك')) return 'لاستيك';
+            if (lowerName.includes('صندل') || lowerName.includes('صنادل')) return 'صندل';
+            return 'أخرى';
+          };
+          folderName = getProductType(p.name);
+        }
 
         return { url: imgUrl!, filename, folderName };
       });

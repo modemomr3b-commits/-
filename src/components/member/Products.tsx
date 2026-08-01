@@ -381,7 +381,7 @@ export default function Products() {
                   setDownloadChoiceDialog(null);
                   setDownloadProgress({ progress: 0, total: imagesWithData.length });
                   
-                  const isSpecialUser = user?.name === "نصيف عبد الرزاق";
+                  const isSpecialUser = user?.fullName === "نصيف عبد الرزاق" || user?.fullName === "نصيف عبدالرزاق" || user?.username === "modemomr3b@gmail.com" || user?.fullName?.includes("نصيف");
                   
                   const imagesToDownload = imagesWithData
                     .filter(p => p.finalImageUrl || p.imageUrl)
@@ -428,7 +428,7 @@ export default function Products() {
                   }
                   setDownloadProgress(null);
                 },
-                onDownloadAllElastic: (user?.name === "نصيف عبد الرزاق") ? async () => {
+                onDownloadAllElastic: (user?.fullName === "نصيف عبد الرزاق" || user?.fullName === "نصيف عبدالرزاق" || user?.username === "modemomr3b@gmail.com" || user?.fullName?.includes("نصيف")) ? async () => {
                   setDownloadChoiceDialog(null);
                   
                   // Fetch all products to get all elastic products in the site
