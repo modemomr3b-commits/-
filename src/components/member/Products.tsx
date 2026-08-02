@@ -106,6 +106,15 @@ export default function Products() {
   }, [categoryId]);
 
   
+  // Handle scroll and state restoration
+  useEffect(() => {
+    // Scroll to top immediately when category changes, unless returning from detail
+    const returnCat = sessionStorage.getItem('return_category');
+    if (returnCat !== (categoryId || 'all')) {
+      window.scrollTo(0, 0);
+    }
+  }, [categoryId]);
+
   useEffect(() => {
     if (!loading) {
       const returnCat = sessionStorage.getItem('return_category');
@@ -132,7 +141,7 @@ export default function Products() {
       } else {
         setCurrentPage(1);
         setActiveSub(null);
-        setTimeout(() => window.scrollTo(0, 0), 50);
+        // window.scrollTo(0, 0) is already handled in the other effect immediately
       }
     }
   }, [loading, categoryId]);
@@ -479,9 +488,9 @@ export default function Products() {
                       setDownloadProgress({ progress, total });
                     });
                   } else {
-                    // Fallback to multiple file download if folder picker not supported
-                    const { downloadImages } = await import('../../utils/download');
-                    success = await downloadImages(imagesToDownload.map(img => ({ url: img.url, filename: img.filename })), (progress, total) => {
+                    // Fallback to ZIP for iOS/unsupported browsers
+                    const { downloadAsZip } = await import('../../utils/zipDownload');
+                    success = await downloadAsZip(catName, imagesToDownload, (progress, total) => {
                       setDownloadProgress({ progress, total });
                     });
                   }

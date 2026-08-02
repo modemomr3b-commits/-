@@ -124,10 +124,18 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
             return { url: imgUrl!, filename, folderName };
           });
         
-        const { downloadAsZip } = await import('../../utils/zipDownload');
-        const success = await downloadAsZip(zipName, imagesToDownload, (progress, total, message) => {
-          setDownloadProgress({ progress, total, message });
-        });
+        let success = false;
+        if ('showDirectoryPicker' in window) {
+          const { downloadToFolder } = await import('../../utils/folderDownload');
+          success = await downloadToFolder(imagesToDownload, (progress, total, message) => {
+            setDownloadProgress({ progress, total, message });
+          });
+        } else {
+          const { downloadAsZip } = await import('../../utils/zipDownload');
+          success = await downloadAsZip(zipName, imagesToDownload, (progress, total, message) => {
+            setDownloadProgress({ progress, total, message });
+          });
+        }
         
         if (success) {
            showToast("تم تحميل الملف بنجاح", "success");
