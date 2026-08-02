@@ -1,6 +1,6 @@
 import { formatDateTime, formatDate } from '../../utils/time';
 import { useParams, useNavigate, useLocation } from 'react-router';
-import { ChevronRight, Heart, ShoppingCart, Loader2, Download, Share2, History } from 'lucide-react';
+import { ChevronRight, Heart, ShoppingCart, Loader2, Download, Share2, History, Lock } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { api } from '../../api';
 import { Product } from '../../types';
@@ -288,6 +288,10 @@ export default function ProductDetail() {
 
       {historyProduct && (
         <PriceHistoryViewer product={historyProduct} onClose={() => setHistoryProduct(null)} />
+      )}
+      
+      {fullscreenImage && (
+        <ImageViewer src={fullscreenImage.src} alt={fullscreenImage.alt} onClose={() => setFullscreenImage(null)} />
       )}
     </div>
   );

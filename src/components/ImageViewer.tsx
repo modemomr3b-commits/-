@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, ZoomIn, ZoomOut, Check } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
-import OptimizedImage from './OptimizedImage.tsx';
+import { X, ZoomIn, ZoomOut } from 'lucide-react';
+import OptimizedImage from './OptimizedImage';
 
 interface ImageViewerProps {
   src: string;
@@ -24,7 +23,6 @@ export default function ImageViewer({ src, alt, onClose }: ImageViewerProps) {
     });
   };
 
-  // Keyboard support for closing
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -34,7 +32,6 @@ export default function ImageViewer({ src, alt, onClose }: ImageViewerProps) {
   }, [onClose]);
 
   useEffect(() => {
-    // Disable body scroll when modal is open
     document.body.style.overflow = 'hidden';
     return () => {
       document.body.style.overflow = '';
@@ -74,7 +71,7 @@ export default function ImageViewer({ src, alt, onClose }: ImageViewerProps) {
        const dy = e.clientY - touchStart.y;
        const dt = Date.now() - touchStart.time;
        if (dy > 100 && dt < 400) {
-           onClose(); // Swipe down to close
+           onClose();
        }
        setTouchStart(null);
     }
@@ -88,87 +85,82 @@ export default function ImageViewer({ src, alt, onClose }: ImageViewerProps) {
   };
 
   return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-sm touch-none"
-        onClick={handleWrapperClick}
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-sm touch-none transition-opacity duration-300"
+      onClick={handleWrapperClick}
+    >
+      <div
+        className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between z-20 bg-gradient-to-b from-black/80 to-transparent"
+        onClick={(e) => e.stopPropagation()}
       >
-        {/* Controls Overlay */}
-        <div 
-          className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between z-20 bg-gradient-to-b from-black/80 to-transparent"
-          onClick={(e) => e.stopPropagation()}
+        <button 
+          onClick={onClose}
+          className="p-2 text-white/70 hover:text-white bg-white/10 hover:bg-white/20 rounded-full transition-colors backdrop-blur-md"
         >
+          <X size={24} />
+        </button>
+           
+        <div className="flex items-center gap-4 bg-white/10 backdrop-blur-md px-4 py-2 rounded-full border border-white/10">
           <button 
-            onClick={onClose}
-            className="p-2 text-white/70 hover:text-white bg-white/10 hover:bg-white/20 rounded-full transition-colors backdrop-blur-md"
+            onClick={handleZoomOut}
+            disabled={scale <= 1}
+            className="text-white/70 hover:text-white disabled:opacity-30 transition-colors"
           >
-            <X size={24} />
+            <ZoomOut size={20} />
           </button>
-          
-          <div className="flex items-center gap-4 bg-white/10 backdrop-blur-md px-4 py-2 rounded-full border border-white/10">
-            <button 
-              onClick={handleZoomOut}
-              disabled={scale <= 1}
-              className="text-white/70 hover:text-white disabled:opacity-30 transition-colors"
-            >
-              <ZoomOut size={20} />
-            </button>
-            <span className="text-white text-xs font-mono font-bold mx-2">
-              {Math.round(scale * 100)}%
-            </span>
-            <button 
-              onClick={handleZoomIn}
-              disabled={scale >= 4}
-              className="text-white/70 hover:text-white disabled:opacity-30 transition-colors"
-            >
-              <ZoomIn size={20} />
-            </button>
-          </div>
-        </div>
-
-        {/* Image Container */}
-        <div 
-          className="w-full h-full flex items-center justify-center p-4 md:p-10 cursor-move"
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-          onPointerLeave={handlePointerUp}
-        >
-          <motion.div
-            animate={{ scale, x: position.x, y: position.y }}
-            transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="relative flex items-center justify-center w-full h-full max-h-[90vh] max-w-[90vw]"
-            onClick={(e) => {
-              if (hasDragged) {
-                e.stopPropagation();
-                return;
-              }
-              const now = Date.now();
-              if (now - lastTap.current < 300) {
-                 if (scale > 1) {
-                    setScale(1);
-                    setPosition({ x: 0, y: 0 });
-                 } else {
-                    setScale(2.5);
-                 }
-                 e.stopPropagation();
-              } else {
-                 lastTap.current = now;
-              }
-            }}
+          <span className="text-white text-xs font-mono font-bold mx-2">
+            {Math.round(scale * 100)}%
+          </span>
+          <button 
+            onClick={handleZoomIn}
+            disabled={scale >= 4}
+            className="text-white/70 hover:text-white disabled:opacity-30 transition-colors"
           >
-             <OptimizedImage 
-               src={src} 
-               alt={alt} 
-               size="full"
-               className="w-full h-full drop-shadow-2xl object-contain !pointer-events-none" 
-             />
-          </motion.div>
+            <ZoomIn size={20} />
+          </button>
         </div>
-      </motion.div>
-    </AnimatePresence>
+      </div>
+
+      <div 
+        className="w-full h-full flex items-center justify-center p-4 md:p-10 cursor-move"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerLeave={handlePointerUp}
+      >
+        <div
+          style={{ 
+             transform: `scale(${scale}) translate(${position.x / scale}px, ${position.y / scale}px)`,
+             transition: isDragging ? 'none' : 'transform 0.2s ease-out'
+          }}
+          className="relative flex items-center justify-center w-full h-full max-h-[90vh] max-w-[90vw]"
+          onClick={(e) => {
+            if (hasDragged) {
+              e.stopPropagation();
+              return;
+            }
+            const now = Date.now();
+            if (now - lastTap.current < 300) {
+               if (scale > 1) {
+                  setScale(1);
+                  setPosition({ x: 0, y: 0 });
+               } else {
+                  setScale(2.5);
+               }
+               e.stopPropagation();
+            } else {
+               lastTap.current = now;
+            }
+          }}
+        >
+           <OptimizedImage 
+             src={src} 
+             alt={alt} 
+             size="full"
+             className="w-full h-full drop-shadow-2xl object-contain !pointer-events-none" 
+           />
+        </div>
+      </div>
+    </div>
   );
 }
