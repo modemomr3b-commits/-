@@ -51,14 +51,14 @@ export const burnProductOverlay = (product: any, rawImageUrl: string): Promise<s
 
         // Code (Right side)
         ctx.fillStyle = '#d4af37';
-        ctx.font = `bold ${34 * scale}px Arial`;
+        ctx.font = `bold ${34 * scale}px Cairo, sans-serif`;
         const codeText = `الكود: ${product.productCode || '---'}`;
         ctx.fillText(codeText, CANVAS_W - (40 * scale), row1Y);
 
         // Packaging (Left side)
         ctx.textAlign = 'left';
         ctx.fillStyle = '#cccccc';
-        ctx.font = `${32 * scale}px Arial`;
+        ctx.font = `${32 * scale}px Cairo, sans-serif`;
         let packStr = `التعبئة: ${product.packaging || '---'}`;
         ctx.fillText(packStr, 40 * scale, row1Y);
 
@@ -85,10 +85,10 @@ export const burnProductOverlay = (product: any, rawImageUrl: string): Promise<s
         }
 
         ctx.fillStyle = '#aaaaaa';
-        ctx.font = `${24 * scale}px Arial`;
+        ctx.font = `${24 * scale}px Cairo, sans-serif`;
         ctx.fillText('سعر الجملة (الدرزن)', doxX + doxW - (20 * scale), boxY + (15 * scale));
         ctx.fillStyle = '#d4af37';
-        ctx.font = `bold ${36 * scale}px Arial`;
+        ctx.font = `bold ${36 * scale}px Cairo, sans-serif`;
         ctx.fillText(Number(product.price || 0).toLocaleString("en-US") + ' د.ع', doxX + doxW - (20 * scale), boxY + (45 * scale));
 
         // Piece Box (Left Side)
@@ -109,18 +109,18 @@ export const burnProductOverlay = (product: any, rawImageUrl: string): Promise<s
         }
 
         ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'; // Dark text for label
-        ctx.font = `${24 * scale}px Arial`;
+        ctx.font = `${24 * scale}px Cairo, sans-serif`;
         // In Arabic, we're writing rtl but the text origin is right for fillText because of ctx.textAlign = 'right'
         ctx.fillText('سعر المفرد (القطعة)', pceX + pceW - (20 * scale), boxY + (15 * scale));
         ctx.fillStyle = '#000000'; // Black text for price
-        ctx.font = `bold ${36 * scale}px Arial`;
+        ctx.font = `bold ${36 * scale}px Cairo, sans-serif`;
         ctx.fillText((product.piecePriceIqd ? Number(product.piecePriceIqd).toLocaleString("en-US") : '---') + ' د.ع', pceX + pceW - (20 * scale), boxY + (45 * scale));
 
         // --- Middle BRQ Text inside ribbon ---
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillStyle = 'rgba(212, 175, 55, 0.8)';
-        ctx.font = `bold ${64 * scale}px Arial`;
+        ctx.font = `bold italic ${72 * scale}px Cairo, sans-serif`;
         ctx.fillText('BRQ', CANVAS_W / 2, boxY + (doxH / 2));
 
         resolve(canvas.toDataURL('image/jpeg', 0.95));

@@ -1,10 +1,12 @@
 import { Save, Building2, Monitor, Bell, Shield, Globe, HardDrive, Loader2, DollarSign } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { api } from '../../api.ts';
+import { burnProductOverlay } from '../../utils/burnImage';
 
 export default function SettingsManager() {
   const [loading, setLoading] = useState(false);
   const [initialLoad, setInitialLoad] = useState(true);
+  const [updateProgress, setUpdateProgress] = useState<{current: number, total: number} | null>(null);
   const [settings, setSettings] = useState({
     companyName: 'شركة الوفاء المتميز',
     phone: '',
@@ -25,6 +27,36 @@ export default function SettingsManager() {
     });
     return () => { mounted = false; };
   }, []);
+
+  
+  const handleUpdateImages = async () => {
+    if (!window.confirm("هل أنت متأكد من رغبتك في تحديث جميع الصور المدمجة؟ قد تستغرق هذه العملية بعض الوقت.")) return;
+    try {
+      const products = await api.getProducts();
+      const productsToUpdate = products.filter(p => p.imageUrl && p.imageUrl.startsWith('https://')); // Only process products with uploaded raw images
+      
+      setUpdateProgress({ current: 0, total: productsToUpdate.length });
+      
+      let i = 0;
+      for (const p of productsToUpdate) {
+        try {
+          const newFinalImg = await burnProductOverlay(p, p.imageUrl);
+          await api.updateProduct(p.id!, { finalImageUrl: newFinalImg });
+        } catch (e) {
+          console.error("Failed to update image for product", p.id, e);
+        }
+        i++;
+        setUpdateProgress({ current: i, total: productsToUpdate.length });
+      }
+      
+      alert('تم تحديث جميع الصور بنجاح!');
+    } catch (e) {
+      console.error(e);
+      alert('حدث خطأ أثناء تحديث الصور');
+    } finally {
+      setUpdateProgress(null);
+    }
+  };
 
   const handleSave = async () => {
     setLoading(true);
@@ -155,7 +187,27 @@ export default function SettingsManager() {
              <button className="w-full text-right px-4 py-2 bg-white border border-black rounded-lg text-sm hover:bg-gray-100 transition-colors text-black">إعدادات المصادقة الثنائية...</button>
           </div>
         </div>
+
+        <div className="glass-panel p-6 rounded-2xl border border-white/5 space-y-4">
+          <div className="flex items-center gap-3 border-b border-white/5 pb-4">
+            <HardDrive className="text-brq-gold" size={24} />
+            <h3 className="font-bold text-lg">أدوات متقدمة</h3>
+          </div>
+          <div className="space-y-3">
+             <button 
+               onClick={handleUpdateImages}
+               disabled={updateProgress !== null}
+               className="w-full px-4 py-2 bg-brq-royal text-white border-brq-gold border rounded-lg text-sm hover:opacity-90 transition-colors font-bold disabled:opacity-50"
+             >
+               {updateProgress ? `جاري تحديث الصور (${updateProgress.current}/${updateProgress.total})...` : "إعادة دمج جميع الصور (تحديث الخط)"}
+             </button>
+             <p className="text-[10px] text-white/50 text-center">
+               هذه العملية تقوم بإعادة رسم الشريطة على كافة منتجات المتجر لتطبيق أي تغييرات على الخط أو التصميم. قد تستغرق بعض الوقت.
+             </p>
+          </div>
+        </div>
       </div>
     </div>
+
   );
 }
