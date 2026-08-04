@@ -120,8 +120,8 @@ export const burnProductOverlay = (product: any, rawImageUrl: string): Promise<s
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillStyle = 'rgba(212, 175, 55, 0.8)';
-        ctx.font = `bold italic ${72 * scale}px Cairo, sans-serif`;
-        ctx.fillText('BRQ', CANVAS_W / 2, boxY + (doxH / 2));
+        ctx.font = `${80 * scale}px Cairo, sans-serif`;
+        ctx.fillText('𝓑𝓡𝓠', CANVAS_W / 2, boxY + (doxH / 2));
 
         resolve(canvas.toDataURL('image/jpeg', 0.95));
       } catch (err) {
