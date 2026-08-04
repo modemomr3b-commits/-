@@ -39,7 +39,12 @@ export default function Products() {
 
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [readyFilesToShare, setReadyFilesToShare] = useState<File[] | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setReadyFilesToShare(null);
+  }, [selectedIds]);
 
   const fetchProducts = async () => {
     try {
@@ -220,6 +225,20 @@ export default function Products() {
   const handleShareSelected = async () => {
     if (selectedIds.size === 0) return;
 
+    if (readyFilesToShare && readyFilesToShare.length > 0) {
+      try {
+        await navigator.share({ files: readyFilesToShare, title: 'منتجات BRQ' });
+        setSelectedIds(new Set());
+        setIsSelectionMode(false);
+        setReadyFilesToShare(null);
+        showToast("تمت المشاركة بنجاح", "success");
+      } catch (error) {
+        console.error('Error sharing files:', error);
+        showToast("فشلت المشاركة. قد يكون السبب رفض التطبيق المختار للملفات أو تجاوز حجم الملفات المسموح.", "error");
+      }
+      return;
+    }
+
     const productsToShare = products.filter((p) => selectedIds.has(p.id!));
     const imagesWithData = productsToShare.filter((p) => p.finalImageUrl || p.imageUrl);
 
@@ -233,7 +252,6 @@ export default function Products() {
     let completed = 0;
     const files: File[] = [];
 
-    // Run in parallel with concurrency limit of 10 to speed up and avoid user gesture timeout
     const fetchAndCompress = async (p: Product) => {
       const imgUrl = p.finalImageUrl || p.imageUrl;
       if (!imgUrl) return;
@@ -243,8 +261,8 @@ export default function Products() {
         
         try {
           const count = imagesWithData.length;
-          const size = count > 50 ? 600 : (count > 20 ? 800 : 1000);
-          const qual = count > 50 ? 0.5 : (count > 20 ? 0.6 : 0.8);
+          const size = count > 50 ? 500 : (count > 20 ? 700 : 1000);
+          const qual = count > 50 ? 0.4 : (count > 20 ? 0.6 : 0.8);
           blob = await compressImage(blob, size, qual);
         } catch (e) {
           console.error('Compression failed', e);
@@ -253,7 +271,7 @@ export default function Products() {
         let type = blob.type;
         if (!type || !type.startsWith('image/')) type = 'image/jpeg';
         const ext = type.split("/")[1] || "jpg";
-        const safeName = (p.productCode || p.name || "product").replace(/[\/\?<>\\:\*\|":]/g, '-');
+        const safeName = (p.productCode || p.name || "product").replace(/[\/\?<>\:\*\|":]/g, '-');
         const filename = `${safeName}.${ext}`;
         files.push(new File([blob], filename, { type }));
       } catch (err) {
@@ -264,8 +282,7 @@ export default function Products() {
       }
     };
 
-    // Process in batches of 10 to not overwhelm the browser but still be fast
-    const batchSize = 20;
+    const batchSize = 10;
     for (let i = 0; i < imagesWithData.length; i += batchSize) {
       const batch = imagesWithData.slice(i, i + batchSize);
       await Promise.all(batch.map(fetchAndCompress));
@@ -274,16 +291,8 @@ export default function Products() {
     setDownloadProgress(null);
 
     if (files.length > 0) {
-      try {
-        await navigator.share({ files, title: 'منتجات BRQ' });
-        setSelectedIds(new Set());
-        setIsSelectionMode(false);
-        showToast("تمت المشاركة بنجاح", "success");
-      } catch (error) {
-        console.error('Error sharing files:', error);
-        showToast("فشلت المشاركة المباشرة (قد يكون العدد كبير جداً). يمكنك تجربة تحميلها بدلاً من ذلك، أو تقليل العدد.", "error");
-        // We do NOT clear selection here, so the user can deselect some and try again
-      }
+      setReadyFilesToShare(files);
+      showToast("تم التجهيز. اضغط على مشاركة مرة أخرى للإرسال.", "success");
     }
   };
 
@@ -594,15 +603,42 @@ export default function Products() {
             }}
             className="flex-[2] py-2 bg-brq-navy rounded-lg border border-brq-royal/50 flex gap-2 items-center justify-center text-xs text-brq-gold hover:bg-brq-navy/80 transition-colors disabled:opacity-50"
           >
-            <Download size={14} /> {downloadProgress ? `جاري التحميل ${downloadProgress.progress}/${downloadProgress.total}` : 'حفظ القسم'}
+            <Download size={14} /> {downloadProgress ? `جاري التحميل ${downloadProgress.progress}/${downloadProgress.total}` : (isSelectionMode ? 'حفظ المحدد' : 'حفظ القسم')}
           </button>
           
-          <button 
-            onClick={() => setIsDownloadDialogOpen(true)}
-            className="flex-[2] py-2 bg-brq-gold/20 rounded-lg border border-brq-gold/50 flex gap-2 items-center justify-center text-xs text-brq-gold hover:bg-brq-gold/30 transition-colors"
-          >
-            <Layers size={14} /> تحميل كل الصور
-          </button>
+          {!isSelectionMode ? (
+            <button 
+              onClick={() => setIsDownloadDialogOpen(true)}
+              className="flex-[2] py-2 bg-brq-gold/20 rounded-lg border border-brq-gold/50 flex gap-2 items-center justify-center text-xs text-brq-gold hover:bg-brq-gold/30 transition-colors"
+            >
+              <Layers size={14} /> تحميل كل الصور
+            </button>
+          ) : (
+            <button 
+              onClick={() => {
+                const allSelected = filteredProducts.every(p => selectedIds.has(p.id!));
+                const newSet = new Set(selectedIds);
+                if (allSelected) {
+                  filteredProducts.forEach(p => newSet.delete(p.id!));
+                } else {
+                  let added = 0;
+                  for (const p of filteredProducts) {
+                    if (!newSet.has(p.id!)) {
+                      if (newSet.size >= 100) {
+                        showToast("تم الوصول للحد الأقصى (100 منتج)", "error");
+                        break;
+                      }
+                      newSet.add(p.id!);
+                    }
+                  }
+                }
+                setSelectedIds(newSet);
+              }}
+              className="flex-[2] py-2 bg-blue-500/20 rounded-lg border border-blue-500/50 flex gap-2 items-center justify-center text-xs text-blue-400 hover:bg-blue-500/30 transition-colors"
+            >
+              <CheckSquare size={14} /> {filteredProducts.length > 0 && filteredProducts.every(p => selectedIds.has(p.id!)) ? 'إلغاء الكل' : 'تحديد الكل'}
+            </button>
+          )}
 
           <button 
             onClick={() => setIsSelectionMode(!isSelectionMode)}
@@ -862,7 +898,7 @@ export default function Products() {
                 disabled={downloadProgress !== null}
                 className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-bold text-sm transition-colors flex items-center gap-2"
               >
-                <Share2 size={16} /> مشاركة
+                <Share2 size={16} /> {readyFilesToShare ? 'مشاركة الآن' : (downloadProgress ? `جاري التجهيز ${downloadProgress.progress}/${downloadProgress.total}` : 'مشاركة')}
               </button>
             </div>
           </div>
