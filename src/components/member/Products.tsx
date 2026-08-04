@@ -168,12 +168,21 @@ export default function Products() {
       result = result.filter((p) => p.subcategoryId === activeSub);
     }
     if (searchTerm) {
-      const q = searchTerm.toLowerCase().trim().replace(/[-_]/g, '');
+      const searchWords = searchTerm.toLowerCase().trim().replace(/[-_]/g, '').split(/\s+/).filter(Boolean);
       result = result.filter((p) => {
-        return (p.name && p.name.toLowerCase().replace(/[-_]/g, '').includes(q)) ||
-               (p.productCode && p.productCode.toLowerCase().replace(/[-_]/g, '').startsWith(q)) ||
-               (p.modelNumber && p.modelNumber.toLowerCase().replace(/[-_]/g, '').startsWith(q)) ||
-               (p.barcode && p.barcode.toLowerCase().replace(/[-_]/g, '').startsWith(q));
+        let catName = '';
+        let subCatName = '';
+        if (p.categoryId) {
+          const cat = allCategories.find(c => c.id === p.categoryId);
+          if (cat) catName = cat.name;
+        }
+        if (p.subcategoryId) {
+          const sub = allCategories.find(c => c.id === p.subcategoryId);
+          if (sub) subCatName = sub.name;
+        }
+        const fullText = [p.name, p.productCode, p.modelNumber, p.barcode, catName, subCatName].filter(Boolean).join(' ').toLowerCase().replace(/[-_]/g, '');
+        
+        return searchWords.every(word => fullText.includes(word));
       });
     }
     return result;
@@ -401,6 +410,34 @@ export default function Products() {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
+
+        {subCategories.length > 0 && (
+          <div className="flex gap-2 overflow-x-auto py-2 mb-2 scrollbar-hide">
+            <button
+              onClick={() => setActiveSub(null)}
+              className={`whitespace-nowrap px-4 py-1.5 rounded-full text-xs font-bold transition-colors ${
+                activeSub === null 
+                  ? "bg-brq-gold text-black" 
+                  : "bg-white/10 text-white/70 hover:bg-white/20"
+              }`}
+            >
+              الكل
+            </button>
+            {subCategories.map((sub) => (
+              <button
+                key={sub.id}
+                onClick={() => setActiveSub(sub.id)}
+                className={`whitespace-nowrap px-4 py-1.5 rounded-full text-xs font-bold transition-colors ${
+                  activeSub === sub.id 
+                    ? "bg-brq-gold text-black" 
+                    : "bg-white/10 text-white/70 hover:bg-white/20"
+                }`}
+              >
+                {sub.name}
+              </button>
+            ))}
+          </div>
+        )}
 
         <div className="flex gap-2 w-full">
           <button 

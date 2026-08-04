@@ -10,6 +10,7 @@ import { useStore } from '../../store';
 export default function SearchPage() {
   const { user, showToast } = useStore();
   const [products, setProducts] = useState<Product[]>([]);
+  const [allCategories, setAllCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   
@@ -35,7 +36,11 @@ export default function SearchPage() {
     
     const fetchProducts = async () => {
       try {
+         const cats = await api.getCategories();
          const allProducts = await api.getProducts();
+         if (mounted) {
+            setAllCategories(cats);
+         }
          if (mounted) {
             setProducts(allProducts);
             setLoading(false);
@@ -81,11 +86,21 @@ export default function SearchPage() {
     
     let matchesQuery = true;
     if (query) {
-      const q = query.toLowerCase().trim().replace(/[-_]/g, '');
-      matchesQuery = (p.name && p.name.toLowerCase().replace(/[-_]/g, '').includes(q)) ||
-        (p.productCode && p.productCode.toLowerCase().replace(/[-_]/g, '').startsWith(q)) ||
-        (p.modelNumber && p.modelNumber.toLowerCase().replace(/[-_]/g, '').startsWith(q)) ||
-        (p.barcode && p.barcode.toLowerCase().replace(/[-_]/g, '').startsWith(q));
+      const searchWords = query.toLowerCase().trim().replace(/[-_]/g, '').split(/\s+/).filter(Boolean);
+      
+      let catName = '';
+      let subCatName = '';
+      if (p.categoryId) {
+        const cat = allCategories.find(c => c.id === p.categoryId);
+        if (cat) catName = cat.name;
+      }
+      if (p.subcategoryId) {
+        const sub = allCategories.find(c => c.id === p.subcategoryId);
+        if (sub) subCatName = sub.name;
+      }
+      const fullText = [p.name, p.productCode, p.modelNumber, p.barcode, catName, subCatName].filter(Boolean).join(' ').toLowerCase().replace(/[-_]/g, '');
+      
+      matchesQuery = searchWords.every(word => fullText.includes(word));
     }
 
     if (!query) return false;
