@@ -222,19 +222,32 @@ export default function Products() {
     setSelectedIds(next);
   };
 
-  const handleShareSelected = async () => {
-    if (selectedIds.size === 0) return;
-
-    if (readyFilesToShare && readyFilesToShare.length > 0) {
-      try {
-        await navigator.share({ files: readyFilesToShare, title: 'منتجات BRQ' });
+  const executeShare = async (filesToShare: File[], isPartial: boolean = false) => {
+    try {
+      if (navigator.canShare && !navigator.canShare({ files: filesToShare })) {
+         console.warn("navigator.canShare returned false");
+      }
+      await navigator.share({ files: filesToShare, title: 'منتجات BRQ' });
+      
+      if (!isPartial) {
         setSelectedIds(new Set());
         setIsSelectionMode(false);
         setReadyFilesToShare(null);
-        showToast("تمت المشاركة بنجاح", "success");
-      } catch (error) {
-        console.error('Error sharing files:', error);
-        showToast("فشلت المشاركة. قد يكون السبب رفض التطبيق المختار للملفات أو تجاوز حجم الملفات المسموح.", "error");
+      }
+    } catch (error: any) {
+      console.error('Error sharing files:', error);
+      if (error.name !== 'AbortError') {
+         showToast("فشلت المشاركة. قد يكون السبب رفض التطبيق المختار أو تجاوز الحد المسموح.", "error");
+      }
+    }
+  };
+
+  const handleShareSelected = async () => {
+    if (selectedIds.size === 0) return;
+    
+    if (readyFilesToShare && readyFilesToShare.length > 0) {
+      if (readyFilesToShare.length <= 30) {
+        executeShare(readyFilesToShare, false);
       }
       return;
     }
@@ -886,20 +899,51 @@ export default function Products() {
 
       {selectedIds.size > 0 && (
         <div className="fixed bottom-20 left-0 right-0 z-50 px-4 animate-in slide-in-from-bottom-10 fade-in duration-300">
-          <div className="max-w-md mx-auto bg-blue-900/90 backdrop-blur-md border border-blue-500/50 rounded-2xl shadow-2xl p-4 flex items-center justify-between">
+          <div className={`max-w-md mx-auto bg-blue-900/90 backdrop-blur-md border border-blue-500/50 rounded-2xl shadow-2xl p-4 flex ${readyFilesToShare && readyFilesToShare.length > 30 ? 'flex-col gap-3 items-start' : 'items-center justify-between'}`}>
             <div className="flex flex-col">
               <span className="text-white font-bold text-sm">
                 تم تحديد {selectedIds.size} منتج
               </span>
+              {readyFilesToShare && readyFilesToShare.length > 30 && (
+                <span className="text-[11px] text-blue-200 mt-1 leading-relaxed">
+                  العدد كبير جداً! لتجنب مشاكل واتساب وغيرها من التطبيقات، تم تقسيم الصور إلى دفعات (كل دفعة 30 صورة كحد أقصى).
+                  يرجى مشاركتها دفعة تلو الأخرى:
+                </span>
+              )}
             </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleShareSelected}
-                disabled={downloadProgress !== null}
-                className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-bold text-sm transition-colors flex items-center gap-2"
-              >
-                <Share2 size={16} /> {readyFilesToShare ? 'مشاركة الآن' : (downloadProgress ? `جاري التجهيز ${downloadProgress.progress}/${downloadProgress.total}` : 'مشاركة')}
-              </button>
+            <div className={`flex items-center gap-2 ${readyFilesToShare && readyFilesToShare.length > 30 ? 'flex-wrap w-full justify-start' : ''}`}>
+              {!readyFilesToShare ? (
+                <button
+                  onClick={handleShareSelected}
+                  disabled={downloadProgress !== null}
+                  className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-bold text-sm transition-colors flex items-center gap-2"
+                >
+                  <Share2 size={16} /> {downloadProgress ? `جاري التجهيز ${downloadProgress.progress}/${downloadProgress.total}` : 'مشاركة'}
+                </button>
+              ) : readyFilesToShare.length <= 30 ? (
+                <button
+                  onClick={() => executeShare(readyFilesToShare, false)}
+                  className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-bold text-sm transition-colors flex items-center gap-2"
+                >
+                  <Share2 size={16} /> مشاركة الآن
+                </button>
+              ) : (
+                <div className="flex flex-wrap gap-2 w-full mt-1">
+                  {Array.from({ length: Math.ceil(readyFilesToShare.length / 30) }).map((_, idx) => {
+                    const chunk = readyFilesToShare.slice(idx * 30, (idx + 1) * 30);
+                    return (
+                      <button
+                        key={idx}
+                        onClick={() => executeShare(chunk, true)}
+                        className="flex-1 min-w-[80px] py-2 px-2 bg-blue-500 hover:bg-blue-600 border border-blue-400 text-white rounded-lg font-bold text-xs transition-colors flex flex-col items-center justify-center gap-1"
+                      >
+                        <Share2 size={14} /> 
+                        <span>الدفعة {idx + 1}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </div>
