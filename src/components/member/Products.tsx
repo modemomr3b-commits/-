@@ -34,7 +34,7 @@ export default function Products() {
   const [downloadChoiceDialog, setDownloadChoiceDialog] = useState<{ isOpen: boolean; message: string; onDownloadStudio: () => void; onDownloadZip: () => void; onDownloadAllElastic?: () => void } | null>(null);
   const [initialLoading, setInitialLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 24;
+  const itemsPerPage = 100;
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false);
 
   const [isSelectionMode, setIsSelectionMode] = useState(false);
@@ -127,7 +127,7 @@ export default function Products() {
         
         const savedScroll = sessionStorage.getItem('return_scroll');
         if (savedScroll) {
-          setTimeout(() => window.scrollTo(0, parseInt(savedScroll)), 100);
+          setTimeout(() => window.scrollTo(0, parseInt(savedScroll)), 500);
         }
         
         const savedSearch = sessionStorage.getItem('return_searchTerm');
@@ -186,7 +186,7 @@ export default function Products() {
       });
     }
     return result;
-  }, [activeSub, products, searchTerm]);
+  }, [activeSub, products, searchTerm, allCategories]);
   
   // Pagination logic
   const totalPages = Math.ceil(filteredProductsAll.length / itemsPerPage);
@@ -407,14 +407,14 @@ export default function Products() {
             className="w-full bg-white/5 border border-white/10 text-white text-sm rounded-lg focus:ring-brq-gold focus:border-brq-gold block pl-3 pr-10 py-2.5 transition-colors placeholder:text-white/30"
             placeholder="ابحث في هذا القسم..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
           />
         </div>
 
         {subCategories.length > 0 && (
           <div className="flex gap-2 overflow-x-auto py-2 mb-2 scrollbar-hide">
             <button
-              onClick={() => setActiveSub(null)}
+              onClick={() => { setActiveSub(null); setCurrentPage(1); }}
               className={`whitespace-nowrap px-4 py-1.5 rounded-full text-xs font-bold transition-colors ${
                 activeSub === null 
                   ? "bg-brq-gold text-black" 
@@ -426,7 +426,7 @@ export default function Products() {
             {subCategories.map((sub) => (
               <button
                 key={sub.id}
-                onClick={() => setActiveSub(sub.id)}
+                onClick={() => { setActiveSub(sub.id); setCurrentPage(1); }}
                 className={`whitespace-nowrap px-4 py-1.5 rounded-full text-xs font-bold transition-colors ${
                   activeSub === sub.id 
                     ? "bg-brq-gold text-black" 
@@ -658,7 +658,13 @@ export default function Products() {
               onClick={(e) => {
                 if (isSelectionMode) {
                   toggleSelection(e, p.id!);
+                  return;
                 }
+                sessionStorage.setItem('return_category', categoryId || 'all');
+                sessionStorage.setItem('return_page', currentPage.toString());
+                sessionStorage.setItem('return_searchTerm', searchTerm);
+                if (activeSub) sessionStorage.setItem('return_sub', activeSub);
+                sessionStorage.setItem('return_scroll', window.scrollY.toString());
               }}
             >
               {isSelectionMode && (

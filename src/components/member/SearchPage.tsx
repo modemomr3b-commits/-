@@ -17,7 +17,7 @@ export default function SearchPage() {
   const [query, setQuery] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 24;
+  const itemsPerPage = 100;
   
   const [searchArchived, setSearchArchived] = useState(false);
 
@@ -69,7 +69,7 @@ export default function SearchPage() {
         
         const savedScroll = sessionStorage.getItem('return_search_scroll');
         if (savedScroll) {
-          setTimeout(() => window.scrollTo(0, parseInt(savedScroll)), 150);
+          setTimeout(() => window.scrollTo(0, parseInt(savedScroll)), 500);
         }
         
         sessionStorage.removeItem('return_search');
@@ -111,15 +111,13 @@ export default function SearchPage() {
     } else {
       return !p.isArchived;
     }
-  }), [products, query, searchArchived]);
+  }), [products, query, searchArchived, allCategories]);
 
   const totalPages = Math.ceil(filteredProductsAll.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const filteredProducts = useMemo(() => filteredProductsAll.slice(startIndex, startIndex + itemsPerPage), [filteredProductsAll, startIndex, itemsPerPage]);
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [query, searchArchived]);
+
 
   const handleDownloadSingle = async (e: React.MouseEvent, p: Product) => {
     e.preventDefault();
@@ -165,7 +163,7 @@ export default function SearchPage() {
         <input 
           type="text" 
           value={searchInput}
-          onChange={e => setSearchInput(e.target.value)}
+          onChange={e => { setSearchInput(e.target.value); setCurrentPage(1); }}
           className="w-full glass-card pl-12 pr-10 py-3.5 rounded-xl text-sm placeholder-white/40 focus:outline-none focus:border-brq-gold focus:ring-1 focus:ring-brq-gold transition-all text-white"
           placeholder="ابحث عن منتج، موديل، كود..."
           autoFocus
@@ -182,7 +180,7 @@ export default function SearchPage() {
                 <h2 className="text-sm font-bold text-white/70 mb-3">البحث المتقدم</h2>
                 <div className="grid grid-cols-2 gap-3">
                    <button 
-                     onClick={() => setSearchArchived(!searchArchived)}
+                     onClick={() => { setSearchArchived(!searchArchived); setCurrentPage(1); }}
                      className={`p-4 rounded-xl flex flex-col items-center justify-center gap-2 border transition-colors ${searchArchived ? 'bg-brq-gold/10 border-brq-gold' : 'glass-panel border-white/5 hover:border-brq-gold/50'}`}
                    >
                       <Archive className={searchArchived ? 'text-brq-gold mb-1' : 'text-white/50 mb-1'} />
@@ -204,7 +202,7 @@ export default function SearchPage() {
                  نتائج البحث {searchArchived ? '(المواد النافذة)' : '(المنتجات الفعالة)'}
                </h2>
                <button 
-                 onClick={() => setSearchArchived(!searchArchived)}
+                 onClick={() => { setSearchArchived(!searchArchived); setCurrentPage(1); }}
                  className={`text-xs px-2 py-1 rounded border transition-colors ${searchArchived ? 'bg-brq-gold text-black border-brq-gold font-bold' : 'bg-transparent text-white/50 border-white/10 hover:text-white'}`}
                >
                  {searchArchived ? 'إخفاء المواد النافذة' : 'بحث في المواد النافذة'}
