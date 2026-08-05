@@ -35,6 +35,8 @@ export default function Products() {
   const [initialLoading, setInitialLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 100;
+  const isAndroid = /Android/i.test(navigator.userAgent || '');
+  const maxShareLimit = isAndroid ? 10 : 100;
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false);
 
   const [isSelectionMode, setIsSelectionMode] = useState(false);
@@ -246,7 +248,7 @@ export default function Products() {
     if (selectedIds.size === 0) return;
     
     if (readyFilesToShare && readyFilesToShare.length > 0) {
-      if (readyFilesToShare.length <= 30) {
+      if (readyFilesToShare.length <= maxShareLimit) {
         executeShare(readyFilesToShare, false);
       }
       return;
@@ -899,19 +901,18 @@ export default function Products() {
 
       {selectedIds.size > 0 && (
         <div className="fixed bottom-20 left-0 right-0 z-50 px-4 animate-in slide-in-from-bottom-10 fade-in duration-300">
-          <div className={`max-w-md mx-auto bg-blue-900/90 backdrop-blur-md border border-blue-500/50 rounded-2xl shadow-2xl p-4 flex ${readyFilesToShare && readyFilesToShare.length > 30 ? 'flex-col gap-3 items-start' : 'items-center justify-between'}`}>
+          <div className={`max-w-md mx-auto bg-blue-900/90 backdrop-blur-md border border-blue-500/50 rounded-2xl shadow-2xl p-4 flex ${readyFilesToShare && readyFilesToShare.length > maxShareLimit ? 'flex-col gap-3 items-start' : 'items-center justify-between'}`}>
             <div className="flex flex-col">
               <span className="text-white font-bold text-sm">
                 تم تحديد {selectedIds.size} منتج
               </span>
-              {readyFilesToShare && readyFilesToShare.length > 30 && (
+              {readyFilesToShare && readyFilesToShare.length > maxShareLimit && (
                 <span className="text-[11px] text-blue-200 mt-1 leading-relaxed">
-                  العدد كبير جداً! لتجنب مشاكل واتساب وغيرها من التطبيقات، تم تقسيم الصور إلى دفعات (كل دفعة 30 صورة كحد أقصى).
-                  يرجى مشاركتها دفعة تلو الأخرى:
+                  يمكنك مشاركة جميع الصور دفعة واحدة، أو تقسيمها لتجنب مشاكل بعض التطبيقات (كل دفعة {maxShareLimit} صور):
                 </span>
               )}
             </div>
-            <div className={`flex items-center gap-2 ${readyFilesToShare && readyFilesToShare.length > 30 ? 'flex-wrap w-full justify-start' : ''}`}>
+            <div className={`flex items-center gap-2 ${readyFilesToShare && readyFilesToShare.length > maxShareLimit ? 'flex-wrap w-full justify-start' : ''}`}>
               {!readyFilesToShare ? (
                 <button
                   onClick={handleShareSelected}
@@ -920,7 +921,7 @@ export default function Products() {
                 >
                   <Share2 size={16} /> {downloadProgress ? `جاري التجهيز ${downloadProgress.progress}/${downloadProgress.total}` : 'مشاركة'}
                 </button>
-              ) : readyFilesToShare.length <= 30 ? (
+              ) : readyFilesToShare.length <= maxShareLimit ? (
                 <button
                   onClick={() => executeShare(readyFilesToShare, false)}
                   className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-bold text-sm transition-colors flex items-center gap-2"
@@ -928,20 +929,28 @@ export default function Products() {
                   <Share2 size={16} /> مشاركة الآن
                 </button>
               ) : (
-                <div className="flex flex-wrap gap-2 w-full mt-1">
-                  {Array.from({ length: Math.ceil(readyFilesToShare.length / 30) }).map((_, idx) => {
-                    const chunk = readyFilesToShare.slice(idx * 30, (idx + 1) * 30);
-                    return (
-                      <button
-                        key={idx}
-                        onClick={() => executeShare(chunk, true)}
-                        className="flex-1 min-w-[80px] py-2 px-2 bg-blue-500 hover:bg-blue-600 border border-blue-400 text-white rounded-lg font-bold text-xs transition-colors flex flex-col items-center justify-center gap-1"
-                      >
-                        <Share2 size={14} /> 
-                        <span>الدفعة {idx + 1}</span>
-                      </button>
-                    );
-                  })}
+                <div className="flex flex-col w-full gap-3 mt-1">
+                  <button
+                    onClick={() => executeShare(readyFilesToShare, false)}
+                    className="w-full py-2 px-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-bold text-sm transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Share2 size={16} /> مشاركة الكل مرة واحدة ({readyFilesToShare.length} صورة)
+                  </button>
+                  <div className="flex flex-wrap gap-2 w-full">
+                    {Array.from({ length: Math.ceil(readyFilesToShare.length / maxShareLimit) }).map((_, idx) => {
+                      const chunk = readyFilesToShare.slice(idx * maxShareLimit, (idx + 1) * maxShareLimit);
+                      return (
+                        <button
+                          key={idx}
+                          onClick={() => executeShare(chunk, true)}
+                          className="flex-1 min-w-[70px] py-2 px-1 bg-blue-500/80 hover:bg-blue-500 border border-blue-400/50 text-white rounded-lg font-bold text-[11px] transition-colors flex flex-col items-center justify-center gap-1"
+                        >
+                          <Share2 size={12} /> 
+                          <span>الدفعة {idx + 1}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>
