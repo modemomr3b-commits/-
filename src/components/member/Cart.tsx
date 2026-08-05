@@ -68,8 +68,11 @@ export default function Cart() {
             }
             
             if (filesArray.length > 0 && navigator.canShare({ files: filesArray })) {
+                try {
+                    await navigator.clipboard.writeText(text);
+                    showToast("تم نسخ تفاصيل الطلب للحافظة، يمكنك لصقها كرسالة مع الصور", "success");
+                } catch(e) {}
                 await navigator.share({
-                    title: 'طلب جديد',
                     text: text,
                     files: filesArray
                 });
