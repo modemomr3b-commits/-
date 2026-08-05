@@ -11,7 +11,7 @@ const statusMap: Record<OrderStatus, { label: string, color: string }> = {
   new: { label: 'قيد المراجعة', color: 'bg-yellow-500/20 text-yellow-500 border-yellow-500/30' },
   reviewing: { label: 'جاري التجهيز', color: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
   contacted: { label: 'تم التواصل', color: 'bg-purple-500/20 text-purple-400 border-purple-500/30' },
-  completed: { label: 'تم القبول', color: 'bg-green-500/20 text-green-400 border-green-500/30' },
+  completed: { label: 'مكتمل', color: 'bg-green-500/20 text-green-400 border-green-500/30' },
   cancelled: { label: 'مرفوض/ملغى', color: 'bg-red-500/20 text-red-400 border-red-500/30' },
 };
 

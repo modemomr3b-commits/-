@@ -19,7 +19,7 @@ export default function OrderManager() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<OrderStatus | 'all'>('all');
-  const [activeTab, setActiveTab] = useState<'incoming' | 'archived'>('incoming');
+  const [activeTab, setActiveTab] = useState<'new' | 'completed'>('new');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   
   const previousOrdersCount = useRef(0);
@@ -85,7 +85,7 @@ export default function OrderManager() {
 
   const handleViewOrder = async (order: Order) => {
      setSelectedOrder(order);
-     if (order.status === 'new') {
+     if (order.status !== 'completed' && order.status !== 'cancelled') {
         // Auto complete and notify
         await updateOrderStatus(order.id, 'completed');
         try {
@@ -241,8 +241,7 @@ export default function OrderManager() {
     
     const matchesStatus = filterStatus === 'all' || o.status === filterStatus;
     
-    const isArchived = o.status === 'completed' || o.status === 'cancelled';
-    const matchesTab = activeTab === 'archived' ? isArchived : !isArchived;
+    const matchesTab = activeTab === 'new' ? o.status === 'new' : (o.status === 'completed' || o.status === 'cancelled' || o.status === 'contacted' || o.status === 'reviewing');
 
     return matchesSearch && matchesStatus && matchesTab;
   });
@@ -271,16 +270,16 @@ export default function OrderManager() {
 
       <div className="flex gap-4 border-b border-white/10 pb-0">
          <button
-            onClick={() => setActiveTab('incoming')}
-            className={`pb-2 px-2 text-sm font-bold border-b-2 transition-colors ${activeTab === 'incoming' ? 'border-brq-gold text-brq-gold' : 'border-transparent text-white/50 hover:text-white'}`}
+            onClick={() => setActiveTab('new')}
+            className={`pb-2 px-2 text-sm font-bold border-b-2 transition-colors ${activeTab === 'new' ? 'border-brq-gold text-brq-gold' : 'border-transparent text-white/50 hover:text-white'}`}
          >
-            الطلبات الحالية
+            الطلبات الجديدة
          </button>
          <button
-            onClick={() => setActiveTab('archived')}
-            className={`pb-2 px-2 text-sm font-bold border-b-2 transition-colors ${activeTab === 'archived' ? 'border-brq-gold text-brq-gold' : 'border-transparent text-white/50 hover:text-white'}`}
+            onClick={() => setActiveTab('completed')}
+            className={`pb-2 px-2 text-sm font-bold border-b-2 transition-colors ${activeTab === 'completed' ? 'border-brq-gold text-brq-gold' : 'border-transparent text-white/50 hover:text-white'}`}
          >
-            الطلبيات المؤرشفة
+            الطلبات المكتملة
          </button>
       </div>
 
@@ -460,8 +459,7 @@ export default function OrderManager() {
                <div className="p-6 border-t border-white/10 bg-black/40 flex justify-between items-center gap-4">
                   <span className="text-sm text-white/50">تغيير حالة الطلب السريعة:</span>
                   <div className="flex gap-2">
-                     <button onClick={() => updateOrderStatus(selectedOrder.id, 'reviewing')} className="px-4 py-2 bg-yellow-500/20 text-yellow-500 rounded-lg hover:bg-yellow-500/30 text-sm font-bold transition-colors">قيد المراجعة</button>
-                     <button onClick={() => updateOrderStatus(selectedOrder.id, 'contacted')} className="px-4 py-2 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 text-sm font-bold transition-colors">تم التواصل</button>
+                     <button onClick={() => updateOrderStatus(selectedOrder.id, 'cancelled')} className="px-4 py-2 bg-red-500/20 text-red-500 rounded-lg hover:bg-red-500/30 text-sm font-bold transition-colors">ملغى</button>
                      <button onClick={() => updateOrderStatus(selectedOrder.id, 'completed')} className="px-4 py-2 bg-emerald-500/20 text-emerald-400 rounded-lg hover:bg-emerald-500/30 text-sm font-bold transition-colors">مكتمل</button>
                   </div>
                </div>
