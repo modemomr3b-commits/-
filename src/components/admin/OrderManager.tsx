@@ -84,8 +84,9 @@ export default function OrderManager() {
   };
 
   const handleViewOrder = async (order: Order) => {
-     setSelectedOrder(order);
-     if (order.status !== 'completed' && order.status !== 'cancelled') {
+     let currentStatus = order.status;
+     if (currentStatus !== 'completed' && currentStatus !== 'cancelled') {
+        currentStatus = 'completed';
         // Auto complete and notify
         await updateOrderStatus(order.id, 'completed');
         try {
@@ -99,6 +100,7 @@ export default function OrderManager() {
            console.error("Failed to send notification", e);
         }
      }
+     setSelectedOrder({ ...order, status: currentStatus as OrderStatus });
   };
 
   const handleDelete = async (id: string, orderNumber: string) => {

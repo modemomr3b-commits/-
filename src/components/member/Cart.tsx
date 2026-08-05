@@ -34,7 +34,7 @@ export default function Cart() {
   const handleWhatsAppShare = async () => {
     let filesArray: File[] = [];
     const agentName = user?.fullName || user?.username || '---';
-    const text = `*طلب جديد* 🛒\n\n*اسم الوكيل:* ${agentName}\n*اسم الزبون:* ${customerName || '---'}\n*النقليات:* ${transport || '---'}\n${notes ? `*الملاحظات:* ${notes}\n\n` : '\n'}*المنتجات:*\n${cart.map((item, index) => `${index+1}- ${item.product.name}\n  *الكود: ${item.product.productCode || '---'}*\n  الموديل: ${item.product.modelNumber || '---'}\n  *الكمية: ${item.quantity}*`).join('\n\n')}`;
+    const text = `*طلب جديد* 🛒\n\n*اسم الوكيل:* ${agentName}\n*اسم الزبون:* ${customerName || '---'}\n*النقليات:* ${transport || '---'}\n\n*المنتجات:*\n${cart.map((item, index) => `${index+1}- *الكود: ${item.product.productCode || '---'}*\n  *الكمية: ${item.quantity}*`).join('\n\n')}`;
     
     if (navigator.share && navigator.canShare) {
         try {

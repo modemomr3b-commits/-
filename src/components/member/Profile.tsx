@@ -145,7 +145,7 @@ export default function Profile() {
       {/* Order History */}
       <div className="glass-panel p-6 rounded-2xl border border-white/10 flex-1">
          <h3 className="text-xl font-bold text-white border-b border-white/10 pb-4 mb-4 flex items-center gap-2">
-           <ShoppingBag className="text-brq-gold" size={24} /> سجل الطلبات السابقة
+           <ShoppingBag className="text-brq-gold" size={24} /> سجل الطلبات
          </h3>
 
          {loadingOrders ? (
