@@ -15,6 +15,7 @@ const Products = lazy(() => import('./components/member/Products'));
 const ProductDetail = lazy(() => import('./components/member/ProductDetail'));
 const Favorites = lazy(() => import('./components/member/Favorites'));
 const Cart = lazy(() => import('./components/member/Cart'));
+const MemberOrders = lazy(() => import('./components/member/MemberOrders'));
 const SearchPage = lazy(() => import('./components/member/SearchPage'));
 const Profile = lazy(() => import('./components/member/Profile'));
 const Messages = lazy(() => import('./components/member/Messages'));

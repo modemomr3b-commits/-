@@ -18,7 +18,7 @@ export default function MemberLayout() {
   const navItems = [
     { icon: Home, path: '/', label: 'الرئيسية' },
     { icon: Search, path: '/search', label: 'بحث' },
-    { icon: Heart, path: '/favorites', label: 'المفضلة' },
+    { icon: Package, path: '/orders', label: 'سجل الطلبات' },
     { icon: ShoppingBag, path: '/cart', label: 'الطلبات', badge: cart.length },
     { icon: MessageCircle, path: '/messages', label: 'الرسائل' },
     { icon: User, path: '/profile', label: 'حسابي' },

@@ -172,15 +172,30 @@ export default function ProductDetail() {
                       const safeName = (product.productCode || product.name || "product").replace(/[\/\?<>\\:\*\|":]/g, '-');
                       const filename = `${safeName}.${ext}`;
                       const file = new File([blob], filename, { type: blob.type });
+                      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
-                      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                        await navigator.share({
-                          files: [file],
-                          title: product.name,
-                        });
-                        showToast("تمت المشاركة بنجاح", "success");
+                      if (isIOS && navigator.canShare && navigator.canShare({ files: [file] })) {
+                        try {
+                           await navigator.share({
+                             files: [file],
+                             title: product.name,
+                           });
+                           showToast("تم حفظ الصورة بنجاح", "success");
+                        } catch (err: any) {
+                           if (err.name !== 'AbortError') {
+                              showToast("حدث خطأ أثناء حفظ الصورة.", "error");
+                           }
+                        }
                       } else {
-                        showToast("متصفحك لا يدعم مشاركة هذه الصورة مباشرة.", "error");
+                        const objectUrl = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = objectUrl;
+                        a.download = filename;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(objectUrl);
+                        showToast("تم حفظ الصورة بنجاح", "success");
                       }
                     } catch (error) {
                       console.error('Error sharing file', error);

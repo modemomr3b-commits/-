@@ -25,8 +25,8 @@ export const downloadImages = async (
 
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     
-    // Try to use native share (Share Sheet) on mobile devices for Gallery/Photos
-    if (navigator.canShare && navigator.canShare({ files })) {
+    // Try to use native share (Share Sheet) ONLY on iOS devices for Gallery/Photos
+    if (isIOS && navigator.canShare && navigator.canShare({ files })) {
         try {
             await navigator.share({
                 files,
