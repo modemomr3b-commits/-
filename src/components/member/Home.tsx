@@ -19,6 +19,7 @@ import { useState, useEffect } from "react";
 import { api } from "../../api";
 import { supabase } from "../../supabase";
 import Animated3DLogo from "../ui/Animated3DLogo";
+import CategoryIcon from "../ui/CategoryIcon";
 
 const DEFAULT_ICONS = ["✨", "👟", "🇹🇷", "⭐", "🎒", "☀️", "🔥"];
 
@@ -232,9 +233,7 @@ export default function Home() {
                   to={`/category/${cat.id}`}
                   className="glass-panel hover:bg-gradient-to-b hover:from-white/5 hover:to-brq-gold/5 p-6 rounded-3xl flex flex-col items-center justify-center gap-4 border border-white/5 hover:border-brq-gold/40 transition-all group h-full shadow-lg hover:shadow-xl hover:-translate-y-1 duration-300"
                 >
-                  <div className="w-16 h-16 rounded-full bg-black/40 flex items-center justify-center text-3xl group-hover:scale-110 transition-transform duration-300 border border-white/5 group-hover:border-brq-gold/30 shadow-inner">
-                    {DEFAULT_ICONS[i % DEFAULT_ICONS.length]}
-                  </div>
+                  <CategoryIcon name={cat.name} className="group-hover:scale-110 transition-transform duration-300" />
                   <div className="text-center">
                     <h3 className="font-bold text-lg group-hover:text-brq-gold transition-colors">
                       {cat.name}
