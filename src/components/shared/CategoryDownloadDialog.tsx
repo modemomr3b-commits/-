@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState } from "react";
 import { Download, X, Loader2, Search, ChevronRight, Folder } from "lucide-react";
 import { Category, Product } from "../../types";
 import { DownloadChoiceDialog } from "./DownloadChoiceDialog";
@@ -26,45 +26,18 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
   } | null>(null);
 
   const mainCategories = categories.filter(c => !c.parentId);
+  const subCategories = selectedMainCategory ? categories.filter(c => c.parentId === selectedMainCategory.id) : [];
 
-  const subtypesInfo = useMemo(() => {
-    if (!selectedMainCategory) return [];
-    
-    
-    const subs = categories.filter(c => c.parentId === selectedMainCategory.id);
-    const catIds = [selectedMainCategory.id, ...subs.map(c => c.id)];
-    const catProducts = products.filter(p => catIds.includes(p.categoryId) || (p.subcategoryId && catIds.includes(p.subcategoryId)));
-
-    const subtypeMap = new Map<string, Product[]>();
-    
-    catProducts.forEach(p => {
-      if (!p.name) return;
-      const nameParts = p.name.trim().split(/\s+/);
-      const firstWord = nameParts[0];
-      if (firstWord) {
-         const list = subtypeMap.get(firstWord) || [];
-         list.push(p);
-         subtypeMap.set(firstWord, list);
-      }
-    });
-    
-    const sorted = Array.from(subtypeMap.entries())
-      .map(([name, prods]) => ({ name, products: prods }))
-      .sort((a, b) => b.products.length - a.products.length);
-      
-    return sorted;
-  }, [selectedMainCategory, products]);
-
-  const handleSubtypeSelect = (subtypeName: string, subtypeProducts: Product[]) => {
-    const imagesWithData = subtypeProducts.filter((p) => p.finalImageUrl || p.imageUrl);
+  const handleDownloadGroup = (groupName: string, groupProducts: Product[]) => {
+    const imagesWithData = groupProducts.filter((p) => p.finalImageUrl || p.imageUrl);
     if (imagesWithData.length === 0) {
       showToast("لا توجد صور للمنتجات في هذا القسم.", "error");
       return;
     }
 
-    const downloadKey = `downloaded_${selectedMainCategory?.id}_${subtypeName}`;
+    const downloadKey = `downloaded_${selectedMainCategory?.id || 'all'}_${groupName}`;
     if (localStorage.getItem(downloadKey) === "true") {
-      if (!window.confirm(`لقد قمت بتحميل صور "${subtypeName}" مسبقاً.\nهل تود تحميلها مرة أخرى؟`)) {
+      if (!window.confirm(`لقد قمت بتحميل صور "${groupName}" مسبقاً.\nهل تود تحميلها مرة أخرى؟`)) {
         return;
       }
       localStorage.setItem(downloadKey, "ignored");
@@ -109,11 +82,11 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
           const ext = imgUrl!.split('.').pop()?.split('?')[0] || 'jpg';
           const safeName = (p.productCode || p.name || 'product').replace(/[\\/\\?<>\\:\\*\\|":]/g, '-');
           const filename = `${safeName}.${ext}`;
-          return { url: imgUrl!, filename, folderName: subtypeName };
+          return { url: imgUrl!, filename, folderName: groupName };
         });
         
         const { downloadAsZip } = await import('../../utils/zipDownload');
-        const success = await downloadAsZip(`${selectedMainCategory?.name}_${subtypeName}`, imagesToDownload, (progress, total, message) => {
+        const success = await downloadAsZip(`${selectedMainCategory?.name || 'All'}_${groupName}`, imagesToDownload, (progress, total, message) => {
           setDownloadProgress({ progress, total, message });
         });
         
@@ -130,7 +103,7 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
     });
   };
 
-  const handleDownloadAll = async () => {
+  const handleDownloadAllStore = async () => {
     const imagesWithData = products.filter((p) => p.finalImageUrl || p.imageUrl);
     if (imagesWithData.length === 0) {
       showToast("لا توجد صور للمنتجات في المتجر.", "error");
@@ -234,7 +207,7 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
   };
 
   const filteredMains = mainCategories.filter(c => c.name.includes(searchTerm));
-  const filteredSubtypes = subtypesInfo.filter(s => s.name.includes(searchTerm));
+  const filteredSubs = subCategories.filter(s => s.name.includes(searchTerm));
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
@@ -299,7 +272,7 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
                     {!searchTerm && (
                       <div>
                         <button
-                          onClick={handleDownloadAll}
+                          onClick={handleDownloadAllStore}
                           className="w-full p-4 bg-gradient-to-r from-brq-gold/10 to-brq-gold/5 border border-brq-gold/30 rounded-xl hover:bg-brq-gold/20 hover:border-brq-gold/60 transition-all text-right group flex justify-between items-center"
                         >
                           <div>
@@ -340,25 +313,43 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
                  <div>
                     <h3 className="text-sm font-bold text-brq-gold mb-3 flex items-center gap-2">
                       <div className="w-2 h-2 rounded-full bg-brq-gold"></div>
-                      أصناف {selectedMainCategory.name} (حسب اسم المنتج)
+                      أقسام {selectedMainCategory.name} الفرعية
                     </h3>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                      {filteredSubtypes.map((sub) => (
-                        <button
-                          key={sub.name}
-                          onClick={() => handleSubtypeSelect(sub.name, sub.products)}
-                          className="p-3 bg-white/5 border border-white/10 rounded-xl hover:bg-brq-gold/10 hover:border-brq-gold/50 transition-all text-right group flex justify-between items-center"
-                        >
-                          <div>
-                            <span className="font-bold text-white group-hover:text-brq-gold transition-colors block">{sub.name}</span>
-                            <span className="text-white/40 text-xs">{sub.products.length} منتج</span>
-                          </div>
-                          <Download size={18} className="text-white/40 group-hover:text-brq-gold opacity-0 group-hover:opacity-100 transition-all" />
-                        </button>
-                      ))}
+                    
+                    {/* Add button to download entire main category */}
+                    <div className="mb-4">
+                      <button
+                        onClick={() => {
+                          const catProducts = products.filter(p => p.categoryId === selectedMainCategory.id || p.subcategoryId === selectedMainCategory.id || subCategories.some(sub => p.subcategoryId === sub.id));
+                          handleDownloadGroup(`جميع ${selectedMainCategory.name}`, catProducts);
+                        }}
+                        className="w-full p-3 bg-gradient-to-r from-blue-600/20 to-blue-400/10 border border-blue-500/30 rounded-xl hover:bg-blue-500/20 hover:border-blue-500/60 transition-all text-right flex justify-between items-center group"
+                      >
+                        <span className="font-bold text-blue-400 group-hover:text-blue-300">تحميل جميع صور ({selectedMainCategory.name}) بالكامل</span>
+                        <Download size={18} className="text-blue-400/70 group-hover:text-blue-300 transition-all" />
+                      </button>
                     </div>
-                    {filteredSubtypes.length === 0 && (
-                      <div className="text-center py-10 text-white/40">لا توجد أصناف مطابقة للبحث</div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      {filteredSubs.map((sub) => {
+                        const subProducts = products.filter(p => p.subcategoryId === sub.id);
+                        return (
+                          <button
+                            key={sub.id}
+                            onClick={() => handleDownloadGroup(sub.name, subProducts)}
+                            className="p-3 bg-white/5 border border-white/10 rounded-xl hover:bg-brq-gold/10 hover:border-brq-gold/50 transition-all text-right group flex justify-between items-center"
+                          >
+                            <div>
+                              <span className="font-bold text-white group-hover:text-brq-gold transition-colors block">{sub.name}</span>
+                              <span className="text-white/40 text-xs">{subProducts.length} منتج</span>
+                            </div>
+                            <Download size={18} className="text-white/40 group-hover:text-brq-gold opacity-0 group-hover:opacity-100 transition-all" />
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {filteredSubs.length === 0 && (
+                      <div className="text-center py-10 text-white/40">لا توجد أقسام فرعية</div>
                     )}
                  </div>
               )}
