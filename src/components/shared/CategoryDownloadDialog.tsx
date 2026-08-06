@@ -15,7 +15,7 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
   const [downloadProgress, setDownloadProgress] = useState<{ progress: number; total: number; message?: string } | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   
-  const [selectedMainCategory, setSelectedMainCategory] = useState<Category | null>(null);
+  const [selectedGroupName, setSelectedGroupName] = useState<string | null>(null);
   
   const [downloadChoiceDialog, setDownloadChoiceDialog] = useState<{ 
     isOpen: boolean; 
@@ -25,53 +25,78 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
     onDownloadAllElastic?: () => void;
   } | null>(null);
 
-  const mainCategories = categories.filter(c => !c.parentId);
-  const subCategories = selectedMainCategory ? categories.filter(c => c.parentId === selectedMainCategory.id) : [];
+  const getProductGroup = (name: string) => {
+    if (!name) return 'أخرى';
+    const lowerName = name.toLowerCase();
+    if (lowerName.includes('رجالي')) return 'الرجالي';
+    if (lowerName.includes('نسائي')) return 'النسائي';
+    if (lowerName.includes('شبابي')) return 'الشبابي';
+    if (lowerName.includes('ولادي')) return 'الولادي';
+    if (lowerName.includes('بناتي')) return 'البناتي';
+    if (lowerName.includes('طفلة')) return 'الطفلة';
+    if (lowerName.includes('طفل')) return 'الطفل';
+    if (lowerName.includes('مواليد')) return 'المواليد';
+    if (lowerName.includes('بيبي')) return 'البيبي';
+    return 'أخرى';
+  };
 
-  const subtypesInfo = useMemo(() => {
-    if (!selectedMainCategory) return [];
-    
-    // First, get all products belonging to this main category
-    // This includes products directly in it, or in any of its subcategories
-    const catProducts = products.filter(p => 
-      p.categoryId === selectedMainCategory.id || 
-      p.subcategoryId === selectedMainCategory.id || 
-      subCategories.some(sub => p.subcategoryId === sub.id) ||
-      subCategories.some(sub => p.categoryId === sub.id)
-    );
+  const getProductType = (name: string) => {
+    if (!name) return 'أخرى';
+    const lowerName = name.toLowerCase();
+    if (lowerName.includes('رياض')) return 'رياضة';
+    if (lowerName.includes('شحاط')) return 'شحاطة';
+    if (lowerName.includes('احذي') || lowerName.includes('أحذي') || lowerName.includes('حذاء')) return 'حذاء';
+    if (lowerName.includes('لابجين')) return 'لابجين';
+    if (lowerName.includes('لاستيك')) return 'لاستيك';
+    if (lowerName.includes('صندل') || lowerName.includes('صنادل')) return 'صندل';
+    if (lowerName.includes('سليبر')) return 'سليبر';
+    if (lowerName.includes('بوتين')) return 'بوتين';
+    if (lowerName.includes('كعب')) return 'كعب';
+    if (lowerName.includes('فلات')) return 'فلات';
+    if (lowerName.includes('بسطال')) return 'بسطال';
+    return 'أخرى';
+  };
 
-    const subtypeMap = new Map<string, Product[]>();
-    
-    catProducts.forEach(p => {
-      if (!p.name) return;
-      
-      // Extract the first word from the product name (e.g. "رياضة", "شحاطة")
-      const nameParts = p.name.trim().split(/[\s\-]+/);
-      let firstWord = nameParts[0];
-      
-      // Clean up common prefixes like "حذاء" if it's followed by something else, or keep it
-      if (firstWord && firstWord.length > 1) {
-         // Basic normalization if needed, here we just use the raw first word
-         const list = subtypeMap.get(firstWord) || [];
-         list.push(p);
-         subtypeMap.set(firstWord, list);
-      } else {
-         const list = subtypeMap.get("أخرى") || [];
-         list.push(p);
-         subtypeMap.set("أخرى", list);
-      }
+  const groupedProducts = useMemo(() => {
+    const map = new Map<string, Product[]>();
+    products.forEach(p => {
+      const groupName = getProductGroup(p.name || '');
+      if (!map.has(groupName)) map.set(groupName, []);
+      map.get(groupName)!.push(p);
     });
     
-    const sorted = Array.from(subtypeMap.entries())
+    return Array.from(map.entries())
       .map(([name, prods]) => ({ name, products: prods }))
       .sort((a, b) => {
          if (a.name === "أخرى") return 1;
          if (b.name === "أخرى") return -1;
          return b.products.length - a.products.length;
       });
-      
-    return sorted;
-  }, [selectedMainCategory, products, subCategories]);
+  }, [products]);
+
+  const selectedGroupSubtypes = useMemo(() => {
+    if (!selectedGroupName) return [];
+    
+    const groupProds = groupedProducts.find(g => g.name === selectedGroupName)?.products || [];
+    
+    const subtypeMap = new Map<string, Product[]>();
+    groupProds.forEach(p => {
+      const typeName = getProductType(p.name || '');
+      if (!subtypeMap.has(typeName)) subtypeMap.set(typeName, []);
+      subtypeMap.get(typeName)!.push(p);
+    });
+    
+    return Array.from(subtypeMap.entries())
+      .map(([name, prods]) => ({ name, products: prods }))
+      .sort((a, b) => {
+         if (a.name === "أخرى") return 1;
+         if (b.name === "أخرى") return -1;
+         return b.products.length - a.products.length;
+      });
+  }, [selectedGroupName, groupedProducts]);
+
+  const filteredMains = groupedProducts.filter(g => g.name.includes(searchTerm));
+  const filteredSubs = selectedGroupSubtypes.filter(s => s.name.includes(searchTerm));
 
   const handleDownloadGroup = (groupName: string, groupProducts: Product[]) => {
     const imagesWithData = groupProducts.filter((p) => p.finalImageUrl || p.imageUrl);
@@ -80,7 +105,7 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
       return;
     }
 
-    const downloadKey = `downloaded_${selectedMainCategory?.id || 'all'}_${groupName}`;
+    const downloadKey = `downloaded_${selectedGroupName || 'all'}_${groupName}`;
     if (localStorage.getItem(downloadKey) === "true") {
       if (!window.confirm(`لقد قمت بتحميل صور "${groupName}" مسبقاً.\nهل تود تحميلها مرة أخرى؟`)) {
         return;
@@ -131,7 +156,7 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
         });
         
         const { downloadAsZip } = await import('../../utils/zipDownload');
-        const success = await downloadAsZip(`${selectedMainCategory?.name || 'All'}_${groupName}`, imagesToDownload, (progress, total, message) => {
+        const success = await downloadAsZip(`${selectedGroupName || 'All'}_${groupName}`, imagesToDownload, (progress, total, message) => {
           setDownloadProgress({ progress, total, message });
         });
         
@@ -191,18 +216,9 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
           const ext = imgUrl!.split('.').pop()?.split('?')[0] || 'jpg';
           const safeName = (p.productCode || p.name || 'product').replace(/[\\/\\?<>\\:\\*\\|":]/g, '-');
           const filename = `${safeName}.${ext}`;
-          let mainCatName = 'أخرى';
-          if (p.categoryId) {
-            const mainCat = categories.find(c => c.id === p.categoryId);
-            if (mainCat) {
-              if (mainCat.parentId) {
-                 const parent = categories.find(c => c.id === mainCat.parentId);
-                 if (parent) mainCatName = parent.name;
-              } else {
-                 mainCatName = mainCat.name;
-              }
-            }
-          }
+          
+          let mainCatName = getProductGroup(p.name || '');
+          
           return { url: imgUrl!, filename, folderName: mainCatName };
         });
         
@@ -226,18 +242,9 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
           const ext = imgUrl!.split('.').pop()?.split('?')[0] || 'jpg';
           const safeName = (p.productCode || p.name || 'product').replace(/[\\/\\?<>\\:\\*\\|":]/g, '-');
           const filename = `${safeName}.${ext}`;
-          let mainCatName = 'أخرى';
-          if (p.categoryId) {
-            const mainCat = categories.find(c => c.id === p.categoryId);
-            if (mainCat) {
-              if (mainCat.parentId) {
-                 const parent = categories.find(c => c.id === mainCat.parentId);
-                 if (parent) mainCatName = parent.name;
-              } else {
-                 mainCatName = mainCat.name;
-              }
-            }
-          }
+          
+          let mainCatName = getProductGroup(p.name || '');
+          
           return { url: imgUrl!, filename, folderName: mainCatName };
         });
         const { downloadAsZip } = await import('../../utils/zipDownload');
@@ -250,9 +257,6 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
       } : undefined
     });
   };
-
-  const filteredMains = mainCategories.filter(c => c.name.includes(searchTerm));
-  const filteredSubs = subtypesInfo.filter(s => s.name.includes(searchTerm));
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
@@ -290,9 +294,9 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
         ) : (
           <div className="flex flex-col flex-1 overflow-hidden">
             <div className="p-4 border-b border-white/10 flex items-center gap-2">
-              {selectedMainCategory && (
+              {selectedGroupName && (
                  <button 
-                   onClick={() => { setSelectedMainCategory(null); setSearchTerm(""); }}
+                   onClick={() => { setSelectedGroupName(null); setSearchTerm(""); }}
                    className="p-2 bg-white/10 hover:bg-white/20 rounded-lg text-white transition-all flex items-center gap-1 shrink-0"
                  >
                    <ChevronRight size={18} /> رجوع
@@ -312,7 +316,7 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
 
             <div className="flex-1 overflow-y-auto p-4 space-y-6">
               
-              {!selectedMainCategory ? (
+              {!selectedGroupName ? (
                  <>
                     {!searchTerm && (
                       <div>
@@ -333,17 +337,17 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
                       <div>
                         <h3 className="text-sm font-bold text-blue-400 mb-3 flex items-center gap-2 mt-2">
                           <div className="w-2 h-2 rounded-full bg-blue-400"></div>
-                          اختر القسم الرئيسي
+                          اختر الفئة
                         </h3>
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                          {filteredMains.map((cat) => (
+                          {filteredMains.map((group, idx) => (
                             <button
-                              key={cat.id}
-                              onClick={() => { setSelectedMainCategory(cat); setSearchTerm(""); }}
+                              key={idx}
+                              onClick={() => { setSelectedGroupName(group.name); setSearchTerm(""); }}
                               className="p-4 bg-white/5 border border-white/10 rounded-xl hover:bg-blue-500/10 hover:border-blue-500/50 transition-all text-right group flex flex-col gap-2 items-start"
                             >
                               <Folder size={24} className="text-blue-400/70 group-hover:text-blue-400 transition-all" />
-                              <span className="font-bold text-white group-hover:text-blue-400 transition-colors text-lg">{cat.name}</span>
+                              <span className="font-bold text-white group-hover:text-blue-400 transition-colors text-lg">{group.name}</span>
                             </button>
                           ))}
                         </div>
@@ -351,26 +355,25 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
                     )}
                     
                     {filteredMains.length === 0 && (
-                      <div className="text-center py-10 text-white/40">لا توجد أقسام مطابقة للبحث</div>
+                      <div className="text-center py-10 text-white/40">لا توجد أصناف مطابقة للبحث</div>
                     )}
                  </>
               ) : (
                  <div>
                     <h3 className="text-sm font-bold text-brq-gold mb-3 flex items-center gap-2">
                       <div className="w-2 h-2 rounded-full bg-brq-gold"></div>
-                      أقسام {selectedMainCategory.name} الفرعية
+                      أقسام {selectedGroupName}
                     </h3>
                     
-                    {/* Add button to download entire main category */}
                     <div className="mb-4">
                       <button
                         onClick={() => {
-                          const catProducts = products.filter(p => p.categoryId === selectedMainCategory.id || p.subcategoryId === selectedMainCategory.id || subCategories.some(sub => p.subcategoryId === sub.id));
-                          handleDownloadGroup(`جميع ${selectedMainCategory.name}`, catProducts);
+                          const catProducts = groupedProducts.find(g => g.name === selectedGroupName)?.products || [];
+                          handleDownloadGroup(`جميع ${selectedGroupName}`, catProducts);
                         }}
                         className="w-full p-3 bg-gradient-to-r from-blue-600/20 to-blue-400/10 border border-blue-500/30 rounded-xl hover:bg-blue-500/20 hover:border-blue-500/60 transition-all text-right flex justify-between items-center group"
                       >
-                        <span className="font-bold text-blue-400 group-hover:text-blue-300">تحميل جميع صور ({selectedMainCategory.name}) بالكامل</span>
+                        <span className="font-bold text-blue-400 group-hover:text-blue-300">تحميل جميع صور ({selectedGroupName}) بالكامل</span>
                         <Download size={18} className="text-blue-400/70 group-hover:text-blue-300 transition-all" />
                       </button>
                     </div>
@@ -395,7 +398,6 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
                     )}
                  </div>
               )}
-
             </div>
           </div>
         )}
