@@ -995,7 +995,7 @@ export default function ProductManager() {
                   const autoSub = autoSelectSubcategory(newName, newProduct.categoryId || "");
                   setNewProduct({ ...newProduct, name: newName, subcategoryId: autoSub || newProduct.subcategoryId });
                 }}
-                className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black placeholder:text-gray-500"
+                className="w-full bg-white border border-black rounded-lg px-3 py-2 text-base font-bold focus:border-brq-gold/50 outline-none text-black placeholder:text-gray-500"
               />
             </div>
             <div>
@@ -1009,7 +1009,7 @@ export default function ProductManager() {
                 onChange={(e) =>
                   handleUsdPriceChange(Number(e.target.value), false)
                 }
-                className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
+                className="w-full bg-white border border-black rounded-lg px-3 py-2 text-base font-bold focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
               />
               <p className="text-[10px] text-white/40 mt-1">
                 يتم ضربه بسعر الصرف الحالي: {usdRate}
@@ -1026,7 +1026,7 @@ export default function ProductManager() {
                 onChange={(e) =>
                   handleIqdPriceChange(Number(e.target.value), false)
                 }
-                className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
+                className="w-full bg-white border border-black rounded-lg px-3 py-2 text-base font-bold focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
               />
             </div>
             <div>
@@ -1038,7 +1038,7 @@ export default function ProductManager() {
                 value={newProduct.packaging || ""}
                 placeholder="مثال: 12"
                 onChange={(e) => handlePackagingChange(e.target.value, false)}
-                className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
+                className="w-full bg-white border border-black rounded-lg px-3 py-2 text-base font-bold focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
               />
             </div>
             <div className="flex items-center gap-2 mt-2 md:col-span-2">
@@ -1063,7 +1063,7 @@ export default function ProductManager() {
                   type="number"
                   value={newProduct.piecesCount || ""}
                   onChange={(e) => handlePiecesCountChange(parseInt(e.target.value) || 1, false)}
-                  className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
+                  className="w-full bg-white border border-black rounded-lg px-3 py-2 text-base font-bold focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
                 />
               </div>
             )}
@@ -1091,7 +1091,7 @@ export default function ProductManager() {
                     subcategoryId: autoSub || "",
                   });
                 }}
-                className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black placeholder:text-gray-500"
+                className="w-full bg-white border border-black rounded-lg px-3 py-2 text-base font-bold focus:border-brq-gold/50 outline-none text-black placeholder:text-gray-500"
               >
                 <option value="">-- إختر القسم --</option>
                 {categories
@@ -1115,7 +1115,7 @@ export default function ProductManager() {
                     subcategoryId: e.target.value,
                   })
                 }
-                className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black disabled:opacity-50 placeholder:text-gray-500"
+                className="w-full bg-white border border-black rounded-lg px-3 py-2 text-base font-bold focus:border-brq-gold/50 outline-none text-black disabled:opacity-50 placeholder:text-gray-500"
                 disabled={!newProduct.categoryId}
               >
                 <option value="">-- إختر القسم الفرعي --</option>
@@ -1138,7 +1138,7 @@ export default function ProductManager() {
                 onChange={(e) =>
                   setNewProduct({ ...newProduct, productCode: e.target.value })
                 }
-                className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black placeholder:text-gray-500"
+                className="w-full bg-white border border-black rounded-lg px-3 py-2 text-base font-bold focus:border-brq-gold/50 outline-none text-black placeholder:text-gray-500"
               />
             </div>
             <div>
@@ -1157,7 +1157,7 @@ export default function ProductManager() {
                   type="file"
                   accept="image/*"
                   onChange={(e) => handleImageUpload(e, false)}
-                  className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-black/10 file:text-black hover:file:bg-black/20 transition-colors placeholder:text-gray-500"
+                  className="w-full bg-white border border-black rounded-lg px-3 py-2 text-base font-bold focus:border-brq-gold/50 outline-none text-black file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-black/10 file:text-black hover:file:bg-black/20 transition-colors placeholder:text-gray-500"
                 />
               </div>
             </div>
@@ -1251,7 +1251,7 @@ export default function ProductManager() {
                     type="text"
                     value={searchInput}
                     onChange={(e) => setSearchInput(e.target.value)}
-                    className="w-full bg-white border border-black rounded-lg pr-10 pl-4 py-2.5 text-sm text-black placeholder:text-gray-500 focus:outline-none focus:border-brq-gold/50"
+                    className="w-full bg-white border border-black rounded-lg pr-10 pl-4 py-2.5 text-base font-bold text-black placeholder:text-gray-500 focus:outline-none focus:border-brq-gold/50"
                     placeholder="بحث بالاسم، الكود..."
                   />
                 </div>
@@ -1260,7 +1260,7 @@ export default function ProductManager() {
                     type="date"
                     value={searchDate}
                     onChange={(e) => setSearchDate(e.target.value)}
-                    className="w-full bg-white border border-black rounded-lg px-4 py-2.5 text-sm text-black placeholder:text-gray-500 focus:outline-none focus:border-brq-gold/50"
+                    className="w-full bg-white border border-black rounded-lg px-4 py-2.5 text-base font-bold text-black placeholder:text-gray-500 focus:outline-none focus:border-brq-gold/50"
                     placeholder="بحث بالتاريخ..."
                   />
                 </div>
@@ -1723,7 +1723,7 @@ export default function ProductManager() {
                       subcategoryId: autoSub || editingProduct.subcategoryId
                     });
                   }}
-                  className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black placeholder:text-gray-500"
+                  className="w-full bg-white border border-black rounded-lg px-3 py-2 text-base font-bold focus:border-brq-gold/50 outline-none text-black placeholder:text-gray-500"
                 />
               </div>
               <div>
@@ -1737,7 +1737,7 @@ export default function ProductManager() {
                   onChange={(e) =>
                     handleUsdPriceChange(Number(e.target.value), true)
                   }
-                  className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
+                  className="w-full bg-white border border-black rounded-lg px-3 py-2 text-base font-bold focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
                 />
                 <p className="text-[10px] text-white/40 mt-1">
                   يتم ضربه بسعر الصرف الحالي: {usdRate}
@@ -1754,7 +1754,7 @@ export default function ProductManager() {
                   onChange={(e) =>
                     handleIqdPriceChange(Number(e.target.value), true)
                   }
-                  className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
+                  className="w-full bg-white border border-black rounded-lg px-3 py-2 text-base font-bold focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
                 />
               </div>
               <div>
@@ -1766,7 +1766,7 @@ export default function ProductManager() {
                   value={editingProduct.packaging || ""}
                   placeholder="مثال: 12"
                   onChange={(e) => handlePackagingChange(e.target.value, true)}
-                  className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
+                  className="w-full bg-white border border-black rounded-lg px-3 py-2 text-base font-bold focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
                 />
               </div>
               <div className="flex items-center gap-2 mt-2 md:col-span-2">
@@ -1791,7 +1791,7 @@ export default function ProductManager() {
                     type="number"
                     value={editingProduct.piecesCount || ""}
                     onChange={(e) => handlePiecesCountChange(parseInt(e.target.value) || 1, true)}
-                    className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
+                    className="w-full bg-white border border-black rounded-lg px-3 py-2 text-base font-bold focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
                   />
                 </div>
               )}
@@ -1821,7 +1821,7 @@ export default function ProductManager() {
                       subcategoryId: autoSub || "",
                     });
                   }}
-                  className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black placeholder:text-gray-500"
+                  className="w-full bg-white border border-black rounded-lg px-3 py-2 text-base font-bold focus:border-brq-gold/50 outline-none text-black placeholder:text-gray-500"
                 >
                   <option value="">-- إختر القسم --</option>
                   {categories
@@ -1845,7 +1845,7 @@ export default function ProductManager() {
                       subcategoryId: e.target.value,
                     })
                   }
-                  className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black disabled:opacity-50 placeholder:text-gray-500"
+                  className="w-full bg-white border border-black rounded-lg px-3 py-2 text-base font-bold focus:border-brq-gold/50 outline-none text-black disabled:opacity-50 placeholder:text-gray-500"
                   disabled={!editingProduct.categoryId}
                 >
                   <option value="">-- إختر القسم الفرعي --</option>
@@ -1871,7 +1871,7 @@ export default function ProductManager() {
                       productCode: e.target.value,
                     })
                   }
-                  className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black placeholder:text-gray-500"
+                  className="w-full bg-white border border-black rounded-lg px-3 py-2 text-base font-bold focus:border-brq-gold/50 outline-none text-black placeholder:text-gray-500"
                 />
               </div>
               <div>
@@ -1890,7 +1890,7 @@ export default function ProductManager() {
                     type="file"
                     accept="image/*"
                     onChange={(e) => handleImageUpload(e, true)}
-                    className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-black/10 file:text-black hover:file:bg-black/20 transition-colors placeholder:text-gray-500"
+                    className="w-full bg-white border border-black rounded-lg px-3 py-2 text-base font-bold focus:border-brq-gold/50 outline-none text-black file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-black/10 file:text-black hover:file:bg-black/20 transition-colors placeholder:text-gray-500"
                   />
                 </div>
               </div>

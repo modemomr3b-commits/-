@@ -23,35 +23,40 @@ export const downloadImages = async (
 
     if (files.length === 0) return false;
 
-    // Detect if the device is iOS (iPhone, iPad, iPod)
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-
-    // Only use share sheet for iOS (so they get the "Save to Photos" prompt)
-    if (isIOS && navigator.canShare && navigator.canShare({ files })) {
-      await navigator.share({
-        files,
-        title: 'حفظ الصور',
-      });
-      return true;
-    } else {
-      // Fallback for Android and desktop for direct download
-      for (const file of files) {
-        const objectUrl = URL.createObjectURL(file);
-        const a = document.createElement("a");
-        a.href = objectUrl;
-        a.download = file.name;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(objectUrl);
-        // Small delay to prevent browser blocking
-        await new Promise(r => setTimeout(r, 200));
-      }
-      return true;
+    
+    // Try to use native share (Share Sheet) on mobile devices for Gallery/Photos
+    if (navigator.canShare && navigator.canShare({ files })) {
+        try {
+            await navigator.share({
+                files,
+                title: 'حفظ الصور',
+            });
+            return true;
+        } catch (shareError: any) {
+            if (shareError.name === 'AbortError') return false; // user cancelled
+            console.error("Share failed, falling back to a.download", shareError);
+        }
     }
+    
+    // Fallback for Android/desktop when share fails or is not available
+    for (const file of files) {
+      const objectUrl = URL.createObjectURL(file);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = file.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(objectUrl);
+      
+      // Delay to prevent browser blocking multiple downloads
+      await new Promise(r => setTimeout(r, 400));
+    }
+
+    return true;
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
-      // User cancelled the share sheet
       return false;
     }
     console.error('Error downloading images:', error);

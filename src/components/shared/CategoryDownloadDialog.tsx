@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Download, X, Loader2, Search } from "lucide-react";
+import React, { useState, useMemo } from "react";
+import { Download, X, Loader2, Search, ChevronRight, Folder } from "lucide-react";
 import { Category, Product } from "../../types";
 import { DownloadChoiceDialog } from "./DownloadChoiceDialog";
 import { useStore } from "../../store";
@@ -14,54 +14,60 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
   const { showToast, user } = useStore();
   const [downloadProgress, setDownloadProgress] = useState<{ progress: number; total: number; message?: string } | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [downloadChoiceDialog, setDownloadChoiceDialog] = useState<{ isOpen: boolean; message: string; onDownloadStudio: () => void; onDownloadZip: () => void; onDownloadAllElastic?: () => void } | null>(null);
   
-  // Get all unique subcategory names to allow downloading all subcategories with the same name across parent categories
+  const [selectedMainCategory, setSelectedMainCategory] = useState<Category | null>(null);
+  
+  const [downloadChoiceDialog, setDownloadChoiceDialog] = useState<{ 
+    isOpen: boolean; 
+    message: string; 
+    onDownloadStudio: () => void; 
+    onDownloadZip: () => void;
+    onDownloadAllElastic?: () => void;
+  } | null>(null);
+
   const mainCategories = categories.filter(c => !c.parentId);
-  const allSubcategories = categories.filter(c => c.parentId);
-  
-  const uniqueSubNames = Array.from(new Set(allSubcategories.map(c => c.name.trim()))).sort();
-  
-  const handleDownloadMainCategory = async (categoryId: string, categoryName: string) => {
-    // get this category and all its subcategories
-    const subs = categories.filter(c => c.parentId === categoryId);
-    const catIds = [categoryId, ...subs.map(c => c.id)];
+
+  const subtypesInfo = useMemo(() => {
+    if (!selectedMainCategory) return [];
     
-    await downloadSelected(catIds, categoryName, true);
-  };
-  
-  const handleDownloadSubcategoryGroup = async (subName: string) => {
-    // Find all subcategories with this exact name
-    const matches = allSubcategories.filter(c => c.name.trim() === subName);
-    const catIds = matches.map(c => c.id);
     
-    await downloadSelected(catIds, subName, false);
-  };
-  
-  const handleDownloadAll = async () => {
-    // Collect all category IDs
-    const catIds = categories.map(c => c.id!);
+    const subs = categories.filter(c => c.parentId === selectedMainCategory.id);
+    const catIds = [selectedMainCategory.id, ...subs.map(c => c.id)];
+    const catProducts = products.filter(p => catIds.includes(p.categoryId) || (p.subcategoryId && catIds.includes(p.subcategoryId)));
+
+    const subtypeMap = new Map<string, Product[]>();
     
-    await downloadSelected(catIds, "جميع الأقسام", true);
-  };
-  
-  const downloadSelected = async (categoryIds: string[], zipName: string, isMainCategory: boolean) => {
-    const productsToDownload = products.filter((p) => {
-      // If downloading all (categoryIds includes all categories), just include everything that has an image
-      if (categoryIds.length === categories.length) return true;
-      
-      if (isMainCategory) {
-        return categoryIds.includes(p.categoryId!) || (p.subcategoryId && categoryIds.includes(p.subcategoryId));
-      } else {
-        return p.subcategoryId && categoryIds.includes(p.subcategoryId);
+    catProducts.forEach(p => {
+      if (!p.name) return;
+      const nameParts = p.name.trim().split(/\s+/);
+      const firstWord = nameParts[0];
+      if (firstWord) {
+         const list = subtypeMap.get(firstWord) || [];
+         list.push(p);
+         subtypeMap.set(firstWord, list);
       }
     });
+    
+    const sorted = Array.from(subtypeMap.entries())
+      .map(([name, prods]) => ({ name, products: prods }))
+      .sort((a, b) => b.products.length - a.products.length);
+      
+    return sorted;
+  }, [selectedMainCategory, products]);
 
-    const imagesWithData = productsToDownload.filter((p) => p.finalImageUrl || p.imageUrl);
-
+  const handleSubtypeSelect = (subtypeName: string, subtypeProducts: Product[]) => {
+    const imagesWithData = subtypeProducts.filter((p) => p.finalImageUrl || p.imageUrl);
     if (imagesWithData.length === 0) {
       showToast("لا توجد صور للمنتجات في هذا القسم.", "error");
       return;
+    }
+
+    const downloadKey = `downloaded_${selectedMainCategory?.id}_${subtypeName}`;
+    if (localStorage.getItem(downloadKey) === "true") {
+      if (!window.confirm(`لقد قمت بتحميل صور "${subtypeName}" مسبقاً.\nهل تود تحميلها مرة أخرى؟`)) {
+        return;
+      }
+      localStorage.setItem(downloadKey, "ignored");
     }
 
     setDownloadChoiceDialog({
@@ -70,20 +76,87 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
       onDownloadStudio: async () => {
         setDownloadChoiceDialog(null);
         setDownloadProgress({ progress: 0, total: imagesWithData.length, message: 'جاري تحضير الملفات...' });
-
-        const imagesToDownload = imagesWithData
-          .map(p => {
-            const imgUrl = p.finalImageUrl || p.imageUrl;
-            const ext = imgUrl!.split('.').pop()?.split('?')[0] || 'jpg';
-            const safeName = (p.productCode || p.name || 'product').replace(/[\\/\\?<>\\\\:\\*\\|":]/g, '-');
-            const filename = `${safeName}.${ext}`;
-            return { url: imgUrl!, filename };
-          });
+        
+        const imagesToDownload = imagesWithData.map(p => {
+          const imgUrl = p.finalImageUrl || p.imageUrl;
+          const ext = imgUrl!.split('.').pop()?.split('?')[0] || 'jpg';
+          const safeName = (p.productCode || p.name || 'product').replace(/[\\/\\?<>\\:\\*\\|":]/g, '-');
+          const filename = `${safeName}.${ext}`;
+          return { url: imgUrl!, filename };
+        });
         
         const { downloadImages } = await import('../../utils/download');
         const success = await downloadImages(imagesToDownload, (progress, total) => {
           setDownloadProgress({ progress, total, message: 'جاري تحميل الصور للاستوديو...' });
         });
+        
+        if (success) {
+           if (localStorage.getItem(downloadKey) !== "ignored") {
+             localStorage.setItem(downloadKey, "true");
+           }
+           showToast("تم حفظ الصور في الاستوديو بنجاح", "success");
+        } else {
+           showToast("حدث خطأ أثناء حفظ الصور أو تم إلغاء العملية", "error");
+        }
+        setDownloadProgress(null);
+      },
+      onDownloadZip: async () => {
+        setDownloadChoiceDialog(null);
+        setDownloadProgress({ progress: 0, total: imagesWithData.length, message: 'جاري تحضير الملفات...' });
+        
+        const imagesToDownload = imagesWithData.map(p => {
+          const imgUrl = p.finalImageUrl || p.imageUrl;
+          const ext = imgUrl!.split('.').pop()?.split('?')[0] || 'jpg';
+          const safeName = (p.productCode || p.name || 'product').replace(/[\\/\\?<>\\:\\*\\|":]/g, '-');
+          const filename = `${safeName}.${ext}`;
+          return { url: imgUrl!, filename, folderName: subtypeName };
+        });
+        
+        const { downloadAsZip } = await import('../../utils/zipDownload');
+        const success = await downloadAsZip(`${selectedMainCategory?.name}_${subtypeName}`, imagesToDownload, (progress, total, message) => {
+          setDownloadProgress({ progress, total, message });
+        });
+        
+        if (success) {
+           if (localStorage.getItem(downloadKey) !== "ignored") {
+             localStorage.setItem(downloadKey, "true");
+           }
+           showToast("تم تحميل الملف المضغوط بنجاح", "success");
+        } else {
+           showToast("حدث خطأ أثناء التحميل", "error");
+        }
+        setDownloadProgress(null);
+      }
+    });
+  };
+
+  const handleDownloadAll = async () => {
+    const imagesWithData = products.filter((p) => p.finalImageUrl || p.imageUrl);
+    if (imagesWithData.length === 0) {
+      showToast("لا توجد صور للمنتجات في المتجر.", "error");
+      return;
+    }
+
+    setDownloadChoiceDialog({
+      isOpen: true,
+      message: `كيف تود تحميل جميع صور المتجر؟ (العدد: ${imagesWithData.length} صورة).`,
+      onDownloadStudio: async () => {
+        setDownloadChoiceDialog(null);
+        setDownloadProgress({ progress: 0, total: imagesWithData.length, message: 'جاري تحضير الملفات...' });
+        
+        const imagesToDownload = imagesWithData.map(p => {
+          const imgUrl = p.finalImageUrl || p.imageUrl;
+          const ext = imgUrl!.split('.').pop()?.split('?')[0] || 'jpg';
+          const safeName = (p.productCode || p.name || 'product').replace(/[\\/\\?<>\\:\\*\\|":]/g, '-');
+          const filename = `${safeName}.${ext}`;
+          return { url: imgUrl!, filename };
+        });
+        
+        const { downloadImages } = await import('../../utils/download');
+        const success = await downloadImages(imagesToDownload, (progress, total) => {
+          setDownloadProgress({ progress, total, message: 'جاري تحميل الصور للاستوديو...' });
+        });
+        
         if (success) {
            showToast("تم حفظ الصور في الاستوديو بنجاح", "success");
         } else {
@@ -95,115 +168,81 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
         setDownloadChoiceDialog(null);
         setDownloadProgress({ progress: 0, total: imagesWithData.length, message: 'جاري تحضير الملفات...' });
         
-        const isSpecialUser = user?.fullName === "نصيف عبد الرزاق" || user?.fullName === "نصيف عبدالرزاق" || user?.username === "modemomr3b@gmail.com" || user?.fullName?.includes("نصيف");
-
-        const imagesToDownload = imagesWithData
-          .map(p => {
-            const imgUrl = p.finalImageUrl || p.imageUrl;
-            const ext = imgUrl!.split('.').pop()?.split('?')[0] || 'jpg';
-            const safeName = (p.productCode || p.name || 'product').replace(/[\\/\\?<>\\:\\*\\|":]/g, '-');
-            const filename = `${safeName}.${ext}`;
-            
-            let folderName = undefined;
-            
-            if (isSpecialUser) {
-              const getProductType = (name: string) => {
-                if (!name) return 'أخرى';
-                const lowerName = name.toLowerCase();
-                if (lowerName.includes('رياض')) return 'رياضة';
-                if (lowerName.includes('شحاط')) return 'شحاطة';
-                if (lowerName.includes('احذي') || lowerName.includes('أحذي') || lowerName.includes('حذاء')) return 'احذية';
-                if (lowerName.includes('لابجين')) return 'لابجين';
-                if (lowerName.includes('لاستيك')) return 'لاستيك';
-                if (lowerName.includes('صندل') || lowerName.includes('صنادل')) return 'صندل';
-                return 'أخرى';
-              };
-              folderName = getProductType(p.name);
-            }
-            
-            return { url: imgUrl!, filename, folderName };
-          });
-        
-        let success = false;
-        if ('showDirectoryPicker' in window) {
-          const { downloadToFolder } = await import('../../utils/folderDownload');
-          success = await downloadToFolder(imagesToDownload, (progress, total, message) => {
-            setDownloadProgress({ progress, total, message });
-          });
-        } else {
-          const { downloadAsZip } = await import('../../utils/zipDownload');
-          success = await downloadAsZip(zipName, imagesToDownload, (progress, total, message) => {
-            setDownloadProgress({ progress, total, message });
-          });
-        }
-        
-        if (success) {
-           showToast("تم تحميل الملف بنجاح", "success");
-        } else {
-           showToast("حدث خطأ أثناء تحميل الملف", "error");
-        }
-        setDownloadProgress(null);
-      },
-      onDownloadAllElastic: (user?.fullName === "نصيف عبد الرزاق" || user?.fullName === "نصيف عبدالرزاق" || user?.username === "modemomr3b@gmail.com" || user?.fullName?.includes("نصيف")) ? async () => {
-        setDownloadChoiceDialog(null);
-        
-        const elasticProducts = products.filter(p => !p.isArchived && !p.isHidden && !p.isLocked && p.name && (p.name.toLowerCase().includes('لاستيك') || p.name.toLowerCase().includes('استيك')));
-        
-        if (elasticProducts.length === 0) {
-           showToast("لا توجد منتجات لاستيك", "error");
-           return;
-        }
-        
-        setDownloadProgress({ progress: 0, total: elasticProducts.length, message: 'جاري تحضير ملفات اللاستيك...' });
-        
-        const imagesToDownload = elasticProducts
-          .filter(p => p.finalImageUrl || p.imageUrl)
-          .map(p => {
-            const imgUrl = p.finalImageUrl || p.imageUrl;
-            const ext = imgUrl.split('.').pop()?.split('?')[0] || 'jpg';
-            const safeName = (p.productCode || p.name || 'product').replace(/[\\/\\?<>\\:\\*\\|":]/g, '-');
-            const filename = `${safeName}.${ext}`;
-            
-            let mainCatName = 'أخرى';
-            if (p.categoryId) {
-              const mainCat = categories.find(c => c.id === p.categoryId);
-              if (mainCat) {
-                if (mainCat.parentId) {
-                   const parent = categories.find(c => c.id === mainCat.parentId);
-                   if (parent) mainCatName = parent.name;
-                } else {
-                   mainCatName = mainCat.name;
-                }
+        const imagesToDownload = imagesWithData.map(p => {
+          const imgUrl = p.finalImageUrl || p.imageUrl;
+          const ext = imgUrl!.split('.').pop()?.split('?')[0] || 'jpg';
+          const safeName = (p.productCode || p.name || 'product').replace(/[\\/\\?<>\\:\\*\\|":]/g, '-');
+          const filename = `${safeName}.${ext}`;
+          let mainCatName = 'أخرى';
+          if (p.categoryId) {
+            const mainCat = categories.find(c => c.id === p.categoryId);
+            if (mainCat) {
+              if (mainCat.parentId) {
+                 const parent = categories.find(c => c.id === mainCat.parentId);
+                 if (parent) mainCatName = parent.name;
+              } else {
+                 mainCatName = mainCat.name;
               }
             }
-            
-            return { url: imgUrl, filename, folderName: mainCatName };
-          });
-
+          }
+          return { url: imgUrl!, filename, folderName: mainCatName };
+        });
+        
         const { downloadAsZip } = await import('../../utils/zipDownload');
-        const success = await downloadAsZip('جميع اللاستيك', imagesToDownload, (progress, total, message) => {
+        const success = await downloadAsZip('جميع الأقسام', imagesToDownload, (progress, total, message) => {
           setDownloadProgress({ progress, total, message });
         });
-
+        
         if (success) {
            showToast("تم تحميل الملف المضغوط بنجاح", "success");
         } else {
            showToast("حدث خطأ أثناء التحميل", "error");
         }
         setDownloadProgress(null);
+      },
+      onDownloadAllElastic: (user?.fullName === "نصيف عبد الرزاق" || user?.fullName === "نصيف عبدالرزاق" || user?.username === "modemomr3b@gmail.com" || user?.fullName?.includes("نصيف")) ? async () => {
+        setDownloadChoiceDialog(null);
+        setDownloadProgress({ progress: 0, total: imagesWithData.length, message: 'جاري تحضير الملفات...' });
+        const imagesToDownload = imagesWithData.map(p => {
+          const imgUrl = p.finalImageUrl || p.imageUrl;
+          const ext = imgUrl!.split('.').pop()?.split('?')[0] || 'jpg';
+          const safeName = (p.productCode || p.name || 'product').replace(/[\\/\\?<>\\:\\*\\|":]/g, '-');
+          const filename = `${safeName}.${ext}`;
+          let mainCatName = 'أخرى';
+          if (p.categoryId) {
+            const mainCat = categories.find(c => c.id === p.categoryId);
+            if (mainCat) {
+              if (mainCat.parentId) {
+                 const parent = categories.find(c => c.id === mainCat.parentId);
+                 if (parent) mainCatName = parent.name;
+              } else {
+                 mainCatName = mainCat.name;
+              }
+            }
+          }
+          return { url: imgUrl!, filename, folderName: mainCatName };
+        });
+        const { downloadAsZip } = await import('../../utils/zipDownload');
+        const success = await downloadAsZip('جميع اللاستيك', imagesToDownload, (progress, total, message) => {
+          setDownloadProgress({ progress, total, message });
+        });
+        if (success) showToast("تم تحميل الملف المضغوط بنجاح", "success");
+        else showToast("حدث خطأ أثناء التحميل", "error");
+        setDownloadProgress(null);
       } : undefined
     });
   };
 
   const filteredMains = mainCategories.filter(c => c.name.includes(searchTerm));
-  const filteredSubs = uniqueSubNames.filter(n => n.includes(searchTerm));
+  const filteredSubtypes = subtypesInfo.filter(s => s.name.includes(searchTerm));
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
       <div className="glass-panel w-full max-w-2xl rounded-2xl border border-white/10 overflow-hidden flex flex-col max-h-[90vh]">
+        
         <div className="p-4 border-b border-white/10 flex justify-between items-center bg-black/20">
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <Download size={20} className="text-brq-gold" /> تحميل صور الأقسام (Zip)
+            <Download size={20} className="text-brq-gold" /> تحميل صور الأقسام
           </h2>
           <button
             onClick={onClose}
@@ -232,12 +271,20 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
           </div>
         ) : (
           <div className="flex flex-col flex-1 overflow-hidden">
-            <div className="p-4 border-b border-white/10">
-              <div className="relative">
+            <div className="p-4 border-b border-white/10 flex items-center gap-2">
+              {selectedMainCategory && (
+                 <button 
+                   onClick={() => { setSelectedMainCategory(null); setSearchTerm(""); }}
+                   className="p-2 bg-white/10 hover:bg-white/20 rounded-lg text-white transition-all flex items-center gap-1 shrink-0"
+                 >
+                   <ChevronRight size={18} /> رجوع
+                 </button>
+              )}
+              <div className="relative flex-1">
                 <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40" size={18} />
                 <input
                   type="text"
-                  placeholder="ابحث عن قسم رئيسي أو فرعي..."
+                  placeholder="ابحث..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full bg-black/40 border border-white/10 rounded-xl py-3 pr-10 pl-4 text-white focus:border-brq-gold/50 outline-none transition-all"
@@ -246,71 +293,81 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-6">
-              {!searchTerm && (
-                <div>
-                  <button
-                    onClick={handleDownloadAll}
-                    className="w-full p-4 bg-gradient-to-r from-brq-gold/10 to-brq-gold/5 border border-brq-gold/30 rounded-xl hover:bg-brq-gold/20 hover:border-brq-gold/60 transition-all text-right group flex justify-between items-center"
-                  >
-                    <div>
-                       <span className="font-bold text-brq-gold text-lg block mb-1">تحميل جميع صور المتجر</span>
-                       <span className="text-white/50 text-sm">سيتم تقسيم الصور في مجلدات حسب القسم الرئيسي ثم نوع المنتج (مثال: رجالي/رياضة)</span>
+              
+              {!selectedMainCategory ? (
+                 <>
+                    {!searchTerm && (
+                      <div>
+                        <button
+                          onClick={handleDownloadAll}
+                          className="w-full p-4 bg-gradient-to-r from-brq-gold/10 to-brq-gold/5 border border-brq-gold/30 rounded-xl hover:bg-brq-gold/20 hover:border-brq-gold/60 transition-all text-right group flex justify-between items-center"
+                        >
+                          <div>
+                            <span className="font-bold text-brq-gold text-lg block mb-1">تحميل جميع صور المتجر</span>
+                            <span className="text-white/50 text-sm">سيتم تقسيم الصور في مجلدات</span>
+                          </div>
+                          <Download size={24} className="text-brq-gold/70 group-hover:text-brq-gold group-hover:scale-110 transition-all" />
+                        </button>
+                      </div>
+                    )}
+                    
+                    {filteredMains.length > 0 && (
+                      <div>
+                        <h3 className="text-sm font-bold text-blue-400 mb-3 flex items-center gap-2 mt-2">
+                          <div className="w-2 h-2 rounded-full bg-blue-400"></div>
+                          اختر القسم الرئيسي
+                        </h3>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                          {filteredMains.map((cat) => (
+                            <button
+                              key={cat.id}
+                              onClick={() => { setSelectedMainCategory(cat); setSearchTerm(""); }}
+                              className="p-4 bg-white/5 border border-white/10 rounded-xl hover:bg-blue-500/10 hover:border-blue-500/50 transition-all text-right group flex flex-col gap-2 items-start"
+                            >
+                              <Folder size={24} className="text-blue-400/70 group-hover:text-blue-400 transition-all" />
+                              <span className="font-bold text-white group-hover:text-blue-400 transition-colors text-lg">{cat.name}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {filteredMains.length === 0 && (
+                      <div className="text-center py-10 text-white/40">لا توجد أقسام مطابقة للبحث</div>
+                    )}
+                 </>
+              ) : (
+                 <div>
+                    <h3 className="text-sm font-bold text-brq-gold mb-3 flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-brq-gold"></div>
+                      أصناف {selectedMainCategory.name} (حسب اسم المنتج)
+                    </h3>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      {filteredSubtypes.map((sub) => (
+                        <button
+                          key={sub.name}
+                          onClick={() => handleSubtypeSelect(sub.name, sub.products)}
+                          className="p-3 bg-white/5 border border-white/10 rounded-xl hover:bg-brq-gold/10 hover:border-brq-gold/50 transition-all text-right group flex justify-between items-center"
+                        >
+                          <div>
+                            <span className="font-bold text-white group-hover:text-brq-gold transition-colors block">{sub.name}</span>
+                            <span className="text-white/40 text-xs">{sub.products.length} منتج</span>
+                          </div>
+                          <Download size={18} className="text-white/40 group-hover:text-brq-gold opacity-0 group-hover:opacity-100 transition-all" />
+                        </button>
+                      ))}
                     </div>
-                    <Download size={24} className="text-brq-gold/70 group-hover:text-brq-gold group-hover:scale-110 transition-all" />
-                  </button>
-                </div>
-              )}
-              {filteredSubs.length > 0 && (
-                <div>
-                  <h3 className="text-sm font-bold text-brq-gold mb-3 flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-brq-gold"></div>
-                    تحميل حسب القسم الفرعي (تجميع تلقائي)
-                  </h3>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    {filteredSubs.map((subName) => (
-                      <button
-                        key={subName}
-                        onClick={() => handleDownloadSubcategoryGroup(subName)}
-                        className="p-3 bg-white/5 border border-white/10 rounded-xl hover:bg-brq-gold/10 hover:border-brq-gold/50 transition-all text-right group flex justify-between items-center"
-                      >
-                        <span className="font-bold text-white group-hover:text-brq-gold transition-colors">{subName}</span>
-                        <Download size={14} className="text-white/40 group-hover:text-brq-gold opacity-0 group-hover:opacity-100 transition-all" />
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                    {filteredSubtypes.length === 0 && (
+                      <div className="text-center py-10 text-white/40">لا توجد أصناف مطابقة للبحث</div>
+                    )}
+                 </div>
               )}
 
-              {filteredMains.length > 0 && (
-                <div>
-                  <h3 className="text-sm font-bold text-blue-400 mb-3 flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-blue-400"></div>
-                    تحميل حسب القسم الرئيسي
-                  </h3>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    {filteredMains.map((cat) => (
-                      <button
-                        key={cat.id}
-                        onClick={() => handleDownloadMainCategory(cat.id!, cat.name)}
-                        className="p-3 bg-white/5 border border-white/10 rounded-xl hover:bg-blue-500/10 hover:border-blue-500/50 transition-all text-right group flex justify-between items-center"
-                      >
-                        <span className="font-bold text-white group-hover:text-blue-400 transition-colors">{cat.name}</span>
-                        <Download size={14} className="text-white/40 group-hover:text-blue-400 opacity-0 group-hover:opacity-100 transition-all" />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {filteredSubs.length === 0 && filteredMains.length === 0 && (
-                <div className="text-center py-10 text-white/40">
-                  لا توجد أقسام مطابقة للبحث
-                </div>
-              )}
             </div>
           </div>
         )}
       </div>
+
       {downloadChoiceDialog && (
         <DownloadChoiceDialog
           isOpen={downloadChoiceDialog.isOpen}

@@ -332,7 +332,7 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
               <select
                   value={batchCategoryId}
                   onChange={(e) => setBatchCategoryId(e.target.value)}
-                  className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black placeholder:text-gray-500"
+                  className="w-full bg-white border border-black rounded-lg px-3 py-2 text-base font-bold focus:border-brq-gold/50 outline-none text-black placeholder:text-gray-500"
               >
                   <option value="">-- إختر القسم الرئيسي --</option>
                   {categories.filter((c) => !c.parentId).map((c) => (
@@ -356,7 +356,7 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
                   type="text"
                   value={product.name || ''}
                   onChange={(e) => handleProductChange(idx, 'name', e.target.value)}
-                  className="w-full bg-white border border-black rounded-lg px-2 py-1.5 text-xs focus:border-brq-gold/50 outline-none text-black placeholder:text-gray-500"
+                  className="w-full bg-white border border-black rounded-lg px-2 py-1.5 text-base font-bold font-bold focus:border-brq-gold/50 outline-none text-black placeholder:text-gray-500"
                 />
               </div>
               
@@ -366,7 +366,7 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
                   type="text"
                   value={product.productCode || ''}
                   onChange={(e) => handleProductChange(idx, 'productCode', e.target.value)}
-                  className="w-full bg-white border border-black rounded-lg px-2 py-1.5 text-xs focus:border-brq-gold/50 outline-none text-black placeholder:text-gray-500"
+                  className="w-full bg-white border border-black rounded-lg px-2 py-1.5 text-base font-bold font-bold focus:border-brq-gold/50 outline-none text-black placeholder:text-gray-500"
                 />
               </div>
 
@@ -377,7 +377,7 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
                   step="0.01"
                   value={product.dozenPriceUsd || ''}
                   onChange={(e) => handleUsdPriceChange(idx, Number(e.target.value))}
-                  className="w-full bg-white border border-black rounded-lg px-2 py-1.5 text-xs focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
+                  className="w-full bg-white border border-black rounded-lg px-2 py-1.5 text-base font-bold font-bold focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
                 />
               </div>
 
@@ -387,7 +387,7 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
                   type="number"
                   value={product.price || ''}
                   onChange={(e) => handleIqdPriceChange(idx, Number(e.target.value))}
-                  className="w-full bg-white border border-black rounded-lg px-2 py-1.5 text-xs focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
+                  className="w-full bg-white border border-black rounded-lg px-2 py-1.5 text-base font-bold font-bold focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
                 />
               </div>
 
@@ -398,7 +398,7 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
                   value={product.packaging || ''}
                   placeholder="مثال: 12"
                   onChange={(e) => handlePackagingTextChange(idx, e.target.value)}
-                  className="w-full bg-white border border-black rounded-lg px-2 py-1.5 text-xs focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
+                  className="w-full bg-white border border-black rounded-lg px-2 py-1.5 text-base font-bold font-bold focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
                 />
               </div>
 
@@ -413,7 +413,7 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
                       handleProductChange(idx, 'categoryId', newCat);
                       handleProductChange(idx, 'subcategoryId', autoSub || '');
                     }}
-                    className="w-full bg-white border border-black rounded-lg px-2 py-1.5 text-xs focus:border-brq-gold/50 outline-none text-black placeholder:text-gray-500"
+                    className="w-full bg-white border border-black rounded-lg px-2 py-1.5 text-base font-bold font-bold focus:border-brq-gold/50 outline-none text-black placeholder:text-gray-500"
                   >
                     <option value="">-- إختر --</option>
                     {categories.filter((c) => !c.parentId).map((c) => (
@@ -428,7 +428,7 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
                 <select
                   value={product.subcategoryId || ''}
                   onChange={(e) => handleProductChange(idx, 'subcategoryId', e.target.value)}
-                  className="w-full bg-white border border-black rounded-lg px-2 py-1.5 text-xs focus:border-brq-gold/50 outline-none text-black disabled:opacity-50 placeholder:text-gray-500"
+                  className="w-full bg-white border border-black rounded-lg px-2 py-1.5 text-base font-bold font-bold focus:border-brq-gold/50 outline-none text-black disabled:opacity-50 placeholder:text-gray-500"
                   disabled={!product.categoryId}
                 >
                   <option value="">-- إختر --</option>
@@ -445,7 +445,7 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
                 <select
                   value={product.forceStandardCrush ? 'yes' : 'no'}
                   onChange={(e) => handleForceCrushChange(idx, e.target.value === 'yes')}
-                  className="w-full bg-white border border-black rounded-lg px-2 py-1.5 text-xs focus:border-brq-gold/50 outline-none text-black placeholder:text-gray-500"
+                  className="w-full bg-white border border-black rounded-lg px-2 py-1.5 text-base font-bold font-bold focus:border-brq-gold/50 outline-none text-black placeholder:text-gray-500"
                 >
                   <option value="no">لا</option>
                   <option value="yes">نعم</option>
@@ -458,7 +458,7 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
                     type="number"
                     value={product.piecesCount || ""}
                     onChange={(e) => handlePiecesCountChange(idx, parseInt(e.target.value) || 1)}
-                    className="w-full bg-white border border-black rounded-lg px-2 py-1.5 text-xs focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
+                    className="w-full bg-white border border-black rounded-lg px-2 py-1.5 text-base font-bold font-bold focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
                   />
                 </div>
               )}
