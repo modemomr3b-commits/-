@@ -428,6 +428,7 @@ export const api = {
       totalQuantity: o.total || o.totalQuantity || 0,
       fullName: o.customerName || o.fullName || o.username || '',
       username: o.username || o.customerName || '',
+      userId: o.customerName || o.username,
     }));
   },
   createOrder: async (data: any) => { 
@@ -445,8 +446,6 @@ export const api = {
     if (safeData.items) { safeData.products = safeData.items; delete safeData.items; }
     if (safeData.totalQuantity !== undefined) { safeData.total = safeData.totalQuantity; delete safeData.totalQuantity; }
     if (safeData.fullName !== undefined) { safeData.customerName = safeData.fullName; delete safeData.fullName; }
-    delete safeData.userId;
-    delete safeData.username;
     const { data: r, error } = await supabase.from('orders').update(safeData).match({ id }).select().single(); 
     if (error) throw error; return r; 
   },

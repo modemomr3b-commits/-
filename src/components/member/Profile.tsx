@@ -35,7 +35,7 @@ export default function Profile() {
        if (!user?.id && !user?.uid) return;
        try {
          const allOrders = await api.getOrders();
-         const myOrders = allOrders.filter(o => o.userId === user.id || o.userId === user.uid).sort((a: any, b: any) => b.createdAt - a.createdAt);
+         const myOrders = allOrders.filter(o => o.customerName === user.fullName || o.customerName === user.username || o.fullName === user.fullName || o.fullName === user.username || o.username === user.username).sort((a: any, b: any) => b.createdAt - a.createdAt);
          setOrders(myOrders);
        } catch(e) {
          console.error(e);
