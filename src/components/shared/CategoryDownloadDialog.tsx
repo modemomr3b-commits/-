@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Download, X, Loader2, Search, ChevronRight, Folder } from "lucide-react";
 import { Category, Product } from "../../types";
 import { DownloadChoiceDialog } from "./DownloadChoiceDialog";
@@ -27,6 +27,51 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
 
   const mainCategories = categories.filter(c => !c.parentId);
   const subCategories = selectedMainCategory ? categories.filter(c => c.parentId === selectedMainCategory.id) : [];
+
+  const subtypesInfo = useMemo(() => {
+    if (!selectedMainCategory) return [];
+    
+    // First, get all products belonging to this main category
+    // This includes products directly in it, or in any of its subcategories
+    const catProducts = products.filter(p => 
+      p.categoryId === selectedMainCategory.id || 
+      p.subcategoryId === selectedMainCategory.id || 
+      subCategories.some(sub => p.subcategoryId === sub.id) ||
+      subCategories.some(sub => p.categoryId === sub.id)
+    );
+
+    const subtypeMap = new Map<string, Product[]>();
+    
+    catProducts.forEach(p => {
+      if (!p.name) return;
+      
+      // Extract the first word from the product name (e.g. "رياضة", "شحاطة")
+      const nameParts = p.name.trim().split(/[\s\-]+/);
+      let firstWord = nameParts[0];
+      
+      // Clean up common prefixes like "حذاء" if it's followed by something else, or keep it
+      if (firstWord && firstWord.length > 1) {
+         // Basic normalization if needed, here we just use the raw first word
+         const list = subtypeMap.get(firstWord) || [];
+         list.push(p);
+         subtypeMap.set(firstWord, list);
+      } else {
+         const list = subtypeMap.get("أخرى") || [];
+         list.push(p);
+         subtypeMap.set("أخرى", list);
+      }
+    });
+    
+    const sorted = Array.from(subtypeMap.entries())
+      .map(([name, prods]) => ({ name, products: prods }))
+      .sort((a, b) => {
+         if (a.name === "أخرى") return 1;
+         if (b.name === "أخرى") return -1;
+         return b.products.length - a.products.length;
+      });
+      
+    return sorted;
+  }, [selectedMainCategory, products, subCategories]);
 
   const handleDownloadGroup = (groupName: string, groupProducts: Product[]) => {
     const imagesWithData = groupProducts.filter((p) => p.finalImageUrl || p.imageUrl);
@@ -207,7 +252,7 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
   };
 
   const filteredMains = mainCategories.filter(c => c.name.includes(searchTerm));
-  const filteredSubs = subCategories.filter(s => s.name.includes(searchTerm));
+  const filteredSubs = subtypesInfo.filter(s => s.name.includes(searchTerm));
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
@@ -331,25 +376,22 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
                     </div>
 
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                      {filteredSubs.map((sub) => {
-                        const subProducts = products.filter(p => p.subcategoryId === sub.id);
-                        return (
+                      {filteredSubs.map((sub, index) => (
                           <button
-                            key={sub.id}
-                            onClick={() => handleDownloadGroup(sub.name, subProducts)}
+                            key={`${sub.name}-${index}`}
+                            onClick={() => handleDownloadGroup(sub.name, sub.products)}
                             className="p-3 bg-white/5 border border-white/10 rounded-xl hover:bg-brq-gold/10 hover:border-brq-gold/50 transition-all text-right group flex justify-between items-center"
                           >
                             <div>
                               <span className="font-bold text-white group-hover:text-brq-gold transition-colors block">{sub.name}</span>
-                              <span className="text-white/40 text-xs">{subProducts.length} منتج</span>
+                              <span className="text-white/40 text-xs">{sub.products.length} منتج</span>
                             </div>
                             <Download size={18} className="text-white/40 group-hover:text-brq-gold opacity-0 group-hover:opacity-100 transition-all" />
                           </button>
-                        );
-                      })}
+                      ))}
                     </div>
                     {filteredSubs.length === 0 && (
-                      <div className="text-center py-10 text-white/40">لا توجد أقسام فرعية</div>
+                      <div className="text-center py-10 text-white/40">لا توجد أصناف مطابقة</div>
                     )}
                  </div>
               )}
