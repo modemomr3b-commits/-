@@ -252,7 +252,7 @@ export default function Products() {
       if (navigator.canShare && !navigator.canShare({ files: filesToShare })) {
          console.warn("navigator.canShare returned false");
       }
-      await navigator.share({ files: filesToShare, title: 'منتجات BRQ' });
+      await navigator.share({ files: filesToShare });
       
       if (!isPartial) {
         setSelectedIds(new Set());
@@ -370,8 +370,7 @@ export default function Products() {
       if (isIOS && navigator.canShare && navigator.canShare({ files: [file] })) {
         try {
            await navigator.share({
-             files: [file],
-             title: p.name,
+             files: [file]
            });
            showToast("تم حفظ الصورة بنجاح", "success");
         } catch (err: any) {

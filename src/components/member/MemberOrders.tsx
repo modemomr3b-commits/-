@@ -17,15 +17,14 @@ export default function MemberOrders() {
       try {
         setLoading(true);
         const allOrders = await api.getOrders();
-        // Assuming we filter orders by userId or username, or the backend only returns their orders.
-        // For now, filter if there is a customerName/agent matching or just show all if no user id field exists.
-        // Let's see if we have userId on orders. Wait, Order type:
-        // export interface Order extends BaseEntity { orderNumber: string; status: OrderStatus; items: OrderItem[]; }
-        // If there's no clear association, maybe just show all or filter by some field.
-        // I will just fetch all orders and try to filter them by the current user's name if applicable, or assume they are all theirs.
-        
-        // As a fallback, since it's a member view, just show all orders returned.
-        setOrders(allOrders);
+        // Filter orders by the current user
+        const userOrders = allOrders.filter(o => {
+           if (!user) return false;
+           return o.userId === user.id || o.userId === user.uid || o.username === user.username;
+        });
+        // Sort by newest first
+        userOrders.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        setOrders(userOrders);
       } catch (err) {
         console.error(err);
         showToast("فشل تحميل الطلبات", "error");
@@ -34,8 +33,10 @@ export default function MemberOrders() {
       }
     };
     
-    fetchOrders();
-  }, []);
+    if (user) {
+      fetchOrders();
+    }
+  }, [user]);
 
   const getStatusDisplay = (status: string) => {
     switch (status) {
@@ -48,7 +49,9 @@ export default function MemberOrders() {
     }
   };
 
-  const filteredOrders = orders.filter(o => o.orderNumber?.includes(searchTerm));
+  const filteredOrders = orders.filter(o => 
+    !searchTerm || (o.orderNumber || '').toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   if (loading) {
     return (
@@ -110,24 +113,23 @@ export default function MemberOrders() {
                     {statusConfig.label}
                   </div>
                 </div>
-                
-                <div className="overflow-x-auto pb-2">
+                                <div className="overflow-x-auto pb-2">
                   <div className="flex gap-3 min-w-max">
-                    {order.items.slice(0, 5).map((item, idx) => (
+                    {(order.items || []).slice(0, 5).map((item, idx) => (
                       <div key={idx} className="w-16 h-16 bg-black/40 rounded-xl border border-white/10 overflow-hidden relative group">
-                         {item.product?.finalImageUrl || item.product?.imageUrl ? (
+                         {item?.product?.finalImageUrl || item?.product?.imageUrl ? (
                            <OptimizedImage src={item.product.finalImageUrl || item.product.imageUrl!} alt={item.product.name} size="thumbnail" className="w-full h-full" imgClassName="object-cover" />
                          ) : (
                            <div className="w-full h-full flex items-center justify-center text-xl">👟</div>
                          )}
                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-xs font-bold text-brq-gold">
-                           {item.quantity}
+                           {item?.quantity || 1}
                          </div>
                       </div>
                     ))}
-                    {order.items.length > 5 && (
+                    {(order.items || []).length > 5 && (
                       <div className="w-16 h-16 bg-black/40 rounded-xl border border-white/10 flex items-center justify-center font-bold text-white/50 text-sm">
-                        +{order.items.length - 5}
+                        +{(order.items || []).length - 5}
                       </div>
                     )}
                   </div>

@@ -177,8 +177,7 @@ export default function ProductDetail() {
                       if (isIOS && navigator.canShare && navigator.canShare({ files: [file] })) {
                         try {
                            await navigator.share({
-                             files: [file],
-                             title: product.name,
+                             files: [file]
                            });
                            showToast("تم حفظ الصورة بنجاح", "success");
                         } catch (err: any) {
