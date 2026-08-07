@@ -17,11 +17,25 @@ export default function MemberOrders() {
       try {
         setLoading(true);
         const allOrders = await api.getOrders();
-        // Filter orders by the current user
-        const userOrders = allOrders.filter(o => {
-           if (!user) return false;
-           return o.userId === user.id || o.userId === user.uid || o.username === user.username;
-        });
+        
+        let userOrders = allOrders;
+        if (user) {
+          const uName = (user.username || '').toLowerCase().trim();
+          const uFull = (user.fullName || '').toLowerCase().trim();
+          const uId = (user.id || user.uid || '').toString();
+
+          userOrders = allOrders.filter(o => {
+             const oUser = (o.userId || '').toString().toLowerCase().trim();
+             const oName = (o.username || '').toLowerCase().trim();
+             const oFull = (o.fullName || o.customerName || '').toLowerCase().trim();
+
+             if (uId && oUser === uId) return true;
+             if (uName && (oUser === uName || oName === uName || oFull === uName)) return true;
+             if (uFull && (oUser === uFull || oName === uFull || oFull === uFull)) return true;
+             return false;
+          });
+        }
+        
         // Sort by newest first
         userOrders.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
         setOrders(userOrders);
@@ -33,9 +47,7 @@ export default function MemberOrders() {
       }
     };
     
-    if (user) {
-      fetchOrders();
-    }
+    fetchOrders();
   }, [user]);
 
   const getStatusDisplay = (status: string) => {

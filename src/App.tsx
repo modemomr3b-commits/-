@@ -104,6 +104,7 @@ export default function App() {
               <Route path="product/:productId" element={<ProductDetail />} />
               <Route path="favorites" element={<Favorites />} />
               <Route path="cart" element={<Cart />} />
+              <Route path="orders" element={<MemberOrders />} />
               <Route path="search" element={<SearchPage />} />
               <Route path="profile" element={<Profile />} />
               <Route path="messages" element={<Messages />} />
