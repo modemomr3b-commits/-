@@ -5,6 +5,7 @@ import { useState, useEffect, useMemo } from "react";
 import { compressImage } from '../../utils/compressImage';
 import { api } from "../../api";
 import { supabase } from "../../supabase";
+import { filterProductsBySearch } from '../../utils/search';
 import { Product, Category } from "../../types";
 import { useStore } from "../../store";
 import OptimizedImage from "../OptimizedImage";
@@ -172,48 +173,10 @@ export default function Products() {
   const filteredProductsAll = useMemo(() => {
     let result = products;
     if (activeSub) {
-      result = result.filter((p) => p.subcategoryId === activeSub);
+      result = result.filter((p) => p.subcategoryId === activeSub || p.categoryId === activeSub);
     }
     if (searchTerm) {
-      const rawQuery = searchTerm.toLowerCase().trim();
-      
-      const exactCodeMatches = result.filter(p => 
-        (p.productCode && p.productCode.toLowerCase().trim() === rawQuery) ||
-        (p.barcode && p.barcode.toLowerCase().trim() === rawQuery) ||
-        (p.modelNumber && p.modelNumber.toLowerCase().trim() === rawQuery)
-      );
-      
-      if (exactCodeMatches.length > 0) {
-        result = exactCodeMatches;
-      } else {
-        const isCodeSearch = /^[\d\w\-]+$/.test(rawQuery) && /\d/.test(rawQuery);
-        const partialCodeMatches = result.filter(p => 
-          (p.productCode && p.productCode.toLowerCase().includes(rawQuery)) ||
-          (p.barcode && p.barcode.toLowerCase().includes(rawQuery)) ||
-          (p.modelNumber && p.modelNumber.toLowerCase().includes(rawQuery))
-        );
-        
-        if (isCodeSearch && partialCodeMatches.length > 0) {
-          result = partialCodeMatches;
-        } else {
-          const searchWords = rawQuery.replace(/[-_]/g, '').split(/\s+/).filter(Boolean);
-          result = result.filter((p) => {
-            let catName = '';
-            let subCatName = '';
-            if (p.categoryId) {
-              const cat = allCategories.find(c => c.id === p.categoryId);
-              if (cat) catName = cat.name;
-            }
-            if (p.subcategoryId) {
-              const sub = allCategories.find(c => c.id === p.subcategoryId);
-              if (sub) subCatName = sub.name;
-            }
-            const fullText = [p.name, p.productCode, p.modelNumber, p.barcode, catName, subCatName].filter(Boolean).join(' ').toLowerCase().replace(/[-_]/g, '');
-            
-            return searchWords.every(word => fullText.includes(word));
-          });
-        }
-      }
+      result = filterProductsBySearch(result, searchTerm, allCategories);
     }
     return result;
   }, [activeSub, products, searchTerm, allCategories]);

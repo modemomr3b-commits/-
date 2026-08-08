@@ -30,6 +30,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { api } from "../../api";
 import { supabase } from "../../supabase";
+import { filterProductsBySearch } from '../../utils/search';
 import { Product, Category } from "../../types";
 import { burnProductOverlay } from "../../utils/burnImage";
 import { BatchProductUpload } from "./BatchProductUpload";
@@ -888,13 +889,8 @@ export default function ProductManager() {
     }
 
     if (searchQuery) {
-      const q = searchQuery.toLowerCase().trim().replace(/[-_]/g, '');
-      const matchesSearch = 
-        (p.name && p.name.toLowerCase().replace(/[-_]/g, '').includes(q)) ||
-        (p.productCode && p.productCode.toLowerCase().replace(/[-_]/g, '').startsWith(q)) ||
-        (p.modelNumber && p.modelNumber.toLowerCase().replace(/[-_]/g, '').startsWith(q)) ||
-        (p.barcode && p.barcode.toLowerCase().replace(/[-_]/g, '').startsWith(q));
-      if (!matchesSearch) return false;
+      const match = filterProductsBySearch([p], searchQuery, categories);
+      if (match.length === 0) return false;
     }
 
     if (searchDate) {

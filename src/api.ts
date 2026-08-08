@@ -106,39 +106,26 @@ export const api = {
       return memCache[cacheKey].data;
     }
     
-    let allData: any[] = [];
-    let from = 0;
-    const limit = 1000;
-    
-    while (true) {
-      const { data, error } = await supabase.from('products')
-        .select('*')
-        .eq('categoryId', categoryId)
-        .neq('isDeleted', true)
-        .range(from, from + limit - 1);
-        
-      if (error) {
-        console.error(error);
-        return [];
-      }
-      
-      if (data && data.length > 0) {
-        allData = [...allData, ...data];
-        if (data.length < limit) break;
-        from += limit;
-      } else {
-        break;
-      }
+    // Fetch categories to resolve category/subcategory hierarchy
+    const { data: catData } = await supabase.from('categories').select('*').neq('isDeleted', true);
+    const categories = catData || [];
+
+    const subCatIds = categories.filter((c: any) => c.parentId === categoryId).map((c: any) => c.id);
+    const currentCat = categories.find((c: any) => c.id === categoryId);
+    const parentId = currentCat?.parentId;
+
+    const targetCategoryIds = new Set<string>([categoryId, ...subCatIds]);
+    if (parentId) {
+      targetCategoryIds.add(parentId);
     }
-    
-    const res = allData.map((p: any) => ({
-      ...p,
-      isHidden: p.size?.isHidden || false,
-      isLocked: p.size?.isLocked || false,
-      oldPriceInfo: p.size?.oldPriceInfo || undefined,
-      forceStandardCrush: p.size?.forceStandardCrush ?? true,
-      updatedAt: p.size?.updatedAt || p.createdAt
-    })).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+    const allProducts = await api.getProducts();
+    const res = allProducts.filter((p: any) => {
+      if (p.categoryId && targetCategoryIds.has(p.categoryId)) return true;
+      if (p.subcategoryId && targetCategoryIds.has(p.subcategoryId)) return true;
+      return false;
+    });
+
     memCache[cacheKey] = { data: res, timestamp: Date.now() };
     return res;
   },

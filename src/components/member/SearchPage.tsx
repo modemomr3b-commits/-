@@ -3,6 +3,7 @@ import { Search, Lock, SlidersHorizontal, Archive, Download, Loader2, CheckCircl
 import { Link } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
 import { api } from '../../api';
+import { filterProductsBySearch } from '../../utils/search';
 import { Product } from '../../types';
 import OptimizedImage from '../OptimizedImage';
 import { useStore } from '../../store';
@@ -85,47 +86,9 @@ export default function SearchPage() {
     if (!query) return [];
     
     let result = products.filter(p => !p.isHidden && !p.isLocked);
+    result = searchArchived ? result.filter(p => p.isArchived) : result.filter(p => !p.isArchived);
     
-    const rawQuery = query.toLowerCase().trim();
-    
-    const exactCodeMatches = result.filter(p => 
-      (p.productCode && p.productCode.toLowerCase().trim() === rawQuery) ||
-      (p.barcode && p.barcode.toLowerCase().trim() === rawQuery) ||
-      (p.modelNumber && p.modelNumber.toLowerCase().trim() === rawQuery)
-    );
-    
-    if (exactCodeMatches.length > 0) {
-      result = exactCodeMatches;
-    } else {
-      const isCodeSearch = /^[\d\w\-]+$/.test(rawQuery) && /\d/.test(rawQuery);
-      const partialCodeMatches = result.filter(p => 
-        (p.productCode && p.productCode.toLowerCase().includes(rawQuery)) ||
-        (p.barcode && p.barcode.toLowerCase().includes(rawQuery)) ||
-        (p.modelNumber && p.modelNumber.toLowerCase().includes(rawQuery))
-      );
-      
-      if (isCodeSearch && partialCodeMatches.length > 0) {
-        result = partialCodeMatches;
-      } else {
-        const searchWords = rawQuery.replace(/[-_]/g, '').split(/\s+/).filter(Boolean);
-        result = result.filter(p => {
-          let catName = '';
-          let subCatName = '';
-          if (p.categoryId) {
-            const cat = allCategories.find(c => c.id === p.categoryId);
-            if (cat) catName = cat.name;
-          }
-          if (p.subcategoryId) {
-            const sub = allCategories.find(c => c.id === p.subcategoryId);
-            if (sub) subCatName = sub.name;
-          }
-          const fullText = [p.name, p.productCode, p.modelNumber, p.barcode, catName, subCatName].filter(Boolean).join(' ').toLowerCase().replace(/[-_]/g, '');
-          return searchWords.every(word => fullText.includes(word));
-        });
-      }
-    }
-    
-    return searchArchived ? result.filter(p => p.isArchived) : result.filter(p => !p.isArchived);
+    return filterProductsBySearch(result, query, allCategories);
   }, [products, query, searchArchived, allCategories]);
 
   const totalPages = Math.ceil(filteredProductsAll.length / itemsPerPage);
