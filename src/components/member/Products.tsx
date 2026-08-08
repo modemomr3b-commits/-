@@ -173,7 +173,21 @@ export default function Products() {
   const filteredProductsAll = useMemo(() => {
     let result = products;
     if (activeSub) {
-      result = result.filter((p) => p.subcategoryId === activeSub || p.categoryId === activeSub);
+      const subCatObj = allCategories.find(c => c.id === activeSub);
+      const subName = subCatObj ? subCatObj.name.toLowerCase().trim() : '';
+
+      result = result.filter((p) => {
+        if (p.subcategoryId === activeSub || p.categoryId === activeSub) return true;
+        if (subName) {
+          const pName = (p.name || '').toLowerCase();
+          const pCode = (p.productCode || '').toLowerCase();
+          const pModel = (p.modelNumber || '').toLowerCase();
+          if (pName.includes(subName) || pCode.includes(subName) || pModel.includes(subName)) {
+            return true;
+          }
+        }
+        return false;
+      });
     }
     if (searchTerm) {
       result = filterProductsBySearch(result, searchTerm, allCategories);

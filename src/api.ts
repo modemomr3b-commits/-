@@ -110,19 +110,20 @@ export const api = {
     const { data: catData } = await supabase.from('categories').select('*').neq('isDeleted', true);
     const categories = catData || [];
 
-    const subCatIds = categories.filter((c: any) => c.parentId === categoryId).map((c: any) => c.id);
     const currentCat = categories.find((c: any) => c.id === categoryId);
-    const parentId = currentCat?.parentId;
+    const currentCatName = currentCat ? currentCat.name.toLowerCase().trim() : '';
 
-    const targetCategoryIds = new Set<string>([categoryId, ...subCatIds]);
-    if (parentId) {
-      targetCategoryIds.add(parentId);
+    const subCats = categories.filter((c: any) => c.parentId === categoryId || c.id === categoryId);
+    const targetCategoryIds = new Set<string>([categoryId, ...subCats.map((c: any) => c.id)]);
+    if (currentCat?.parentId) {
+      targetCategoryIds.add(currentCat.parentId);
     }
 
     const allProducts = await api.getProducts();
     const res = allProducts.filter((p: any) => {
       if (p.categoryId && targetCategoryIds.has(p.categoryId)) return true;
       if (p.subcategoryId && targetCategoryIds.has(p.subcategoryId)) return true;
+      if (currentCatName && p.name && p.name.toLowerCase().includes(currentCatName)) return true;
       return false;
     });
 
@@ -134,8 +135,8 @@ export const api = {
     if (error || !data) return null;
     return {
       ...data,
-      isHidden: data.size?.isHidden || false,
-      isLocked: data.size?.isLocked || false,
+      isHidden: data.size?.isHidden !== undefined ? data.size.isHidden : (data.isHidden ?? false),
+      isLocked: data.size?.isLocked !== undefined ? data.size.isLocked : (data.isLocked ?? false),
       oldPriceInfo: data.size?.oldPriceInfo || undefined,
       forceStandardCrush: data.size?.forceStandardCrush ?? true
     };
@@ -144,8 +145,8 @@ export const api = {
     const data = await getData('products');
     return data.map((p: any) => ({
       ...p,
-      isHidden: p.size?.isHidden || false,
-      isLocked: p.size?.isLocked || false,
+      isHidden: p.size?.isHidden !== undefined ? p.size.isHidden : (p.isHidden ?? false),
+      isLocked: p.size?.isLocked !== undefined ? p.size.isLocked : (p.isLocked ?? false),
       oldPriceInfo: p.size?.oldPriceInfo || undefined,
       forceStandardCrush: p.size?.forceStandardCrush ?? true,
       updatedAt: p.size?.updatedAt || p.createdAt
