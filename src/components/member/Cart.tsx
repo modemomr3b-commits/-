@@ -32,6 +32,52 @@ export default function Cart() {
   }, 0);
 
   const handleWhatsAppShare = async () => {
+    if (cart.length === 0) return;
+
+    // First, save the order into the database so it appears in Order History
+    try {
+      const fullNotes = [
+         customerName ? `اسم الزبون: ${customerName}` : '',
+         transport ? `النقليات: ${transport}` : '',
+         notes ? `ملاحظات إضافية: ${notes}` : ''
+      ].filter(Boolean).join('\n');
+
+      const orderNumber = `BRQ-${Math.floor(1000 + Math.random() * 9000)}`;
+      await api.createOrder({
+        userId: user?.id || user?.uid || 'guest',
+        username: user?.username || 'ضيف',
+        fullName: user?.fullName || customerName || 'زبون',
+        orderNumber,
+        status: 'new',
+        items: cart.map(item => ({
+             productId: item.product.id,
+             quantity: item.quantity,
+             product: item.product,
+        })),
+        totalQuantity: totalPieces,
+        notes: fullNotes,
+        createdAt: Date.now()
+      });
+
+      if (user) {
+        await api.logAction({
+          userId: user.id || user.uid,
+          userName: user.username,
+          action: 'إنشاء طلب واتساب',
+          entityType: 'order',
+          entityId: orderNumber,
+          details: { totalPieces }
+        });
+      }
+
+      await api.createNotification({
+         message: `طلب واتساب جديد من: ${customerName || user?.fullName || user?.username || 'زبون'}`,
+         type: 'order'
+      });
+    } catch (saveErr) {
+      console.error("Failed to save order to database:", saveErr);
+    }
+
     let filesArray: File[] = [];
     const agentName = user?.fullName || user?.username || '---';
     const text = `*طلب جديد* 🛒\n\n*اسم الوكيل:* ${agentName}\n*اسم الزبون:* ${customerName || '---'}\n*النقليات:* ${transport || '---'}\n\n*المنتجات:*\n${cart.map((item, index) => `${index+1}- *الكود: ${item.product.productCode || '---'}*\n  *الكمية: ${item.quantity}*`).join('\n\n')}`;

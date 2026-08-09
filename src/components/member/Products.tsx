@@ -61,7 +61,7 @@ export default function Products() {
         allProducts = await api.getProducts();
       }
       
-      let fetchedProducts = allProducts.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked);
+      let fetchedProducts = allProducts.filter((p: any) => !p.isLocked);
       
       if (categoryId) {
         const cat = cats.find((c: any) => c.id === categoryId);
@@ -95,12 +95,14 @@ export default function Products() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
         clearTimeout(fetchTimeout);
         fetchTimeout = setTimeout(() => {
+          api.clearCache();
           if (mounted) fetchProducts();
         }, 1500);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'categories' }, () => {
         clearTimeout(fetchTimeout);
         fetchTimeout = setTimeout(() => {
+          api.clearCache();
           if (mounted) fetchProducts();
         }, 1500);
       })
@@ -802,6 +804,11 @@ export default function Products() {
                   </div>
                 ) : (
                   <div className="text-white/30 text-3xl">👟</div>
+                )}
+                {(p.isArchived || p.isHidden) && (
+                  <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-10 pointer-events-none">
+                    <span className="bg-red-500/80 text-white px-3 py-1 rounded-full text-xs font-bold border border-white/20 backdrop-blur-md">نافذ / غير متوفر</span>
+                  </div>
                 )}
               </div>
               <div className="p-3 flex flex-col gap-2 bg-gradient-to-b from-transparent to-black/40">

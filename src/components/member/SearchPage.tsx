@@ -85,8 +85,10 @@ export default function SearchPage() {
   const filteredProductsAll = useMemo(() => {
     if (!query) return [];
     
-    let result = products.filter(p => !p.isHidden && !p.isLocked);
-    result = searchArchived ? result.filter(p => p.isArchived) : result.filter(p => !p.isArchived);
+    let result = products.filter(p => !p.isLocked);
+    if (searchArchived) {
+      result = result.filter(p => p.isArchived);
+    }
     
     return filterProductsBySearch(result, query, allCategories);
   }, [products, query, searchArchived, allCategories]);

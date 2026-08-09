@@ -142,8 +142,12 @@ export const api = {
     };
   },
   getProducts: async () => {
+    const cacheKey = 'all_products';
+    if (memCache[cacheKey] && Date.now() - memCache[cacheKey].timestamp < CACHE_TTL) {
+      return memCache[cacheKey].data;
+    }
     const data = await getData('products');
-    return data.map((p: any) => ({
+    const res = data.map((p: any) => ({
       ...p,
       isHidden: p.size?.isHidden !== undefined ? p.size.isHidden : (p.isHidden ?? false),
       isLocked: p.size?.isLocked !== undefined ? p.size.isLocked : (p.isLocked ?? false),
@@ -151,6 +155,9 @@ export const api = {
       forceStandardCrush: p.size?.forceStandardCrush ?? true,
       updatedAt: p.size?.updatedAt || p.createdAt
     })).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+    memCache[cacheKey] = { data: res, timestamp: Date.now() };
+    return res;
   },
   createProduct: async (data: any) => { 
     const serverTime = await getServerTime();
@@ -343,7 +350,15 @@ export const api = {
   },
 
   // CATEGORIES
-  getCategories: async () => await getData('categories'),
+  getCategories: async () => {
+    const cacheKey = 'all_categories';
+    if (memCache[cacheKey] && Date.now() - memCache[cacheKey].timestamp < CACHE_TTL) {
+      return memCache[cacheKey].data;
+    }
+    const res = await getData('categories');
+    memCache[cacheKey] = { data: res, timestamp: Date.now() };
+    return res;
+  },
   createCategory: async (data: any) => { 
     const { data: r, error } = await supabase.from('categories').insert(data).select().single(); 
     if (error) throw error; return r; 

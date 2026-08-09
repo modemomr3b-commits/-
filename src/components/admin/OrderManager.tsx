@@ -126,12 +126,6 @@ export default function OrderManager() {
   const handlePrintOrder = (order: Order) => {
     const date = formatDateTime(order.createdAt);
     
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      alert("يرجى السماح بالنوافذ المنبثقة (Pop-ups) لطباعة الطلبية.");
-      return;
-    }
-
     const itemsHtml = order.items?.map((item, index) => `
       <tr>
         <td style="padding: 10px; border-bottom: 1px solid #ddd;">${index + 1}</td>
@@ -149,11 +143,12 @@ export default function OrderManager() {
     `).join('') || '';
 
     const html = `
+      <!DOCTYPE html>
       <html dir="rtl" lang="ar">
         <head>
           <title>طباعة طلب رقم ${order.orderNumber || order.id.slice(0, 8)}</title>
           <style>
-            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; color: #000; direction: rtl; }
+            body { font-family: system-ui, -apple-system, sans-serif; padding: 20px; color: #000; direction: rtl; }
             .header { border-bottom: 2px solid #000; padding-bottom: 15px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
             .title { font-size: 28px; font-weight: bold; }
             .info-box { border: 2px solid #333; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
@@ -218,21 +213,40 @@ export default function OrderManager() {
           <div class="footer">
             وثيقة طلبية مطبوعة من نظام الإدارة
           </div>
-          
-          <script>
-            window.onload = () => {
-              setTimeout(() => {
-                window.print();
-              }, 500);
-            };
-          </script>
         </body>
       </html>
     `;
 
-    printWindow.document.open();
-    printWindow.document.write(html);
-    printWindow.document.close();
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document || iframe.contentDocument;
+    if (doc) {
+      doc.open();
+      doc.write(html);
+      doc.close();
+
+      setTimeout(() => {
+        try {
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+        } catch (e) {
+          console.error("Print error", e);
+        } finally {
+          setTimeout(() => {
+            if (iframe.parentNode) {
+              iframe.parentNode.removeChild(iframe);
+            }
+          }, 1000);
+        }
+      }, 300);
+    }
   };
 
   const filteredOrders = orders.filter(o => {

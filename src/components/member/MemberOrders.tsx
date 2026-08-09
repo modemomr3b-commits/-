@@ -2,15 +2,21 @@ import { useEffect, useState } from 'react';
 import { useStore } from '../../store';
 import { api } from '../../api';
 import { Order } from '../../types';
-import { Package, Clock, CheckCircle, Search, XCircle, MoreHorizontal } from 'lucide-react';
+import { Package, Clock, CheckCircle, Search, XCircle, MoreHorizontal, Download, X, Eye, FileText, User, Truck, Hash, Calendar, Loader2 } from 'lucide-react';
 import { Link } from 'react-router';
 import OptimizedImage from '../OptimizedImage';
+import { downloadImages } from '../../utils/download';
 
 export default function MemberOrders() {
   const { user, showToast } = useStore();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // Selected order for detailed modal view
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState<{ progress: number; total: number } | null>(null);
 
   useEffect(() => {
     const fetchOrders = async () => {
@@ -62,8 +68,67 @@ export default function MemberOrders() {
   };
 
   const filteredOrders = orders.filter(o => 
-    !searchTerm || (o.orderNumber || '').toLowerCase().includes(searchTerm.toLowerCase())
+    !searchTerm || 
+    (o.orderNumber || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (o.notes || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const handleDownloadAllImages = async (order: Order) => {
+    if (!order.items || order.items.length === 0) {
+      showToast("لا توجد منتجات في هذه الطلبية", "error");
+      return;
+    }
+
+    const imagesToDownload: { url: string; filename: string }[] = [];
+    
+    order.items.forEach((item, idx) => {
+      const url = item.product?.finalImageUrl || item.product?.imageUrl;
+      if (url) {
+        const ext = url.split('.').pop()?.split('?')[0] || 'jpg';
+        const safeCode = (item.product?.productCode || item.product?.name || `item-${idx + 1}`)
+          .replace(/[\\/\\?<>\\:\\*\\|":]/g, '-');
+        const filename = `order-${order.orderNumber || 'order'}-${safeCode}.${ext}`;
+        imagesToDownload.push({ url, filename });
+      }
+    });
+
+    if (imagesToDownload.length === 0) {
+      showToast("لا توجد صور متوفرة للتنزيل في هذه الطلبية", "error");
+      return;
+    }
+
+    try {
+      setIsDownloading(true);
+      showToast("جاري تجهيز وتنزيل الصور للطلب...", "loading");
+      
+      const success = await downloadImages(imagesToDownload, (progress, total) => {
+        setDownloadProgress({ progress, total });
+      });
+
+      if (success) {
+        showToast("تم حفظ جميع الصور بنجاح", "success");
+      } else {
+        showToast("حدث خطأ أثناء تنزيل الصور", "error");
+      }
+    } catch (err) {
+      console.error("Error downloading order images:", err);
+      showToast("حدث خطأ أثناء تنزيل الصور", "error");
+    } finally {
+      setIsDownloading(false);
+      setDownloadProgress(null);
+    }
+  };
+
+  const formatDate = (timestamp?: number) => {
+    if (!timestamp) return '---';
+    return new Date(timestamp).toLocaleDateString('ar-IQ', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
 
   if (loading) {
     return (
@@ -74,13 +139,13 @@ export default function MemberOrders() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6 pb-20">
       <div className="glass-panel p-6 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border border-white/5">
         <div>
           <h1 className="text-2xl font-bold text-white mb-2 flex items-center gap-2">
             <Package className="text-brq-gold" /> سجل الطلبات
           </h1>
-          <p className="text-white/60 text-sm">متابعة حالة طلباتك السابقة</p>
+          <p className="text-white/60 text-sm">متابعة وعرض كافة طلباتك السابقة وتفاصيلها</p>
         </div>
         
         <div className="relative w-full md:w-64">
@@ -90,7 +155,7 @@ export default function MemberOrders() {
             placeholder="بحث برقم الطلب..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-black/40 border border-white/10 rounded-xl py-2.5 pr-10 pl-4 text-white focus:border-brq-gold/50 outline-none transition-all"
+            className="w-full bg-black/40 border border-white/10 rounded-xl py-2.5 pr-10 pl-4 text-white focus:border-brq-gold/50 outline-none transition-all text-sm"
             dir="rtl"
           />
         </div>
@@ -114,41 +179,180 @@ export default function MemberOrders() {
             const StatusIcon = statusConfig.icon;
             
             return (
-              <div key={order.id} className="glass-panel p-5 rounded-2xl border border-white/5 flex flex-col gap-4">
+              <div 
+                key={order.id} 
+                onClick={() => setSelectedOrder(order)}
+                className="glass-panel p-5 rounded-2xl border border-white/5 hover:border-brq-gold/50 cursor-pointer transition-all flex flex-col gap-4 group"
+              >
                 <div className="flex justify-between items-start border-b border-white/5 pb-4">
                   <div>
                     <span className="text-xs text-white/50 mb-1 block">رقم الطلب</span>
-                    <span className="font-mono font-bold text-lg text-white">{order.orderNumber}</span>
+                    <span className="font-mono font-bold text-lg text-white group-hover:text-brq-gold transition-colors">{order.orderNumber}</span>
+                    <span className="text-[11px] text-white/40 block mt-1">{formatDate(order.createdAt)}</span>
                   </div>
-                  <div className={`px-3 py-1.5 rounded-lg border flex items-center gap-1.5 text-xs font-bold ${statusConfig.color}`}>
-                    <StatusIcon size={14} />
-                    {statusConfig.label}
+                  <div className="flex items-center gap-3">
+                    <div className={`px-3 py-1.5 rounded-lg border flex items-center gap-1.5 text-xs font-bold ${statusConfig.color}`}>
+                      <StatusIcon size={14} />
+                      {statusConfig.label}
+                    </div>
                   </div>
                 </div>
-                                <div className="overflow-x-auto pb-2">
-                  <div className="flex gap-3 min-w-max">
-                    {(order.items || []).slice(0, 5).map((item, idx) => (
-                      <div key={idx} className="w-16 h-16 bg-black/40 rounded-xl border border-white/10 overflow-hidden relative group">
-                         {item?.product?.finalImageUrl || item?.product?.imageUrl ? (
-                           <OptimizedImage src={item.product.finalImageUrl || item.product.imageUrl!} alt={item.product.name} size="thumbnail" className="w-full h-full" imgClassName="object-cover" />
-                         ) : (
-                           <div className="w-full h-full flex items-center justify-center text-xl">👟</div>
-                         )}
-                         <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-xs font-bold text-brq-gold">
-                           {item?.quantity || 1}
-                         </div>
-                      </div>
-                    ))}
-                    {(order.items || []).length > 5 && (
-                      <div className="w-16 h-16 bg-black/40 rounded-xl border border-white/10 flex items-center justify-center font-bold text-white/50 text-sm">
-                        +{(order.items || []).length - 5}
-                      </div>
-                    )}
+
+                <div className="flex items-center justify-between">
+                  <div className="overflow-x-auto pb-2 flex-1">
+                    <div className="flex gap-3 min-w-max">
+                      {(order.items || []).slice(0, 6).map((item, idx) => (
+                        <div key={idx} className="w-16 h-16 bg-black/40 rounded-xl border border-white/10 overflow-hidden relative group/img">
+                           {item?.product?.finalImageUrl || item?.product?.imageUrl ? (
+                             <OptimizedImage src={item.product.finalImageUrl || item.product.imageUrl!} alt={item.product.name} size="thumbnail" className="w-full h-full" imgClassName="object-cover" />
+                           ) : (
+                             <div className="w-full h-full flex items-center justify-center text-xl">👟</div>
+                           )}
+                           <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center text-xs font-bold text-brq-gold">
+                             {item?.quantity || 1} قطعة
+                           </div>
+                        </div>
+                      ))}
+                      {(order.items || []).length > 6 && (
+                        <div className="w-16 h-16 bg-black/40 rounded-xl border border-white/10 flex items-center justify-center font-bold text-white/50 text-sm">
+                          +{(order.items || []).length - 6}
+                        </div>
+                      )}
+                    </div>
                   </div>
+
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedOrder(order);
+                    }}
+                    className="mr-4 px-4 py-2.5 bg-brq-gold/10 text-brq-gold border border-brq-gold/30 rounded-xl text-xs font-bold flex items-center gap-2 hover:bg-brq-gold hover:text-black transition-all shrink-0"
+                  >
+                    <Eye size={16} /> عرض التفاصيل
+                  </button>
                 </div>
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Order Details Modal */}
+      {selectedOrder && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+          <div className="glass-panel w-full max-w-2xl rounded-3xl border border-brq-gold/30 p-6 space-y-6 text-white max-h-[90vh] overflow-y-auto relative animate-in fade-in zoom-in duration-200">
+            {/* Header */}
+            <div className="flex justify-between items-center border-b border-white/10 pb-4">
+              <div>
+                <span className="text-xs text-brq-gold font-bold">تفاصيل الطلبية</span>
+                <h2 className="text-2xl font-bold font-mono">{selectedOrder.orderNumber}</h2>
+              </div>
+              <button 
+                onClick={() => setSelectedOrder(null)}
+                className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Quick Actions & Status */}
+            <div className="flex flex-wrap items-center justify-between gap-4 bg-black/40 p-4 rounded-2xl border border-white/5">
+              <div>
+                <span className="text-xs text-white/50 block">حالة الطلب</span>
+                <span className="font-bold text-sm text-brq-gold">
+                  {getStatusDisplay(selectedOrder.status).label}
+                </span>
+              </div>
+              <div>
+                <span className="text-xs text-white/50 block">تاريخ الطلب</span>
+                <span className="font-mono text-xs text-white/80">{formatDate(selectedOrder.createdAt)}</span>
+              </div>
+              <div>
+                <span className="text-xs text-white/50 block">إجمالي القطع</span>
+                <span className="font-bold text-lg text-emerald-400">{selectedOrder.totalQuantity || 0} قطعة</span>
+              </div>
+            </div>
+
+            {/* Save All Images Button */}
+            <button
+              onClick={() => handleDownloadAllImages(selectedOrder)}
+              disabled={isDownloading}
+              className="w-full py-3.5 px-6 bg-gradient-to-r from-brq-gold to-yellow-400 text-black font-bold rounded-2xl shadow-lg hover:shadow-brq-gold/20 flex items-center justify-center gap-3 transition-all text-base disabled:opacity-50"
+            >
+              {isDownloading ? (
+                <>
+                  <Loader2 size={20} className="animate-spin" />
+                  <span>جاري الحفظ ({downloadProgress?.progress || 0} / {downloadProgress?.total || 0})...</span>
+                </>
+              ) : (
+                <>
+                  <Download size={22} />
+                  <span>حفظ كل صور الطلبية إلى الاستوديو</span>
+                </>
+              )}
+            </button>
+
+            {/* Customer & Transport Details */}
+            {selectedOrder.notes && (
+              <div className="bg-white/5 p-4 rounded-2xl border border-white/5 space-y-2">
+                <h3 className="text-xs font-bold text-brq-gold flex items-center gap-1.5">
+                  <FileText size={16} /> معلومات الطلب والزبون والنقليات
+                </h3>
+                <p className="text-sm text-white/80 whitespace-pre-line leading-relaxed font-sans">
+                  {selectedOrder.notes}
+                </p>
+              </div>
+            )}
+
+            {/* Products List */}
+            <div className="space-y-3">
+              <h3 className="text-sm font-bold text-white/80 flex items-center justify-between">
+                <span>المنتجات المطلوبة ({selectedOrder.items?.length || 0})</span>
+              </h3>
+              <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
+                {(selectedOrder.items || []).map((item, idx) => (
+                  <div key={idx} className="flex items-center gap-3 p-3 bg-black/40 rounded-xl border border-white/5 hover:border-white/20 transition-colors">
+                    <div className="w-16 h-16 rounded-lg bg-black/60 overflow-hidden border border-white/10 shrink-0">
+                      {item.product?.finalImageUrl || item.product?.imageUrl ? (
+                        <OptimizedImage 
+                          src={item.product.finalImageUrl || item.product.imageUrl!} 
+                          alt={item.product.name} 
+                          size="thumbnail" 
+                          className="w-full h-full" 
+                          imgClassName="object-cover" 
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-xl">👟</div>
+                      )}
+                    </div>
+                    
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-bold text-sm text-white truncate">{item.product?.name || 'منتج'}</h4>
+                      <div className="flex items-center gap-3 mt-1 text-xs text-white/60 font-mono">
+                        <span>الكود: <strong className="text-brq-gold">{item.product?.productCode || '---'}</strong></span>
+                        {item.product?.modelNumber && <span>الموديل: {item.product.modelNumber}</span>}
+                      </div>
+                    </div>
+
+                    <div className="text-left shrink-0 bg-brq-gold/10 px-3 py-1.5 rounded-lg border border-brq-gold/30">
+                      <span className="text-[10px] text-white/50 block">الكمية</span>
+                      <span className="font-bold text-brq-gold text-sm">{item.quantity} قطعة</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex justify-end pt-2 border-t border-white/10">
+              <button
+                onClick={() => setSelectedOrder(null)}
+                className="px-6 py-2.5 bg-white/10 text-white rounded-xl font-bold hover:bg-white/20 transition-colors text-sm"
+              >
+                إغلاق
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
