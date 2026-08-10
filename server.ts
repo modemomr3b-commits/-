@@ -122,14 +122,14 @@ app.post('/api/notify-publish', express.json(), async (req, res) => {
     res.json({ status: "ok" });
   });
 
-  app.post('/api/generate-decor', express.json({ limit: '15mb' }), async (req, res) => {
+  app.post('/api/generate-decor', express.json({ limit: '20mb' }), async (req, res) => {
     try {
       const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey) {
         return res.status(400).json({ error: 'مفتاح GEMINI_API_KEY غير متوفر في الخدمة.' });
       }
 
-      const { imageBase64, prompt, pose, decorStyle } = req.body;
+      const { imageBase64, prompt } = req.body;
       const ai = new GoogleGenAI({
         apiKey,
         httpOptions: {
@@ -139,7 +139,7 @@ app.post('/api/notify-publish', express.json(), async (req, res) => {
 
       let base64Data = '';
       if (imageBase64) {
-        if (imageBase64.startsWith('http://') || imageBase64.startsWith('https://')) {
+        if (typeof imageBase64 === 'string' && (imageBase64.startsWith('http://') || imageBase64.startsWith('https://'))) {
           try {
             const imgRes = await fetch(imageBase64);
             const arrayBuffer = await imgRes.arrayBuffer();
@@ -147,7 +147,7 @@ app.post('/api/notify-publish', express.json(), async (req, res) => {
           } catch (e) {
             console.error('Failed to download image URL:', e);
           }
-        } else {
+        } else if (typeof imageBase64 === 'string') {
           base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
         }
       }
@@ -173,9 +173,11 @@ app.post('/api/notify-publish', express.json(), async (req, res) => {
         }
       }
 
-      const combinedPrompt = `Professional commercial footwear product advertisement. ${shoeDescription ? `Product feature details: ${shoeDescription}.` : ''} ${prompt || 'High-end footwear display photograph.'} Maintain strict consistency with the shoe colors, design, and structure. Photorealistic studio shot, 8k resolution, crisp focus, cinematic lighting.`;
+      const combinedPrompt = `Professional commercial footwear product advertisement photograph. ${shoeDescription ? `Product feature details: ${shoeDescription}.` : ''} ${prompt || 'High-end footwear display photograph.'} Maintain strict consistency with the shoe colors, design, and structure. Photorealistic studio shot, 8k resolution, crisp focus, cinematic lighting.`;
 
       let generatedImageUrl = '';
+
+      // Attempt 1: Imagen 3.0 Generate 002
       try {
         const imageResponse = await ai.models.generateImages({
           model: 'imagen-3.0-generate-002',
@@ -190,36 +192,65 @@ app.post('/api/notify-publish', express.json(), async (req, res) => {
         if (imageResponse.generatedImages && imageResponse.generatedImages[0]?.image?.imageBytes) {
           generatedImageUrl = `data:image/jpeg;base64,${imageResponse.generatedImages[0].image.imageBytes}`;
         }
-      } catch (genImgErr) {
-        console.warn('generateImages failed, trying generateContent fallback:', genImgErr);
-        const parts: any[] = [];
-        if (base64Data) {
-          parts.push({
-            inlineData: {
-              data: base64Data,
-              mimeType: 'image/jpeg'
+      } catch (genImgErr: any) {
+        console.warn('imagen-3.0-generate-002 failed:', genImgErr?.message || genImgErr);
+      }
+
+      // Attempt 2: Imagen 3.0 Generate 001
+      if (!generatedImageUrl) {
+        try {
+          const imageResponse = await ai.models.generateImages({
+            model: 'imagen-3.0-generate-001',
+            prompt: combinedPrompt,
+            config: {
+              numberOfImages: 1,
+              outputMimeType: 'image/jpeg',
+              aspectRatio: '1:1'
             }
           });
+
+          if (imageResponse.generatedImages && imageResponse.generatedImages[0]?.image?.imageBytes) {
+            generatedImageUrl = `data:image/jpeg;base64,${imageResponse.generatedImages[0].image.imageBytes}`;
+          }
+        } catch (genImgErr2: any) {
+          console.warn('imagen-3.0-generate-001 failed:', genImgErr2?.message || genImgErr2);
         }
-        parts.push({ text: combinedPrompt });
+      }
 
-        const contentResponse = await ai.models.generateContent({
-          model: 'gemini-2.5-flash',
-          contents: { parts }
-        });
+      // Attempt 3: Gemini 2.5 Flash Multimodal Fallback
+      if (!generatedImageUrl) {
+        try {
+          const parts: any[] = [];
+          if (base64Data) {
+            parts.push({
+              inlineData: {
+                data: base64Data,
+                mimeType: 'image/jpeg'
+              }
+            });
+          }
+          parts.push({ text: `Generate a photorealistic footwear advertisement image based on this product and prompt: ${combinedPrompt}` });
 
-        if (contentResponse.candidates && contentResponse.candidates[0]?.content?.parts) {
-          for (const part of contentResponse.candidates[0].content.parts) {
-            if (part.inlineData && part.inlineData.data) {
-              generatedImageUrl = `data:image/jpeg;base64,${part.inlineData.data}`;
-              break;
+          const contentResponse = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: { parts }
+          });
+
+          if (contentResponse.candidates && contentResponse.candidates[0]?.content?.parts) {
+            for (const part of contentResponse.candidates[0].content.parts) {
+              if (part.inlineData && part.inlineData.data) {
+                generatedImageUrl = `data:image/jpeg;base64,${part.inlineData.data}`;
+                break;
+              }
             }
           }
+        } catch (genContentErr: any) {
+          console.warn('Gemini 2.5 flash content generation failed:', genContentErr?.message || genContentErr);
         }
       }
 
       if (!generatedImageUrl) {
-        return res.status(500).json({ error: 'لم يتم الحصول على صورة من نموذج الذكاء الاصطناعي.' });
+        return res.status(500).json({ error: 'تعذر توليد الصورة حالياً من الخدمة. يرجى المحاولة مرة أخرى بعد لحظات.' });
       }
 
       return res.json({ imageUrl: generatedImageUrl });

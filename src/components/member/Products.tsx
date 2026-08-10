@@ -850,16 +850,18 @@ export default function Products() {
                     </div>
                   )}
                 </div>
-                <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/5">
-                  <div className="flex flex-col">
-                    <p className="text-[9px] text-white/40 mb-0.5">تاريخ النزول</p>
-                    <p className="text-[10px] text-white/70 font-mono tracking-tight">{p.createdAt ? formatDate(p.createdAt) : '---'}</p>
+                {user?.role === 'admin' && (
+                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/5">
+                    <div className="flex flex-col">
+                      <p className="text-[9px] text-white/40 mb-0.5">تاريخ النزول</p>
+                      <p className="text-[10px] text-white/70 font-mono tracking-tight">{p.createdAt ? formatDate(p.createdAt) : '---'}</p>
+                    </div>
+                    <div className="flex flex-col items-end">
+                      <p className="text-[9px] text-white/40 mb-0.5">أخر تحديث</p>
+                      <p className="text-[10px] text-white/70 font-mono tracking-tight">{p.updatedAt ? formatDate(p.updatedAt) : (p.createdAt ? formatDate(p.createdAt) : '---')}</p>
+                    </div>
                   </div>
-                  <div className="flex flex-col items-end">
-                    <p className="text-[9px] text-white/40 mb-0.5">أخر تحديث</p>
-                    <p className="text-[10px] text-white/70 font-mono tracking-tight">{p.updatedAt ? formatDate(p.updatedAt) : (p.createdAt ? formatDate(p.createdAt) : '---')}</p>
-                  </div>
-                </div>
+                )}
                 <div className="mt-2">
                   {(() => {
                     const cartItem = cart.find(item => item.product.id === p.id);

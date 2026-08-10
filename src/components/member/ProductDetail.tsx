@@ -259,14 +259,18 @@ export default function ProductDetail() {
                    <p className="text-[10px] text-white/50 uppercase tracking-widest mb-1">سعر القطعة (د.ع)</p>
                    <p className="font-mono text-sm font-bold text-white">{product.piecePriceIqd ? product.piecePriceIqd.toLocaleString("en-US") : '---'}</p>
                 </div>
-                <div className="glass-panel p-3 rounded-xl border border-white/5 bg-black/20">
-                   <p className="text-[10px] text-white/50 uppercase tracking-widest mb-1">تاريخ النزول</p>
-                   <p className="font-mono text-xs font-bold text-white tracking-tight">{product.createdAt ? formatDate(product.createdAt) : '---'}</p>
-                </div>
-                <div className="glass-panel p-3 rounded-xl border border-white/5 bg-black/20">
-                   <p className="text-[10px] text-white/50 uppercase tracking-widest mb-1">أخر تحديث</p>
-                   <p className="font-mono text-xs font-bold text-white tracking-tight">{product.updatedAt ? formatDate(product.updatedAt) : (product.createdAt ? formatDate(product.createdAt) : '---')}</p>
-                </div>
+                {user?.role === 'admin' && (
+                  <>
+                    <div className="glass-panel p-3 rounded-xl border border-white/5 bg-black/20">
+                       <p className="text-[10px] text-white/50 uppercase tracking-widest mb-1">تاريخ النزول</p>
+                       <p className="font-mono text-xs font-bold text-white tracking-tight">{product.createdAt ? formatDate(product.createdAt) : '---'}</p>
+                    </div>
+                    <div className="glass-panel p-3 rounded-xl border border-white/5 bg-black/20">
+                       <p className="text-[10px] text-white/50 uppercase tracking-widest mb-1">أخر تحديث</p>
+                       <p className="font-mono text-xs font-bold text-white tracking-tight">{product.updatedAt ? formatDate(product.updatedAt) : (product.createdAt ? formatDate(product.createdAt) : '---')}</p>
+                    </div>
+                  </>
+                )}
             </div>
          </div>
 
