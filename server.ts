@@ -124,9 +124,14 @@ app.post('/api/notify-publish', express.json(), async (req, res) => {
 
   app.post('/api/generate-decor', express.json({ limit: '20mb' }), async (req, res) => {
     try {
-      const apiKey = process.env.GEMINI_API_KEY;
+      const headerKey = req.headers['x-gemini-api-key'] as string;
+      const bodyKey = req.body?.customApiKey as string;
+      const apiKey = (headerKey || bodyKey || process.env.GEMINI_API_KEY || '').trim();
+
       if (!apiKey) {
-        return res.status(400).json({ error: 'مفتاح GEMINI_API_KEY غير متوفر في الخدمة.' });
+        return res.status(400).json({ 
+          error: 'مفتاح GEMINI_API_KEY غير متوفر. إذا كان لديك حساب Gemini Pro، يرجى كتابة مفتاح API في الخيار المخصص داخل الاستوديو.' 
+        });
       }
 
       const { imageBase64, prompt } = req.body;
@@ -155,7 +160,8 @@ app.post('/api/notify-publish', express.json(), async (req, res) => {
       let shoeDescription = '';
       if (base64Data) {
         try {
-          const visionRes = await ai.models.generateContent({
+          // Quick 4-second timeout for vision analysis so request never hangs
+          const visionPromise = ai.models.generateContent({
             model: 'gemini-2.5-flash',
             contents: [
               {
@@ -167,9 +173,15 @@ app.post('/api/notify-publish', express.json(), async (req, res) => {
               { text: "Analyze this footwear item in detail. Describe its exact design, colors, patterns, sole type, strap/lace style, and material in 2 concise English sentences for product reproduction." }
             ]
           });
-          shoeDescription = visionRes.text || '';
+
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Vision timeout')), 4000)
+          );
+
+          const visionRes: any = await Promise.race([visionPromise, timeoutPromise]);
+          shoeDescription = visionRes?.text || '';
         } catch (visionErr) {
-          console.warn('Vision analysis failed:', visionErr);
+          console.warn('Vision analysis skipped or timed out:', visionErr);
         }
       }
 
@@ -250,7 +262,9 @@ app.post('/api/notify-publish', express.json(), async (req, res) => {
       }
 
       if (!generatedImageUrl) {
-        return res.status(500).json({ error: 'تعذر توليد الصورة حالياً من الخدمة. يرجى المحاولة مرة أخرى بعد لحظات.' });
+        return res.status(500).json({ 
+          error: 'تعذر توليد الصورة من نماذج الذكاء الاصطناعي. إذا كنت تستخدم مفتاح API خاص بك، يرجى التأكد من تفعيل خدمة Imagen عليه.' 
+        });
       }
 
       return res.json({ imageUrl: generatedImageUrl });

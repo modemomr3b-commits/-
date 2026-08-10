@@ -101,8 +101,29 @@ export default function ProductManager() {
       prompt: 'Clean neutral grey commercial advertising studio background with professional softbox lighting.'
     },
     'urban_street': {
-      label: '<ctrl42> شارع عصري ومقهى أنيق',
+      label: '🌇 شارع عصري ومقهى أنيق',
       prompt: 'Modern aesthetic outdoor city sidewalk next to a stylish cafe with golden hour natural sunlight.'
+    }
+  };
+
+  const [customApiKey, setCustomApiKey] = useState<string>(() => {
+    try {
+      return localStorage.getItem('custom_gemini_api_key') || '';
+    } catch {
+      return '';
+    }
+  });
+
+  const handleCustomApiKeyChange = (val: string) => {
+    setCustomApiKey(val);
+    try {
+      if (val.trim()) {
+        localStorage.setItem('custom_gemini_api_key', val.trim());
+      } else {
+        localStorage.removeItem('custom_gemini_api_key');
+      }
+    } catch (e) {
+      console.error(e);
     }
   };
 
@@ -116,18 +137,36 @@ export default function ProductManager() {
       const selectedDecorText = decorPresets[aiDecorStyle]?.prompt || '';
       const finalPrompt = `${selectedPoseText} ${selectedDecorText} ${aiCustomPrompt.trim()}`.trim();
 
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (customApiKey.trim()) {
+        headers['x-gemini-api-key'] = customApiKey.trim();
+      }
+
       const res = await fetch('/api/generate-decor', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           imageBase64: currentImg,
           prompt: finalPrompt,
           pose: aiPose,
           decorStyle: aiDecorStyle,
+          customApiKey: customApiKey.trim() || undefined,
         })
       });
 
-      const data = await res.json();
+      const contentType = res.headers.get("content-type") || "";
+      let data: any = {};
+      if (contentType.includes("application/json")) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        console.error("Non-JSON server response:", res.status, text);
+        if (res.status === 504 || res.status === 502) {
+          throw new Error("انتهت مهلة استجابة الخادم. يرجى المحاولة مرة أخرى.");
+        }
+        throw new Error(`تعذر معالجة الطلب من الخادم (${res.status}). يرجى إعادة المحاولة.`);
+      }
+
       if (!res.ok || data.error) {
         throw new Error(data.error || 'حدث خطأ أثناء الاتصال بالخادم وتوليد الصورة');
       }
@@ -2361,6 +2400,21 @@ export default function ProductManager() {
                   onChange={(e) => setAiCustomPrompt(e.target.value)}
                   className="w-full bg-black/60 border border-white/20 rounded-xl px-3 py-2 text-xs text-white placeholder-white/40 focus:outline-none focus:border-purple-400"
                   placeholder="مثلاً: إضافة تفاصيل إضاءة ذهبية خافتة..."
+                />
+              </div>
+
+              {/* Custom Gemini Pro API Key (Optional) */}
+              <div className="bg-purple-950/20 border border-purple-500/30 p-3 rounded-xl">
+                <label className="block text-xs font-bold text-purple-300 mb-1 flex items-center justify-between">
+                  <span>🔑 مفتاح Gemini API الخاص بك (اختياري / لحسابات Gemini Pro):</span>
+                  <span className="text-[10px] text-purple-400 font-normal">يتم حفظه تلقائياً</span>
+                </label>
+                <input
+                  type="password"
+                  value={customApiKey}
+                  onChange={(e) => handleCustomApiKeyChange(e.target.value)}
+                  className="w-full bg-black/80 border border-purple-500/40 rounded-lg px-3 py-1.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-purple-400 font-mono"
+                  placeholder="إذا كان لديك اشتراك Gemini Pro، أدخل المفتاح هنا لاستخدامه مباشرة (AIzaSy...)"
                 />
               </div>
 
