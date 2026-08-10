@@ -57,10 +57,54 @@ export default function ProductManager() {
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [aiStudioProduct, setAiStudioProduct] = useState<Product | null>(null);
-  const [aiPrompt, setAiPrompt] = useState<string>('منصة عرض رخامية فاخرة مع إضاءة خافتة ومسلطة على الحذاء بشكل احترافي');
+  const [aiPose, setAiPose] = useState<string>('model_seated');
+  const [aiDecorStyle, setAiDecorStyle] = useState<string>('marble');
+  const [aiCustomPrompt, setAiCustomPrompt] = useState<string>('');
   const [aiGenerating, setAiGenerating] = useState<boolean>(false);
   const [aiResultUrl, setAiResultUrl] = useState<string | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
+
+  const posePresets: Record<string, { label: string, prompt: string }> = {
+    'model_seated': {
+      label: '🧘‍♀️ شخصية جالسة (لابسة حذاء برجلها والثاني موضوع بالارض)',
+      prompt: 'A stylish person sitting gracefully on an elegant stool or bench, wearing one shoe of the pair on their foot, while the matching second shoe of the pair is placed neatly on the floor right beside their foot.'
+    },
+    'model_standing': {
+      label: '🧍‍♀️ شخصية واقفة (لابسة حذاء برجلها والثاني موضوع بالارض)',
+      prompt: 'A fashion model standing naturally, wearing one shoe on their foot, with the matching second shoe of the pair standing neatly on the floor next to them.'
+    },
+    'shoe_pair_stage': {
+      label: '👟 زوج أحذية كامل موضوع على منصة العرض',
+      prompt: 'A complete pair of shoes displayed together side-by-side on a luxury commercial display stage.'
+    },
+    'lifestyle_close': {
+      label: '🚶‍♂️ لقطة حركية عصرية مقربة للقدمين',
+      prompt: 'A dynamic close-up lifestyle shot of feet walking, showcasing the footwear in action.'
+    }
+  };
+
+  const decorPresets: Record<string, { label: string, prompt: string }> = {
+    'marble': {
+      label: '🏛️ منصة رخام فاخرة ومرايا',
+      prompt: 'Luxury polished marble floor with subtle reflections, soft studio spotlights, and high-end atmosphere.'
+    },
+    'wood_nature': {
+      label: '🌿 ديكور خشبي طبيعي مع نباتات',
+      prompt: 'Warm natural hardwood floor surrounded by lush green tropical indoor plants and warm sunlight.'
+    },
+    'neon_modern': {
+      label: '⚡ معرض حديث نيون',
+      prompt: 'Modern glass platform with futuristic blue and gold accent neon lighting.'
+    },
+    'studio_clean': {
+      label: '🏢 استوديو رمادي راقي',
+      prompt: 'Clean neutral grey commercial advertising studio background with professional softbox lighting.'
+    },
+    'urban_street': {
+      label: '🌇 شارع عصري ومقهى أنيق',
+      prompt: 'Modern aesthetic outdoor city sidewalk next to a stylish cafe with golden hour natural sunlight.'
+    }
+  };
 
   const handleGenerateAiDecor = async () => {
     if (!aiStudioProduct) return;
@@ -68,17 +112,30 @@ export default function ProductManager() {
     setAiError(null);
     try {
       const currentImg = aiStudioProduct.finalImageUrl || aiStudioProduct.imageUrl;
+      const selectedPoseText = posePresets[aiPose]?.prompt || '';
+      const selectedDecorText = decorPresets[aiDecorStyle]?.prompt || '';
+      const finalPrompt = `${selectedPoseText} ${selectedDecorText} ${aiCustomPrompt.trim()}`.trim();
+
       const res = await fetch('/api/generate-decor', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           imageBase64: currentImg,
-          prompt: aiPrompt,
+          prompt: finalPrompt,
         })
       });
-      const data = await res.json();
+
+      const contentType = res.headers.get("content-type");
+      let data: any = {};
+      if (contentType && contentType.includes("application/json")) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        throw new Error(`خطأ من الخادم (${res.status}): ${text.substring(0, 120)}`);
+      }
+
       if (!res.ok || data.error) {
-        throw new Error(data.error || 'فشل توليد الخلفية بالذكاء الاصطناعي');
+        throw new Error(data.error || 'فشل توليد الصورة بالذكاء الاصطناعي');
       }
       setAiResultUrl(data.imageUrl);
     } catch (err: any) {
@@ -2262,37 +2319,49 @@ export default function ProductManager() {
                 </div>
               </div>
 
-              {/* Quick Preset Buttons */}
+              {/* 1. Pose Selection */}
               <div>
-                <label className="block text-xs font-bold text-purple-300 mb-2">اختر نمط الديكور المقترح:</label>
+                <label className="block text-xs font-bold text-amber-300 mb-2">1. طريقة العرض وموضعة الحذاء (Pose):</label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                  {[
-                    { label: '🏛️ منصة رخام فاخرة', prompt: 'منصة عرض رخامية فاخرة مع إضاءة خافتة ومسلطة على الحذاء بشكل احترافي' },
-                    { label: '🌿 قاعدة خشبية طبيعية', prompt: 'قاعدة خشبية طبيعية دافئة مع خلفية نباتات استوائية ناعمة وإضاءة شمس هادئة' },
-                    { label: '⚡ معرض حديث نيون', prompt: 'منصة زجاجية مودرن مع خلفية إضاءة نيون أزرق وذهبي فاخر' },
-                    { label: '🏢 استوديو رمادي راقي', prompt: 'خلفية استوديو رمادية احترافية بسيطة ومركزة على الحذاء' },
-                  ].map((preset, idx) => (
+                  {Object.entries(posePresets).map(([key, item]) => (
                     <button
-                      key={idx}
+                      key={key}
                       type="button"
-                      onClick={() => setAiPrompt(preset.prompt)}
-                      className={`p-2.5 rounded-xl text-right transition-all font-medium border ${aiPrompt === preset.prompt ? 'bg-purple-600/30 text-purple-200 border-purple-400 font-bold shadow-md' : 'bg-white/5 text-white/70 border-white/10 hover:bg-white/10'}`}
+                      onClick={() => setAiPose(key)}
+                      className={`p-3 rounded-xl text-right transition-all border leading-relaxed ${aiPose === key ? 'bg-amber-500/20 text-amber-200 border-amber-400 font-bold shadow-md ring-1 ring-amber-400' : 'bg-white/5 text-white/70 border-white/10 hover:bg-white/10'}`}
                     >
-                      {preset.label}
+                      {item.label}
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* Custom Prompt Input */}
+              {/* 2. Decor Selection */}
               <div>
-                <label className="block text-xs font-bold text-white/80 mb-1">أو اكتب وصف الديكور والخلفية التي ترغب بها:</label>
-                <textarea
-                  value={aiPrompt}
-                  onChange={(e) => setAiPrompt(e.target.value)}
-                  rows={2}
-                  className="w-full bg-black/60 border border-white/20 rounded-xl p-3 text-xs text-white placeholder-white/40 focus:outline-none focus:border-purple-400"
-                  placeholder="اكتب وصف الديكور..."
+                <label className="block text-xs font-bold text-purple-300 mb-2">2. خلفية الاستوديو والديكور (Decor):</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  {Object.entries(decorPresets).map(([key, item]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setAiDecorStyle(key)}
+                      className={`p-2.5 rounded-xl text-right transition-all border font-medium ${aiDecorStyle === key ? 'bg-purple-600/30 text-purple-200 border-purple-400 font-bold shadow-md ring-1 ring-purple-400' : 'bg-white/5 text-white/70 border-white/10 hover:bg-white/10'}`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Custom Prompt Extra Notes */}
+              <div>
+                <label className="block text-xs font-bold text-white/80 mb-1">تفاصيل إضافية مخصصة (اختياري):</label>
+                <input
+                  type="text"
+                  value={aiCustomPrompt}
+                  onChange={(e) => setAiCustomPrompt(e.target.value)}
+                  className="w-full bg-black/60 border border-white/20 rounded-xl px-3 py-2 text-xs text-white placeholder-white/40 focus:outline-none focus:border-purple-400"
+                  placeholder="مثلاً: إضافة تفاصيل إضاءة ذهبية خافتة أو لون ملابس معينة..."
                 />
               </div>
 
@@ -2307,8 +2376,8 @@ export default function ProductManager() {
               <button
                 type="button"
                 onClick={handleGenerateAiDecor}
-                disabled={aiGenerating || !aiPrompt.trim()}
-                className="w-full py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold rounded-xl shadow-lg flex items-center justify-center gap-2 transition-all disabled:opacity-50 text-sm cursor-pointer"
+                disabled={aiGenerating}
+                className="w-full py-3.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-amber-600 hover:from-purple-500 hover:to-amber-500 text-white font-bold rounded-xl shadow-lg flex items-center justify-center gap-2 transition-all disabled:opacity-50 text-sm cursor-pointer"
               >
                 {aiGenerating ? (
                   <>
@@ -2318,7 +2387,7 @@ export default function ProductManager() {
                 ) : (
                   <>
                     <Wand2 className="w-5 h-5" />
-                    توليد خلفية جديدة بالذكاء الاصطناعي 🪄
+                    توليد صورة احترافية بالذكاء الاصطناعي 🪄
                   </>
                 )}
               </button>

@@ -129,7 +129,7 @@ app.post('/api/notify-publish', express.json(), async (req, res) => {
         return res.status(400).json({ error: 'مفتاح GEMINI_API_KEY غير متوفر في الخدمة.' });
       }
 
-      const { imageBase64, prompt, style } = req.body;
+      const { imageBase64, prompt, pose, decorStyle } = req.body;
       const ai = new GoogleGenAI({
         apiKey,
         httpOptions: {
@@ -137,49 +137,67 @@ app.post('/api/notify-publish', express.json(), async (req, res) => {
         }
       });
 
-      const stylePrompt = style || prompt || 'استوديو تصوير أحذية احترافي بإضاءة فاخرة وخلفية أنيقة';
-      const fullPrompt = `Professional footwear product commercial photograph. Keep the exact shoe product design, shape, colors, branding, logos, and materials from the input photo completely preserved and intact. Place this shoe on a beautiful high-end display stage with decor described as: ${stylePrompt}. Ensure high resolution, realistic depth of field, and crisp studio lighting.`;
-
-      const parts: any[] = [];
+      let base64Data = '';
       if (imageBase64) {
-        const cleanedBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, '');
-        parts.push({
-          inlineData: {
-            data: cleanedBase64,
-            mimeType: 'image/jpeg'
+        if (imageBase64.startsWith('http://') || imageBase64.startsWith('https://')) {
+          try {
+            const imgRes = await fetch(imageBase64);
+            const arrayBuffer = await imgRes.arrayBuffer();
+            base64Data = Buffer.from(arrayBuffer).toString('base64');
+          } catch (e) {
+            console.error('Failed to download image URL:', e);
           }
-        });
+        } else {
+          base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
+        }
       }
-      parts.push({ text: fullPrompt });
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.1-flash-lite-image',
-        contents: { parts },
+      let shoeDescription = '';
+      if (base64Data) {
+        try {
+          const visionRes = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: [
+              {
+                inlineData: {
+                  data: base64Data,
+                  mimeType: 'image/jpeg'
+                }
+              },
+              { text: "Analyze this footwear item in detail. Describe its exact design, colors, patterns, sole type, strap/lace style, and material in 2 concise English sentences for product reproduction." }
+            ]
+          });
+          shoeDescription = visionRes.text || '';
+        } catch (visionErr) {
+          console.warn('Vision analysis failed:', visionErr);
+        }
+      }
+
+      const combinedPrompt = `Professional commercial footwear product advertisement. ${shoeDescription ? `Product feature details: ${shoeDescription}.` : ''} ${prompt || 'High-end footwear display photograph.'} Maintain strict consistency with the shoe colors, design, and structure. Photorealistic studio shot, 8k resolution, crisp focus, cinematic lighting.`;
+
+      const imageResponse = await ai.models.generateImages({
+        model: 'imagen-3.0-generate-002',
+        prompt: combinedPrompt,
         config: {
-          imageConfig: {
-            aspectRatio: '1:1'
-          }
+          numberOfImages: 1,
+          outputMimeType: 'image/jpeg',
+          aspectRatio: '1:1'
         }
       });
 
       let generatedImageUrl = '';
-      if (response.candidates && response.candidates[0]?.content?.parts) {
-        for (const part of response.candidates[0].content.parts) {
-          if (part.inlineData && part.inlineData.data) {
-            generatedImageUrl = `data:image/png;base64,${part.inlineData.data}`;
-            break;
-          }
-        }
+      if (imageResponse.generatedImages && imageResponse.generatedImages[0]?.image?.imageBytes) {
+        generatedImageUrl = `data:image/jpeg;base64,${imageResponse.generatedImages[0].image.imageBytes}`;
       }
 
       if (!generatedImageUrl) {
-        return res.status(500).json({ error: 'لم يتم استرجاع صورة من نموذج الذكاء الاصطناعي.' });
+        return res.status(500).json({ error: 'لم يتم الحصول على صورة من نموذج الذكاء الاصطناعي.' });
       }
 
-      res.json({ imageUrl: generatedImageUrl });
+      return res.json({ imageUrl: generatedImageUrl });
     } catch (error: any) {
       console.error('Error in /api/generate-decor:', error);
-      res.status(500).json({ error: error.message || 'حدث خطأ أثناء توليد الصورة بالذكاء الاصطناعي' });
+      return res.status(500).json({ error: error.message || 'حدث خطأ أثناء توليد الصورة بالذكاء الاصطناعي' });
     }
   });
 
