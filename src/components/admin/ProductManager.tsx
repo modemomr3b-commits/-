@@ -25,6 +25,8 @@ import {
   Lock,
   Unlock,
   FolderInput,
+  Sparkles,
+  Wand2,
 } from "lucide-react";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
@@ -54,6 +56,58 @@ export default function ProductManager() {
   const [batchCategoryId, setBatchCategoryId] = useState<string>("");
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [aiStudioProduct, setAiStudioProduct] = useState<Product | null>(null);
+  const [aiPrompt, setAiPrompt] = useState<string>('منصة عرض رخامية فاخرة مع إضاءة خافتة ومسلطة على الحذاء بشكل احترافي');
+  const [aiGenerating, setAiGenerating] = useState<boolean>(false);
+  const [aiResultUrl, setAiResultUrl] = useState<string | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
+
+  const handleGenerateAiDecor = async () => {
+    if (!aiStudioProduct) return;
+    setAiGenerating(true);
+    setAiError(null);
+    try {
+      const currentImg = aiStudioProduct.finalImageUrl || aiStudioProduct.imageUrl;
+      const res = await fetch('/api/generate-decor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageBase64: currentImg,
+          prompt: aiPrompt,
+        })
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        throw new Error(data.error || 'فشل توليد الخلفية بالذكاء الاصطناعي');
+      }
+      setAiResultUrl(data.imageUrl);
+    } catch (err: any) {
+      console.error(err);
+      setAiError(err.message || 'حدث خطأ أثناء الاتصال بالذكاء الاصطناعي');
+    } finally {
+      setAiGenerating(false);
+    }
+  };
+
+  const handleSaveAiImage = async () => {
+    if (!aiStudioProduct || !aiResultUrl) return;
+    try {
+      setIsSubmitting(true);
+      await api.updateProduct(aiStudioProduct.id, {
+        imageUrl: aiResultUrl,
+        finalImageUrl: aiResultUrl,
+      });
+      setProducts(prev => prev.map(p => p.id === aiStudioProduct.id ? { ...p, imageUrl: aiResultUrl, finalImageUrl: aiResultUrl } : p));
+      setAlertMessage("تم حفظ واعتماد الصورة الجديدة بالذكاء الاصطناعي للمنتج بنجاح!");
+      setAiStudioProduct(null);
+      setAiResultUrl(null);
+    } catch (err) {
+      console.error(err);
+      alert("حدث خطأ أثناء حفظ الصورة");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
   const [deleteConfirm, setDeleteConfirm] = useState<{ isBulk: boolean; ids?: string[]; name?: string; count?: number; } | null>(null);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
   const [publishSuccess, setPublishSuccess] = useState(false);
@@ -1590,6 +1644,19 @@ export default function ProductManager() {
                             )}
                             <button
                               type="button"
+                              onClick={() => {
+                                setAiStudioProduct(p);
+                                setAiResultUrl(null);
+                                setAiError(null);
+                              }}
+                              className="p-1.5 hover:bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded transition-colors flex items-center gap-1 text-xs font-bold"
+                              title="توليد خلفية وديكور بالذكاء الاصطناعي (AI)"
+                            >
+                              <Sparkles size={16} />
+                              <span className="hidden sm:inline">AI</span>
+                            </button>
+                            <button
+                              type="button"
                               onClick={() => setEditingProduct({ ...p, forceStandardCrush: p.forceStandardCrush ?? true })}
                               className="p-1.5 hover:bg-blue-500/20 text-blue-400 rounded transition-colors"
                               title="تعديل"
@@ -2154,6 +2221,140 @@ export default function ProductManager() {
               >
                 {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : "نقل"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI Shoe Decor Studio Modal */}
+      {aiStudioProduct && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[250] backdrop-blur-md overflow-y-auto">
+          <div className="bg-slate-900 w-full max-w-2xl rounded-2xl border border-purple-500/40 shadow-2xl p-6 relative text-right my-8" dir="rtl">
+            {/* Header */}
+            <div className="flex justify-between items-center border-b border-white/10 pb-4 mb-4">
+              <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                <Sparkles className="w-6 h-6 text-purple-400 animate-pulse" />
+                توليد خلفية وديكور بالذكاء الاصطناعي (AI Studio)
+              </h3>
+              <button 
+                onClick={() => { setAiStudioProduct(null); setAiResultUrl(null); }}
+                className="p-2 text-white/50 hover:text-white rounded-full hover:bg-white/10 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <p className="text-xs text-white/70 leading-relaxed">
+                يقوم الذكاء الاصطناعي بتوليد صورة عرض جديدة للمنتج بوضع الحذاء في استوديو وديكور جديد مع الحفاظ التام على شكل وألوان وتفاصيل الحذاء الأصلي!
+              </p>
+
+              {/* Product Info */}
+              <div className="flex items-center gap-3 p-3 bg-white/5 rounded-xl border border-white/10">
+                <img 
+                  src={aiStudioProduct.finalImageUrl || aiStudioProduct.imageUrl} 
+                  alt={aiStudioProduct.name}
+                  className="w-16 h-16 object-contain rounded-lg bg-black/60 border border-white/10"
+                />
+                <div>
+                  <h4 className="font-bold text-white text-sm">{aiStudioProduct.name}</h4>
+                  <p className="text-xs text-white/50 font-mono">كود المنتج: {aiStudioProduct.productCode || '---'}</p>
+                </div>
+              </div>
+
+              {/* Quick Preset Buttons */}
+              <div>
+                <label className="block text-xs font-bold text-purple-300 mb-2">اختر نمط الديكور المقترح:</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  {[
+                    { label: '🏛️ منصة رخام فاخرة', prompt: 'منصة عرض رخامية فاخرة مع إضاءة خافتة ومسلطة على الحذاء بشكل احترافي' },
+                    { label: '🌿 قاعدة خشبية طبيعية', prompt: 'قاعدة خشبية طبيعية دافئة مع خلفية نباتات استوائية ناعمة وإضاءة شمس هادئة' },
+                    { label: '⚡ معرض حديث نيون', prompt: 'منصة زجاجية مودرن مع خلفية إضاءة نيون أزرق وذهبي فاخر' },
+                    { label: '🏢 استوديو رمادي راقي', prompt: 'خلفية استوديو رمادية احترافية بسيطة ومركزة على الحذاء' },
+                  ].map((preset, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setAiPrompt(preset.prompt)}
+                      className={`p-2.5 rounded-xl text-right transition-all font-medium border ${aiPrompt === preset.prompt ? 'bg-purple-600/30 text-purple-200 border-purple-400 font-bold shadow-md' : 'bg-white/5 text-white/70 border-white/10 hover:bg-white/10'}`}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Custom Prompt Input */}
+              <div>
+                <label className="block text-xs font-bold text-white/80 mb-1">أو اكتب وصف الديكور والخلفية التي ترغب بها:</label>
+                <textarea
+                  value={aiPrompt}
+                  onChange={(e) => setAiPrompt(e.target.value)}
+                  rows={2}
+                  className="w-full bg-black/60 border border-white/20 rounded-xl p-3 text-xs text-white placeholder-white/40 focus:outline-none focus:border-purple-400"
+                  placeholder="اكتب وصف الديكور..."
+                />
+              </div>
+
+              {/* Error Message */}
+              {aiError && (
+                <div className="p-3 bg-red-500/20 border border-red-500/40 rounded-xl text-xs text-red-300">
+                  {aiError}
+                </div>
+              )}
+
+              {/* Generate Button */}
+              <button
+                type="button"
+                onClick={handleGenerateAiDecor}
+                disabled={aiGenerating || !aiPrompt.trim()}
+                className="w-full py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold rounded-xl shadow-lg flex items-center justify-center gap-2 transition-all disabled:opacity-50 text-sm cursor-pointer"
+              >
+                {aiGenerating ? (
+                  <>
+                    <Loader2 className="animate-spin w-5 h-5 text-white" />
+                    جاري تصميم الديكور وتوليد الصورة بالذكاء الاصطناعي...
+                  </>
+                ) : (
+                  <>
+                    <Wand2 className="w-5 h-5" />
+                    توليد خلفية جديدة بالذكاء الاصطناعي 🪄
+                  </>
+                )}
+              </button>
+
+              {/* Result Preview */}
+              {aiResultUrl && (
+                <div className="mt-4 p-4 bg-purple-950/40 border border-purple-500/40 rounded-2xl space-y-3">
+                  <h4 className="text-xs font-bold text-purple-300">النتيجة المقترحة بالذكاء الاصطناعي:</h4>
+                  <div className="flex justify-center">
+                    <img 
+                      src={aiResultUrl} 
+                      alt="النتيجة" 
+                      className="w-48 h-48 object-contain rounded-xl border-2 border-purple-400 bg-black/80 shadow-2xl" 
+                    />
+                  </div>
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={handleSaveAiImage}
+                      disabled={isSubmitting}
+                      className="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-sm rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      {isSubmitting ? <Loader2 className="animate-spin w-4 h-4" /> : <CheckCircle className="w-4 h-4" />}
+                      حفظ واعتماد كصورة للمنتج
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleGenerateAiDecor}
+                      disabled={aiGenerating}
+                      className="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-xl transition-all cursor-pointer"
+                    >
+                      توليد خيار آخر 🔄
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

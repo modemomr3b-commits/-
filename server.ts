@@ -7,6 +7,7 @@ import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import { createServer as createViteServer } from "vite";
+import { GoogleGenAI } from "@google/genai";
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || 'https://uxlmpuqnkjfyzroqwwgh.supabase.co';
 const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV4bG1wdXFua2pmeXpyb3F3d2doIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE4MDU1MTIsImV4cCI6MjA5NzM4MTUxMn0.oDX_i_1DlWcUEJQnLQDoG5s5IipN7ympUd4SFvEaWqA';
@@ -119,6 +120,67 @@ app.post('/api/notify-publish', express.json(), async (req, res) => {
 
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok" });
+  });
+
+  app.post('/api/generate-decor', express.json({ limit: '15mb' }), async (req, res) => {
+    try {
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        return res.status(400).json({ error: 'مفتاح GEMINI_API_KEY غير متوفر في الخدمة.' });
+      }
+
+      const { imageBase64, prompt, style } = req.body;
+      const ai = new GoogleGenAI({
+        apiKey,
+        httpOptions: {
+          headers: { 'User-Agent': 'aistudio-build' }
+        }
+      });
+
+      const stylePrompt = style || prompt || 'استوديو تصوير أحذية احترافي بإضاءة فاخرة وخلفية أنيقة';
+      const fullPrompt = `Professional footwear product commercial photograph. Keep the exact shoe product design, shape, colors, branding, logos, and materials from the input photo completely preserved and intact. Place this shoe on a beautiful high-end display stage with decor described as: ${stylePrompt}. Ensure high resolution, realistic depth of field, and crisp studio lighting.`;
+
+      const parts: any[] = [];
+      if (imageBase64) {
+        const cleanedBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, '');
+        parts.push({
+          inlineData: {
+            data: cleanedBase64,
+            mimeType: 'image/jpeg'
+          }
+        });
+      }
+      parts.push({ text: fullPrompt });
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.1-flash-lite-image',
+        contents: { parts },
+        config: {
+          imageConfig: {
+            aspectRatio: '1:1'
+          }
+        }
+      });
+
+      let generatedImageUrl = '';
+      if (response.candidates && response.candidates[0]?.content?.parts) {
+        for (const part of response.candidates[0].content.parts) {
+          if (part.inlineData && part.inlineData.data) {
+            generatedImageUrl = `data:image/png;base64,${part.inlineData.data}`;
+            break;
+          }
+        }
+      }
+
+      if (!generatedImageUrl) {
+        return res.status(500).json({ error: 'لم يتم استرجاع صورة من نموذج الذكاء الاصطناعي.' });
+      }
+
+      res.json({ imageUrl: generatedImageUrl });
+    } catch (error: any) {
+      console.error('Error in /api/generate-decor:', error);
+      res.status(500).json({ error: error.message || 'حدث خطأ أثناء توليد الصورة بالذكاء الاصطناعي' });
+    }
   });
 
   app.post('/api/login', async (req, res) => {

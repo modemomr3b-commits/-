@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { api } from '../../api';
 import { Order, OrderStatus } from '../../types';
 import { useStore } from '../../store';
+import ImageViewer from '../ImageViewer';
 
 const statusMap: Record<OrderStatus, { label: string, color: string }> = {
   new: { label: 'جديد', color: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' },
@@ -21,6 +22,7 @@ export default function OrderManager() {
   const [filterStatus, setFilterStatus] = useState<OrderStatus | 'all'>('all');
   const [activeTab, setActiveTab] = useState<'new' | 'completed'>('new');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [viewImage, setViewImage] = useState<{ src: string, alt: string } | null>(null);
   
   const previousOrdersCount = useRef(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -448,22 +450,49 @@ export default function OrderManager() {
 
                   {/* Order Items */}
                   <div>
-                     <h3 className="font-bold text-white mb-4 border-b border-white/10 pb-2">المنتجات المطلوبة ({selectedOrder.totalQuantity} قطعة)</h3>
-                     <div className="space-y-3">
+                     <h3 className="font-bold text-white mb-4 border-b border-white/10 pb-2 flex items-center justify-between">
+                        <span>المنتجات المطلوبة</span>
+                        <span className="text-brq-gold font-mono font-bold bg-amber-500/10 px-3 py-1 rounded-lg border border-amber-500/20">{selectedOrder.totalQuantity} قطعة</span>
+                     </h3>
+                     <div className="space-y-4">
                         {selectedOrder.items?.map((item, idx) => (
-                           <div key={idx} className="flex items-center gap-4 bg-black/40 p-3 rounded-xl border border-white/5">
+                           <div key={idx} className="flex flex-col sm:flex-row items-start sm:items-center gap-4 bg-black/60 p-4 rounded-2xl border border-white/10 shadow-lg relative overflow-hidden">
+                              {/* Product Image */}
                               {item.product?.finalImageUrl || item.product?.imageUrl ? (
-                                 <img src={item.product.finalImageUrl || item.product.imageUrl} alt={item.product.name} className="w-16 h-16 rounded-lg object-contain bg-black/40 border border-white/10" />
-                              ) : <div className="w-16 h-16 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-2xl">👟</div>}
+                                 <img 
+                                    src={item.product.finalImageUrl || item.product.imageUrl} 
+                                    alt={item.product.name} 
+                                    onClick={() => setViewImage({ src: item.product?.finalImageUrl || item.product?.imageUrl || '', alt: item.product?.name || 'صورة المنتج' })}
+                                    className="w-28 h-28 sm:w-36 sm:h-36 rounded-xl object-contain bg-black/80 border-2 border-white/20 hover:border-brq-gold transition-all cursor-pointer shadow-md flex-shrink-0" 
+                                    title="انقر لتكبير صورة المنتج"
+                                 />
+                              ) : (
+                                 <div className="w-28 h-28 sm:w-36 sm:h-36 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-4xl flex-shrink-0">👟</div>
+                              )}
                               
-                              <div className="flex-1">
-                                 <h4 className="font-bold text-sm text-white">{item.product?.name || 'منتج محذوف'}</h4>
-                                 <div className="text-xs text-white/50 font-mono mt-1">كود: {item.product?.productCode} | رمز: {item.product?.modelNumber}</div>
+                              {/* Details & Huge Code */}
+                              <div className="flex-1 space-y-2 w-full">
+                                 <h4 className="font-bold text-base sm:text-lg text-white">{item.product?.name || 'منتج محذوف'}</h4>
+                                 
+                                 {/* Prominent Product Code Badge */}
+                                 <div className="bg-white text-black px-4 py-2 rounded-xl border-2 border-amber-400 shadow-xl inline-block my-1">
+                                    <div className="text-[11px] font-black text-amber-800 tracking-wider">كود المنتج</div>
+                                    <div className="font-black text-2xl sm:text-3xl text-black font-mono tracking-widest select-all">
+                                       {item.product?.productCode || '---'}
+                                    </div>
+                                 </div>
+
+                                 {item.product?.modelNumber && (
+                                    <div className="text-xs font-bold text-amber-300">
+                                       رمز الموديل: <span className="font-mono text-white text-sm bg-white/10 px-2 py-0.5 rounded">{item.product.modelNumber}</span>
+                                    </div>
+                                 )}
                               </div>
                               
-                              <div className="px-4 py-2 bg-brq-navy rounded-lg border border-white/10 text-center min-w-[80px]">
-                                 <div className="text-xs text-white/50 mb-1">الكمية</div>
-                                 <div className="font-bold text-brq-gold text-lg">{item.quantity}</div>
+                              {/* Enlarged Quantity */}
+                              <div className="px-5 py-3 bg-gradient-to-b from-amber-500/20 to-amber-600/10 rounded-2xl border-2 border-amber-500/40 text-center min-w-[110px] w-full sm:w-auto shadow-md flex-shrink-0">
+                                 <div className="text-xs font-bold text-amber-300 mb-0.5">الكمية المطلوبة</div>
+                                 <div className="font-black text-amber-400 text-3xl sm:text-4xl font-mono">{item.quantity} <span className="text-xs font-bold text-amber-200">قطع</span></div>
                               </div>
                            </div>
                         ))}
@@ -481,6 +510,15 @@ export default function OrderManager() {
                </div>
             </div>
          </div>
+      )}
+
+      {/* Image Viewer Lightbox */}
+      {viewImage && (
+         <ImageViewer 
+            src={viewImage.src} 
+            alt={viewImage.alt} 
+            onClose={() => setViewImage(null)} 
+         />
       )}
     </div>
   );
