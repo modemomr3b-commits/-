@@ -175,19 +175,47 @@ app.post('/api/notify-publish', express.json(), async (req, res) => {
 
       const combinedPrompt = `Professional commercial footwear product advertisement. ${shoeDescription ? `Product feature details: ${shoeDescription}.` : ''} ${prompt || 'High-end footwear display photograph.'} Maintain strict consistency with the shoe colors, design, and structure. Photorealistic studio shot, 8k resolution, crisp focus, cinematic lighting.`;
 
-      const imageResponse = await ai.models.generateImages({
-        model: 'imagen-3.0-generate-002',
-        prompt: combinedPrompt,
-        config: {
-          numberOfImages: 1,
-          outputMimeType: 'image/jpeg',
-          aspectRatio: '1:1'
-        }
-      });
-
       let generatedImageUrl = '';
-      if (imageResponse.generatedImages && imageResponse.generatedImages[0]?.image?.imageBytes) {
-        generatedImageUrl = `data:image/jpeg;base64,${imageResponse.generatedImages[0].image.imageBytes}`;
+      try {
+        const imageResponse = await ai.models.generateImages({
+          model: 'imagen-3.0-generate-002',
+          prompt: combinedPrompt,
+          config: {
+            numberOfImages: 1,
+            outputMimeType: 'image/jpeg',
+            aspectRatio: '1:1'
+          }
+        });
+
+        if (imageResponse.generatedImages && imageResponse.generatedImages[0]?.image?.imageBytes) {
+          generatedImageUrl = `data:image/jpeg;base64,${imageResponse.generatedImages[0].image.imageBytes}`;
+        }
+      } catch (genImgErr) {
+        console.warn('generateImages failed, trying generateContent fallback:', genImgErr);
+        const parts: any[] = [];
+        if (base64Data) {
+          parts.push({
+            inlineData: {
+              data: base64Data,
+              mimeType: 'image/jpeg'
+            }
+          });
+        }
+        parts.push({ text: combinedPrompt });
+
+        const contentResponse = await ai.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: { parts }
+        });
+
+        if (contentResponse.candidates && contentResponse.candidates[0]?.content?.parts) {
+          for (const part of contentResponse.candidates[0].content.parts) {
+            if (part.inlineData && part.inlineData.data) {
+              generatedImageUrl = `data:image/jpeg;base64,${part.inlineData.data}`;
+              break;
+            }
+          }
+        }
       }
 
       if (!generatedImageUrl) {

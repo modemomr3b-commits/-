@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
+import { GoogleGenAI } from "@google/genai";
 import { api } from "../../api";
 import { supabase } from "../../supabase";
 import { filterProductsBySearch } from '../../utils/search';
@@ -116,31 +117,117 @@ export default function ProductManager() {
       const selectedDecorText = decorPresets[aiDecorStyle]?.prompt || '';
       const finalPrompt = `${selectedPoseText} ${selectedDecorText} ${aiCustomPrompt.trim()}`.trim();
 
-      const res = await fetch('/api/generate-decor', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          imageBase64: currentImg,
-          prompt: finalPrompt,
-        })
-      });
+      let imageUrlResult = '';
 
-      const contentType = res.headers.get("content-type");
-      let data: any = {};
-      if (contentType && contentType.includes("application/json")) {
-        data = await res.json();
-      } else {
-        const text = await res.text();
-        throw new Error(`خطأ من الخادم (${res.status}): ${text.substring(0, 120)}`);
+      // 1. Try server endpoint first
+      try {
+        const res = await fetch('/api/generate-decor', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            imageBase64: currentImg,
+            prompt: finalPrompt,
+            pose: aiPose,
+            decorStyle: aiDecorStyle,
+          })
+        });
+
+        const contentType = res.headers.get("content-type");
+        if (res.ok && contentType && contentType.includes("application/json")) {
+          const data = await res.json();
+          if (data.imageUrl) {
+            imageUrlResult = data.imageUrl;
+          } else if (data.error) {
+            console.warn("Server API returned error, fallback to client-side:", data.error);
+          }
+        } else {
+          console.warn(`Server route returned non-OK status (${res.status}), using client fallback.`);
+        }
+      } catch (srvErr) {
+        console.warn("Server fetch failed, attempting client-side Gemini call:", srvErr);
       }
 
-      if (!res.ok || data.error) {
-        throw new Error(data.error || 'فشل توليد الصورة بالذكاء الاصطناعي');
+      // 2. Fallback to client-side Gemini call if server endpoint returned 404 or failed
+      if (!imageUrlResult) {
+        const apiKey = ((import.meta as any).env?.VITE_GEMINI_API_KEY) || (typeof process !== 'undefined' ? process.env.GEMINI_API_KEY : '');
+        if (!apiKey) {
+          throw new Error("تعذر الوصول للخدمة وحساب مفتاح API غير متوفر حالياً.");
+        }
+
+        const ai = new GoogleGenAI({ apiKey });
+
+        // Try Imagen 3 client-side
+        try {
+          const combinedPrompt = `Professional commercial footwear product advertisement. ${finalPrompt}. Maintain strict consistency with shoe colors and design. Photorealistic studio shot, 8k resolution, crisp focus.`;
+          const imageResponse = await ai.models.generateImages({
+            model: 'imagen-3.0-generate-002',
+            prompt: combinedPrompt,
+            config: {
+              numberOfImages: 1,
+              outputMimeType: 'image/jpeg',
+              aspectRatio: '1:1'
+            }
+          });
+          if (imageResponse.generatedImages && imageResponse.generatedImages[0]?.image?.imageBytes) {
+            imageUrlResult = `data:image/jpeg;base64,${imageResponse.generatedImages[0].image.imageBytes}`;
+          }
+        } catch (imgErr) {
+          console.warn("Client-side Imagen failed, trying Gemini multimodal fallback:", imgErr);
+        }
+
+        // Try Gemini 2.5 Flash client-side if Imagen failed
+        if (!imageUrlResult) {
+          let base64Data = '';
+          if (currentImg) {
+            if (currentImg.startsWith('http')) {
+              const imgRes = await fetch(currentImg);
+              const arrayBuf = await imgRes.arrayBuffer();
+              const bytes = new Uint8Array(arrayBuf);
+              let binary = '';
+              for (let i = 0; i < bytes.byteLength; i++) {
+                binary += String.fromCharCode(bytes[i]);
+              }
+              base64Data = btoa(binary);
+            } else {
+              base64Data = currentImg.replace(/^data:image\/\w+;base64,/, '');
+            }
+          }
+
+          const parts: any[] = [];
+          if (base64Data) {
+            parts.push({
+              inlineData: {
+                data: base64Data,
+                mimeType: 'image/jpeg'
+              }
+            });
+          }
+          parts.push({ text: `Generate a new footwear advertisement photo with this shoe design: ${finalPrompt}` });
+
+          const contentResponse = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: { parts }
+          });
+
+          if (contentResponse.candidates && contentResponse.candidates[0]?.content?.parts) {
+            for (const part of contentResponse.candidates[0].content.parts) {
+              if (part.inlineData && part.inlineData.data) {
+                imageUrlResult = `data:image/jpeg;base64,${part.inlineData.data}`;
+                break;
+              }
+            }
+          }
+        }
       }
-      setAiResultUrl(data.imageUrl);
+
+      if (!imageUrlResult) {
+        throw new Error("لم يتم الحصول على صورة من نموذج الذكاء الاصطناعي. يرجى إعادة المحاولة.");
+      }
+
+      setAiResultUrl(imageUrlResult);
     } catch (err: any) {
       console.error(err);
-      setAiError(err.message || 'حدث خطأ أثناء الاتصال بالذكاء الاصطناعي');
+      setAiError(err.message || 'حدث خطأ أثناء توليد الصورة بالذكاء الاصطناعي');
     } finally {
       setAiGenerating(false);
     }
