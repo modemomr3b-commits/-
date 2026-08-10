@@ -88,6 +88,8 @@ export default function SearchPage() {
     let result = products.filter(p => !p.isLocked);
     if (searchArchived) {
       result = result.filter(p => p.isArchived);
+    } else {
+      result = result.filter(p => !p.isArchived && !p.isHidden);
     }
     
     return filterProductsBySearch(result, query, allCategories);
@@ -185,15 +187,23 @@ export default function SearchPage() {
                  onClick={() => { setSearchArchived(!searchArchived); setCurrentPage(1); }}
                  className={`text-xs px-2 py-1 rounded border transition-colors ${searchArchived ? 'bg-brq-gold text-black border-brq-gold font-bold' : 'bg-transparent text-white/50 border-white/10 hover:text-white'}`}
                >
-                 {searchArchived ? 'إخفاء المواد النافذة' : 'بحث في المواد النافذة'}
+                 {searchArchived ? 'الرجوع للمنتجات الفعالة' : 'البحث في المواد النافذة 📦'}
                </button>
              </div>
              
              {loading ? (
                <div className="flex justify-center py-12"><div className="w-8 h-8 border-4 border-brq-gold border-t-transparent rounded-full animate-spin"></div></div>
              ) : filteredProducts.length === 0 ? (
-               <div className="text-center py-12 text-white/50">
-                 لا توجد نتائج تطابق بحثك.
+               <div className="text-center py-12 space-y-4">
+                 <p className="text-white/50">لا توجد نتائج تطابق بحثك {searchArchived ? 'في المواد النافذة' : 'في المنتجات الفعالة'}.</p>
+                 {!searchArchived && (
+                   <button
+                     onClick={() => { setSearchArchived(true); setCurrentPage(1); }}
+                     className="px-5 py-2.5 bg-brq-gold/20 text-brq-gold border border-brq-gold/40 rounded-xl text-sm font-bold hover:bg-brq-gold hover:text-black transition-all"
+                   >
+                     🔍 البحث عن "{query}" في المواد النافذة
+                   </button>
+                 )}
                </div>
              ) : (
                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">

@@ -61,7 +61,7 @@ export default function Products() {
         allProducts = await api.getProducts();
       }
       
-      let fetchedProducts = allProducts.filter((p: any) => !p.isLocked);
+      let fetchedProducts = allProducts.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked);
       
       if (categoryId) {
         const cat = cats.find((c: any) => c.id === categoryId);
