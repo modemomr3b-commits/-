@@ -1097,7 +1097,7 @@ export default function ProductManager() {
       {isDownloadDialogOpen && (
         <CategoryDownloadDialog 
           categories={categories}
-          products={products}
+          products={products.filter(p => !p.isHidden && !p.isArchived && !p.isLocked && !p.isDeleted)}
           onClose={() => setIsDownloadDialogOpen(false)}
         />
       )}

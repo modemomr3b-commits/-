@@ -57,9 +57,14 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
     return 'أخرى';
   };
 
+  // Filter products to ONLY include active ones (exclude out-of-stock / inactive / hidden / archived)
+  const activeProducts = useMemo(() => {
+    return products.filter(p => !p.isHidden && !p.isArchived && !p.isLocked && !p.isDeleted);
+  }, [products]);
+
   const groupedProducts = useMemo(() => {
     const map = new Map<string, Product[]>();
-    products.forEach(p => {
+    activeProducts.forEach(p => {
       const groupName = getProductGroup(p.name || '');
       if (!map.has(groupName)) map.set(groupName, []);
       map.get(groupName)!.push(p);
@@ -72,7 +77,7 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
          if (b.name === "أخرى") return -1;
          return b.products.length - a.products.length;
       });
-  }, [products]);
+  }, [activeProducts]);
 
   const selectedGroupSubtypes = useMemo(() => {
     if (!selectedGroupName) return [];
@@ -99,7 +104,7 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
   const filteredSubs = selectedGroupSubtypes.filter(s => s.name.includes(searchTerm));
 
   const handleDownloadGroup = (groupName: string, groupProducts: Product[]) => {
-    const imagesWithData = groupProducts.filter((p) => p.finalImageUrl || p.imageUrl);
+    const imagesWithData = groupProducts.filter((p) => (p.finalImageUrl || p.imageUrl) && !p.isHidden && !p.isArchived && !p.isLocked && !p.isDeleted);
     if (imagesWithData.length === 0) {
       showToast("لا توجد صور للمنتجات في هذا القسم.", "error");
       return;
@@ -174,7 +179,7 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
   };
 
   const handleDownloadAllStore = async () => {
-    const imagesWithData = products.filter((p) => p.finalImageUrl || p.imageUrl);
+    const imagesWithData = activeProducts.filter((p) => p.finalImageUrl || p.imageUrl);
     if (imagesWithData.length === 0) {
       showToast("لا توجد صور للمنتجات في المتجر.", "error");
       return;
