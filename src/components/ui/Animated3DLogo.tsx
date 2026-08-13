@@ -116,11 +116,8 @@ interface Props {
 export default function Animated3DLogo({ isHovered = false, scale = 1 }: Props) {
   return (
     <ErrorBoundary fallback={
-      <div className="flex flex-col items-center justify-center">
-        <img src="/logo.jpeg.jpeg" alt="BRQ" className="w-full h-full object-contain drop-shadow-2xl mb-4" />
-        <p className="text-yellow-400 text-xs text-center max-w-[250px] bg-black/50 p-2 rounded">
-          يرجى التأكد من رفع الصورة باسم logo.jpeg.jpeg في مجلد public
-        </p>
+      <div className="w-full h-full flex items-center justify-center p-1">
+        <img src="/logo.jpeg.jpeg" alt="BRQ" className="max-w-full max-h-full object-contain drop-shadow-xl" />
       </div>
     }>
       <Canvas camera={{ position: [0, 0, 7], fov: 45 }} gl={{ antialias: true, alpha: true }}>

@@ -836,6 +836,30 @@ export default function ProductManager() {
     }
   };
 
+  const handleBulkToggleArchive = async (archive: boolean) => {
+    if (selectedIds.size === 0) return;
+    setIsSubmitting(true);
+    try {
+      setProducts((prev) =>
+        prev.map((prod) =>
+          selectedIds.has(prod.id!) ? { ...prod, isArchived: archive } : prod
+        )
+      );
+      
+      const ids = Array.from(selectedIds);
+      await api.bulkUpdateProducts(ids, { isArchived: archive });
+      
+      setSelectedIds(new Set());
+    } catch (e: any) {
+      console.error("Error bulk toggling out of stock:", e);
+      const updated = await api.getProducts();
+      setProducts(updated);
+      setAlertMessage("فشل التحديث المجمع: " + e.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleBulkMoveCategory = async () => {
     if (selectedIds.size === 0 || !moveToCategoryId) return;
     setIsSubmitting(true);
@@ -1479,6 +1503,26 @@ export default function ProductManager() {
                     >
                       {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Unlock size={16} />}
                       استرجاع من المواد المقفلة
+                    </button>
+                  )}
+                  {selectedIds.size > 0 && filterStatus !== 'archived' && (
+                    <button
+                      onClick={() => handleBulkToggleArchive(true)}
+                      disabled={isSubmitting}
+                      className="flex items-center gap-2 px-4 py-2 bg-orange-500/20 text-orange-400 border border-orange-500/30 rounded-lg text-sm hover:bg-orange-500/30 transition-colors font-bold whitespace-nowrap disabled:opacity-50"
+                    >
+                      {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Package size={16} />}
+                      نقل للمواد النافذة
+                    </button>
+                  )}
+                  {selectedIds.size > 0 && filterStatus === 'archived' && (
+                    <button
+                      onClick={() => handleBulkToggleArchive(false)}
+                      disabled={isSubmitting}
+                      className="flex items-center gap-2 px-4 py-2 bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-lg text-sm hover:bg-amber-500/30 transition-colors font-bold whitespace-nowrap disabled:opacity-50"
+                    >
+                      {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Archive size={16} />}
+                      استرجاع من المواد النافذة
                     </button>
                   )}
                   {selectedIds.size > 0 && (

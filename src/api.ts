@@ -137,6 +137,7 @@ export const api = {
       ...data,
       isHidden: data.size?.isHidden !== undefined ? data.size.isHidden : (data.isHidden ?? false),
       isLocked: data.size?.isLocked !== undefined ? data.size.isLocked : (data.isLocked ?? false),
+      isArchived: data.size?.isArchived !== undefined ? data.size.isArchived : (data.isArchived ?? false),
       oldPriceInfo: data.size?.oldPriceInfo || undefined,
       forceStandardCrush: data.size?.forceStandardCrush ?? true
     };
@@ -151,6 +152,7 @@ export const api = {
       ...p,
       isHidden: p.size?.isHidden !== undefined ? p.size.isHidden : (p.isHidden ?? false),
       isLocked: p.size?.isLocked !== undefined ? p.size.isLocked : (p.isLocked ?? false),
+      isArchived: p.size?.isArchived !== undefined ? p.size.isArchived : (p.isArchived ?? false),
       oldPriceInfo: p.size?.oldPriceInfo || undefined,
       forceStandardCrush: p.size?.forceStandardCrush ?? true,
       updatedAt: p.size?.updatedAt || p.createdAt
@@ -272,6 +274,7 @@ export const api = {
     safeData.size = { ...existingSize, ...(safeData.size || {}) };
     if (safeData.isHidden !== undefined) safeData.size.isHidden = safeData.isHidden;
     if (safeData.isLocked !== undefined) safeData.size.isLocked = safeData.isLocked;
+    if (safeData.isArchived !== undefined) safeData.size.isArchived = safeData.isArchived;
     if (safeData.oldPriceInfo !== undefined) safeData.size.oldPriceInfo = safeData.oldPriceInfo;
     if (safeData.forceStandardCrush !== undefined) safeData.size.forceStandardCrush = safeData.forceStandardCrush;
     if (safeData.updatedAt !== undefined) { safeData.size.updatedAt = safeData.updatedAt; delete safeData.updatedAt; }
