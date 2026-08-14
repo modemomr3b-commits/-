@@ -157,7 +157,16 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
           const ext = imgUrl!.split('.').pop()?.split('?')[0] || 'jpg';
           const safeName = (p.productCode || p.name || 'product').replace(/[\\/\\?<>\\:\\*\\|":]/g, '-');
           const filename = `${safeName}.${ext}`;
-          return { url: imgUrl!, filename, folderName: groupName };
+
+          let folderPath = groupName;
+          if (!selectedGroupName) {
+            const subType = getProductType(p.name || '');
+            folderPath = `${groupName}/${subType}`;
+          } else {
+            folderPath = `${selectedGroupName}/${groupName}`;
+          }
+
+          return { url: imgUrl!, filename, folderName: folderPath };
         });
         
         const { downloadAsZip } = await import('../../utils/zipDownload');
@@ -223,8 +232,10 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
           const filename = `${safeName}.${ext}`;
           
           let mainCatName = getProductGroup(p.name || '');
+          let subType = getProductType(p.name || '');
+          let folderPath = `${mainCatName}/${subType}`;
           
-          return { url: imgUrl!, filename, folderName: mainCatName };
+          return { url: imgUrl!, filename, folderName: folderPath };
         });
         
         const { downloadAsZip } = await import('../../utils/zipDownload');
@@ -249,8 +260,10 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
           const filename = `${safeName}.${ext}`;
           
           let mainCatName = getProductGroup(p.name || '');
+          let subType = getProductType(p.name || '');
+          let folderPath = `${mainCatName}/${subType}`;
           
-          return { url: imgUrl!, filename, folderName: mainCatName };
+          return { url: imgUrl!, filename, folderName: folderPath };
         });
         const { downloadAsZip } = await import('../../utils/zipDownload');
         const success = await downloadAsZip('جميع اللاستيك', imagesToDownload, (progress, total, message) => {

@@ -542,13 +542,35 @@ export default function Products() {
                           const lowerName = name.toLowerCase();
                           if (lowerName.includes('رياض')) return 'رياضة';
                           if (lowerName.includes('شحاط')) return 'شحاطة';
-                          if (lowerName.includes('احذي') || lowerName.includes('أحذي') || lowerName.includes('حذاء')) return 'احذية';
+                          if (lowerName.includes('احذي') || lowerName.includes('أحذي') || lowerName.includes('حذاء')) return 'حذاء';
                           if (lowerName.includes('لابجين')) return 'لابجين';
                           if (lowerName.includes('لاستيك')) return 'لاستيك';
                           if (lowerName.includes('صندل') || lowerName.includes('صنادل')) return 'صندل';
+                          if (lowerName.includes('سليبر')) return 'سليبر';
+                          if (lowerName.includes('بوتين')) return 'بوتين';
+                          if (lowerName.includes('كعب')) return 'كعب';
+                          if (lowerName.includes('فلات')) return 'فلات';
+                          if (lowerName.includes('بسطال')) return 'بسطال';
                           return 'أخرى';
                         };
-                        folderName = getProductType(p.name);
+                        const getProductGroup = (name: string) => {
+                          if (!name) return '';
+                          const lowerName = name.toLowerCase();
+                          if (lowerName.includes('رجالي')) return 'الرجالي';
+                          if (lowerName.includes('نسائي')) return 'النسائي';
+                          if (lowerName.includes('شبابي')) return 'الشبابي';
+                          if (lowerName.includes('ولادي')) return 'الولادي';
+                          if (lowerName.includes('بناتي')) return 'البناتي';
+                          if (lowerName.includes('طفلة')) return 'الطفلة';
+                          if (lowerName.includes('طفل')) return 'الطفل';
+                          if (lowerName.includes('مواليد')) return 'المواليد';
+                          if (lowerName.includes('بيبي')) return 'البيبي';
+                          return '';
+                        };
+
+                        const grp = getProductGroup(p.name || '');
+                        const typ = getProductType(p.name || '');
+                        folderName = grp ? `${grp}/${typ}` : typ;
                       }
 
                       return { url: imgUrl!, filename, folderName };
