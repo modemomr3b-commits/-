@@ -108,9 +108,11 @@ export default function ProductManager() {
 
   const [customApiKey, setCustomApiKey] = useState<string>(() => {
     try {
-      return localStorage.getItem('custom_gemini_api_key') || '';
+      const saved = localStorage.getItem('custom_gemini_api_key');
+      if (saved) return saved;
+      return ((import.meta as any).env?.VITE_GEMINI_API_KEY as string) || '';
     } catch {
-      return '';
+      return ((import.meta as any).env?.VITE_GEMINI_API_KEY as string) || '';
     }
   });
 
@@ -142,20 +144,23 @@ export default function ProductManager() {
         headers['x-gemini-api-key'] = customApiKey.trim();
       }
 
-      let res = await fetch('/api/generate-decor', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          imageBase64: currentImg,
-          prompt: finalPrompt,
-          pose: aiPose,
-          decorStyle: aiDecorStyle,
-          customApiKey: customApiKey.trim() || undefined,
-        })
-      });
+      let generatedImgUrl = '';
 
-      if (!res.ok) {
-        try {
+      // Try server API first
+      try {
+        let res = await fetch('/api/generate-decor', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            imageBase64: currentImg,
+            prompt: finalPrompt,
+            pose: aiPose,
+            decorStyle: aiDecorStyle,
+            customApiKey: customApiKey.trim() || undefined,
+          })
+        });
+
+        if (!res.ok) {
           const res2 = await fetch('/api/generate-image', {
             method: 'POST',
             headers,
@@ -170,65 +175,74 @@ export default function ProductManager() {
           if (res2.ok) {
             res = res2;
           }
-        } catch (e) {
-          // ignore fallback fetch error
         }
+
+        if (res.ok) {
+          const contentType = res.headers.get("content-type") || "";
+          if (contentType.includes("application/json")) {
+            const data = await res.json();
+            if (data?.imageUrl) {
+              generatedImgUrl = data.imageUrl;
+            }
+          }
+        }
+      } catch (serverErr) {
+        console.warn('Server generation failed:', serverErr);
       }
 
-      const contentType = res.headers.get("content-type") || "";
-      let data: any = {};
-      if (contentType.includes("application/json")) {
-        data = await res.json();
-      } else {
-        const text = await res.text();
-        console.error("Non-JSON server response:", res.status, text);
-      }
-
-      // If server response failed or had error, attempt client-side direct generation if user provided custom API key
-      if ((!res.ok || !data?.imageUrl) && customApiKey.trim()) {
-        try {
-          const { GoogleGenAI } = await import('@google/genai');
-          const ai = new GoogleGenAI({ apiKey: customApiKey.trim() });
-          const combinedPrompt = `Professional commercial footwear product advertisement photograph. ${finalPrompt || 'High-end footwear display photograph.'} Photorealistic studio shot, 8k resolution, crisp focus, cinematic lighting.`;
-          
-          let clientImg = '';
+      // If server generation was not available or failed (e.g. 405 on Vercel), perform direct client-side generation
+      if (!generatedImgUrl) {
+        console.log('Executing direct client-side generation fallback...');
+        
+        // Option 1: If user provided a Gemini API Key, try client Gemini SDK
+        if (customApiKey.trim()) {
           try {
+            const { GoogleGenAI } = await import('@google/genai');
+            const ai = new GoogleGenAI({ apiKey: customApiKey.trim() });
+            const combinedPrompt = `Professional commercial footwear advertisement photograph. ${finalPrompt || 'High-end footwear display photograph.'} Photorealistic studio shot, 8k resolution, crisp focus, cinematic lighting.`;
+            
             const imageResponse = await ai.models.generateImages({
               model: 'imagen-3.0-generate-002',
               prompt: combinedPrompt,
               config: { numberOfImages: 1, outputMimeType: 'image/jpeg', aspectRatio: '1:1' }
             });
-            if (imageResponse.generatedImages && imageResponse.generatedImages[0]?.image?.imageBytes) {
-              clientImg = `data:image/jpeg;base64,${imageResponse.generatedImages[0].image.imageBytes}`;
+            if (imageResponse.generatedImages?.[0]?.image?.imageBytes) {
+              generatedImgUrl = `data:image/jpeg;base64,${imageResponse.generatedImages[0].image.imageBytes}`;
             }
-          } catch (e1) {
-            console.warn('Client-side imagen failed:', e1);
+          } catch (clientGeminiErr) {
+            console.warn('Client-side Gemini generation failed:', clientGeminiErr);
           }
+        }
 
-          if (clientImg) {
-            data = { imageUrl: clientImg };
-            res = new Response(JSON.stringify(data), { status: 200, headers: { 'content-type': 'application/json' } });
+        // Option 2: Direct High-Quality Flux AI Generation via Pollinations
+        if (!generatedImgUrl) {
+          try {
+            const combinedPrompt = `Professional commercial footwear advertisement photograph. ${finalPrompt || 'High-end footwear display photograph.'} Photorealistic studio shot, 8k resolution, crisp focus, studio lighting, commercial product display.`;
+            const encodedPrompt = encodeURIComponent(combinedPrompt);
+            const seed = Math.floor(Math.random() * 1000000);
+            const pollUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=800&height=800&seed=${seed}&nologo=true&model=flux`;
+
+            const pRes = await fetch(pollUrl);
+            if (pRes.ok) {
+              const blob = await pRes.blob();
+              const reader = new FileReader();
+              const base64Promise = new Promise<string>((resolve) => {
+                reader.onloadend = () => resolve(reader.result as string);
+              });
+              reader.readAsDataURL(blob);
+              generatedImgUrl = await base64Promise;
+            }
+          } catch (pollErr) {
+            console.warn('Client-side Flux AI generation failed:', pollErr);
           }
-        } catch (clientErr) {
-          console.warn('Client fallback failed:', clientErr);
         }
       }
 
-      if (!res.ok || data.error) {
-        if (res.status === 405) {
-          throw new Error("تعذر معالجة الطلب من خادم Vercel (405). تم حديثاً إضافة ملف الخدمة للموقع، يرجى إعادة رفعه على Vercel أو استخدام مفتاح API خاص بـ Gemini.");
-        }
-        if (res.status === 504 || res.status === 502) {
-          throw new Error("انتهت مهلة استجابة الخادم. يرجى المحاولة مرة أخرى.");
-        }
-        throw new Error(data.error || `تعذر معالجة الطلب من الخادم (${res.status}). يرجى إعادة المحاولة.`);
+      if (!generatedImgUrl) {
+        throw new Error("تعذر معالجة طلب توليد الصورة. يرجى إعادة المحاولة.");
       }
 
-      if (!data.imageUrl) {
-        throw new Error("لم يتم الحصول على صورة من نموذج الذكاء الاصطناعي.");
-      }
-
-      setAiResultUrl(data.imageUrl);
+      setAiResultUrl(generatedImgUrl);
     } catch (err: any) {
       console.error('Error generating AI decor:', err);
       setAiError(err.message || 'حدث خطأ أثناء توليد الصورة بالذكاء الاصطناعي');
