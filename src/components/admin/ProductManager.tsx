@@ -142,7 +142,7 @@ export default function ProductManager() {
         headers['x-gemini-api-key'] = customApiKey.trim();
       }
 
-      const res = await fetch('/api/generate-decor', {
+      let res = await fetch('/api/generate-decor', {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -154,6 +154,27 @@ export default function ProductManager() {
         })
       });
 
+      if (!res.ok) {
+        try {
+          const res2 = await fetch('/api/generate-image', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              imageBase64: currentImg,
+              prompt: finalPrompt,
+              pose: aiPose,
+              decorStyle: aiDecorStyle,
+              customApiKey: customApiKey.trim() || undefined,
+            })
+          });
+          if (res2.ok) {
+            res = res2;
+          }
+        } catch (e) {
+          // ignore fallback fetch error
+        }
+      }
+
       const contentType = res.headers.get("content-type") || "";
       let data: any = {};
       if (contentType.includes("application/json")) {
@@ -161,14 +182,46 @@ export default function ProductManager() {
       } else {
         const text = await res.text();
         console.error("Non-JSON server response:", res.status, text);
-        if (res.status === 504 || res.status === 502) {
-          throw new Error("انتهت مهلة استجابة الخادم. يرجى المحاولة مرة أخرى.");
+      }
+
+      // If server response failed or had error, attempt client-side direct generation if user provided custom API key
+      if ((!res.ok || !data?.imageUrl) && customApiKey.trim()) {
+        try {
+          const { GoogleGenAI } = await import('@google/genai');
+          const ai = new GoogleGenAI({ apiKey: customApiKey.trim() });
+          const combinedPrompt = `Professional commercial footwear product advertisement photograph. ${finalPrompt || 'High-end footwear display photograph.'} Photorealistic studio shot, 8k resolution, crisp focus, cinematic lighting.`;
+          
+          let clientImg = '';
+          try {
+            const imageResponse = await ai.models.generateImages({
+              model: 'imagen-3.0-generate-002',
+              prompt: combinedPrompt,
+              config: { numberOfImages: 1, outputMimeType: 'image/jpeg', aspectRatio: '1:1' }
+            });
+            if (imageResponse.generatedImages && imageResponse.generatedImages[0]?.image?.imageBytes) {
+              clientImg = `data:image/jpeg;base64,${imageResponse.generatedImages[0].image.imageBytes}`;
+            }
+          } catch (e1) {
+            console.warn('Client-side imagen failed:', e1);
+          }
+
+          if (clientImg) {
+            data = { imageUrl: clientImg };
+            res = new Response(JSON.stringify(data), { status: 200, headers: { 'content-type': 'application/json' } });
+          }
+        } catch (clientErr) {
+          console.warn('Client fallback failed:', clientErr);
         }
-        throw new Error(`تعذر معالجة الطلب من الخادم (${res.status}). يرجى إعادة المحاولة.`);
       }
 
       if (!res.ok || data.error) {
-        throw new Error(data.error || 'حدث خطأ أثناء الاتصال بالخادم وتوليد الصورة');
+        if (res.status === 405) {
+          throw new Error("تعذر معالجة الطلب من خادم Vercel (405). تم حديثاً إضافة ملف الخدمة للموقع، يرجى إعادة رفعه على Vercel أو استخدام مفتاح API خاص بـ Gemini.");
+        }
+        if (res.status === 504 || res.status === 502) {
+          throw new Error("انتهت مهلة استجابة الخادم. يرجى المحاولة مرة أخرى.");
+        }
+        throw new Error(data.error || `تعذر معالجة الطلب من الخادم (${res.status}). يرجى إعادة المحاولة.`);
       }
 
       if (!data.imageUrl) {

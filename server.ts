@@ -122,7 +122,7 @@ app.post('/api/notify-publish', express.json(), async (req, res) => {
     res.json({ status: "ok" });
   });
 
-  app.post('/api/generate-decor', express.json({ limit: '20mb' }), async (req, res) => {
+  app.post(['/api/generate-decor', '/api/generate-image'], express.json({ limit: '20mb' }), async (req, res) => {
     try {
       const headerKey = req.headers['x-gemini-api-key'] as string;
       const bodyKey = req.body?.customApiKey as string;
