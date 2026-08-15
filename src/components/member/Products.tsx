@@ -95,14 +95,6 @@ export default function Products() {
 
     init();
 
-    // Absolute Safety Timeout: Force stop loading spinner after 1.5 seconds
-    const safetyTimer = setTimeout(() => {
-      if (mounted) {
-        setLoading(false);
-        setInitialLoading(false);
-      }
-    }, 1500);
-
     const channel = supabase
       .channel('member_products_view')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {

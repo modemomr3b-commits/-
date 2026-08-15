@@ -58,11 +58,6 @@ export default function Home() {
 
     initialFetch();
 
-    // Absolute Safety Timeout: Force stop loading spinner after 1.5 seconds max
-    const safetyTimer = setTimeout(() => {
-      if (mounted) setLoading(false);
-    }, 1500);
-
     const channel = supabase
       .channel('home_categories')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'categories' }, () => {
@@ -76,7 +71,6 @@ export default function Home() {
     return () => {
       mounted = false;
       clearTimeout(fetchTimeout);
-      clearTimeout(safetyTimer);
       supabase.removeChannel(channel);
     };
   }, []);

@@ -51,13 +51,8 @@ export default function SearchPage() {
     };
     fetchProducts();
 
-    const safetyTimer = setTimeout(() => {
-      if (mounted) setLoading(false);
-    }, 1500);
-
     return () => { 
       mounted = false; 
-      clearTimeout(safetyTimer);
     };
   }, []);
 
