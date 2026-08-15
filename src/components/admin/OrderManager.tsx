@@ -465,23 +465,23 @@ export default function OrderManager() {
                               {/* Code Box + Quantity Box side-by-side on same side */}
                               <div className="flex items-center gap-2 flex-wrap">
                                  {/* Code box */}
-                                 <div className="bg-white/10 border border-amber-500/30 px-3 py-1.5 rounded-xl inline-flex items-center gap-2">
-                                    <span className="text-xs font-bold text-amber-300">الكود:</span>
-                                    <span className="font-mono font-bold text-base text-brq-gold tracking-wider select-all">
+                                 <div className="bg-amber-400 border border-amber-500/50 px-3 py-1.5 rounded-xl inline-flex items-center gap-2 shadow-sm">
+                                    <span className="text-xs font-extrabold text-black/80">الكود:</span>
+                                    <span className="font-mono font-black text-base text-black tracking-wider select-all">
                                        {item.product?.productCode || '---'}
                                     </span>
                                     {item.product?.modelNumber && (
-                                       <span className="text-xs text-white/60">
+                                       <span className="text-xs text-black/70 font-bold">
                                           ({item.product.modelNumber})
                                        </span>
                                     )}
                                  </div>
 
                                  {/* Quantity box right beside code box */}
-                                 <div className="bg-amber-500/10 border border-amber-500/30 px-3 py-1.5 rounded-xl inline-flex items-center gap-2">
-                                    <span className="text-xs font-bold text-amber-300">الكمية:</span>
-                                    <span className="font-mono font-bold text-base text-amber-400">{item.quantity}</span>
-                                    <span className="text-xs text-amber-200">قطع</span>
+                                 <div className="bg-amber-400 border border-amber-500/50 px-3 py-1.5 rounded-xl inline-flex items-center gap-2 shadow-sm">
+                                    <span className="text-xs font-extrabold text-black/80">الكمية:</span>
+                                    <span className="font-mono font-black text-base text-black">{item.quantity}</span>
+                                    <span className="text-xs font-bold text-black/80">قطع</span>
                                  </div>
                               </div>
                            </div>
