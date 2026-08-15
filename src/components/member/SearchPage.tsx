@@ -3,6 +3,7 @@ import { Search, Lock, SlidersHorizontal, Archive, Download, Loader2, CheckCircl
 import { Link } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
 import { api } from '../../api';
+import { shuffleProductsForUser } from '../../utils/shuffle';
 import { filterProductsBySearch } from '../../utils/search';
 import { Product } from '../../types';
 import OptimizedImage from '../OptimizedImage';
@@ -41,7 +42,7 @@ export default function SearchPage() {
          const allProducts = await api.getProducts();
          if (mounted) {
             setAllCategories(cats);
-            setProducts(allProducts);
+            setProducts(shuffleProductsForUser(allProducts));
          }
       } catch (e) {
          console.error(e);

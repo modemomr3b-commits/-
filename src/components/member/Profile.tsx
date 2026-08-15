@@ -16,7 +16,7 @@ const statusMap: Record<OrderStatus, { label: string, color: string }> = {
 };
 
 export default function Profile() {
-  const { user, setUser } = useStore();
+  const { user, setUser, showToast } = useStore();
   const { deferredPrompt, isIOS: isIos, handleInstallClick: handleInstall } = usePWAInstall();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
@@ -24,8 +24,9 @@ export default function Profile() {
   const [pushEnabled, setPushEnabled] = useState(false);
   useEffect(() => { isSubscribed().then(setPushEnabled); }, []);
   const handleEnablePush = async () => {
-    const success = await subscribeToPushNotifications();
-    if (success) setPushEnabled(true);
+    const res = await subscribeToPushNotifications();
+    if (res.success) setPushEnabled(true);
+    if (res.message) showToast(res.message, res.success ? 'success' : 'error');
   };
   
   const isInstalled = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true;

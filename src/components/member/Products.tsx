@@ -13,6 +13,7 @@ import { CategoryDownloadDialog } from "../shared/CategoryDownloadDialog";
 import { DownloadChoiceDialog } from "../shared/DownloadChoiceDialog";
 import { PriceHistoryViewer } from "./PriceHistoryViewer";
 import ImageViewer from "../ImageViewer";
+import { shuffleProductsForUser } from '../../utils/shuffle';
 
 const MOCK_PRODUCTS: Product[] = [];
 
@@ -62,6 +63,7 @@ export default function Products() {
       }
       
       let fetchedProducts = allProducts.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked);
+      fetchedProducts = shuffleProductsForUser(fetchedProducts);
       
       if (categoryId) {
         const cat = cats.find((c: any) => c.id === categoryId);

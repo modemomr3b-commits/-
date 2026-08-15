@@ -359,10 +359,12 @@ export default function ProductManager() {
       });
       const prods = await api.getProducts();
       setProducts(
-        prods.map((p: any) => ({
-          ...p,
-          createdAt: p.createdAt ? new Date(p.createdAt).getTime() : Date.now(),
-        })),
+        prods
+          .map((p: any) => ({
+            ...p,
+            createdAt: p.createdAt ? new Date(p.createdAt).getTime() : Date.now(),
+          }))
+          .sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0)),
       );
     } catch (e) {
       console.error(e);

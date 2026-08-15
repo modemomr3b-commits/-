@@ -309,34 +309,24 @@ export default function MemberOrders() {
               <h3 className="text-sm font-bold text-white/80 flex items-center justify-between">
                 <span>المنتجات المطلوبة ({selectedOrder.items?.length || 0})</span>
               </h3>
-              <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
+              <div className="divide-y divide-white/10 max-h-72 overflow-y-auto pr-1">
                 {(selectedOrder.items || []).map((item, idx) => (
-                  <div key={idx} className="flex items-center gap-3 p-3 bg-black/40 rounded-xl border border-white/5 hover:border-white/20 transition-colors">
-                    <div className="w-16 h-16 rounded-lg bg-black/60 overflow-hidden border border-white/10 shrink-0">
-                      {item.product?.finalImageUrl || item.product?.imageUrl ? (
-                        <OptimizedImage 
-                          src={item.product.finalImageUrl || item.product.imageUrl!} 
-                          alt={item.product.name} 
-                          size="thumbnail" 
-                          className="w-full h-full" 
-                          imgClassName="object-cover" 
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-xl">👟</div>
-                      )}
-                    </div>
+                  <div key={idx} className="py-3 text-right space-y-2">
+                    {/* Product Name on top */}
+                    <h4 className="font-bold text-sm text-white">{item.product?.name || 'منتج'}</h4>
                     
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-bold text-sm text-white truncate">{item.product?.name || 'منتج'}</h4>
-                      <div className="flex items-center gap-3 mt-1 text-xs text-white/60 font-mono">
-                        <span>الكود: <strong className="text-brq-gold">{item.product?.productCode || '---'}</strong></span>
-                        {item.product?.modelNumber && <span>الموديل: {item.product.modelNumber}</span>}
+                    {/* Code Box + Quantity Box side-by-side */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="bg-white/10 border border-brq-gold/30 px-3 py-1 rounded-lg inline-flex items-center gap-1.5 text-xs">
+                        <span className="text-white/60">الكود:</span>
+                        <strong className="text-brq-gold font-mono font-bold">{item.product?.productCode || '---'}</strong>
+                        {item.product?.modelNumber && <span className="text-white/50 text-[11px]">({item.product.modelNumber})</span>}
                       </div>
-                    </div>
 
-                    <div className="text-left shrink-0 bg-brq-gold/10 px-3 py-1.5 rounded-lg border border-brq-gold/30">
-                      <span className="text-[10px] text-white/50 block">الكمية</span>
-                      <span className="font-bold text-brq-gold text-sm">{item.quantity} قطعة</span>
+                      <div className="bg-brq-gold/10 border border-brq-gold/30 px-3 py-1 rounded-lg inline-flex items-center gap-1.5 text-xs">
+                        <span className="text-white/60">الكمية:</span>
+                        <strong className="text-brq-gold font-mono font-bold">{item.quantity} قطعة</strong>
+                      </div>
                     </div>
                   </div>
                 ))}

@@ -1,41 +1,37 @@
-export async function subscribeToPushNotifications() {
-  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-    alert('متصفحك لا يدعم الإشعارات');
-    return false;
+export async function subscribeToPushNotifications(): Promise<{ success: boolean; message?: string }> {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+    return { success: false, message: 'متصفحك لا يدعم الإشعارات المباشرة.' };
   }
 
   try {
-    if (!('Notification' in window)) {
-      alert('متصفحك لا يدعم الإشعارات (Notification API غير متوفر).');
-      return false;
-    }
-
     if (Notification.permission === 'denied') {
-      alert('الإشعارات محظورة. يرجى فتح التطبيق في نافذة جديدة أو السماح بها من إعدادات المتصفح.');
-      return false;
+      return { 
+        success: false, 
+        message: 'الإشعارات محظورة في متصفحك. يرجى تفعيل السماح بالإشعارات من إعدادات المتصفح أو إعدادات الموقع.' 
+      };
     }
 
     const permission = await Notification.requestPermission();
     if (permission !== 'granted') {
-      alert('الرجاء السماح بالإشعارات من إعدادات المتصفح.');
-      return false;
+      return { 
+        success: false, 
+        message: 'خلي الإشعارات تتفعل علمود يوصلك كل الجديد الي ننشرة.' 
+      };
     }
 
     const swReg = await navigator.serviceWorker.getRegistration();
     if (!swReg) {
-      alert('لم يتم تحميل Service Worker بعد، يرجى تحديث الصفحة والمحاولة مرة أخرى.');
-      return false;
+      return { success: false, message: 'جارٍ تهيئة نظام الإشعارات، يرجى المحاولة بعد لحظات.' };
     }
 
     let registration;
     try {
       registration = await Promise.race([
         navigator.serviceWorker.ready,
-        new Promise((_, reject) => setTimeout(() => reject(new Error('انتهى وقت الاتصال بالخدمة (Timeout)')), 5000))
-      ]);
-    } catch (swErr) {
-      alert('خطأ في تهيئة الإشعارات: ' + swErr.message);
-      return false;
+        new Promise((_, reject) => setTimeout(() => reject(new Error('انتهى وقت الاتصال بالخدمة')), 5000))
+      ]) as ServiceWorkerRegistration;
+    } catch (swErr: any) {
+      return { success: false, message: 'خطأ في تهيئة الإشعارات: ' + swErr.message };
     }
 
     let subscription = await registration.pushManager.getSubscription();
@@ -58,12 +54,10 @@ export async function subscribeToPushNotifications() {
       }
     });
 
-    alert('تم تفعيل الإشعارات بنجاح!');
-    return true;
-  } catch (error) {
+    return { success: true, message: 'تم تفعيل الإشعارات بنجاح!' };
+  } catch (error: any) {
     console.error('Error subscribing to push notifications:', error);
-    alert('حدث خطأ أثناء تفعيل الإشعارات: ' + (error.message || 'خطأ غير معروف'));
-    return false;
+    return { success: false, message: 'حدث خطأ أثناء تفعيل الإشعارات: ' + (error.message || 'خطأ غير معروف') };
   }
 }
 

@@ -454,34 +454,35 @@ export default function OrderManager() {
                         <span>المنتجات المطلوبة</span>
                         <span className="text-brq-gold font-mono font-bold bg-amber-500/10 px-3 py-1 rounded-lg border border-amber-500/20">{selectedOrder.totalQuantity} قطعة</span>
                      </h3>
-                     <div className="space-y-3">
+                     <div className="divide-y divide-white/10">
                         {selectedOrder.items?.map((item, idx) => (
-                           <div key={idx} className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-black/60 p-4 rounded-xl border border-white/10 shadow-lg">
-                              {/* Product Name & Code (No Images for Admin) */}
-                              <div className="flex-1 space-y-2 w-full">
-                                 {/* Product Name in small, clear font */}
-                                 <h4 className="text-xs sm:text-sm font-medium text-white/90 leading-relaxed">
-                                    {item.product?.name || 'منتج محذوف'}
-                                 </h4>
-                                 
-                                 {/* Product Code Badge */}
-                                 <div className="bg-white/10 border border-amber-500/30 px-3 py-1.5 rounded-lg inline-flex items-center gap-2">
+                           <div key={idx} className="py-3 text-right space-y-2">
+                              {/* Product Name on top */}
+                              <h4 className="text-xs sm:text-sm font-bold text-white/90 leading-snug">
+                                 {item.product?.name || 'منتج محذوف'}
+                              </h4>
+                              
+                              {/* Code Box + Quantity Box side-by-side on same side */}
+                              <div className="flex items-center gap-2 flex-wrap">
+                                 {/* Code box */}
+                                 <div className="bg-white/10 border border-amber-500/30 px-3 py-1.5 rounded-xl inline-flex items-center gap-2">
                                     <span className="text-xs font-bold text-amber-300">الكود:</span>
-                                    <span className="font-mono font-bold text-lg text-brq-gold tracking-wider select-all">
+                                    <span className="font-mono font-bold text-base text-brq-gold tracking-wider select-all">
                                        {item.product?.productCode || '---'}
                                     </span>
                                     {item.product?.modelNumber && (
-                                       <span className="text-xs text-white/60 mr-2">
+                                       <span className="text-xs text-white/60">
                                           ({item.product.modelNumber})
                                        </span>
                                     )}
                                  </div>
-                              </div>
-                              
-                              {/* Quantity */}
-                              <div className="px-4 py-2 bg-gradient-to-b from-amber-500/20 to-amber-600/10 rounded-xl border border-amber-500/30 text-center min-w-[100px] w-full sm:w-auto flex-shrink-0">
-                                 <div className="text-[11px] font-bold text-amber-300">الكمية</div>
-                                 <div className="font-bold text-amber-400 text-2xl font-mono">{item.quantity} <span className="text-xs text-amber-200">قطع</span></div>
+
+                                 {/* Quantity box right beside code box */}
+                                 <div className="bg-amber-500/10 border border-amber-500/30 px-3 py-1.5 rounded-xl inline-flex items-center gap-2">
+                                    <span className="text-xs font-bold text-amber-300">الكمية:</span>
+                                    <span className="font-mono font-bold text-base text-amber-400">{item.quantity}</span>
+                                    <span className="text-xs text-amber-200">قطع</span>
+                                 </div>
                               </div>
                            </div>
                         ))}
