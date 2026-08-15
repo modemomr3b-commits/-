@@ -249,30 +249,7 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
            showToast("حدث خطأ أثناء التحميل", "error");
         }
         setDownloadProgress(null);
-      },
-      onDownloadAllElastic: (user?.fullName === "نصيف عبد الرزاق" || user?.fullName === "نصيف عبدالرزاق" || user?.username === "modemomr3b@gmail.com" || user?.fullName?.includes("نصيف")) ? async () => {
-        setDownloadChoiceDialog(null);
-        setDownloadProgress({ progress: 0, total: imagesWithData.length, message: 'جاري تحضير الملفات...' });
-        const imagesToDownload = imagesWithData.map(p => {
-          const imgUrl = p.finalImageUrl || p.imageUrl;
-          const ext = imgUrl!.split('.').pop()?.split('?')[0] || 'jpg';
-          const safeName = (p.productCode || p.name || 'product').replace(/[\\/\\?<>\\:\\*\\|":]/g, '-');
-          const filename = `${safeName}.${ext}`;
-          
-          let mainCatName = getProductGroup(p.name || '');
-          let subType = getProductType(p.name || '');
-          let folderPath = `${mainCatName}/${subType}`;
-          
-          return { url: imgUrl!, filename, folderName: folderPath };
-        });
-        const { downloadAsZip } = await import('../../utils/zipDownload');
-        const success = await downloadAsZip('جميع اللاستيك', imagesToDownload, (progress, total, message) => {
-          setDownloadProgress({ progress, total, message });
-        });
-        if (success) showToast("تم تحميل الملف المضغوط بنجاح", "success");
-        else showToast("حدث خطأ أثناء التحميل", "error");
-        setDownloadProgress(null);
-      } : undefined
+      }
     });
   };
 
@@ -428,7 +405,6 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
           message={downloadChoiceDialog.message}
           onDownloadStudio={downloadChoiceDialog.onDownloadStudio}
           onDownloadZip={downloadChoiceDialog.onDownloadZip}
-          onDownloadAllElastic={downloadChoiceDialog.onDownloadAllElastic}
           onCancel={() => setDownloadChoiceDialog(null)}
         />
       )}

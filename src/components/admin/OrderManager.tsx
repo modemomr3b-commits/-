@@ -454,45 +454,34 @@ export default function OrderManager() {
                         <span>المنتجات المطلوبة</span>
                         <span className="text-brq-gold font-mono font-bold bg-amber-500/10 px-3 py-1 rounded-lg border border-amber-500/20">{selectedOrder.totalQuantity} قطعة</span>
                      </h3>
-                     <div className="space-y-4">
+                     <div className="space-y-3">
                         {selectedOrder.items?.map((item, idx) => (
-                           <div key={idx} className="flex flex-col sm:flex-row items-start sm:items-center gap-4 bg-black/60 p-4 rounded-2xl border border-white/10 shadow-lg relative overflow-hidden">
-                              {/* Product Image */}
-                              {item.product?.finalImageUrl || item.product?.imageUrl ? (
-                                 <img 
-                                    src={item.product.finalImageUrl || item.product.imageUrl} 
-                                    alt={item.product.name} 
-                                    onClick={() => setViewImage({ src: item.product?.finalImageUrl || item.product?.imageUrl || '', alt: item.product?.name || 'صورة المنتج' })}
-                                    className="w-28 h-28 sm:w-36 sm:h-36 rounded-xl object-contain bg-black/80 border-2 border-white/20 hover:border-brq-gold transition-all cursor-pointer shadow-md flex-shrink-0" 
-                                    title="انقر لتكبير صورة المنتج"
-                                 />
-                              ) : (
-                                 <div className="w-28 h-28 sm:w-36 sm:h-36 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-4xl flex-shrink-0">👟</div>
-                              )}
-                              
-                              {/* Details & Huge Code */}
+                           <div key={idx} className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-black/60 p-4 rounded-xl border border-white/10 shadow-lg">
+                              {/* Product Name & Code (No Images for Admin) */}
                               <div className="flex-1 space-y-2 w-full">
-                                 <h4 className="font-bold text-base sm:text-lg text-white">{item.product?.name || 'منتج محذوف'}</h4>
+                                 {/* Product Name in small, clear font */}
+                                 <h4 className="text-xs sm:text-sm font-medium text-white/90 leading-relaxed">
+                                    {item.product?.name || 'منتج محذوف'}
+                                 </h4>
                                  
-                                 {/* Prominent Product Code Badge */}
-                                 <div className="bg-white text-black px-4 py-2 rounded-xl border-2 border-amber-400 shadow-xl inline-block my-1">
-                                    <div className="text-[11px] font-black text-amber-800 tracking-wider">كود المنتج</div>
-                                    <div className="font-black text-2xl sm:text-3xl text-black font-mono tracking-widest select-all">
+                                 {/* Product Code Badge */}
+                                 <div className="bg-white/10 border border-amber-500/30 px-3 py-1.5 rounded-lg inline-flex items-center gap-2">
+                                    <span className="text-xs font-bold text-amber-300">الكود:</span>
+                                    <span className="font-mono font-bold text-lg text-brq-gold tracking-wider select-all">
                                        {item.product?.productCode || '---'}
-                                    </div>
+                                    </span>
+                                    {item.product?.modelNumber && (
+                                       <span className="text-xs text-white/60 mr-2">
+                                          ({item.product.modelNumber})
+                                       </span>
+                                    )}
                                  </div>
-
-                                 {item.product?.modelNumber && (
-                                    <div className="text-xs font-bold text-amber-300">
-                                       رمز الموديل: <span className="font-mono text-white text-sm bg-white/10 px-2 py-0.5 rounded">{item.product.modelNumber}</span>
-                                    </div>
-                                 )}
                               </div>
                               
-                              {/* Enlarged Quantity */}
-                              <div className="px-5 py-3 bg-gradient-to-b from-amber-500/20 to-amber-600/10 rounded-2xl border-2 border-amber-500/40 text-center min-w-[110px] w-full sm:w-auto shadow-md flex-shrink-0">
-                                 <div className="text-xs font-bold text-amber-300 mb-0.5">الكمية المطلوبة</div>
-                                 <div className="font-black text-amber-400 text-3xl sm:text-4xl font-mono">{item.quantity} <span className="text-xs font-bold text-amber-200">قطع</span></div>
+                              {/* Quantity */}
+                              <div className="px-4 py-2 bg-gradient-to-b from-amber-500/20 to-amber-600/10 rounded-xl border border-amber-500/30 text-center min-w-[100px] w-full sm:w-auto flex-shrink-0">
+                                 <div className="text-[11px] font-bold text-amber-300">الكمية</div>
+                                 <div className="font-bold text-amber-400 text-2xl font-mono">{item.quantity} <span className="text-xs text-amber-200">قطع</span></div>
                               </div>
                            </div>
                         ))}

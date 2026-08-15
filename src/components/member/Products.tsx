@@ -524,8 +524,6 @@ export default function Products() {
                   setDownloadChoiceDialog(null);
                   setDownloadProgress({ progress: 0, total: imagesWithData.length });
                   
-                  const isSpecialUser = user?.fullName === "نصيف عبد الرزاق" || user?.fullName === "نصيف عبدالرزاق" || user?.username === "modemomr3b@gmail.com" || user?.fullName?.includes("نصيف");
-                  
                   const imagesToDownload = imagesWithData
                     .filter(p => p.finalImageUrl || p.imageUrl)
                     .map(p => {
@@ -533,47 +531,7 @@ export default function Products() {
                       const ext = imgUrl!.split('.').pop()?.split('?')[0] || 'jpg';
                       const safeName = (p.productCode || p.name || 'product').replace(/[\\/\\?<>\\:\\*\\|":]/g, '-');
                       const filename = `${safeName}.${ext}`;
-                      
-                      let folderName = undefined;
-                      
-                      if (isSpecialUser) {
-                        const getProductType = (name: string) => {
-                          if (!name) return 'أخرى';
-                          const lowerName = name.toLowerCase();
-                          if (lowerName.includes('رياض')) return 'رياضة';
-                          if (lowerName.includes('شحاط')) return 'شحاطة';
-                          if (lowerName.includes('احذي') || lowerName.includes('أحذي') || lowerName.includes('حذاء')) return 'حذاء';
-                          if (lowerName.includes('لابجين')) return 'لابجين';
-                          if (lowerName.includes('لاستيك')) return 'لاستيك';
-                          if (lowerName.includes('صندل') || lowerName.includes('صنادل')) return 'صندل';
-                          if (lowerName.includes('سليبر')) return 'سليبر';
-                          if (lowerName.includes('بوتين')) return 'بوتين';
-                          if (lowerName.includes('كعب')) return 'كعب';
-                          if (lowerName.includes('فلات')) return 'فلات';
-                          if (lowerName.includes('بسطال')) return 'بسطال';
-                          return 'أخرى';
-                        };
-                        const getProductGroup = (name: string) => {
-                          if (!name) return '';
-                          const lowerName = name.toLowerCase();
-                          if (lowerName.includes('رجالي')) return 'الرجالي';
-                          if (lowerName.includes('نسائي')) return 'النسائي';
-                          if (lowerName.includes('شبابي')) return 'الشبابي';
-                          if (lowerName.includes('ولادي')) return 'الولادي';
-                          if (lowerName.includes('بناتي')) return 'البناتي';
-                          if (lowerName.includes('طفلة')) return 'الطفلة';
-                          if (lowerName.includes('طفل')) return 'الطفل';
-                          if (lowerName.includes('مواليد')) return 'المواليد';
-                          if (lowerName.includes('بيبي')) return 'البيبي';
-                          return '';
-                        };
-
-                        const grp = getProductGroup(p.name || '');
-                        const typ = getProductType(p.name || '');
-                        folderName = grp ? `${grp}/${typ}` : typ;
-                      }
-
-                      return { url: imgUrl!, filename, folderName };
+                      return { url: imgUrl!, filename };
                     });
 
                   const catName = categoryId 
@@ -600,58 +558,7 @@ export default function Products() {
                      showToast("حدث خطأ أثناء التحميل", "error");
                   }
                   setDownloadProgress(null);
-                },
-                onDownloadAllElastic: (user?.fullName === "نصيف عبد الرزاق" || user?.fullName === "نصيف عبدالرزاق" || user?.username === "modemomr3b@gmail.com" || user?.fullName?.includes("نصيف")) ? async () => {
-                  setDownloadChoiceDialog(null);
-                  
-                  // Fetch all products to get all elastic products in the site
-                  showToast("جاري تجهيز جميع منتجات اللاستيك...", "loading");
-                  let allProducts = [];
-                  try {
-                    allProducts = await api.getProducts();
-                  } catch (e) {
-                    showToast("حدث خطأ أثناء جلب المنتجات", "error");
-                    return;
-                  }
-                  
-                  const elasticProducts = allProducts.filter(p => !p.isArchived && !p.isHidden && !p.isLocked && p.name && (p.name.toLowerCase().includes('لاستيك') || p.name.toLowerCase().includes('استيك')));
-                  
-                  if (elasticProducts.length === 0) {
-                     showToast("لا توجد منتجات لاستيك", "error");
-                     return;
-                  }
-                  
-                  setDownloadProgress({ progress: 0, total: elasticProducts.length });
-                  
-                  const imagesToDownload = elasticProducts
-                    .filter(p => p.finalImageUrl || p.imageUrl)
-                    .map(p => {
-                      const imgUrl = p.finalImageUrl || p.imageUrl;
-                      const ext = imgUrl.split('.').pop()?.split('?')[0] || 'jpg';
-                      const safeName = (p.productCode || p.name || 'product').replace(/[\\/\\?<>\\:\\*\\|":]/g, '-');
-                      const filename = `${safeName}.${ext}`;
-                      
-                      let mainCatName = 'أخرى';
-                      if (p.categoryId) {
-                        const mainCat = allCategories.find(c => c.id === p.categoryId);
-                        if (mainCat) mainCatName = mainCat.name;
-                      }
-                      
-                      return { url: imgUrl, filename, folderName: mainCatName };
-                    });
-
-                  const { downloadAsZip } = await import('../../utils/zipDownload');
-                  const success = await downloadAsZip('جميع اللاستيك', imagesToDownload, (progress, total) => {
-                    setDownloadProgress({ progress, total });
-                  });
-
-                  if (success) {
-                     showToast("تم الحفظ بنجاح", "success");
-                  } else {
-                     showToast("حدث خطأ أثناء التحميل", "error");
-                  }
-                  setDownloadProgress(null);
-                } : undefined
+                }
               });
             }}
             className="flex-[2] py-2 bg-brq-navy rounded-lg border border-brq-royal/50 flex gap-2 items-center justify-center text-xs text-brq-gold hover:bg-brq-navy/80 transition-colors disabled:opacity-50"
@@ -1016,7 +923,6 @@ export default function Products() {
           message={downloadChoiceDialog.message}
           onDownloadStudio={downloadChoiceDialog.onDownloadStudio}
           onDownloadZip={downloadChoiceDialog.onDownloadZip}
-          onDownloadAllElastic={downloadChoiceDialog.onDownloadAllElastic}
           onCancel={() => setDownloadChoiceDialog(null)}
         />
       )}
