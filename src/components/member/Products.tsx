@@ -81,14 +81,27 @@ export default function Products() {
   useEffect(() => {
     let mounted = true;
     let fetchTimeout: any;
+
     const init = async () => {
-       await fetchProducts();
-       if (mounted) {
-         setLoading(false);
-         setInitialLoading(false);
-       }
+      try {
+        await fetchProducts();
+      } finally {
+        if (mounted) {
+          setLoading(false);
+          setInitialLoading(false);
+        }
+      }
     };
+
     init();
+
+    // Absolute Safety Timeout: Force stop loading spinner after 1.5 seconds
+    const safetyTimer = setTimeout(() => {
+      if (mounted) {
+        setLoading(false);
+        setInitialLoading(false);
+      }
+    }, 1500);
 
     const channel = supabase
       .channel('member_products_view')

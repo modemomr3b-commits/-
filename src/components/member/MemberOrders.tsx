@@ -54,6 +54,12 @@ export default function MemberOrders() {
     };
     
     fetchOrders();
+
+    const safetyTimer = setTimeout(() => {
+      setLoading(false);
+    }, 1500);
+
+    return () => clearTimeout(safetyTimer);
   }, [user]);
 
   const getStatusDisplay = (status: string) => {

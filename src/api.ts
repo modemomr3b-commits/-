@@ -2,30 +2,52 @@ import { getServerTime } from './utils/time';
 import { supabase } from './supabase';
 import { ActivityLog } from './types';
 
+const fetchWithTimeout = async <T>(promise: PromiseLike<T>, timeoutMs = 2500): Promise<T> => {
+  let timer: any;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error('Supabase request timeout')), timeoutMs);
+  });
+  try {
+    const res = await Promise.race([promise, timeoutPromise]);
+    clearTimeout(timer);
+    return res as T;
+  } catch (err) {
+    clearTimeout(timer);
+    throw err;
+  }
+};
+
 const getData = async (table: string) => {
   let allData: any[] = [];
   let from = 0;
   const limit = 1000;
   
   while (true) {
-    const { data, error } = await supabase
-      .from(table)
-      .select('*')
-      .neq('isDeleted', true)
-      .range(from, from + limit - 1);
+    try {
+      const { data, error } = await fetchWithTimeout(
+        supabase
+          .from(table)
+          .select('*')
+          .neq('isDeleted', true)
+          .range(from, from + limit - 1)
+      );
+        
+      if (error) {
+        console.error(error);
+        return allData;
+      }
       
-    if (error) {
-      console.error(error);
-      return allData;
-    }
-    
-    if (data && data.length > 0) {
-      allData = [...allData, ...data];
-      if (data.length < limit) {
+      if (data && data.length > 0) {
+        allData = [...allData, ...data];
+        if (data.length < limit) {
+          break;
+        }
+        from += limit;
+      } else {
         break;
       }
-      from += limit;
-    } else {
+    } catch (err) {
+      console.warn(`getData timeout or error on table ${table}:`, err);
       break;
     }
   }
@@ -38,24 +60,31 @@ const getDeletedData = async (table: string) => {
   const limit = 1000;
   
   while (true) {
-    const { data, error } = await supabase
-      .from(table)
-      .select('*')
-      .eq('isDeleted', true)
-      .range(from, from + limit - 1);
+    try {
+      const { data, error } = await fetchWithTimeout(
+        supabase
+          .from(table)
+          .select('*')
+          .eq('isDeleted', true)
+          .range(from, from + limit - 1)
+      );
+        
+      if (error) {
+        console.error(error);
+        return allData;
+      }
       
-    if (error) {
-      console.error(error);
-      return allData;
-    }
-    
-    if (data && data.length > 0) {
-      allData = [...allData, ...data];
-      if (data.length < limit) {
+      if (data && data.length > 0) {
+        allData = [...allData, ...data];
+        if (data.length < limit) {
+          break;
+        }
+        from += limit;
+      } else {
         break;
       }
-      from += limit;
-    } else {
+    } catch (err) {
+      console.warn(`getDeletedData timeout or error on table ${table}:`, err);
       break;
     }
   }

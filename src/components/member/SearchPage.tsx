@@ -41,18 +41,24 @@ export default function SearchPage() {
          const allProducts = await api.getProducts();
          if (mounted) {
             setAllCategories(cats);
-         }
-         if (mounted) {
             setProducts(allProducts);
-            setLoading(false);
          }
       } catch (e) {
          console.error(e);
+      } finally {
          if (mounted) setLoading(false);
       }
     };
     fetchProducts();
-    return () => { mounted = false; };
+
+    const safetyTimer = setTimeout(() => {
+      if (mounted) setLoading(false);
+    }, 1500);
+
+    return () => { 
+      mounted = false; 
+      clearTimeout(safetyTimer);
+    };
   }, []);
 
   useEffect(() => {

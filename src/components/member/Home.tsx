@@ -32,11 +32,13 @@ export default function Home() {
   const fetchCats = async () => {
     try {
       const cats = await api.getCategories();
-      setCategories(
-        cats
-          .filter((c) => !c.isHidden && !c.parentId)
-          .sort((a: any, b: any) => a.order - b.order),
-      );
+      if (cats && Array.isArray(cats)) {
+        setCategories(
+          cats
+            .filter((c) => !c.isHidden && !c.parentId)
+            .sort((a: any, b: any) => (a.order || 0) - (b.order || 0)),
+        );
+      }
     } catch (e) {
       console.error(e);
     }
@@ -45,11 +47,21 @@ export default function Home() {
   useEffect(() => {
     let mounted = true;
     let fetchTimeout: any;
+
     const initialFetch = async () => {
-      await fetchCats();
-      if (mounted) setLoading(false);
+      try {
+        await fetchCats();
+      } finally {
+        if (mounted) setLoading(false);
+      }
     };
+
     initialFetch();
+
+    // Absolute Safety Timeout: Force stop loading spinner after 1.5 seconds max
+    const safetyTimer = setTimeout(() => {
+      if (mounted) setLoading(false);
+    }, 1500);
 
     const channel = supabase
       .channel('home_categories')
@@ -64,6 +76,7 @@ export default function Home() {
     return () => {
       mounted = false;
       clearTimeout(fetchTimeout);
+      clearTimeout(safetyTimer);
       supabase.removeChannel(channel);
     };
   }, []);
