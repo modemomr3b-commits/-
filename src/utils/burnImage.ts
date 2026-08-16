@@ -18,7 +18,7 @@ export const burnProductOverlay = (product: any, rawImageUrl: string): Promise<s
         
         // Ribbon scaling based on 1080px reference
         const scale = CANVAS_W / baseWidth;
-        const ribbonH = 220 * scale;
+        const ribbonH = 240 * scale;
         
         const CANVAS_H = CANVAS_IMG_H + ribbonH;
         
@@ -47,24 +47,24 @@ export const burnProductOverlay = (product: any, rawImageUrl: string): Promise<s
         ctx.textBaseline = 'top';
 
         // --- ROW 1: Code and Packaging ---
-        const row1Y = topH + (35 * scale);
+        const row1Y = topH + (25 * scale);
 
-        // Code (Right side)
-        ctx.fillStyle = '#d4af37';
-        ctx.font = `bold ${34 * scale}px Cairo, sans-serif`;
+        // Code (Right side - Enlarged)
+        ctx.fillStyle = '#ffd700';
+        ctx.font = `900 ${52 * scale}px Cairo, sans-serif`;
         const codeText = `الكود: ${product.productCode || '---'}`;
-        ctx.fillText(codeText, CANVAS_W - (40 * scale), row1Y);
+        ctx.fillText(codeText, CANVAS_W - (35 * scale), row1Y);
 
         // Packaging (Left side)
         ctx.textAlign = 'left';
         ctx.fillStyle = '#cccccc';
-        ctx.font = `${32 * scale}px Cairo, sans-serif`;
+        ctx.font = `bold ${32 * scale}px Cairo, sans-serif`;
         let packStr = `التعبئة: ${product.packaging || '---'}`;
-        ctx.fillText(packStr, 40 * scale, row1Y);
+        ctx.fillText(packStr, 35 * scale, row1Y + (10 * scale));
 
         // --- ROW 2: Prices ---
         ctx.textAlign = 'right';
-        const boxY = topH + (100 * scale);
+        const boxY = topH + (115 * scale);
         
         // Dozen Box (Right Side)
         const doxW = 380 * scale;

@@ -12,26 +12,34 @@ export const downloadAsZip = async (
     
     if (onProgress) onProgress(0, images.length, 'جاري تحضير الملفات...');
 
-    // Fetch all images and add to zip
+    const usedNames = new Set<string>();
+
+    // Fetch all images and add directly to root of ZIP
     for (const img of images) {
       try {
         const res = await fetch(img.url);
         const blob = await res.blob();
         
-        if (img.folderName) {
-          const folderParts = img.folderName.split('/');
-          let currentFolder = zip;
-          for (const part of folderParts) {
-            currentFolder = currentFolder.folder(part);
+        // Ensure filename uniqueness at root
+        let finalFilename = img.filename;
+        if (usedNames.has(finalFilename)) {
+          const parts = finalFilename.split('.');
+          const ext = parts.pop() || 'jpg';
+          const base = parts.join('.');
+          let count = 1;
+          while (usedNames.has(`${base}_${count}.${ext}`)) {
+            count++;
           }
-          currentFolder.file(img.filename, blob);
-        } else {
-          zip.file(img.filename, blob);
+          finalFilename = `${base}_${count}.${ext}`;
         }
+        usedNames.add(finalFilename);
+
+        // Always put images directly in root of zip (no subfolders)
+        zip.file(finalFilename, blob);
         
         completed++;
         if (onProgress) {
-          onProgress(completed, images.length, `جاري تحميل ${img.filename}...`);
+          onProgress(completed, images.length, `جاري تحميل ${finalFilename}...`);
         }
       } catch (e) {
         console.error(`Failed to fetch image ${img.url}`, e);
@@ -42,9 +50,7 @@ export const downloadAsZip = async (
 
     if (onProgress) onProgress(completed, images.length, 'جاري ضغط الملفات...');
 
-    const zipBlob = await zip.generateAsync({ type: 'blob' }, (metadata) => {
-      // metadata.percent is the compression progress (0-100)
-    });
+    const zipBlob = await zip.generateAsync({ type: 'blob' });
 
     saveAs(zipBlob, `${zipFilename}.zip`);
     return true;
