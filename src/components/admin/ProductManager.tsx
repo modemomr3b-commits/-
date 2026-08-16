@@ -1869,14 +1869,21 @@ export default function ProductManager() {
                         <td className="p-4">
                           <div className="flex items-center gap-2">
                             {(p.finalImageUrl || p.imageUrl) && (
-                              <a
-                                href={p.finalImageUrl || p.imageUrl}
-                                download={`BRQ-${p.name}.jpg`}
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  const imgUrl = p.finalImageUrl || p.imageUrl;
+                                  if (!imgUrl) return;
+                                  const ext = imgUrl.split('.').pop()?.split('?')[0] || 'jpg';
+                                  const safeName = (p.productCode || p.name || 'product').replace(/[\/\?<>\\:\*\|":]/g, '-');
+                                  const { downloadSingleImage } = await import('../../utils/download');
+                                  await downloadSingleImage(imgUrl, `${safeName}.${ext}`);
+                                }}
                                 className="p-1.5 hover:bg-white/20 text-white/70 rounded transition-colors"
-                                title="تحميل"
+                                title="تحميل الصورة"
                               >
                                 <Download size={16} />
-                              </a>
+                              </button>
                             )}
                             <button
                               type="button"

@@ -1,3 +1,10 @@
+export const downloadSingleImage = async (
+  url: string,
+  filename: string
+): Promise<boolean> => {
+  return downloadImages([{ url, filename }]);
+};
+
 export const downloadImages = async (
   images: { url: string, filename: string }[],
   onProgress?: (progress: number, total: number) => void

@@ -648,50 +648,52 @@ export default function OrderManager() {
                   </span>
                 </div>
 
-                {/* Scrollable list of product items */}
-                <div className="flex-1 overflow-y-auto pr-1 space-y-3 max-h-[50vh] md:max-h-[calc(92vh-160px)] divide-y divide-white/10">
-                  {selectedOrder.items?.map((item, idx) => (
-                    <div
-                      key={idx}
-                      className="pt-3 first:pt-0 text-right space-y-2"
-                    >
-                      {/* Product Name */}
-                      <h4 className="text-xs sm:text-sm font-bold text-white/90 leading-snug">
-                        {item.product?.name || "منتج محذوف"}
-                      </h4>
+                {/* Scrollable list of product items in 2 columns */}
+                <div className="flex-1 overflow-y-auto pr-1 max-h-[50vh] md:max-h-[calc(92vh-160px)]">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {selectedOrder.items?.map((item, idx) => (
+                      <div
+                        key={idx}
+                        className="p-3.5 bg-white/5 border border-white/10 rounded-xl text-right flex flex-col justify-between gap-2 hover:border-amber-500/30 transition-colors"
+                      >
+                        {/* Product Name */}
+                        <h4 className="text-xs sm:text-sm font-bold text-white/90 leading-snug">
+                          {item.product?.name || "منتج محذوف"}
+                        </h4>
 
-                      {/* Code Box + Quantity Box side-by-side */}
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {/* Code box */}
-                        <div className="bg-amber-400 border border-amber-500/50 px-3 py-1.5 rounded-xl inline-flex items-center gap-2 shadow-sm">
-                          <span className="text-xs font-extrabold text-black/80">
-                            الكود:
-                          </span>
-                          <span className="font-mono font-black text-sm sm:text-base text-black tracking-wider select-all">
-                            {item.product?.productCode || "---"}
-                          </span>
-                          {item.product?.modelNumber && (
-                            <span className="text-xs text-black/70 font-bold">
-                              ({item.product.modelNumber})
+                        {/* Code Box + Quantity Box */}
+                        <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                          {/* Code box */}
+                          <div className="bg-amber-400 border border-amber-500/50 px-2.5 py-1 rounded-lg inline-flex items-center gap-1.5 shadow-sm">
+                            <span className="text-[11px] font-extrabold text-black/80">
+                              الكود:
                             </span>
-                          )}
-                        </div>
+                            <span className="font-mono font-black text-xs sm:text-sm text-black tracking-wider select-all">
+                              {item.product?.productCode || "---"}
+                            </span>
+                            {item.product?.modelNumber && (
+                              <span className="text-[10px] text-black/70 font-bold">
+                                ({item.product.modelNumber})
+                              </span>
+                            )}
+                          </div>
 
-                        {/* Quantity box */}
-                        <div className="bg-amber-400 border border-amber-500/50 px-3 py-1.5 rounded-xl inline-flex items-center gap-2 shadow-sm">
-                          <span className="text-xs font-extrabold text-black/80">
-                            الكمية:
-                          </span>
-                          <span className="font-mono font-black text-sm sm:text-base text-black">
-                            {item.quantity}
-                          </span>
-                          <span className="text-xs font-bold text-black/80">
-                            قطع
-                          </span>
+                          {/* Quantity box */}
+                          <div className="bg-amber-400 border border-amber-500/50 px-2.5 py-1 rounded-lg inline-flex items-center gap-1.5 shadow-sm">
+                            <span className="text-[11px] font-extrabold text-black/80">
+                              الكمية:
+                            </span>
+                            <span className="font-mono font-black text-xs sm:text-sm text-black">
+                              {item.quantity}
+                            </span>
+                            <span className="text-[10px] font-bold text-black/80">
+                              قطع
+                            </span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
