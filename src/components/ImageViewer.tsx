@@ -1,14 +1,26 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, ZoomIn, ZoomOut } from 'lucide-react';
+import { X, ZoomIn, ZoomOut, ChevronLeft, ChevronRight } from 'lucide-react';
 import OptimizedImage from './OptimizedImage';
 
 interface ImageViewerProps {
   src: string;
   alt: string;
   onClose: () => void;
+  onPrev?: () => void;
+  onNext?: () => void;
+  hasPrev?: boolean;
+  hasNext?: boolean;
 }
 
-export default function ImageViewer({ src, alt, onClose }: ImageViewerProps) {
+export default function ImageViewer({ 
+  src, 
+  alt, 
+  onClose,
+  onPrev,
+  onNext,
+  hasPrev = false,
+  hasNext = false
+}: ImageViewerProps) {
   const [scale, setScale] = useState(1);
   const [isDragging, setIsDragging] = useState(false);
   const [position, setPosition] = useState({ x: 0, y: 0 });
@@ -26,10 +38,12 @@ export default function ImageViewer({ src, alt, onClose }: ImageViewerProps) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
+      if (e.key === 'ArrowRight' && onNext) onNext();
+      if (e.key === 'ArrowLeft' && onPrev) onPrev();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  }, [onClose, onNext, onPrev]);
 
   useEffect(() => {
     document.body.style.overflow = 'hidden';
@@ -54,8 +68,9 @@ export default function ImageViewer({ src, alt, onClose }: ImageViewerProps) {
 
   const handlePointerMove = (e: React.PointerEvent) => {
     if (scale <= 1 && touchStart) {
+       const dx = e.clientX - touchStart.x;
        const dy = e.clientY - touchStart.y;
-       if (Math.abs(dy) > 10) setHasDragged(true);
+       if (Math.abs(dx) > 10 || Math.abs(dy) > 10) setHasDragged(true);
        return;
     }
     if (!isDragging || scale <= 1) return;
@@ -68,10 +83,19 @@ export default function ImageViewer({ src, alt, onClose }: ImageViewerProps) {
 
   const handlePointerUp = (e: React.PointerEvent) => {
     if (scale <= 1 && touchStart) {
+       const dx = e.clientX - touchStart.x;
        const dy = e.clientY - touchStart.y;
        const dt = Date.now() - touchStart.time;
-       if (dy > 100 && dt < 400) {
-           onClose();
+       
+       // Horizontal swipe for product navigation (Right = Next, Left = Prev in Arabic)
+       if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.2 && dt < 500) {
+         if (dx > 40 && onNext) {
+           onNext();
+         } else if (dx < -40 && onPrev) {
+           onPrev();
+         }
+       } else if (dy > 100 && dt < 400) {
+         onClose();
        }
        setTouchStart(null);
     }
@@ -86,7 +110,7 @@ export default function ImageViewer({ src, alt, onClose }: ImageViewerProps) {
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-sm touch-none transition-opacity duration-300"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-sm touch-none transition-opacity duration-300 select-none"
       onClick={handleWrapperClick}
     >
       <div
@@ -121,8 +145,36 @@ export default function ImageViewer({ src, alt, onClose }: ImageViewerProps) {
         </div>
       </div>
 
+      {/* Floating Left Arrow (Previous) */}
+      {onPrev && hasPrev && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onPrev();
+          }}
+          className="absolute left-4 top-1/2 -translate-y-1/2 z-30 p-3 bg-black/60 hover:bg-black/90 border border-white/20 text-white rounded-full transition-transform active:scale-90 shadow-2xl backdrop-blur-md"
+          title="المنتج السابق"
+        >
+          <ChevronLeft size={28} />
+        </button>
+      )}
+
+      {/* Floating Right Arrow (Next) */}
+      {onNext && hasNext && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onNext();
+          }}
+          className="absolute right-4 top-1/2 -translate-y-1/2 z-30 p-3 bg-black/60 hover:bg-black/90 border border-white/20 text-white rounded-full transition-transform active:scale-90 shadow-2xl backdrop-blur-md"
+          title="المنتج التالي"
+        >
+          <ChevronRight size={28} />
+        </button>
+      )}
+
       <div 
-        className="w-full h-full flex items-center justify-center p-4 md:p-10 cursor-move"
+        className="w-full h-full flex items-center justify-center p-4 md:p-10 cursor-move relative"
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
