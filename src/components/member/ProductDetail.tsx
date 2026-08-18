@@ -157,255 +157,277 @@ export default function ProductDetail() {
   }
 
   return (
-    <div className="pb-20">
-      <div 
-        className="relative w-full bg-black/40 flex items-center justify-center min-h-[340px] cursor-pointer select-none group"
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-        onClick={() => {
-          if (product?.finalImageUrl || product?.imageUrl) {
-            setFullscreenImage({ src: product.finalImageUrl || product.imageUrl || '', alt: product.name });
-          }
-        }}
-     >
-         {product.finalImageUrl || product.imageUrl ? (
-            <OptimizedImage src={product.finalImageUrl || product.imageUrl} alt={product.name} size="full" className="w-full h-auto max-h-[70vh] object-contain transition-transform duration-300" />
-         ) : null}
-         
-         {/* Back Button */}
-         <button onClick={(e) => { e.stopPropagation(); navigate(-1); }} className="absolute top-4 right-4 p-2 bg-black/50 backdrop-blur-md rounded-full border border-white/20 text-white z-10 hover:bg-black transition-colors">
-            <ChevronRight size={24} />
-         </button>
-
-         {/* Floating Left Button (Previous Product) */}
-         {prevProduct && (
-           <button
-             onClick={(e) => {
-               e.stopPropagation();
-               goToPrev();
-             }}
-             className="absolute left-3 top-1/2 -translate-y-1/2 z-20 p-2.5 bg-black/60 hover:bg-black/90 border border-white/20 text-white rounded-full transition-all active:scale-95 shadow-xl backdrop-blur-md flex items-center justify-center group-hover:scale-105"
-             title={`المنتج السابق: ${prevProduct.name || prevProduct.productCode}`}
-           >
-             <ChevronLeft size={22} className="text-brq-gold" />
-           </button>
-         )}
-
-         {/* Floating Right Button (Next Product) */}
-         {nextProduct && (
-           <button
-             onClick={(e) => {
-               e.stopPropagation();
-               goToNext();
-             }}
-             className="absolute right-3 top-1/2 -translate-y-1/2 z-20 p-2.5 bg-black/60 hover:bg-black/90 border border-white/20 text-white rounded-full transition-all active:scale-95 shadow-xl backdrop-blur-md flex items-center justify-center group-hover:scale-105"
-             title={`المنتج التالي: ${nextProduct.name || nextProduct.productCode}`}
-           >
-             <ChevronRight size={22} className="text-brq-gold" />
-           </button>
-         )}
-
-         {/* Swipe Hint Indicator */}
-         {siblingProducts.length > 1 && currentIndex >= 0 && (
-           <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full border border-white/10 text-[11px] text-white/80 font-mono flex items-center gap-1.5 pointer-events-none">
-             <span>{currentIndex + 1} من {siblingProducts.length}</span>
-             <span className="text-brq-gold">↔ سحب للتنقل</span>
-           </div>
-         )}
-
-         {(product.finalImageUrl || product.imageUrl) && (
-            <div className="absolute top-4 left-4 flex flex-col gap-2 z-10">
-               <button 
-                  onClick={async (e) => {
-                    e.stopPropagation();
-                    const imgUrl = product.finalImageUrl || product.imageUrl;
-                    if (!imgUrl) return;
-                    showToast("جاري التنزيل...", "loading");
-                    try {
-                      const ext = imgUrl.split('.').pop()?.split('?')[0] || 'jpg';
-                      const safeName = (product.productCode || product.name || 'product').replace(/[\\/\\?<>\\\\:\\*\\|":]/g, '-');
-                      const filename = `BRQ-${safeName}.${ext}`;
-                      
-                      const { downloadImages } = await import('../../utils/download');
-                      const success = await downloadImages([{ url: imgUrl, filename }]);
-                      
-                      if (success) {
-                        showToast("تم الحفظ بنجاح", "success");
-                      } else {
-                        showToast("حدث خطأ أثناء التنزيل", "error");
-                      }
-                    } catch (err) {
-                      console.error(`Failed to download ${product.name}`, err);
-                      showToast("حدث خطأ أثناء التنزيل", "error");
-                    }
-                  }}
-                  className="p-2 bg-black/50 backdrop-blur-md rounded-full border border-white/20 text-white hover:bg-black transition-colors flex items-center justify-center"
-                  title="تحميل الصورة النهائية"
-               >
-                  <Download size={24} />
-               </button>
-               {user?.role === 'admin' && (
-                 <button
-                   onClick={async (e) => {
-                     e.stopPropagation();
-                     try {
-                       showToast("جاري القفل...", "loading");
-                       await api.updateProduct(product.id!, { isHidden: true });
-                       showToast("تم قفل المنتج بنجاح", "success");
-                       navigate(-1);
-                     } catch (error) {
-                       console.error(error);
-                       showToast("حدث خطأ أثناء قفل المنتج", "error");
-                     }
-                   }}
-                   className="p-2 bg-black/50 backdrop-blur-md rounded-full border border-white/20 text-white hover:bg-red-500/50 hover:text-white transition-colors flex items-center justify-center"
-                   title="قفل المنتج (للمسؤولين فقط)"
-                 >
-                    <Lock size={24} />
-                 </button>
-               )}
-               <button
-                 onClick={async (e) => {
-                    e.stopPropagation();
-                    try {
-                      const imgUrl = product.finalImageUrl || product.imageUrl;
-                      if (!imgUrl) return;
-                      const res = await fetch(imgUrl);
-                      const blob = await res.blob();
-                      const ext = blob.type.split("/")[1] || "jpg";
-                      const safeName = (product.productCode || product.name || "product").replace(/[\/\?<>\\:\*\|":]/g, '-');
-                      const filename = `${safeName}.${ext}`;
-                      const file = new File([blob], filename, { type: blob.type });
-                      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-
-                      if (isIOS && navigator.canShare && navigator.canShare({ files: [file] })) {
-                        try {
-                           await navigator.share({
-                             files: [file]
-                           });
-                           showToast("تم حفظ الصورة بنجاح", "success");
-                        } catch (err: any) {
-                           if (err.name !== 'AbortError') {
-                              showToast("حدث خطأ أثناء حفظ الصورة.", "error");
-                           }
-                        }
-                      } else {
-                        const objectUrl = URL.createObjectURL(blob);
-                        const a = document.createElement("a");
-                        a.href = objectUrl;
-                        a.download = filename;
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                        URL.revokeObjectURL(objectUrl);
-                        showToast("تم حفظ الصورة بنجاح", "success");
-                      }
-                    } catch (error) {
-                      console.error('Error sharing file', error);
-                      showToast("حدث خطأ أثناء محاولة المشاركة.", "error");
-                    }
-                 }}
-                 className="p-2 bg-black/50 backdrop-blur-md rounded-full border border-white/20 text-white hover:bg-black transition-colors flex items-center justify-center"
-                 title="مشاركة الصورة"
-               >
-                  <Share2 size={24} />
-               </button>
-            </div>
-         )}
-      </div>
-      
-      <div className="p-5 space-y-6">
-         <div>
-            <div className="flex justify-between items-start mb-2">
-               <h1 className="text-2xl font-bold leading-tight">{product.name}</h1>
-               <div className="flex gap-2 items-center">
-                 {product.oldPriceInfo && (
-                   <button 
-                     onClick={() => setHistoryProduct(product)}
-                     className="p-1.5 rounded-lg bg-brq-gold/20 text-brq-gold hover:bg-brq-gold hover:text-black transition-colors"
-                     title="تم تغيير السعر - عرض التاريخ"
-                   >
-                     <History size={24} />
-                   </button>
-                 )}
-                 <button className="text-white/50 hover:text-brq-gold transition-colors p-1.5">
-                   <Heart size={24} />
-                 </button>
-               </div>
-            </div>
-            
-            <div className="flex flex-col gap-1 mb-4">
-              <div className="flex gap-4 items-baseline">
-                <p className="text-brq-gold text-2xl font-bold">{product.price?.toLocaleString("en-US")} <span className="text-sm">د.ع</span></p>
-                {product.packaging && <span className="text-xs text-white/50 bg-white/10 px-2 py-1 rounded">{product.packaging}</span>}
-              </div>
-              {user?.role === 'admin' && product.dozenPriceUsd !== undefined && (
-                <p className="text-brq-blue text-lg font-bold font-mono">
-                  ${product.dozenPriceUsd} <span className="text-sm font-sans text-white/50">دولار</span>
-                </p>
-              )}
-            </div>
-            
-            <div className="grid grid-cols-2 gap-3 mb-6">
-                <div className="glass-panel p-3 rounded-xl border border-white/5 bg-black/20">
-                   <p className="text-[10px] text-white/50 uppercase tracking-widest mb-1">الرمز</p>
-                   <p className="font-mono text-sm font-bold text-white tracking-widest">{product.modelNumber || '---'}</p>
-                </div>
-                <div className="glass-panel p-3 rounded-xl border border-white/5 bg-black/20">
-                   <p className="text-[10px] text-white/50 uppercase tracking-widest mb-1">الكود</p>
-                   <p className="font-mono text-sm font-bold text-brq-gold tracking-widest">{product.productCode || '---'}</p>
-                </div>
-                <div className="glass-panel p-3 rounded-xl border border-white/5 bg-black/20">
-                   <p className="text-[10px] text-white/50 mb-1">الكمية/عدد القطع</p>
-                   <p className="font-mono text-sm font-bold text-white">{product.piecesCount ? `${product.piecesCount} قطعة` : '---'}</p>
-                </div>
-                <div className="glass-panel p-3 rounded-xl border border-white/5 bg-black/20">
-                   <p className="text-[10px] text-white/50 uppercase tracking-widest mb-1">سعر القطعة (د.ع)</p>
-                   <p className="font-mono text-sm font-bold text-white">{product.piecePriceIqd ? product.piecePriceIqd.toLocaleString("en-US") : '---'}</p>
-                </div>
-                {user?.role === 'admin' && (
-                  <>
-                    <div className="glass-panel p-3 rounded-xl border border-white/5 bg-black/20">
-                       <p className="text-[10px] text-white/50 uppercase tracking-widest mb-1">تاريخ النزول</p>
-                       <p className="font-mono text-xs font-bold text-white tracking-tight">{product.createdAt ? formatDate(product.createdAt) : '---'}</p>
-                    </div>
-                    <div className="glass-panel p-3 rounded-xl border border-white/5 bg-black/20">
-                       <p className="text-[10px] text-white/50 uppercase tracking-widest mb-1">أخر تحديث</p>
-                       <p className="font-mono text-xs font-bold text-white tracking-tight">{product.updatedAt ? formatDate(product.updatedAt) : (product.createdAt ? formatDate(product.createdAt) : '---')}</p>
-                    </div>
-                  </>
-                )}
-            </div>
-         </div>
-
-         {(() => {
-           const cartItem = cart.find(item => item.product.id === product.id);
-           if (cartItem) {
-             return (
-               <div className="flex items-center justify-between w-full h-14 bg-brq-royal/20 border border-brq-royal/50 rounded-xl px-4">
-                 <button
-                   onClick={() => handleUpdateQuantity(cartItem.quantity + 1)}
-                   className="h-full px-6 text-white text-2xl hover:bg-brq-royal/50 rounded-r-xl transition-colors"
-                 >
-                   +
-                 </button>
-                 <span className="text-white font-bold text-xl">{cartItem.quantity}</span>
-                 <button
-                   onClick={() => handleUpdateQuantity(cartItem.quantity - 1)}
-                   className="h-full px-6 text-white text-2xl hover:bg-brq-royal/50 rounded-l-xl transition-colors"
-                 >
-                   -
-                 </button>
-               </div>
-             );
-           }
-           return (
-             <button onClick={handleAddToCart} className="w-full flex items-center justify-center gap-2 py-4 bg-brq-royal hover:bg-blue-600 rounded-xl text-white font-bold tracking-wide shadow-[0_4px_20px_rgba(30,94,255,0.4)] transition-all hover:scale-[1.02]">
-                <ShoppingCart size={20} />
-                إضافة إلى الطلبية
+    <div className="pb-20 md:pb-12 max-w-7xl mx-auto md:px-6 md:py-6">
+      {/* Desktop & Mobile Responsive Grid Layout */}
+      <div className="md:grid md:grid-cols-12 md:gap-8 md:items-start">
+        
+        {/* Image Showcase Section (Desktop: Left Col, Mobile: Full Width) */}
+        <div className="md:col-span-7 lg:col-span-7">
+          <div 
+            className="relative w-full bg-black/40 md:rounded-2xl md:border md:border-white/10 flex items-center justify-center min-h-[340px] md:h-[600px] cursor-pointer select-none group overflow-hidden shadow-2xl"
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+            onClick={() => {
+              if (product?.finalImageUrl || product?.imageUrl) {
+                setFullscreenImage({ src: product.finalImageUrl || product.imageUrl || '', alt: product.name });
+              }
+            }}
+          >
+             {product.finalImageUrl || product.imageUrl ? (
+                <OptimizedImage 
+                  src={product.finalImageUrl || product.imageUrl} 
+                  alt={product.name} 
+                  size="full" 
+                  className="w-full h-auto max-h-[70vh] md:max-h-[560px] object-contain transition-transform duration-300 group-hover:scale-102" 
+                />
+             ) : (
+                <div className="text-white/30 text-5xl">👟</div>
+             )}
+             
+             {/* Back Button */}
+             <button onClick={(e) => { e.stopPropagation(); navigate(-1); }} className="absolute top-4 right-4 p-2 bg-black/60 backdrop-blur-md rounded-full border border-white/20 text-white z-10 hover:bg-black transition-colors" title="العودة">
+                <ChevronRight size={24} />
              </button>
-           );
-         })()}
+
+             {/* Floating Left Button (Previous Product) */}
+             {prevProduct && (
+               <button
+                 onClick={(e) => {
+                   e.stopPropagation();
+                   goToPrev();
+                 }}
+                 className="absolute left-3 top-1/2 -translate-y-1/2 z-20 p-2.5 md:p-3.5 bg-black/70 hover:bg-black/95 border border-white/20 text-white rounded-full transition-all active:scale-95 shadow-xl backdrop-blur-md flex items-center justify-center hover:scale-105 group/btn"
+                 title={`المنتج السابق: ${prevProduct.name || prevProduct.productCode}`}
+               >
+                 <ChevronLeft size={24} className="text-brq-gold group-hover/btn:-translate-x-0.5 transition-transform" />
+               </button>
+             )}
+
+             {/* Floating Right Button (Next Product) */}
+             {nextProduct && (
+               <button
+                 onClick={(e) => {
+                   e.stopPropagation();
+                   goToNext();
+                 }}
+                 className="absolute right-3 top-1/2 -translate-y-1/2 z-20 p-2.5 md:p-3.5 bg-black/70 hover:bg-black/95 border border-white/20 text-white rounded-full transition-all active:scale-95 shadow-xl backdrop-blur-md flex items-center justify-center hover:scale-105 group/btn"
+                 title={`المنتج التالي: ${nextProduct.name || nextProduct.productCode}`}
+               >
+                 <ChevronRight size={24} className="text-brq-gold group-hover/btn:translate-x-0.5 transition-transform" />
+               </button>
+             )}
+
+             {/* Swipe & Navigation Hint Indicator */}
+             {siblingProducts.length > 1 && currentIndex >= 0 && (
+               <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 bg-black/70 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-white/15 text-[11px] text-white/90 font-mono flex items-center gap-2 pointer-events-none shadow-lg">
+                 <span>{currentIndex + 1} من {siblingProducts.length}</span>
+                 <span className="text-brq-gold font-bold">🔍 انقر للتكبير والتفاصيل</span>
+               </div>
+             )}
+
+             {(product.finalImageUrl || product.imageUrl) && (
+                <div className="absolute top-4 left-4 flex flex-col gap-2 z-10">
+                   <button 
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        const imgUrl = product.finalImageUrl || product.imageUrl;
+                        if (!imgUrl) return;
+                        showToast("جاري التنزيل...", "loading");
+                        try {
+                          const ext = imgUrl.split('.').pop()?.split('?')[0] || 'jpg';
+                          const safeName = (product.productCode || product.name || 'product').replace(/[\\/\\?<>\\\\:\\*\\|":]/g, '-');
+                          const filename = `BRQ-${safeName}.${ext}`;
+                          
+                          const { downloadImages } = await import('../../utils/download');
+                          const success = await downloadImages([{ url: imgUrl, filename }]);
+                          
+                          if (success) {
+                            showToast("تم الحفظ بنجاح", "success");
+                          } else {
+                            showToast("حدث خطأ أثناء التنزيل", "error");
+                          }
+                        } catch (err) {
+                          console.error(`Failed to download ${product.name}`, err);
+                          showToast("حدث خطأ أثناء التنزيل", "error");
+                        }
+                      }}
+                      className="p-2 bg-black/60 backdrop-blur-md rounded-full border border-white/20 text-white hover:bg-black transition-colors flex items-center justify-center"
+                      title="تحميل الصورة بجودة عالية"
+                   >
+                      <Download size={22} />
+                   </button>
+                   {user?.role === 'admin' && (
+                     <button
+                       onClick={async (e) => {
+                         e.stopPropagation();
+                         try {
+                           showToast("جاري القفل...", "loading");
+                           await api.updateProduct(product.id!, { isHidden: true });
+                           showToast("تم قفل المنتج بنجاح", "success");
+                           navigate(-1);
+                         } catch (error) {
+                           console.error(error);
+                           showToast("حدث خطأ أثناء قفل المنتج", "error");
+                         }
+                       }}
+                       className="p-2 bg-black/60 backdrop-blur-md rounded-full border border-white/20 text-white hover:bg-red-500/50 hover:text-white transition-colors flex items-center justify-center"
+                       title="قفل المنتج (للمسؤولين فقط)"
+                     >
+                        <Lock size={22} />
+                     </button>
+                   )}
+                   <button
+                     onClick={async (e) => {
+                        e.stopPropagation();
+                        try {
+                          const imgUrl = product.finalImageUrl || product.imageUrl;
+                          if (!imgUrl) return;
+                          const res = await fetch(imgUrl);
+                          const blob = await res.blob();
+                          const ext = blob.type.split("/")[1] || "jpg";
+                          const safeName = (product.productCode || product.name || "product").replace(/[\/\?<>\\:\*\|":]/g, '-');
+                          const filename = `${safeName}.${ext}`;
+                          const file = new File([blob], filename, { type: blob.type });
+                          const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+                          if (isIOS && navigator.canShare && navigator.canShare({ files: [file] })) {
+                            try {
+                               await navigator.share({
+                                 files: [file]
+                               });
+                               showToast("تم حفظ الصورة بنجاح", "success");
+                            } catch (err: any) {
+                               if (err.name !== 'AbortError') {
+                                  showToast("حدث خطأ أثناء حفظ الصورة.", "error");
+                               }
+                            }
+                          } else {
+                            const objectUrl = URL.createObjectURL(blob);
+                            const a = document.createElement("a");
+                            a.href = objectUrl;
+                            a.download = filename;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            URL.revokeObjectURL(objectUrl);
+                            showToast("تم حفظ الصورة بنجاح", "success");
+                          }
+                        } catch (error) {
+                          console.error('Error sharing file', error);
+                          showToast("حدث خطأ أثناء محاولة المشاركة.", "error");
+                        }
+                     }}
+                     className="p-2 bg-black/60 backdrop-blur-md rounded-full border border-white/20 text-white hover:bg-black transition-colors flex items-center justify-center"
+                     title="مشاركة الصورة"
+                   >
+                      <Share2 size={22} />
+                   </button>
+                </div>
+             )}
+          </div>
+        </div>
+        
+        {/* Product Details Section (Desktop: Sticky Right Col, Mobile: Below Image) */}
+        <div className="md:col-span-5 lg:col-span-5 p-5 md:p-6 md:bg-black/30 md:backdrop-blur-xl md:border md:border-white/10 md:rounded-2xl md:shadow-2xl space-y-6 md:sticky md:top-24">
+           <div>
+              <div className="flex justify-between items-start mb-3">
+                 <h1 className="text-2xl md:text-3xl font-bold leading-tight text-white">{product.name}</h1>
+                 <div className="flex gap-2 items-center">
+                   {product.oldPriceInfo && (
+                     <button 
+                       onClick={() => setHistoryProduct(product)}
+                       className="p-2 rounded-xl bg-brq-gold/20 text-brq-gold hover:bg-brq-gold hover:text-black transition-colors shadow-[0_0_12px_rgba(212,175,55,0.3)]"
+                       title="تم تغيير السعر - عرض التاريخ"
+                     >
+                       <History size={22} />
+                     </button>
+                   )}
+                   <button className="text-white/50 hover:text-brq-gold transition-colors p-2">
+                     <Heart size={22} />
+                   </button>
+                 </div>
+              </div>
+              
+              <div className="flex flex-col gap-1 mb-5 p-4 rounded-xl bg-white/5 border border-white/5">
+                <div className="flex gap-4 items-baseline justify-between">
+                  <p className="text-brq-gold text-2xl md:text-3xl font-bold font-mono">
+                    {product.price?.toLocaleString("en-US")} <span className="text-sm font-sans">د.ع / جملة</span>
+                  </p>
+                  {product.packaging && <span className="text-xs text-white/70 bg-white/10 px-2.5 py-1 rounded-md font-medium">{product.packaging}</span>}
+                </div>
+                {user?.role === 'admin' && product.dozenPriceUsd !== undefined && (
+                  <p className="text-brq-blue text-lg font-bold font-mono mt-1">
+                    ${product.dozenPriceUsd} <span className="text-sm font-sans text-white/50">دولار / جملة</span>
+                  </p>
+                )}
+              </div>
+              
+              <div className="grid grid-cols-2 gap-3 mb-6">
+                  <div className="glass-panel p-3.5 rounded-xl border border-white/10 bg-black/20">
+                     <p className="text-[10px] text-white/50 uppercase tracking-widest mb-1">الرمز / الموديل</p>
+                     <p className="font-mono text-sm md:text-base font-bold text-white tracking-widest">{product.modelNumber || '---'}</p>
+                  </div>
+                  <div className="glass-panel p-3.5 rounded-xl border border-white/10 bg-black/20">
+                     <p className="text-[10px] text-white/50 uppercase tracking-widest mb-1">الكود</p>
+                     <p className="font-mono text-sm md:text-base font-bold text-brq-gold tracking-widest">{product.productCode || '---'}</p>
+                  </div>
+                  <div className="glass-panel p-3.5 rounded-xl border border-white/10 bg-black/20">
+                     <p className="text-[10px] text-white/50 mb-1">الكمية / عدد القطع</p>
+                     <p className="font-mono text-sm md:text-base font-bold text-white">{product.piecesCount ? `${product.piecesCount} قطعة` : '---'}</p>
+                  </div>
+                  <div className="glass-panel p-3.5 rounded-xl border border-white/10 bg-black/20">
+                     <p className="text-[10px] text-white/50 uppercase tracking-widest mb-1">سعر القطعة (د.ع)</p>
+                     <p className="font-mono text-sm md:text-base font-bold text-white">{product.piecePriceIqd ? product.piecePriceIqd.toLocaleString("en-US") : '---'}</p>
+                  </div>
+                  {user?.role === 'admin' && (
+                    <>
+                      <div className="glass-panel p-3.5 rounded-xl border border-white/10 bg-black/20">
+                         <p className="text-[10px] text-white/50 uppercase tracking-widest mb-1">تاريخ النزول</p>
+                         <p className="font-mono text-xs font-bold text-white tracking-tight">{product.createdAt ? formatDate(product.createdAt) : '---'}</p>
+                      </div>
+                      <div className="glass-panel p-3.5 rounded-xl border border-white/10 bg-black/20">
+                         <p className="text-[10px] text-white/50 uppercase tracking-widest mb-1">أخر تحديث</p>
+                         <p className="font-mono text-xs font-bold text-white tracking-tight">{product.updatedAt ? formatDate(product.updatedAt) : (product.createdAt ? formatDate(product.createdAt) : '---')}</p>
+                      </div>
+                    </>
+                  )}
+              </div>
+           </div>
+
+           {(() => {
+             const cartItem = cart.find(item => item.product.id === product.id);
+             if (cartItem) {
+               return (
+                 <div className="flex items-center justify-between w-full h-14 bg-brq-royal/20 border border-brq-royal/50 rounded-xl px-4">
+                   <button
+                     onClick={() => handleUpdateQuantity(cartItem.quantity + 1)}
+                     className="h-full px-6 text-white text-2xl hover:bg-brq-royal/50 rounded-r-xl transition-colors"
+                   >
+                     +
+                   </button>
+                   <span className="text-white font-bold text-xl">{cartItem.quantity}</span>
+                   <button
+                     onClick={() => handleUpdateQuantity(cartItem.quantity - 1)}
+                     className="h-full px-6 text-white text-2xl hover:bg-brq-royal/50 rounded-l-xl transition-colors"
+                   >
+                     -
+                   </button>
+                 </div>
+               );
+             }
+             return (
+               <button onClick={handleAddToCart} className="w-full flex items-center justify-center gap-2 py-4 bg-brq-royal hover:bg-blue-600 rounded-xl text-white font-bold tracking-wide shadow-[0_4px_20px_rgba(30,94,255,0.4)] transition-all hover:scale-[1.02]">
+                  <ShoppingCart size={20} />
+                  إضافة إلى الطلبية
+               </button>
+             );
+           })()}
+
+           {/* Desktop shortcuts tip */}
+           <div className="hidden md:flex items-center justify-between text-xs text-white/40 pt-3 border-t border-white/10 font-mono">
+             <span>أسهم لوحة المفاتيح: ➔ التالي | ⬅ السابق</span>
+           </div>
+        </div>
       </div>
 
       {historyProduct && (
@@ -416,6 +438,9 @@ export default function ProductDetail() {
         <ImageViewer 
           src={fullscreenImage.src} 
           alt={fullscreenImage.alt} 
+          product={product}
+          currentIndex={currentIndex >= 0 ? currentIndex : undefined}
+          totalCount={siblingProducts.length > 0 ? siblingProducts.length : undefined}
           onClose={() => setFullscreenImage(null)} 
           onNext={nextProduct ? () => {
             goToNext();
