@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Loader2, Upload, X, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Loader2, Upload, X, CheckCircle2, AlertCircle, CheckSquare, Square, Layers, Check } from 'lucide-react';
 import { api } from '../../api';
 import { burnProductOverlay } from '../../utils/burnImage';
 import { Product, Category } from '../../types';
@@ -46,6 +46,10 @@ interface BatchProductUploadProps {
 
 export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose }: BatchProductUploadProps) {
   const [batchCategoryId, setBatchCategoryId] = useState('');
+  const [selectedCards, setSelectedCards] = useState<Set<number>>(new Set());
+  const [rangeFrom, setRangeFrom] = useState<number>(1);
+  const [rangeTo, setRangeTo] = useState<number>(5);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [uploadSessionId, setUploadSessionId] = useState(Date.now());
@@ -68,17 +72,77 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
     imageUrl: '',
   });
 
-  // 20 product cards as requested
+  // 20 product cards
   const [products, setProducts] = useState<Partial<Product>[]>(Array.from({ length: 20 }).map(emptyProduct));
 
-  useEffect(() => {
-    if (batchCategoryId) {
-      setProducts(prev => prev.map(p => {
-        const autoSub = autoSelectSubcategory(p.name || '', batchCategoryId, p.subcategoryId, categories);
-        return { ...p, categoryId: batchCategoryId, subcategoryId: autoSub || p.subcategoryId };
-      }));
+  // Toggle card selection for bulk assignment
+  const toggleCardSelection = (index: number) => {
+    setSelectedCards(prev => {
+      const next = new Set(prev);
+      if (next.has(index)) {
+        next.delete(index);
+      } else {
+        next.add(index);
+      }
+      return next;
+    });
+  };
+
+  const selectAllCards = () => {
+    if (selectedCards.size === products.length) {
+      setSelectedCards(new Set());
+    } else {
+      setSelectedCards(new Set(Array.from({ length: products.length }, (_, i) => i)));
     }
-  }, [batchCategoryId, categories]);
+  };
+
+  // Apply chosen category to ALL cards
+  const applyCategoryToAll = (catId: string) => {
+    if (!catId) return;
+    setProducts(prev => prev.map(p => {
+      const autoSub = autoSelectSubcategory(p.name || '', catId, p.subcategoryId, categories);
+      return { ...p, categoryId: catId, subcategoryId: autoSub || p.subcategoryId };
+    }));
+  };
+
+  // Apply chosen category to only SELECTED cards
+  const applyCategoryToSelected = (catId: string) => {
+    if (!catId) {
+      setAlertMessage('يرجى اختيار القسم أولاً لتطبيقه.');
+      return;
+    }
+    if (selectedCards.size === 0) {
+      setAlertMessage('يرجى تحديد البطاقات المطلوبة (عبر المربع أعلى كل بطاقة) لتطبيق القسم عليها.');
+      return;
+    }
+    setProducts(prev => prev.map((p, idx) => {
+      if (selectedCards.has(idx)) {
+        const autoSub = autoSelectSubcategory(p.name || '', catId, p.subcategoryId, categories);
+        return { ...p, categoryId: catId, subcategoryId: autoSub || p.subcategoryId };
+      }
+      return p;
+    }));
+  };
+
+  // Apply chosen category to a numeric RANGE (e.g. from card 1 to card 5)
+  const applyCategoryToRange = (catId: string) => {
+    if (!catId) {
+      setAlertMessage('يرجى اختيار القسم أولاً لتطبيقه على المدى المحدد.');
+      return;
+    }
+    const fromIdx = Math.max(0, Math.min(products.length - 1, rangeFrom - 1));
+    const toIdx = Math.max(0, Math.min(products.length - 1, rangeTo - 1));
+    const start = Math.min(fromIdx, toIdx);
+    const end = Math.max(fromIdx, toIdx);
+
+    setProducts(prev => prev.map((p, idx) => {
+      if (idx >= start && idx <= end) {
+        const autoSub = autoSelectSubcategory(p.name || '', catId, p.subcategoryId, categories);
+        return { ...p, categoryId: catId, subcategoryId: autoSub || p.subcategoryId };
+      }
+      return p;
+    }));
+  };
 
   const handleProductChange = (index: number, field: string, value: any) => {
     setProducts(prev => {
@@ -87,6 +151,11 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
       
       if (field === 'name' && product.categoryId) {
         product.subcategoryId = autoSelectSubcategory(product.name || '', product.categoryId, product.subcategoryId, categories) || product.subcategoryId;
+      }
+      
+      if (field === 'categoryId') {
+        const autoSub = autoSelectSubcategory(product.name || '', value, '', categories);
+        product.subcategoryId = autoSub || '';
       }
       
       newProducts[index] = product;
@@ -240,7 +309,7 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
 
       setIsSubmitting(true);
 
-      // 2. Ultra-Fast Parallel Processing: Process all products concurrently
+      // 2. Parallel Processing: Upload/burn/save all valid products concurrently
       await Promise.all(
         validProducts.map(async (product) => {
           let finalImg = product.imageUrl;
@@ -255,6 +324,7 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
           const created = await api.createProduct({
             ...product,
             categoryId: product.categoryId || batchCategoryId,
+            subcategoryId: product.subcategoryId,
             finalImageUrl: finalImg,
             views: 0,
             isArchived: false,
@@ -294,6 +364,7 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
                 categoryId: batchCategoryId
               })));
               setUploadSessionId(Date.now());
+              setSelectedCards(new Set());
               setIsSuccess(false);
               setIsSubmitting(false);
             }}
@@ -318,6 +389,7 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
                   categoryId: batchCategoryId
                 })));
                 setUploadSessionId(Date.now());
+                setSelectedCards(new Set());
                 setIsSuccess(false);
                 setIsSubmitting(false);
               }}
@@ -329,181 +401,277 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
         </div>
       )}
 
-      <div className="flex flex-col gap-4 bg-black/40 p-4 rounded-xl border border-white/10">
-          <div className="flex justify-between items-center">
-              <h3 className="text-brq-gold font-bold">نمط الرفع السريع (20 منتج)</h3>
-              <button onClick={onClose} className="text-white/50 hover:text-white">
-                  <X size={20} />
-              </button>
+      {/* Top Header: Flexible Category Assignment Bar */}
+      <div className="flex flex-col gap-3 bg-black/40 p-4 rounded-xl border border-white/10" dir="rtl">
+        <div className="flex justify-between items-center pb-2 border-b border-white/10">
+          <div className="flex items-center gap-2">
+            <h3 className="text-brq-gold font-bold text-base">نمط الرفع السريع (20 منتج)</h3>
+            <span className="text-xs text-white/50">
+              (حدد قسماً للكل أو خصص أقساماً مختلفة للبطاقات)
+            </span>
           </div>
-          <div className="w-full md:w-1/2">
-              <label className="text-xs text-white/50 block mb-1">القسم الرئيسي لكل المنتجات</label>
+          <button onClick={onClose} className="text-white/50 hover:text-white p-1" title="إغلاق">
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Category Controls & Bulk Apply */}
+        <div className="flex flex-col lg:flex-row gap-3 items-start lg:items-center justify-between">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full lg:w-auto flex-1">
+            <div className="w-full sm:w-64">
+              <label className="text-xs text-white/50 block mb-1 font-bold">اختر القسم لتطبيقه:</label>
               <select
-                  value={batchCategoryId}
-                  onChange={(e) => setBatchCategoryId(e.target.value)}
-                  className="w-full bg-white border border-black rounded-lg px-3 py-2 text-base font-bold focus:border-brq-gold/50 outline-none text-black placeholder:text-gray-500"
+                value={batchCategoryId}
+                onChange={(e) => setBatchCategoryId(e.target.value)}
+                className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm font-bold focus:border-brq-gold/50 outline-none text-black"
               >
-                  <option value="">-- إختر القسم الرئيسي --</option>
-                  {categories.filter((c) => !c.parentId).map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
+                <option value="">-- اختر القسم --</option>
+                {categories.filter((c) => !c.parentId).map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
               </select>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 mt-auto">
+              <button
+                type="button"
+                onClick={() => applyCategoryToAll(batchCategoryId)}
+                disabled={!batchCategoryId}
+                className="py-2 px-3 bg-brq-gold text-black rounded-lg font-bold text-xs hover:bg-yellow-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+                title="تطبيق هذا القسم على جميع الـ 20 بطاقة"
+              >
+                تطبيق على الكل (20 بطاقة)
+              </button>
+
+              <button
+                type="button"
+                onClick={() => applyCategoryToSelected(batchCategoryId)}
+                disabled={!batchCategoryId || selectedCards.size === 0}
+                className="py-2 px-3 bg-brq-navy border border-brq-gold/60 text-brq-gold rounded-lg font-bold text-xs hover:bg-brq-gold hover:text-black transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                title="تطبيق على البطاقات التي قمت بالتأشير عليها"
+              >
+                تطبيق على المحددة ({selectedCards.size})
+              </button>
+            </div>
           </div>
+
+          {/* Range Selection: From Card X to Card Y */}
+          <div className="flex flex-wrap items-center gap-2 bg-white/5 p-2 rounded-lg border border-white/10 text-xs w-full lg:w-auto">
+            <span className="text-white/70 font-bold">أو تطبيق من بطاقة</span>
+            <input
+              type="number"
+              min="1"
+              max="20"
+              value={rangeFrom}
+              onChange={(e) => setRangeFrom(parseInt(e.target.value) || 1)}
+              className="w-12 bg-white text-black font-bold font-mono px-1.5 py-1 rounded text-center outline-none"
+            />
+            <span className="text-white/70 font-bold">إلى</span>
+            <input
+              type="number"
+              min="1"
+              max="20"
+              value={rangeTo}
+              onChange={(e) => setRangeTo(parseInt(e.target.value) || 1)}
+              className="w-12 bg-white text-black font-bold font-mono px-1.5 py-1 rounded text-center outline-none"
+            />
+            <button
+              type="button"
+              onClick={() => applyCategoryToRange(batchCategoryId)}
+              disabled={!batchCategoryId}
+              className="py-1 px-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded font-bold text-xs disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              تطبيق على المدى
+            </button>
+
+            <button
+              type="button"
+              onClick={selectAllCards}
+              className="py-1 px-2 text-[11px] text-white/60 hover:text-white underline mr-1"
+            >
+              {selectedCards.size === products.length ? 'إلغاء تحديد الكل' : 'تحديد كل البطاقات'}
+            </button>
+          </div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {products.map((product, idx) => (
-          <div key={idx} className="glass-panel p-4 rounded-xl border border-white/10 relative">
-            <h3 className="text-xs font-bold mb-3 text-white/70 border-b border-white/5 pb-2">
-              منتج {idx + 1}
-            </h3>
-            
-            <div className="flex flex-col gap-2">
-              <div>
-                <label className="text-[10px] text-white/50 block mb-0.5">اسم المنتج *</label>
-                <input
-                  type="text"
-                  value={product.name || ''}
-                  onChange={(e) => handleProductChange(idx, 'name', e.target.value)}
-                  className="w-full bg-white border border-black rounded-lg px-2 py-1.5 text-base font-bold focus:border-brq-gold/50 outline-none text-black placeholder:text-gray-500"
-                />
+      {/* Grid of 20 Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" dir="rtl">
+        {products.map((product, idx) => {
+          const isSelected = selectedCards.has(idx);
+          const currentCat = categories.find(c => c.id === product.categoryId);
+
+          return (
+            <div 
+              key={idx} 
+              className={`glass-panel p-4 rounded-xl border transition-all relative ${
+                isSelected 
+                  ? 'border-brq-gold/80 bg-brq-gold/5 shadow-[0_0_15px_rgba(212,175,55,0.15)]' 
+                  : 'border-white/10'
+              }`}
+            >
+              {/* Card Header with Checkbox and Card Number */}
+              <div className="flex justify-between items-center mb-3 border-b border-white/10 pb-2">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={() => toggleCardSelection(idx)}
+                    className="rounded text-brq-gold focus:ring-0 w-4 h-4 cursor-pointer"
+                  />
+                  <span className="text-xs font-bold text-white/80">
+                    منتج {idx + 1}
+                  </span>
+                </label>
+
+                {product.categoryId && (
+                  <span className="text-[10px] bg-white/10 text-brq-gold px-2 py-0.5 rounded font-bold max-w-[120px] truncate" title={currentCat?.name}>
+                    {currentCat?.name}
+                  </span>
+                )}
               </div>
               
-              <div>
-                <label className="text-[10px] text-white/50 block mb-0.5">كود المنتج</label>
-                <input
-                  type="text"
-                  value={product.productCode || ''}
-                  onChange={(e) => handleProductChange(idx, 'productCode', e.target.value)}
-                  className="w-full bg-white border border-black rounded-lg px-2 py-1.5 text-base font-bold focus:border-brq-gold/50 outline-none text-black placeholder:text-gray-500"
-                />
-              </div>
-
-              <div>
-                <label className="text-[10px] text-white/50 block mb-0.5">سعر الدرزن (بالدولار)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={product.dozenPriceUsd || ''}
-                  onChange={(e) => handleUsdPriceChange(idx, Number(e.target.value))}
-                  className="w-full bg-white border border-black rounded-lg px-2 py-1.5 text-base font-bold focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
-                />
-              </div>
-
-              <div>
-                <label className="text-[10px] text-white/50 block mb-0.5">سعر الدرزن (بالدينار) *</label>
-                <input
-                  type="number"
-                  value={product.price || ''}
-                  onChange={(e) => handleIqdPriceChange(idx, Number(e.target.value))}
-                  className="w-full bg-white border border-black rounded-lg px-2 py-1.5 text-base font-bold focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
-                />
-              </div>
-
-              <div>
-                <label className="text-[10px] text-white/50 block mb-0.5">التعبئة (رقم/نص)</label>
-                <input
-                  type="text"
-                  value={product.packaging || ''}
-                  placeholder="مثال: 12"
-                  onChange={(e) => handlePackagingTextChange(idx, e.target.value)}
-                  className="w-full bg-white border border-black rounded-lg px-2 py-1.5 text-base font-bold focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
-                />
-              </div>
-
-              {!batchCategoryId && (
+              <div className="flex flex-col gap-2">
                 <div>
-                  <label className="text-[10px] text-white/50 block mb-0.5">القسم</label>
+                  <label className="text-[10px] text-white/50 block mb-0.5">اسم المنتج *</label>
+                  <input
+                    type="text"
+                    value={product.name || ''}
+                    onChange={(e) => handleProductChange(idx, 'name', e.target.value)}
+                    className="w-full bg-white border border-black rounded-lg px-2 py-1.5 text-base font-bold focus:border-brq-gold/50 outline-none text-black placeholder:text-gray-500"
+                  />
+                </div>
+                
+                <div>
+                  <label className="text-[10px] text-white/50 block mb-0.5">كود المنتج</label>
+                  <input
+                    type="text"
+                    value={product.productCode || ''}
+                    onChange={(e) => handleProductChange(idx, 'productCode', e.target.value)}
+                    className="w-full bg-white border border-black rounded-lg px-2 py-1.5 text-base font-bold focus:border-brq-gold/50 outline-none text-black placeholder:text-gray-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] text-white/50 block mb-0.5">سعر الدرزن (بالدولار)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={product.dozenPriceUsd || ''}
+                    onChange={(e) => handleUsdPriceChange(idx, Number(e.target.value))}
+                    className="w-full bg-white border border-black rounded-lg px-2 py-1.5 text-base font-bold focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] text-white/50 block mb-0.5">سعر الدرزن (بالدينار) *</label>
+                  <input
+                    type="number"
+                    value={product.price || ''}
+                    onChange={(e) => handleIqdPriceChange(idx, Number(e.target.value))}
+                    className="w-full bg-white border border-black rounded-lg px-2 py-1.5 text-base font-bold focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] text-white/50 block mb-0.5">التعبئة (رقم/نص)</label>
+                  <input
+                    type="text"
+                    value={product.packaging || ''}
+                    placeholder="مثال: 12"
+                    onChange={(e) => handlePackagingTextChange(idx, e.target.value)}
+                    className="w-full bg-white border border-black rounded-lg px-2 py-1.5 text-base font-bold focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
+                  />
+                </div>
+
+                {/* Individual Card Category Selector (Always Available for Customization) */}
+                <div>
+                  <label className="text-[10px] text-white/50 block mb-0.5 font-bold">القسم الرئيسي</label>
                   <select
                     value={product.categoryId || ''}
-                    onChange={(e) => {
-                      const newCat = e.target.value;
-                      const autoSub = autoSelectSubcategory(product.name || '', newCat, '', categories);
-                      handleProductChange(idx, 'categoryId', newCat);
-                      handleProductChange(idx, 'subcategoryId', autoSub || '');
-                    }}
+                    onChange={(e) => handleProductChange(idx, 'categoryId', e.target.value)}
                     className="w-full bg-white border border-black rounded-lg px-2 py-1.5 text-base font-bold focus:border-brq-gold/50 outline-none text-black placeholder:text-gray-500"
                   >
-                    <option value="">-- إختر --</option>
+                    <option value="">-- اختر القسم --</option>
                     {categories.filter((c) => !c.parentId).map((c) => (
                       <option key={c.id} value={c.id}>{c.name}</option>
                     ))}
                   </select>
                 </div>
-              )}
 
-              <div>
-                <label className="text-[10px] text-white/50 block mb-0.5">القسم الفرعي</label>
-                <select
-                  value={product.subcategoryId || ''}
-                  onChange={(e) => handleProductChange(idx, 'subcategoryId', e.target.value)}
-                  className="w-full bg-white border border-black rounded-lg px-2 py-1.5 text-base font-bold focus:border-brq-gold/50 outline-none text-black disabled:opacity-50 placeholder:text-gray-500"
-                  disabled={!product.categoryId}
-                >
-                  <option value="">-- إختر --</option>
-                  {categories.filter((c) => c.parentId === product.categoryId).map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
-              </div>
-              
-              <div>
-                <label className="text-[10px] text-white/50 block mb-0.5">
-                  تكسير تلقائي (على 12)
-                </label>
-                <select
-                  value={product.forceStandardCrush ? 'yes' : 'no'}
-                  onChange={(e) => handleForceCrushChange(idx, e.target.value === 'yes')}
-                  className="w-full bg-white border border-black rounded-lg px-2 py-1.5 text-base font-bold focus:border-brq-gold/50 outline-none text-black placeholder:text-gray-500"
-                >
-                  <option value="no">لا</option>
-                  <option value="yes">نعم</option>
-                </select>
-              </div>
-              {!product.forceStandardCrush && (
                 <div>
-                  <label className="text-[10px] text-white/50 block mb-0.5">عدد القطع</label>
-                  <input
-                    type="number"
-                    value={product.piecesCount || ""}
-                    onChange={(e) => handlePiecesCountChange(idx, parseInt(e.target.value) || 1)}
-                    className="w-full bg-white border border-black rounded-lg px-2 py-1.5 text-base font-bold focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
-                  />
+                  <label className="text-[10px] text-white/50 block mb-0.5">القسم الفرعي</label>
+                  <select
+                    value={product.subcategoryId || ''}
+                    onChange={(e) => handleProductChange(idx, 'subcategoryId', e.target.value)}
+                    className="w-full bg-white border border-black rounded-lg px-2 py-1.5 text-base font-bold focus:border-brq-gold/50 outline-none text-black disabled:opacity-50 placeholder:text-gray-500"
+                    disabled={!product.categoryId}
+                  >
+                    <option value="">-- إختر --</option>
+                    {categories.filter((c) => c.parentId === product.categoryId).map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
                 </div>
-              )}
-
-              {product.piecesCount ? (
-                <div className="bg-white/5 p-1.5 rounded border border-white/10 mt-1 text-center flex justify-between items-center">
-                  <span className="text-[10px] text-white/50">سعر القطعة:</span>
-                  <span className="font-mono text-xs font-bold text-brq-gold">
-                    {product.piecePriceIqd?.toLocaleString("en-US")} د.ع
-                  </span>
+                
+                <div>
+                  <label className="text-[10px] text-white/50 block mb-0.5">
+                    تكسير تلقائي (على 12)
+                  </label>
+                  <select
+                    value={product.forceStandardCrush ? 'yes' : 'no'}
+                    onChange={(e) => handleForceCrushChange(idx, e.target.value === 'yes')}
+                    className="w-full bg-white border border-black rounded-lg px-2 py-1.5 text-base font-bold focus:border-brq-gold/50 outline-none text-black placeholder:text-gray-500"
+                  >
+                    <option value="no">لا</option>
+                    <option value="yes">نعم</option>
+                  </select>
                 </div>
-              ) : null}
-
-              <div>
-                <label className="text-[10px] text-white/50 block mb-0.5">صورة المنتج</label>
-                <div className="flex flex-col gap-2">
-                  {product.imageUrl && (
-                    <img
-                      src={product.imageUrl}
-                      alt="preview"
-                      className="w-16 h-16 rounded object-contain border border-white/20 bg-black/50"
+                {!product.forceStandardCrush && (
+                  <div>
+                    <label className="text-[10px] text-white/50 block mb-0.5">عدد القطع</label>
+                    <input
+                      type="number"
+                      value={product.piecesCount || ""}
+                      onChange={(e) => handlePiecesCountChange(idx, parseInt(e.target.value) || 1)}
+                      className="w-full bg-white border border-black rounded-lg px-2 py-1.5 text-base font-bold focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
                     />
-                  )}
-                  <input
-                    key={`${uploadSessionId}-${idx}`}
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleImageUpload(idx, e)}
-                    className="w-full bg-white border border-black rounded px-2 py-1 text-[10px] focus:border-brq-gold/50 outline-none text-black file:mr-2 file:py-0.5 file:px-2 file:rounded file:border-0 file:text-[10px] file:font-bold file:bg-black/10 file:text-black hover:file:bg-black/20 transition-colors"
-                  />
-                </div>
-              </div>
+                  </div>
+                )}
 
+                {product.piecesCount ? (
+                  <div className="bg-white/5 p-1.5 rounded border border-white/10 mt-1 text-center flex justify-between items-center">
+                    <span className="text-[10px] text-white/50">سعر القطعة:</span>
+                    <span className="font-mono text-xs font-bold text-brq-gold">
+                      {product.piecePriceIqd?.toLocaleString("en-US")} د.ع
+                    </span>
+                  </div>
+                ) : null}
+
+                <div>
+                  <label className="text-[10px] text-white/50 block mb-0.5">صورة المنتج</label>
+                  <div className="flex flex-col gap-2">
+                    {product.imageUrl && (
+                      <img
+                        src={product.imageUrl}
+                        alt="preview"
+                        className="w-16 h-16 rounded object-contain border border-white/20 bg-black/50"
+                      />
+                    )}
+                    <input
+                      key={`${uploadSessionId}-${idx}`}
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleImageUpload(idx, e)}
+                      className="w-full bg-white border border-black rounded px-2 py-1 text-[10px] focus:border-brq-gold/50 outline-none text-black file:mr-2 file:py-0.5 file:px-2 file:rounded file:border-0 file:text-[10px] file:font-bold file:bg-black/10 file:text-black hover:file:bg-black/20 transition-colors"
+                    />
+                  </div>
+                </div>
+
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
       
       <div className="sticky bottom-0 bg-black/80 backdrop-blur-md p-4 border-t border-white/10 z-10 flex justify-center mt-4 rounded-xl">
