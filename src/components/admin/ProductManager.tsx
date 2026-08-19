@@ -45,7 +45,7 @@ export default function ProductManager() {
   const { user } = useStore();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [viewImage, setViewImage] = useState<{ src: string, alt: string } | null>(null);
+  const [viewImage, setViewImage] = useState<{ src: string, alt: string, product?: Product, index?: number } | null>(null);
   const [historyProduct, setHistoryProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1267,8 +1267,8 @@ export default function ProductManager() {
           <button onClick={() => setIsDownloadDialogOpen(true)} className="flex-1 md:flex-none flex items-center justify-center gap-2 py-2.5 px-4 bg-brq-gold/20 border border-brq-gold/50 text-brq-gold rounded-xl hover:bg-brq-gold/30 transition-all text-sm font-bold">
             <Download size={18} /> تحميل متقدم
           </button>
-          <button onClick={() => { setIsBatchAdding(!isBatchAdding); setIsAdding(false); }} className="flex-1 md:flex-none flex items-center justify-center gap-2 py-2.5 px-4 bg-brq-navy border border-brq-gold/50 text-brq-gold rounded-xl hover:bg-brq-gold hover:text-black transition-all text-sm font-bold">
-            <Upload size={18} /> رفع سريع (10 منتجات)
+          <button onClick={() => { setIsBatchAdding(!isBatchAdding); setIsAdding(false); }} className="flex-1 md:flex-none flex items-center justify-center gap-2 py-2.5 px-4 bg-brq-navy border border-brq-gold/50 text-brq-gold rounded-xl hover:bg-brq-gold hover:text-black transition-all text-sm font-bold shadow-md">
+            <Upload size={18} /> الرفع السريع (20 منتج) ⚡
           </button>
           <button
             onClick={() => { setIsAdding(!isAdding); setIsBatchAdding(false); }}
@@ -1890,7 +1890,13 @@ export default function ProductManager() {
                             className="w-12 h-12 rounded-lg bg-brq-navy flex items-center justify-center border border-white/10 overflow-hidden text-2xl cursor-pointer"
                             onClick={() => {
                               if (p.finalImageUrl || p.imageUrl) {
-                                setViewImage({ src: p.finalImageUrl || p.imageUrl || '', alt: p.name });
+                                const prodIndex = paginatedProducts.findIndex(item => item.id === p.id);
+                                setViewImage({ 
+                                  src: p.finalImageUrl || p.imageUrl || '', 
+                                  alt: p.name,
+                                  product: p,
+                                  index: prodIndex >= 0 ? prodIndex : undefined
+                                });
                               }
                             }}
                           >
@@ -2416,7 +2422,36 @@ export default function ProductManager() {
         <ImageViewer 
           src={viewImage.src} 
           alt={viewImage.alt} 
+          product={viewImage.product}
+          currentIndex={viewImage.index}
+          totalCount={paginatedProducts.length}
           onClose={() => setViewImage(null)} 
+          onNext={typeof viewImage.index === 'number' && viewImage.index < paginatedProducts.length - 1 ? () => {
+            const nextIdx = (viewImage.index || 0) + 1;
+            const nextProd = paginatedProducts[nextIdx];
+            if (nextProd) {
+              setViewImage({
+                src: nextProd.finalImageUrl || nextProd.imageUrl || '',
+                alt: nextProd.name,
+                product: nextProd,
+                index: nextIdx
+              });
+            }
+          } : undefined}
+          onPrev={typeof viewImage.index === 'number' && viewImage.index > 0 ? () => {
+            const prevIdx = (viewImage.index || 0) - 1;
+            const prevProd = paginatedProducts[prevIdx];
+            if (prevProd) {
+              setViewImage({
+                src: prevProd.finalImageUrl || prevProd.imageUrl || '',
+                alt: prevProd.name,
+                product: prevProd,
+                index: prevIdx
+              });
+            }
+          } : undefined}
+          hasNext={typeof viewImage.index === 'number' && viewImage.index < paginatedProducts.length - 1}
+          hasPrev={typeof viewImage.index === 'number' && viewImage.index > 0}
         />
       )}
 

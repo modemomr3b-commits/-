@@ -18,6 +18,7 @@ import { api } from "../../api";
 import { Order, OrderStatus } from "../../types";
 import { useStore } from "../../store";
 import ImageViewer from "../ImageViewer";
+import { printOrderInvoice } from "../../utils/printOrder";
 
 const statusMap: Record<OrderStatus, { label: string; color: string }> = {
   new: {
@@ -168,138 +169,7 @@ export default function OrderManager() {
   };
 
   const handlePrintOrder = (order: Order) => {
-    const date = formatDateTime(order.createdAt);
-
-    const itemsHtml =
-      order.items
-        ?.map(
-          (item, index) => `
-      <tr>
-        <td style="padding: 10px; border-bottom: 1px solid #ddd;">${index + 1}</td>
-        <td style="padding: 10px; border-bottom: 1px solid #ddd;">
-          <div style="font-weight: bold; font-size: 18px;">${item.product?.name || "منتج محذوف"}</div>
-          <div style="color: #666; font-size: 14px; margin-top: 4px;">
-            ${item.product?.modelNumber ? `الموديل/الرمز: ${item.product.modelNumber}` : ""}
-          </div>
-        </td>
-        <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center; font-weight: bold; font-size: 24px; font-family: monospace; letter-spacing: 2px;">
-          ${item.product?.productCode || "---"}
-        </td>
-        <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center; font-weight: bold; font-size: 20px;">${item.quantity}</td>
-      </tr>
-    `,
-        )
-        .join("") || "";
-
-    const html = `
-      <!DOCTYPE html>
-      <html dir="rtl" lang="ar">
-        <head>
-          <title>طباعة طلب رقم ${order.orderNumber || order.id.slice(0, 8)}</title>
-          <style>
-            body { font-family: system-ui, -apple-system, sans-serif; padding: 20px; color: #000; direction: rtl; }
-            .header { border-bottom: 2px solid #000; padding-bottom: 15px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
-            .title { font-size: 28px; font-weight: bold; }
-            .info-box { border: 2px solid #333; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
-            .info-row { display: flex; margin-bottom: 10px; font-size: 16px; }
-            .info-label { width: 160px; font-weight: bold; }
-            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-            th { background: #f0f0f0; padding: 12px; text-align: right; border-bottom: 2px solid #000; font-size: 16px; }
-            td { text-align: right; border-bottom: 1px solid #ccc; }
-            .footer { margin-top: 50px; padding-top: 20px; border-top: 1px solid #ccc; text-align: center; color: #555; font-size: 14px; }
-            @media print {
-              body { padding: 0; }
-              @page { margin: 1.5cm; }
-            }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <div class="title">تفاصيل الطلبية</div>
-            <div style="text-align: left; font-size: 16px;">
-              <strong>رقم الطلب:</strong> <span style="font-family: monospace;">${order.orderNumber || order.id.slice(0, 8)}</span><br/>
-              <strong>التاريخ:</strong> <span dir="ltr">${date}</span>
-            </div>
-          </div>
-          
-          <div class="info-box">
-            <div class="info-row">
-              <div class="info-label">اسم الوكيل:</div>
-              <div>${order.username}</div>
-            </div>
-            <div class="info-row">
-              <div class="info-label">اسم الزبون/المرسل:</div>
-              <div>${order.fullName || "---"}</div>
-            </div>
-            ${
-              order.notes
-                ? `
-            <div class="info-row" style="margin-top: 15px; border-top: 1px dashed #ccc; padding-top: 15px;">
-              <div class="info-label">الملاحظات:</div>
-              <div style="font-weight: bold;">${order.notes}</div>
-            </div>
-            `
-                : ""
-            }
-          </div>
-
-          <table>
-            <thead>
-              <tr>
-                <th style="width: 50px;">#</th>
-                <th>المنتج والتفاصيل</th>
-                <th style="text-align: center; width: 180px;">الكود</th>
-                <th style="text-align: center; width: 100px;">الكمية</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${itemsHtml}
-            </tbody>
-            <tfoot>
-              <tr>
-                <td colspan="3" style="padding: 15px; text-align: left; font-weight: bold; font-size: 18px;">إجمالي الكمية (قطع):</td>
-                <td style="padding: 15px; text-align: center; font-weight: bold; font-size: 22px;">${order.totalQuantity}</td>
-              </tr>
-            </tfoot>
-          </table>
-
-          <div class="footer">
-            وثيقة طلبية مطبوعة من نظام الإدارة
-          </div>
-        </body>
-      </html>
-    `;
-
-    const iframe = document.createElement("iframe");
-    iframe.style.position = "fixed";
-    iframe.style.right = "0";
-    iframe.style.bottom = "0";
-    iframe.style.width = "0";
-    iframe.style.height = "0";
-    iframe.style.border = "0";
-    document.body.appendChild(iframe);
-
-    const doc = iframe.contentWindow?.document || iframe.contentDocument;
-    if (doc) {
-      doc.open();
-      doc.write(html);
-      doc.close();
-
-      setTimeout(() => {
-        try {
-          iframe.contentWindow?.focus();
-          iframe.contentWindow?.print();
-        } catch (e) {
-          console.error("Print error", e);
-        } finally {
-          setTimeout(() => {
-            if (iframe.parentNode) {
-              iframe.parentNode.removeChild(iframe);
-            }
-          }, 1000);
-        }
-      }, 300);
-    }
+    printOrderInvoice(order);
   };
 
   const filteredOrders = orders.filter((o) => {

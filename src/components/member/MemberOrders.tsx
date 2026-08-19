@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react';
 import { useStore } from '../../store';
 import { api } from '../../api';
 import { Order } from '../../types';
-import { Package, Clock, CheckCircle, Search, XCircle, MoreHorizontal, Download, X, Eye, FileText, User, Truck, Hash, Calendar, Loader2 } from 'lucide-react';
+import { Package, Clock, CheckCircle, Search, XCircle, MoreHorizontal, Download, X, Eye, FileText, User, Truck, Hash, Calendar, Loader2, Printer } from 'lucide-react';
 import { Link } from 'react-router';
 import OptimizedImage from '../OptimizedImage';
 import { downloadImages } from '../../utils/download';
+import { printOrderInvoice } from '../../utils/printOrder';
 
 export default function MemberOrders() {
   const { user, showToast } = useStore();
@@ -273,24 +274,35 @@ export default function MemberOrders() {
               </div>
             </div>
 
-            {/* Save All Images Button */}
-            <button
-              onClick={() => handleDownloadAllImages(selectedOrder)}
-              disabled={isDownloading}
-              className="w-full py-3.5 px-6 bg-gradient-to-r from-brq-gold to-yellow-400 text-black font-bold rounded-2xl shadow-lg hover:shadow-brq-gold/20 flex items-center justify-center gap-3 transition-all text-base disabled:opacity-50"
-            >
-              {isDownloading ? (
-                <>
-                  <Loader2 size={20} className="animate-spin" />
-                  <span>جاري الحفظ ({downloadProgress?.progress || 0} / {downloadProgress?.total || 0})...</span>
-                </>
-              ) : (
-                <>
-                  <Download size={22} />
-                  <span>حفظ كل صور الطلبية إلى الاستوديو</span>
-                </>
-              )}
-            </button>
+            {/* Action Buttons: Save Images + Print Sheet */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <button
+                onClick={() => handleDownloadAllImages(selectedOrder)}
+                disabled={isDownloading}
+                className="py-3 px-4 bg-gradient-to-r from-brq-gold to-yellow-400 text-black font-bold rounded-xl shadow-lg hover:shadow-brq-gold/20 flex items-center justify-center gap-2 transition-all text-sm disabled:opacity-50"
+              >
+                {isDownloading ? (
+                  <>
+                    <Loader2 size={18} className="animate-spin" />
+                    <span>جاري الحفظ ({downloadProgress?.progress || 0} / {downloadProgress?.total || 0})...</span>
+                  </>
+                ) : (
+                  <>
+                    <Download size={18} />
+                    <span>حفظ صور الطلبية</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                onClick={() => printOrderInvoice(selectedOrder)}
+                className="py-3 px-4 bg-white/10 hover:bg-white/20 text-white font-bold rounded-xl border border-white/20 flex items-center justify-center gap-2 transition-all text-sm shadow-md"
+                title="طباعة الطلبية (25 منتج في الورقة الواحدة)"
+              >
+                <Printer size={18} className="text-brq-gold" />
+                <span>طباعة الطلبية (25 مادة بالورقة)</span>
+              </button>
+            </div>
 
             {/* Customer & Transport Details */}
             {selectedOrder.notes && (
