@@ -231,19 +231,6 @@ export default function ImageViewer({
     }
   };
 
-  const handleWhatsAppShare = () => {
-    if (!product) return;
-    const priceText = product.price ? `${product.price.toLocaleString('en-US')} د.ع` : '';
-    const pieceText = product.piecePriceIqd ? `سعر القطعة: ${product.piecePriceIqd.toLocaleString('en-US')} د.ع` : '';
-    const codeText = product.productCode ? `الكود: ${product.productCode}` : '';
-    const modelText = product.modelNumber ? `الرمز: ${product.modelNumber}` : '';
-    const linkText = `${window.location.origin}/product/${product.id}`;
-    
-    const message = `✨ *شركة الوفاء المتميز*\n\n👟 *${product.name}*\n${codeText ? `🏷️ ${codeText}\n` : ''}${modelText ? `🔢 ${modelText}\n` : ''}${priceText ? `💰 سعر الدرزن: ${priceText}\n` : ''}${pieceText ? `💵 ${pieceText}\n` : ''}\n🔗 *رابط المنتج:* ${linkText}`;
-    
-    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`, '_blank');
-  };
-
   return (
     <div
       ref={viewerRef}
@@ -487,16 +474,8 @@ export default function ImageViewer({
                   )}
                 </button>
 
-                {/* WhatsApp & Copy Link Buttons */}
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={handleWhatsAppShare}
-                    className="py-3 px-3 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer"
-                  >
-                    <MessageCircle size={16} className="text-emerald-400" />
-                    <span>مشاركة واتساب</span>
-                  </button>
-
+                {/* Copy Link Button */}
+                <div className="grid grid-cols-1 gap-2">
                   <button
                     onClick={handleCopyLink}
                     className="py-3 px-3 bg-white/5 hover:bg-white/10 text-white/80 hover:text-white border border-white/10 font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer"
@@ -668,7 +647,7 @@ export default function ImageViewer({
               </div>
 
               {/* Mobile Action Buttons */}
-              <div className="grid grid-cols-2 gap-2 pt-1">
+              <div className="grid grid-cols-1 gap-2 pt-1">
                 <button
                   onClick={handleDownload}
                   disabled={isDownloading}
@@ -676,13 +655,6 @@ export default function ImageViewer({
                 >
                   <Download size={15} />
                   <span>تحميل الصورة</span>
-                </button>
-                <button
-                  onClick={handleWhatsAppShare}
-                  className="py-2.5 px-3 bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <MessageCircle size={15} />
-                  <span>مشاركة واتساب</span>
                 </button>
               </div>
             </div>

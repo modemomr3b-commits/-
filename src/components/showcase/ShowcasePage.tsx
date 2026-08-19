@@ -19,7 +19,8 @@ import {
 } from 'lucide-react';
 import { api } from '../../api';
 import { supabase } from '../../supabase';
-import { Product } from '../../types';
+import { Product, Category } from '../../types';
+import { detectShowcaseCategory, VALID_SHOWCASE_CATEGORIES } from '../../utils/showcaseClassifier';
 import OptimizedImage from '../OptimizedImage';
 import ImageViewer from '../ImageViewer';
 import Animated3DLogo from '../ui/Animated3DLogo';
@@ -39,6 +40,7 @@ export const SHOWCASE_CATEGORIES = [
 
 export default function ShowcasePage() {
   const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [settings, setSettings] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -62,15 +64,17 @@ export default function ShowcasePage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [allProds, appSettings] = await Promise.all([
+      const [allProds, appSettings, allCats] = await Promise.all([
         api.getProducts(),
-        api.getSettings()
+        api.getSettings(),
+        api.getCategories()
       ]);
       
       // Filter products that are designated for showcase AND not archived/hidden
       const showcaseProds = (allProds || []).filter(p => p.isShowcase && !p.isArchived && !p.isHidden);
       setProducts(showcaseProds);
       setSettings(appSettings || {});
+      setCategories(allCats || []);
     } catch (e) {
       console.error("Error loading showcase data:", e);
     } finally {
@@ -97,12 +101,20 @@ export default function ShowcasePage() {
 
   const isShowcaseLocked = settings?.showcaseEnabled === false;
 
+  // Resolve accurate showcase category for any product
+  const getShowcaseCategory = (p: Product) => {
+    if (p.showcaseCategory && (VALID_SHOWCASE_CATEGORIES as readonly string[]).includes(p.showcaseCategory)) {
+      return p.showcaseCategory;
+    }
+    return detectShowcaseCategory(p, categories);
+  };
+
   // Filter products by category and search
   const filteredProducts = useMemo(() => {
     return products.filter(p => {
       // Category match
       if (selectedCategory !== 'all') {
-        const cat = p.showcaseCategory || '';
+        const cat = getShowcaseCategory(p);
         if (cat !== selectedCategory) return false;
       }
 
@@ -117,18 +129,18 @@ export default function ShowcasePage() {
 
       return true;
     });
-  }, [products, selectedCategory, searchTerm]);
+  }, [products, selectedCategory, searchTerm, categories]);
 
   // Counts per category
   const categoryCounts = useMemo(() => {
     const counts: Record<string, number> = { all: products.length };
     SHOWCASE_CATEGORIES.forEach(cat => {
       if (cat.id !== 'all') {
-        counts[cat.id] = products.filter(p => (p.showcaseCategory || '') === cat.id).length;
+        counts[cat.id] = products.filter(p => getShowcaseCategory(p) === cat.id).length;
       }
     });
     return counts;
-  }, [products]);
+  }, [products, categories]);
 
   // WhatsApp share handler
   const handleSharePage = async () => {
@@ -157,18 +169,6 @@ export default function ShowcasePage() {
       const waUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
       window.open(waUrl, '_blank');
     }
-  };
-
-  // Order / Inquire on WhatsApp for single product
-  const handleInquireProduct = (e: React.MouseEvent, p: Product) => {
-    e.stopPropagation();
-    const phone = settings?.phone || '9647700000000';
-    const cleanPhone = phone.replace(/[^0-9]/g, '');
-    const currentUrl = window.location.origin + `/showcase?product=${p.id}`;
-    const text = `السلام عليكم شركة الوفاء المتميز،\nأود الاستفسار والطلب بخصوص هذا الموديل المعروض:\n- الاسم: ${p.name}\n- الكود: ${p.productCode || '---'}\n- الرمز: ${p.modelNumber || '---'}\n- السعر: ${p.price?.toLocaleString('en-US')} د.ع\n- التعبئة: ${p.piecesCount ? `${p.piecesCount} قطعة` : (p.packaging || '---')}\nرابط الصورة: ${p.finalImageUrl || p.imageUrl || currentUrl}`;
-    
-    const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`;
-    window.open(waUrl, '_blank');
   };
 
   // Download product image
@@ -438,13 +438,11 @@ export default function ShowcasePage() {
                   )}
 
                   {/* Category Tag Badge */}
-                  {p.showcaseCategory && (
-                    <span className="absolute top-2.5 right-2.5 z-10 bg-black/70 backdrop-blur-md text-brq-gold border border-brq-gold/30 text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md">
-                      {p.showcaseCategory}
-                    </span>
-                  )}
+                  <span className="absolute top-2.5 right-2.5 z-10 bg-black/70 backdrop-blur-md text-brq-gold border border-brq-gold/30 text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md">
+                    {getShowcaseCategory(p)}
+                  </span>
 
-                  {/* Top Action Buttons (Download & Inquire) */}
+                  {/* Top Action Buttons (Download) */}
                   <div className="absolute top-2.5 left-2.5 z-10 flex flex-col gap-1.5 opacity-90 group-hover:opacity-100 transition-opacity">
                     <button
                       onClick={(e) => handleDownloadImage(e, p)}
@@ -452,13 +450,6 @@ export default function ShowcasePage() {
                       title="تحميل الصورة"
                     >
                       <Download size={15} />
-                    </button>
-                    <button
-                      onClick={(e) => handleInquireProduct(e, p)}
-                      className="p-2 rounded-xl bg-black/60 backdrop-blur-md border border-white/20 text-white hover:bg-emerald-500 hover:text-white transition-all shadow-md active:scale-90"
-                      title="طلب الموديل عبر واتساب"
-                    >
-                      <MessageCircle size={15} className="text-emerald-400" />
                     </button>
                   </div>
                 </div>
@@ -505,13 +496,13 @@ export default function ShowcasePage() {
                     ) : null}
                   </div>
 
-                  {/* Direct WhatsApp Order Button */}
+                  {/* Download Image Button */}
                   <button
-                    onClick={(e) => handleInquireProduct(e, p)}
-                    className="w-full mt-1 py-2 bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/30 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-sm active:scale-98"
+                    onClick={(e) => handleDownloadImage(e, p)}
+                    className="w-full mt-1 py-2 bg-white/10 hover:bg-white/20 text-white/90 hover:text-white border border-white/20 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-sm active:scale-98"
                   >
-                    <MessageCircle size={14} />
-                    <span>طلب عبر واتساب</span>
+                    <Download size={14} />
+                    <span>تحميل الصورة</span>
                   </button>
                 </div>
               </div>

@@ -34,6 +34,7 @@ import { api } from "../../api";
 import { supabase } from "../../supabase";
 import { filterProductsBySearch } from '../../utils/search';
 import { Product, Category } from "../../types";
+import { detectShowcaseCategory, VALID_SHOWCASE_CATEGORIES } from "../../utils/showcaseClassifier";
 import { burnProductOverlay } from "../../utils/burnImage";
 import { BatchProductUpload } from "./BatchProductUpload";
 import { useStore } from "../../store";
@@ -843,7 +844,7 @@ export default function ProductManager() {
 
   const handleToggleShowcase = async (p: Product, showcaseCategory?: string) => {
     const nextShowcase = !p.isShowcase;
-    const cat = showcaseCategory || p.showcaseCategory || 'رجالي';
+    const cat = showcaseCategory || (nextShowcase ? detectShowcaseCategory(p, categories) : (p.showcaseCategory || 'رجالي'));
     setProducts((prev) =>
       prev.map((prod) =>
         prod.id === p.id ? { ...prod, isShowcase: nextShowcase, showcaseCategory: cat } : prod
@@ -851,7 +852,7 @@ export default function ProductManager() {
     );
     try {
       await api.updateProduct(p.id!, { isShowcase: nextShowcase, showcaseCategory: cat });
-      setAlertMessage(nextShowcase ? "تم نشر المنتج في معرض الوفاء المتميز بنجاح" : "تم إلغاء نشر المنتج من المعرض");
+      setAlertMessage(nextShowcase ? `تم نشر المنتج في المعرض قسم (${cat}) بنجاح` : "تم إلغاء نشر المنتج من المعرض");
     } catch (e) {
       console.error(e);
       const updated = await api.getProducts();
@@ -860,19 +861,33 @@ export default function ProductManager() {
     }
   };
 
-  const handleBulkToggleShowcase = async (publish: boolean, category: string = 'رجالي') => {
+  const handleBulkToggleShowcase = async (publish: boolean) => {
     if (selectedIds.size === 0) return;
     setIsSubmitting(true);
     try {
+      const productsToUpdate = products.filter(p => selectedIds.has(p.id!));
+      
       setProducts((prev) =>
-        prev.map((prod) =>
-          selectedIds.has(prod.id!) ? { ...prod, isShowcase: publish, showcaseCategory: category } : prod
-        )
+        prev.map((prod) => {
+          if (selectedIds.has(prod.id!)) {
+            const cat = publish ? detectShowcaseCategory(prod, categories) : (prod.showcaseCategory || 'رجالي');
+            return { ...prod, isShowcase: publish, showcaseCategory: cat };
+          }
+          return prod;
+        })
       );
-      const ids = Array.from(selectedIds);
-      await api.bulkUpdateProducts(ids, { isShowcase: publish, showcaseCategory: category });
+      
+      const chunkSize = 15;
+      for (let i = 0; i < productsToUpdate.length; i += chunkSize) {
+        const chunk = productsToUpdate.slice(i, i + chunkSize);
+        await Promise.all(chunk.map(p => {
+           const cat = publish ? detectShowcaseCategory(p, categories) : (p.showcaseCategory || 'رجالي');
+           return api.updateProduct(p.id!, { isShowcase: publish, showcaseCategory: cat });
+        }));
+      }
+
       setSelectedIds(new Set());
-      setAlertMessage(publish ? `تم نشر ${ids.length} منتجات في المعرض بنجاح` : `تم إلغاء نشر ${ids.length} منتجات من المعرض`);
+      setAlertMessage(publish ? `تم نشر ${productsToUpdate.length} منتجات في المعرض بنجاح` : `تم إلغاء نشر ${productsToUpdate.length} منتجات من المعرض`);
     } catch (e: any) {
       console.error("Error bulk toggling showcase:", e);
       const updated = await api.getProducts();

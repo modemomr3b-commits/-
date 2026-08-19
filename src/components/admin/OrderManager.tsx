@@ -297,6 +297,7 @@ export default function OrderManager() {
                 <tr>
                   <th className="p-4 font-medium rounded-tr-lg">رقم الطلب</th>
                   <th className="p-4 font-medium">اسم الزبون / الوكيل</th>
+                  <th className="p-4 font-medium">الملاحظات</th>
                   <th className="p-4 font-medium">عدد المنتجات</th>
                   <th className="p-4 font-medium">التاريخ والوقت</th>
                   <th className="p-4 font-medium">الحالة</th>
@@ -340,6 +341,15 @@ export default function OrderManager() {
                             </div>
                           )}
                         </div>
+                      </td>
+                      <td className="p-4">
+                        {o.notes ? (
+                          <div className="p-2 rounded-lg bg-white/90 border border-gray-300 text-black shadow-sm text-xs font-bold whitespace-pre-wrap max-w-[200px] break-words">
+                            {o.notes}
+                          </div>
+                        ) : (
+                          <span className="text-white/30 text-xs">لا يوجد</span>
+                        )}
                       </td>
                       <td className="p-4 font-mono">
                         {o.totalQuantity ||
