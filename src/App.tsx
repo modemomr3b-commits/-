@@ -19,6 +19,7 @@ const MemberOrders = lazy(() => import('./components/member/MemberOrders'));
 const SearchPage = lazy(() => import('./components/member/SearchPage'));
 const Profile = lazy(() => import('./components/member/Profile'));
 const Messages = lazy(() => import('./components/member/Messages'));
+const ShowcasePage = lazy(() => import('./components/showcase/ShowcasePage'));
 
 const AdminDashboard = lazy(() => import('./components/admin/Dashboard'));
 const ProductManager = lazy(() => import('./components/admin/ProductManager'));
@@ -93,6 +94,9 @@ export default function App() {
       <div dir="rtl" className="min-h-screen bg-brq-black text-brq-white antialiased">
         <Suspense fallback={<LoadingFallback />}>
           <Routes>
+            {/* Public Showcase - No login required */}
+            <Route path="/showcase" element={<ShowcasePage />} />
+
             <Route path="/login" element={!user ? <Login /> : <Navigate to="/" />} />
             
             <Route 
@@ -100,6 +104,7 @@ export default function App() {
               element={user ? <MemberLayout /> : <Navigate to="/login" />}
             >
               <Route index element={<Home />} />
+              <Route path="showcase" element={<ShowcasePage />} />
               <Route path="category/:categoryId" element={<Products />} />
               <Route path="product/:productId" element={<ProductDetail />} />
               <Route path="favorites" element={<Favorites />} />

@@ -55,6 +55,8 @@ export interface Product extends BaseEntity {
   isArchived: boolean;
   isHidden?: boolean;
   isLocked?: boolean;
+  isShowcase?: boolean; // Published to "معرض شركة الوفاء المتميز"
+  showcaseCategory?: string; // One of: رجالي, نسائي, شبابي, ولادي, بناتي, طفل, طفلة, بيبي, مواليد
   views: number;
   createdAt: number;
   updatedAt?: number;

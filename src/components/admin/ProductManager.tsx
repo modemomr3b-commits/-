@@ -291,9 +291,11 @@ export default function ProductManager() {
     imageUrl: "",
     forceStandardCrush: true,
     isHidden: true,
+    isShowcase: false,
+    showcaseCategory: "رجالي",
   });
 
-  const [filterStatus, setFilterStatus] = useState<"all" | "active" | "archived" | "inactive" | "duplicates" | "locked" | null>(null);
+  const [filterStatus, setFilterStatus] = useState<"all" | "active" | "archived" | "inactive" | "duplicates" | "locked" | "showcase" | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [searchDate, setSearchDate] = useState("");
@@ -839,6 +841,48 @@ export default function ProductManager() {
     }
   };
 
+  const handleToggleShowcase = async (p: Product, showcaseCategory?: string) => {
+    const nextShowcase = !p.isShowcase;
+    const cat = showcaseCategory || p.showcaseCategory || 'رجالي';
+    setProducts((prev) =>
+      prev.map((prod) =>
+        prod.id === p.id ? { ...prod, isShowcase: nextShowcase, showcaseCategory: cat } : prod
+      )
+    );
+    try {
+      await api.updateProduct(p.id!, { isShowcase: nextShowcase, showcaseCategory: cat });
+      setAlertMessage(nextShowcase ? "تم نشر المنتج في معرض الوفاء المتميز بنجاح" : "تم إلغاء نشر المنتج من المعرض");
+    } catch (e) {
+      console.error(e);
+      const updated = await api.getProducts();
+      setProducts(updated);
+      setAlertMessage("فشل تحديث حالة النشر في المعرض");
+    }
+  };
+
+  const handleBulkToggleShowcase = async (publish: boolean, category: string = 'رجالي') => {
+    if (selectedIds.size === 0) return;
+    setIsSubmitting(true);
+    try {
+      setProducts((prev) =>
+        prev.map((prod) =>
+          selectedIds.has(prod.id!) ? { ...prod, isShowcase: publish, showcaseCategory: category } : prod
+        )
+      );
+      const ids = Array.from(selectedIds);
+      await api.bulkUpdateProducts(ids, { isShowcase: publish, showcaseCategory: category });
+      setSelectedIds(new Set());
+      setAlertMessage(publish ? `تم نشر ${ids.length} منتجات في المعرض بنجاح` : `تم إلغاء نشر ${ids.length} منتجات من المعرض`);
+    } catch (e: any) {
+      console.error("Error bulk toggling showcase:", e);
+      const updated = await api.getProducts();
+      setProducts(updated);
+      setAlertMessage("فشل التحديث المجمع للمعرض: " + e.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const toggleSelection = (id: string) => {
     const next = new Set(selectedIds);
     if (next.has(id)) next.delete(id);
@@ -1160,6 +1204,8 @@ export default function ProductManager() {
       if (!p.isArchived) return false;
     } else if (filterStatus === 'locked') {
       if (!p.isLocked) return false;
+    } else if (filterStatus === 'showcase') {
+      if (!p.isShowcase) return false;
     } else {
       if (p.isArchived) return false;
       if (p.isLocked) return false;
@@ -1170,7 +1216,7 @@ export default function ProductManager() {
       if (filterStatus === null && !searchQuery) return false;
     }
 
-    if (filterStatus !== 'archived' && filterStatus !== 'locked') {
+    if (filterStatus !== 'archived' && filterStatus !== 'locked' && filterStatus !== 'showcase') {
       if (filterCategoryId && p.categoryId !== filterCategoryId) {
         return false;
       }
@@ -1445,6 +1491,45 @@ export default function ProductManager() {
                 />
               </div>
             </div>
+            <div className="md:col-span-2 bg-white/5 p-4 rounded-xl border border-white/10 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Sparkles size={18} className="text-amber-400" />
+                  <span className="text-sm font-bold text-white">نشر في معرض شركة الوفاء المتميز</span>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="sr-only peer"
+                    checked={newProduct.isShowcase || false}
+                    onChange={(e) => setNewProduct({ ...newProduct, isShowcase: e.target.checked })}
+                  />
+                  <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-400"></div>
+                </label>
+              </div>
+              {newProduct.isShowcase && (
+                <div>
+                  <label className="text-xs text-white/50 block mb-1">
+                    قسم المعرض العام
+                  </label>
+                  <select
+                    value={newProduct.showcaseCategory || 'رجالي'}
+                    onChange={(e) => setNewProduct({ ...newProduct, showcaseCategory: e.target.value })}
+                    className="w-full bg-white border border-black rounded-lg px-3 py-2 text-base font-bold text-black focus:border-amber-400 outline-none"
+                  >
+                    <option value="رجالي">👞 رجالي</option>
+                    <option value="نسائي">👠 نسائي</option>
+                    <option value="شبابي">👟 شبابي</option>
+                    <option value="ولادي">👦 ولادي</option>
+                    <option value="بناتي">👧 بناتي</option>
+                    <option value="طفل">🧒 طفل</option>
+                    <option value="طفلة">🎀 طفلة</option>
+                    <option value="بيبي">🍼 بيبي</option>
+                    <option value="مواليد">👶 مواليد</option>
+                  </select>
+                </div>
+              )}
+            </div>
             <div className="md:col-span-2">
               <button
                 type="submit"
@@ -1517,6 +1602,16 @@ export default function ProductManager() {
               className={`pb-2 px-2 text-sm font-bold border-b-2 transition-colors ${filterStatus === "locked" ? "border-brq-gold text-brq-gold" : "border-transparent text-white/50 hover:text-white"}`}
             >
               المواد المقفلة
+            </button>
+            <button
+              onClick={() => setFilterStatus("showcase")}
+              className={`pb-2 px-2 text-sm font-bold border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap ${filterStatus === "showcase" ? "border-amber-400 text-amber-300" : "border-transparent text-white/50 hover:text-white"}`}
+            >
+              <Sparkles size={14} className="text-amber-400" />
+              معرض الوفاء المتميز
+              <span className="text-[10px] bg-amber-400/20 text-amber-300 px-1.5 py-0.5 rounded-full font-mono font-bold">
+                {products.filter(p => p.isShowcase).length}
+              </span>
             </button>
             <button
               onClick={() => setIsDownloadDialogOpen(true)}
@@ -1638,6 +1733,26 @@ export default function ProductManager() {
                     >
                       {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Archive size={16} />}
                       استرجاع من المواد النافذة
+                    </button>
+                  )}
+                  {selectedIds.size > 0 && (
+                    <button
+                      onClick={() => handleBulkToggleShowcase(true)}
+                      disabled={isSubmitting}
+                      className="flex items-center gap-2 px-4 py-2 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-lg text-sm hover:bg-amber-500/30 transition-colors font-bold whitespace-nowrap disabled:opacity-50"
+                    >
+                      <Sparkles size={16} />
+                      نشر بالمعرض العام
+                    </button>
+                  )}
+                  {selectedIds.size > 0 && (
+                    <button
+                      onClick={() => handleBulkToggleShowcase(false)}
+                      disabled={isSubmitting}
+                      className="flex items-center gap-2 px-4 py-2 bg-stone-700/40 text-stone-300 border border-stone-600/30 rounded-lg text-sm hover:bg-stone-700/60 transition-colors font-bold whitespace-nowrap disabled:opacity-50"
+                    >
+                      <Sparkles size={16} />
+                      إلغاء من المعرض
                     </button>
                   )}
                   {selectedIds.size > 0 && (
@@ -1814,6 +1929,12 @@ export default function ProductManager() {
                               مخفي
                             </span>
                           )}
+                          {p.isShowcase && (
+                            <span className="px-2 py-0.5 rounded text-[10px] bg-amber-400/20 text-amber-300 border border-amber-400/40 flex items-center gap-1 font-bold">
+                              <Sparkles size={10} />
+                              معرض الوفاء ({p.showcaseCategory || 'عام'})
+                            </span>
+                          )}
                         </td>
                         <td className="p-4 font-mono text-brq-gold">
                           {p.productCode || "-"}
@@ -1915,6 +2036,18 @@ export default function ProductManager() {
                             >
                               <Sparkles size={16} />
                               <span className="hidden sm:inline">AI</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleShowcase(p)}
+                              className={`p-1.5 rounded transition-colors ${
+                                p.isShowcase
+                                  ? "bg-amber-400/20 text-amber-300 border border-amber-400/40 hover:bg-amber-400/30"
+                                  : "hover:bg-amber-500/20 text-white/50 hover:text-amber-300"
+                              }`}
+                              title={p.isShowcase ? `منشور في المعرض (${p.showcaseCategory || 'عام'}) - انقر للإلغاء` : "نشر في معرض الوفاء المتميز"}
+                            >
+                              <Sparkles size={16} className={p.isShowcase ? "text-amber-400 fill-amber-400/30" : ""} />
                             </button>
                             <button
                               type="button"
@@ -2217,6 +2350,45 @@ export default function ProductManager() {
                     className="w-full bg-white border border-black rounded-lg px-3 py-2 text-base font-bold focus:border-brq-gold/50 outline-none text-black file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-black/10 file:text-black hover:file:bg-black/20 transition-colors placeholder:text-gray-500"
                   />
                 </div>
+              </div>
+              <div className="md:col-span-2 bg-white/5 p-4 rounded-xl border border-white/10 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Sparkles size={18} className="text-amber-400" />
+                    <span className="text-sm font-bold text-white">نشر في معرض شركة الوفاء المتميز</span>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={editingProduct.isShowcase || false}
+                      onChange={(e) => setEditingProduct({ ...editingProduct, isShowcase: e.target.checked })}
+                    />
+                    <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-400"></div>
+                  </label>
+                </div>
+                {editingProduct.isShowcase && (
+                  <div>
+                    <label className="text-xs text-white/50 block mb-1">
+                      قسم المعرض العام
+                    </label>
+                    <select
+                      value={editingProduct.showcaseCategory || 'رجالي'}
+                      onChange={(e) => setEditingProduct({ ...editingProduct, showcaseCategory: e.target.value })}
+                      className="w-full bg-white border border-black rounded-lg px-3 py-2 text-base font-bold text-black focus:border-amber-400 outline-none"
+                    >
+                      <option value="رجالي">👞 رجالي</option>
+                      <option value="نسائي">👠 نسائي</option>
+                      <option value="شبابي">👟 شبابي</option>
+                      <option value="ولادي">👦 ولادي</option>
+                      <option value="بناتي">👧 بناتي</option>
+                      <option value="طفل">🧒 طفل</option>
+                      <option value="طفلة">🎀 طفلة</option>
+                      <option value="بيبي">🍼 بيبي</option>
+                      <option value="مواليد">👶 مواليد</option>
+                    </select>
+                  </div>
+                )}
               </div>
               <div className="md:col-span-2">
                 <button

@@ -138,6 +138,8 @@ export const api = {
       isHidden: data.size?.isHidden !== undefined ? data.size.isHidden : (data.isHidden ?? false),
       isLocked: data.size?.isLocked !== undefined ? data.size.isLocked : (data.isLocked ?? false),
       isArchived: data.size?.isArchived !== undefined ? data.size.isArchived : (data.isArchived ?? false),
+      isShowcase: data.size?.isShowcase !== undefined ? data.size.isShowcase : (data.isShowcase ?? false),
+      showcaseCategory: data.size?.showcaseCategory || data.showcaseCategory || '',
       oldPriceInfo: data.size?.oldPriceInfo || undefined,
       forceStandardCrush: data.size?.forceStandardCrush ?? true
     };
@@ -153,6 +155,8 @@ export const api = {
       isHidden: p.size?.isHidden !== undefined ? p.size.isHidden : (p.isHidden ?? false),
       isLocked: p.size?.isLocked !== undefined ? p.size.isLocked : (p.isLocked ?? false),
       isArchived: p.size?.isArchived !== undefined ? p.size.isArchived : (p.isArchived ?? false),
+      isShowcase: p.size?.isShowcase !== undefined ? p.size.isShowcase : (p.isShowcase ?? false),
+      showcaseCategory: p.size?.showcaseCategory || p.showcaseCategory || '',
       oldPriceInfo: p.size?.oldPriceInfo || undefined,
       forceStandardCrush: p.size?.forceStandardCrush ?? true,
       updatedAt: p.size?.updatedAt || p.createdAt
@@ -176,11 +180,15 @@ export const api = {
     safeData.size = safeData.size || {};
     if (safeData.isHidden !== undefined) safeData.size.isHidden = safeData.isHidden;
     if (safeData.isLocked !== undefined) safeData.size.isLocked = safeData.isLocked;
+    if (safeData.isShowcase !== undefined) safeData.size.isShowcase = safeData.isShowcase;
+    if (safeData.showcaseCategory !== undefined) safeData.size.showcaseCategory = safeData.showcaseCategory;
     if (safeData.oldPriceInfo !== undefined) safeData.size.oldPriceInfo = safeData.oldPriceInfo;
     if (safeData.forceStandardCrush !== undefined) safeData.size.forceStandardCrush = safeData.forceStandardCrush;
     if (safeData.updatedAt !== undefined) { safeData.size.updatedAt = safeData.updatedAt; delete safeData.updatedAt; }
     delete safeData.isHidden;
     delete safeData.isLocked;
+    delete safeData.isShowcase;
+    delete safeData.showcaseCategory;
     delete safeData.oldPriceInfo;
     delete safeData.forceStandardCrush;
 
@@ -275,11 +283,15 @@ export const api = {
     if (safeData.isHidden !== undefined) safeData.size.isHidden = safeData.isHidden;
     if (safeData.isLocked !== undefined) safeData.size.isLocked = safeData.isLocked;
     if (safeData.isArchived !== undefined) safeData.size.isArchived = safeData.isArchived;
+    if (safeData.isShowcase !== undefined) safeData.size.isShowcase = safeData.isShowcase;
+    if (safeData.showcaseCategory !== undefined) safeData.size.showcaseCategory = safeData.showcaseCategory;
     if (safeData.oldPriceInfo !== undefined) safeData.size.oldPriceInfo = safeData.oldPriceInfo;
     if (safeData.forceStandardCrush !== undefined) safeData.size.forceStandardCrush = safeData.forceStandardCrush;
     if (safeData.updatedAt !== undefined) { safeData.size.updatedAt = safeData.updatedAt; delete safeData.updatedAt; }
     delete safeData.isHidden;
     delete safeData.isLocked;
+    delete safeData.isShowcase;
+    delete safeData.showcaseCategory;
     delete safeData.oldPriceInfo;
     delete safeData.forceStandardCrush;
 

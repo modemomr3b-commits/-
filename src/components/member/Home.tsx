@@ -1,6 +1,7 @@
 import {
   Search,
   Lock,
+  Unlock,
   ChevronLeft,
   Bell,
   Zap,
@@ -11,33 +12,62 @@ import {
   Info,
   X,
   Star,
-  Shield
+  Shield,
+  Sparkles,
+  Share2,
+  ExternalLink,
+  MessageCircle,
+  Check
 } from "lucide-react";
 import { Link, useNavigate } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
 import { useState, useEffect } from "react";
 import { api } from "../../api";
 import { supabase } from "../../supabase";
+import { useStore } from "../../store";
 import Animated3DLogo from "../ui/Animated3DLogo";
 import CategoryIcon from "../ui/CategoryIcon";
 
 const DEFAULT_ICONS = ["✨", "👟", "🇹🇷", "⭐", "🎒", "☀️", "🔥"];
 
 export default function Home() {
+  const { user } = useStore();
   const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAbout, setShowAbout] = useState(false);
+  const [showcaseSettings, setShowcaseSettings] = useState<any>({ showcaseEnabled: true });
+  const [showcaseCount, setShowcaseCount] = useState(0);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
   const navigate = useNavigate();
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
 
   const fetchCats = async () => {
     try {
-      const cats = await api.getCategories();
+      const [cats, prods, settings] = await Promise.all([
+        api.getCategories(),
+        api.getProducts(),
+        api.getSettings()
+      ]);
+      
       if (cats && Array.isArray(cats)) {
         setCategories(
           cats
             .filter((c) => !c.isHidden && !c.parentId)
             .sort((a: any, b: any) => (a.order || 0) - (b.order || 0)),
         );
+      }
+
+      if (prods && Array.isArray(prods)) {
+        const scCount = prods.filter((p: any) => p.isShowcase && !p.isArchived && !p.isHidden).length;
+        setShowcaseCount(scCount);
+      }
+
+      if (settings) {
+        setShowcaseSettings(settings);
       }
     } catch (e) {
       console.error(e);
@@ -76,7 +106,14 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="p-4 md:p-8 space-y-8">
+    <div className="p-4 md:p-8 space-y-8 relative">
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-brq-gold text-black font-bold px-6 py-2.5 rounded-full shadow-2xl text-xs flex items-center gap-2 animate-in fade-in slide-in-from-top-4">
+          <Check size={16} />
+          <span>{toastMessage}</span>
+        </div>
+      )}
       {/* Search Bar - Desktop spans full width but is elegant */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
@@ -147,58 +184,127 @@ export default function Home() {
           </motion.div>
         </div>
 
-        {/* Quick Stats - Span 4 */}
+        {/* Showcase Hub - Replaces Quick Stats (Span 4) */}
         <div className="lg:col-span-4 flex flex-col gap-4">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="glass-panel p-6 rounded-3xl flex items-center gap-5 border border-white/10 hover:border-brq-gold/40 transition-colors cursor-default"
+            className="glass-panel p-5 sm:p-6 rounded-3xl flex flex-col justify-between border border-brq-gold/30 hover:border-brq-gold/60 transition-all shadow-[0_8px_30px_rgba(0,0,0,0.5)] relative overflow-hidden bg-gradient-to-b from-[#081B63]/40 via-black/60 to-black/80 h-full"
           >
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-red-500/20 to-orange-500/10 text-red-400 flex items-center justify-center border border-red-500/20 shadow-inner">
-              <Zap size={28} strokeWidth={1.5} />
-            </div>
-            <div>
-              <p className="text-xs text-white/50 mb-1 uppercase tracking-wider font-mono">
-                New Arrivals
-              </p>
-              <p className="font-bold text-lg">
-                وصل حديثاً <span className="text-brq-gold">(50+)</span>
-              </p>
-            </div>
-          </motion.div>
+            {/* Background luxury shimmer */}
+            <div className="absolute -top-12 -right-12 w-36 h-36 bg-brq-gold/10 rounded-full blur-2xl pointer-events-none"></div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="glass-panel p-6 rounded-3xl flex items-center gap-5 border border-white/10 hover:border-brq-gold/40 transition-colors cursor-default"
-          >
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-brq-gold/20 to-yellow-600/10 text-brq-gold flex items-center justify-center border border-brq-gold/20 shadow-inner">
-              <TrendingUp size={28} strokeWidth={1.5} />
-            </div>
+            {/* Header info */}
             <div>
-              <p className="text-xs text-white/50 mb-1 uppercase tracking-wider font-mono">
-                Trending Now
-              </p>
-              <p className="font-bold text-lg">الأكثر مبيعاً هذا الأسبوع</p>
-            </div>
-          </motion.div>
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-brq-gold bg-brq-gold/15 border border-brq-gold/30 px-2.5 py-1 rounded-full flex items-center gap-1.5 shadow-sm">
+                  <Sparkles size={13} className="text-brq-gold animate-pulse" />
+                  رابط مخصص ومباشر
+                </span>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="glass-panel p-6 rounded-3xl flex items-center gap-5 border border-white/10 hover:border-brq-gold/40 transition-colors cursor-default"
-          >
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-brq-royal/20 to-blue-500/10 text-blue-400 flex items-center justify-center border border-blue-500/20 shadow-inner">
-              <Clock size={28} strokeWidth={1.5} />
-            </div>
-            <div>
-              <p className="text-xs text-white/50 mb-1 uppercase tracking-wider font-mono">
-                Last Updated
+                {/* Status indicator */}
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${
+                  showcaseSettings?.showcaseEnabled !== false 
+                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
+                    : 'bg-red-500/20 text-red-400 border border-red-500/30'
+                }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${
+                    showcaseSettings?.showcaseEnabled !== false ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'
+                  }`}></span>
+                  {showcaseSettings?.showcaseEnabled !== false ? 'متاح للزبائن' : 'مغلق حالياً'}
+                </span>
+              </div>
+
+              <h3 className="text-xl sm:text-2xl font-black text-white leading-snug mb-1">
+                معرض شركة الوفاء المتميز
+              </h3>
+
+              <p className="text-xs text-white/60 leading-relaxed mb-4">
+                صفحة كتالوج خاصة وسريعة بدون تسجيل دخول، مخصصة للمشاركة مع زبائنكم عبر الواتساب مع تصنيف لكافة الفئات.
               </p>
-              <p className="font-bold text-lg">تحديثات المخزون اليوم</p>
+
+              {/* Categories mini preview list */}
+              <div className="flex flex-wrap gap-1.5 mb-5 text-[11px]">
+                {['رجالي', 'نسائي', 'شبابي', 'ولادي', 'بناتي', 'طفل', 'طفلة', 'بيبي', 'مواليد'].map((cat) => (
+                  <span key={cat} className="bg-white/5 border border-white/10 text-white/70 px-2 py-0.5 rounded-lg">
+                    {cat}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="space-y-2.5 pt-3 border-t border-white/10">
+              <div className="flex items-center justify-between text-xs text-white/50 px-1 font-mono">
+                <span>الموديلات المنشورة:</span>
+                <span className="text-brq-gold font-bold">{showcaseCount} موديل</span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <Link
+                  to="/showcase"
+                  className="py-2.5 px-3 bg-brq-gold hover:bg-yellow-400 text-black font-black rounded-xl text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-[0_0_15px_rgba(251,191,36,0.3)] transition-all active:scale-95"
+                >
+                  <ExternalLink size={15} />
+                  <span>دخول المعرض</span>
+                </Link>
+
+                <button
+                  onClick={() => {
+                    const url = window.location.origin + '/showcase';
+                    const text = `✨ معرض شركة الوفاء المتميز BRQ ✨\nتفضلوا بالاطلاع على أحدث الموديلات والتشكيلات عبر الرابط التالي:\n${url}`;
+                    if (navigator.share) {
+                      navigator.share({
+                        title: 'معرض شركة الوفاء المتميز',
+                        text: text,
+                        url: url
+                      }).catch(() => {});
+                    } else {
+                      navigator.clipboard.writeText(url);
+                      showToast('تم نسخ رابط المعرض');
+                    }
+                  }}
+                  className="py-2.5 px-3 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 font-bold rounded-xl text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-[0_0_15px_rgba(16,185,129,0.15)]"
+                >
+                  <Share2 size={15} className="text-emerald-400" />
+                  <span>مشاركة واتساب</span>
+                </button>
+              </div>
+
+              {/* Admin quick status toggle */}
+              {user && (user.role === 'admin' || user.role === 'sales') && (
+                <div className="flex items-center justify-between pt-2 text-[11px] text-white/50">
+                  <span>التحكم بحالة المعرض العام:</span>
+                  <button
+                    onClick={async () => {
+                      const newStatus = showcaseSettings?.showcaseEnabled === false ? true : false;
+                      try {
+                        await api.updateSettings({ ...showcaseSettings, showcaseEnabled: newStatus });
+                        setShowcaseSettings((prev: any) => ({ ...prev, showcaseEnabled: newStatus }));
+                        showToast(newStatus ? 'تم فتح المعرض العام للزبائن' : 'تم قفل المعرض العام');
+                      } catch (e) {
+                        showToast('حدث خطأ في تحديث الإعدادات');
+                      }
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-colors flex items-center gap-1 ${
+                      showcaseSettings?.showcaseEnabled !== false
+                        ? 'bg-red-500/10 text-red-300 border-red-500/30 hover:bg-red-500/20'
+                        : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/20'
+                    }`}
+                  >
+                    {showcaseSettings?.showcaseEnabled !== false ? (
+                      <>
+                        <Lock size={11} /> قفل المعرض
+                      </>
+                    ) : (
+                      <>
+                        <Unlock size={11} /> فتح المعرض
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
           </motion.div>
         </div>
