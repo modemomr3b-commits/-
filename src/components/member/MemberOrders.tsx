@@ -68,11 +68,32 @@ export default function MemberOrders() {
     }
   };
 
-  const filteredOrders = orders.filter(o => 
-    !searchTerm || 
-    (o.orderNumber || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (o.notes || '').toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const getOrderCustomerName = (o: Order): string => {
+    if (o.customerName && o.customerName.trim()) {
+      return o.customerName.trim();
+    }
+    if (o.notes) {
+      const match = o.notes.match(/اسم الزبون:\s*([^\n\r]+)/);
+      if (match && match[1]?.trim()) {
+        return match[1].trim();
+      }
+    }
+    if (o.fullName && o.fullName.trim() && o.fullName !== o.username) {
+      return o.fullName.trim();
+    }
+    return o.fullName || o.username || "";
+  };
+
+  const filteredOrders = orders.filter(o => {
+    const custName = getOrderCustomerName(o);
+    return (
+      !searchTerm || 
+      (o.orderNumber || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (o.customerName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      custName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (o.notes || '').toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  });
 
   const handleDownloadAllImages = async (order: Order) => {
     if (!order.items || order.items.length === 0) {
@@ -186,9 +207,17 @@ export default function MemberOrders() {
                 className="glass-panel p-5 rounded-2xl border border-white/5 hover:border-brq-gold/50 cursor-pointer transition-all flex flex-col gap-4 group"
               >
                 <div className="flex justify-between items-start border-b border-white/5 pb-4">
-                  <div>
-                    <span className="text-xs text-white/50 mb-1 block">رقم الطلب</span>
+                  <div className="space-y-1">
+                    <span className="text-xs text-white/50 block">رقم الطلب</span>
                     <span className="font-mono font-bold text-lg text-white group-hover:text-brq-gold transition-colors">{order.orderNumber}</span>
+                    {getOrderCustomerName(order) && (
+                      <div className="flex items-center gap-1.5 pt-1">
+                        <span className="text-[11px] text-white/50 font-medium">الزبون:</span>
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-md bg-amber-300 border border-amber-400 text-black font-black text-xs shadow-sm">
+                          {getOrderCustomerName(order)}
+                        </span>
+                      </div>
+                    )}
                     <span className="text-[11px] text-white/40 block mt-1">{formatDate(order.createdAt)}</span>
                   </div>
                   <div className="flex items-center gap-3">
@@ -303,6 +332,19 @@ export default function MemberOrders() {
                 <span>طباعة الطلبية (25 مادة بالورقة)</span>
               </button>
             </div>
+
+            {/* Prominent Customer Name Banner */}
+            {getOrderCustomerName(selectedOrder) && (
+              <div className="p-4 bg-gradient-to-r from-amber-300 via-yellow-300 to-amber-400 rounded-2xl border-2 border-amber-500/50 shadow-lg text-black space-y-1">
+                <div className="text-xs font-bold text-black/70">اسم الزبون:</div>
+                <div className="flex items-center gap-2">
+                  <User size={24} className="text-black flex-shrink-0" />
+                  <span className="text-xl sm:text-2xl font-black text-black tracking-tight">
+                    {getOrderCustomerName(selectedOrder)}
+                  </span>
+                </div>
+              </div>
+            )}
 
             {/* Customer & Transport Details */}
             {selectedOrder.notes && (

@@ -35,6 +35,7 @@ export default function Products() {
   const { addToCart, updateQuantity, removeFromCart, cart, user, showToast } = useStore();
   const [historyProduct, setHistoryProduct] = useState<Product | null>(null);
   const [fullscreenImage, setFullscreenImage] = useState<{ src: string, alt: string } | null>(null);
+  const [fullscreenIndex, setFullscreenIndex] = useState<number | null>(null);
 
   const [categoryName, setCategoryName] = useState("جميع المنتجات");
   const [downloadProgress, setDownloadProgress] = useState<{ progress: number, total: number } | null>(null);
@@ -821,7 +822,18 @@ export default function Products() {
                 </div>
               )}
               
-              <div className="w-full aspect-[4/5] bg-black/40 relative flex items-center justify-center border-b border-white/5 p-0 overflow-hidden">
+              <div 
+                className="w-full aspect-[4/5] bg-black/40 relative flex items-center justify-center border-b border-white/5 p-0 overflow-hidden cursor-pointer group/img"
+                onClick={(e) => {
+                  if (isSelectionMode) return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const targetIdx = filteredProducts.findIndex(item => item.id === p.id);
+                  if (targetIdx !== -1) {
+                    setFullscreenIndex(targetIdx);
+                  }
+                }}
+              >
                 {p.finalImageUrl || p.imageUrl ? (
                   <div className="absolute inset-0">
                     <OptimizedImage
@@ -829,7 +841,7 @@ export default function Products() {
                       alt={p.name}
                       size="medium"
                       className="w-full h-full"
-                      imgClassName="object-contain w-full h-full hover:scale-105 transition-transform duration-500"
+                      imgClassName="object-contain w-full h-full group-hover/img:scale-105 transition-transform duration-500"
                     />
                   </div>
                 ) : (
@@ -1013,6 +1025,20 @@ export default function Products() {
 
       {historyProduct && (
         <PriceHistoryViewer product={historyProduct} onClose={() => setHistoryProduct(null)} />
+      )}
+      {fullscreenIndex !== null && filteredProducts[fullscreenIndex] && (
+        <ImageViewer 
+          src={filteredProducts[fullscreenIndex].finalImageUrl || filteredProducts[fullscreenIndex].imageUrl!}
+          alt={filteredProducts[fullscreenIndex].name}
+          product={filteredProducts[fullscreenIndex]}
+          currentIndex={fullscreenIndex}
+          totalCount={filteredProducts.length}
+          onClose={() => setFullscreenIndex(null)}
+          onNext={fullscreenIndex < filteredProducts.length - 1 ? () => setFullscreenIndex(fullscreenIndex + 1) : undefined}
+          onPrev={fullscreenIndex > 0 ? () => setFullscreenIndex(fullscreenIndex - 1) : undefined}
+          hasNext={fullscreenIndex < filteredProducts.length - 1}
+          hasPrev={fullscreenIndex > 0}
+        />
       )}
       {fullscreenImage && (
         <ImageViewer src={fullscreenImage.src} alt={fullscreenImage.alt} onClose={() => setFullscreenImage(null)} />

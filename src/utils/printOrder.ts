@@ -7,6 +7,20 @@ export const printOrderInvoice = (order: Order) => {
   const totalPages = Math.max(1, Math.ceil(items.length / ITEMS_PER_PAGE));
   const dateFormatted = formatDateTime(order.createdAt);
 
+  const getCustName = (): string => {
+    if (order.customerName && order.customerName.trim()) return order.customerName.trim();
+    if (order.notes) {
+      const match = order.notes.match(/اسم الزبون:\s*([^\n\r]+)/);
+      if (match && match[1]?.trim()) return match[1].trim();
+    }
+    if (order.fullName && order.fullName.trim() && order.fullName !== order.username) {
+      return order.fullName.trim();
+    }
+    return order.fullName || order.username || '---';
+  };
+
+  const customerName = getCustName();
+
   const pagesHtml: string[] = [];
 
   for (let pageIndex = 0; pageIndex < totalPages; pageIndex++) {
@@ -58,8 +72,8 @@ export const printOrderInvoice = (order: Order) => {
 
         <!-- Info Bar -->
         <div class="info-bar">
-          <div class="info-col"><strong>اسم الوكيل / الحساب:</strong> ${order.username || '---'}</div>
-          <div class="info-col"><strong>المرسل / الزبون:</strong> ${order.fullName || order.username || '---'}</div>
+          <div class="info-col"><strong>اسم الزبون:</strong> <span style="color: #000; font-weight: 900; font-size: 15px; background: #fef08a; padding: 2px 8px; border-radius: 4px; border: 1px solid #fde047;">${customerName}</span></div>
+          <div class="info-col"><strong>حساب الوكيل:</strong> ${order.username || '---'}</div>
           <div class="info-col"><strong>إجمالي كمية الطلب:</strong> <span class="highlight-qty">${order.totalQuantity} قطعة</span></div>
         </div>
 

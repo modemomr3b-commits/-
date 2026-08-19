@@ -104,6 +104,8 @@ export interface Order extends BaseEntity {
   userId: string;
   username: string;
   fullName: string;
+  customerName?: string;
+  transport?: string;
   orderNumber: string;
   status: OrderStatus;
   items: OrderItem[];

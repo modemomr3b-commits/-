@@ -172,14 +172,36 @@ export default function OrderManager() {
     printOrderInvoice(order);
   };
 
+  const getOrderCustomerName = (o: Order): string => {
+    if (o.customerName && o.customerName.trim()) {
+      return o.customerName.trim();
+    }
+    if (o.notes) {
+      const match = o.notes.match(/اسم الزبون:\s*([^\n\r]+)/);
+      if (match && match[1]?.trim()) {
+        return match[1].trim();
+      }
+    }
+    if (o.fullName && o.fullName.trim() && o.fullName !== o.username) {
+      return o.fullName.trim();
+    }
+    return o.fullName || o.username || "غير محدد";
+  };
+
   const filteredOrders = orders.filter((o) => {
+    const custName = getOrderCustomerName(o);
     const matchesSearch =
       (o.orderNumber &&
         o.orderNumber.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (o.username &&
         o.username.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (o.fullName &&
-        o.fullName.toLowerCase().includes(searchQuery.toLowerCase()));
+        o.fullName.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (o.customerName &&
+        o.customerName.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      custName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (o.notes &&
+        o.notes.toLowerCase().includes(searchQuery.toLowerCase()));
 
     const matchesStatus = filterStatus === "all" || o.status === filterStatus;
 
@@ -274,7 +296,7 @@ export default function OrderManager() {
               <thead className="bg-black/40 text-white/60">
                 <tr>
                   <th className="p-4 font-medium rounded-tr-lg">رقم الطلب</th>
-                  <th className="p-4 font-medium">اسم المستخدم</th>
+                  <th className="p-4 font-medium">اسم الزبون / الوكيل</th>
                   <th className="p-4 font-medium">عدد المنتجات</th>
                   <th className="p-4 font-medium">التاريخ والوقت</th>
                   <th className="p-4 font-medium">الحالة</th>
@@ -283,6 +305,7 @@ export default function OrderManager() {
               </thead>
               <tbody className="divide-y divide-white/5 text-white/90">
                 {filteredOrders.map((o) => {
+                  const customerName = getOrderCustomerName(o);
                   return (
                     <tr
                       key={o.id}
@@ -297,13 +320,25 @@ export default function OrderManager() {
                         </div>
                       </td>
                       <td className="p-4">
-                        <div>
-                          <div className="font-bold text-white">
-                            {o.username}
+                        <div className="flex flex-col gap-1 items-start">
+                          <span className="text-[11px] text-white/50 font-bold">
+                            اسم الزبون:
+                          </span>
+                          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-300 border border-amber-400 text-black shadow-md">
+                            <UserCircle size={17} className="text-black flex-shrink-0" />
+                            <span className="text-base font-black text-black tracking-wide leading-tight">
+                              {customerName}
+                            </span>
                           </div>
-                          <div className="text-xs text-white/50">
-                            {o.fullName}
-                          </div>
+                          {o.username && (
+                            <div className="text-xs text-white/60 flex items-center gap-1 mt-0.5">
+                              <span className="text-white/40">حساب الوكيل:</span>
+                              <span className="font-semibold text-white/90">{o.username}</span>
+                              {o.fullName && o.fullName !== customerName && o.fullName !== o.username && (
+                                <span className="text-white/50">({o.fullName})</span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </td>
                       <td className="p-4 font-mono">
@@ -439,19 +474,25 @@ export default function OrderManager() {
               <div className="md:col-span-5 p-5 space-y-4 overflow-y-auto max-h-[40vh] md:max-h-[calc(92vh-100px)] bg-black/20">
                 {/* Customer Info */}
                 <div className="space-y-3">
+                  {/* Prominent Customer Name Block */}
+                  <div className="p-4 bg-gradient-to-r from-amber-300 via-yellow-300 to-amber-400 rounded-2xl border-2 border-amber-500/50 shadow-lg text-black space-y-1">
+                    <div className="text-xs font-bold text-black/70">اسم الزبون:</div>
+                    <div className="flex items-center gap-2">
+                      <UserCircle size={26} className="text-black flex-shrink-0" />
+                      <span className="text-xl sm:text-2xl font-black text-black tracking-tight">
+                        {getOrderCustomerName(selectedOrder)}
+                      </span>
+                    </div>
+                  </div>
+
                   <div className="p-3.5 bg-white/5 rounded-xl border border-white/10">
-                    <div className="text-xs text-white/50 mb-1">اسم المستخدم</div>
+                    <div className="text-xs text-white/50 mb-1">حساب الوكيل المرسل</div>
                     <div className="font-bold flex items-center gap-2 text-white">
                       <UserCircle size={18} className="text-brq-gold" />{" "}
                       {selectedOrder.username}
-                    </div>
-                  </div>
-                  <div className="p-3.5 bg-white/5 rounded-xl border border-white/10">
-                    <div className="text-xs text-white/50 mb-1">
-                      المرسل (الاسم الكامل)
-                    </div>
-                    <div className="font-bold text-white">
-                      {selectedOrder.fullName || selectedOrder.username}
+                      {selectedOrder.fullName && selectedOrder.fullName !== selectedOrder.username && selectedOrder.fullName !== getOrderCustomerName(selectedOrder) && (
+                        <span className="text-xs text-white/60 font-normal">({selectedOrder.fullName})</span>
+                      )}
                     </div>
                   </div>
                 </div>

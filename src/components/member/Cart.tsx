@@ -47,6 +47,8 @@ export default function Cart() {
         userId: user?.id || user?.uid || 'guest',
         username: user?.username || 'ضيف',
         fullName: user?.fullName || customerName || 'زبون',
+        customerName: customerName.trim() || undefined,
+        transport: transport.trim() || undefined,
         orderNumber,
         status: 'new',
         items: cart.map(item => ({
@@ -152,6 +154,8 @@ export default function Cart() {
         userId: user.id || user.uid,
         username: user.username,
         fullName: user.fullName || user.username,
+        customerName: customerName.trim() || undefined,
+        transport: transport.trim() || undefined,
         orderNumber,
         status: 'new',
         items: cart.map(item => ({
