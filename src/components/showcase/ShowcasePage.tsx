@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router';
 import { 
   Search, 
   Share2, 
@@ -15,7 +16,8 @@ import {
   ChevronLeft,
   X,
   SlidersHorizontal,
-  PackageCheck
+  PackageCheck,
+  Home
 } from 'lucide-react';
 import { api } from '../../api';
 import { supabase } from '../../supabase';
@@ -39,6 +41,7 @@ export const SHOWCASE_CATEGORIES = [
 ];
 
 export default function ShowcasePage() {
+  const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [settings, setSettings] = useState<any>(null);
@@ -263,6 +266,15 @@ export default function ShowcasePage() {
 
             {/* Top action buttons */}
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => navigate('/')}
+                className="flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/80 hover:text-white border border-white/10 text-xs sm:text-sm font-bold transition-all active:scale-95"
+                title="العودة للرئيسية"
+              >
+                <Home size={16} />
+                <span className="hidden sm:inline">الرئيسية</span>
+              </button>
+
               <button
                 onClick={handleSharePage}
                 className="flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 text-xs sm:text-sm font-bold transition-all shadow-[0_0_15px_rgba(16,185,129,0.2)] active:scale-95"
