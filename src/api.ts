@@ -564,12 +564,56 @@ export const api = {
 
   // SETTINGS
   getSettings: async () => { 
-    const { data, error } = await supabase.from('settings').select('*').match({ id: 'global' }).single(); 
-    return error ? null : { id: data.id, ...data.data }; 
+    try {
+      const { data, error } = await supabase.from('settings').select('*').match({ id: 'global' }).maybeSingle(); 
+      if (data && !error) {
+        const parsed = data.data ? { id: data.id, ...data.data } : data;
+        try {
+          localStorage.setItem('alwafaa_settings_cache', JSON.stringify(parsed));
+        } catch (e) {}
+        return parsed;
+      }
+    } catch (e) {
+      console.warn("Could not fetch settings from supabase:", e);
+    }
+    
+    try {
+      const cached = localStorage.getItem('alwafaa_settings_cache');
+      if (cached) return JSON.parse(cached);
+    } catch (e) {}
+    
+    return { id: 'global', showcaseEnabled: true, companyName: 'شركة الوفاء المتميز' };
   },
   updateSettings: async (data: any) => { 
     const { id, ...dataJson } = data;
-    const { data: r, error } = await supabase.from('settings').upsert({ id: 'global', data: dataJson }).select().single(); 
-    if (error) throw error; return r.data; 
+    const merged = { id: 'global', ...dataJson };
+    
+    // Save to local cache immediately
+    try {
+      localStorage.setItem('alwafaa_settings_cache', JSON.stringify(merged));
+    } catch (e) {}
+
+    // Try updating Supabase
+    try {
+      // 1. Try upserting with json data column
+      const { error: err1 } = await supabase.from('settings').upsert({ id: 'global', data: dataJson });
+      if (err1) {
+        // 2. Try direct upserting fields
+        await supabase.from('settings').upsert({ id: 'global', ...dataJson });
+      }
+
+      // Broadcast setting update
+      try {
+        await supabase.channel('public:announcements').send({
+          type: 'broadcast',
+          event: 'settings_updated',
+          payload: merged,
+        });
+      } catch (broadcastErr) {}
+    } catch (e) {
+      console.warn("Error persisting settings to supabase:", e);
+    }
+
+    return merged;
   },
 };

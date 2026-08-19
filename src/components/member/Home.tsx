@@ -96,6 +96,11 @@ export default function Home() {
           if (mounted) fetchCats();
         }, 1500);
       })
+      .on('broadcast', { event: 'settings_updated' }, ({ payload }) => {
+        if (mounted && payload) {
+          setShowcaseSettings(payload);
+        }
+      })
       .subscribe();
 
     return () => {
@@ -279,11 +284,13 @@ export default function Home() {
                   <button
                     onClick={async () => {
                       const newStatus = showcaseSettings?.showcaseEnabled === false ? true : false;
+                      // Optimistic UI update
+                      setShowcaseSettings((prev: any) => ({ ...prev, showcaseEnabled: newStatus }));
                       try {
                         await api.updateSettings({ ...showcaseSettings, showcaseEnabled: newStatus });
-                        setShowcaseSettings((prev: any) => ({ ...prev, showcaseEnabled: newStatus }));
                         showToast(newStatus ? 'تم فتح المعرض العام للزبائن' : 'تم قفل المعرض العام');
                       } catch (e) {
+                        console.error("Failed to update settings:", e);
                         showToast('حدث خطأ في تحديث الإعدادات');
                       }
                     }}

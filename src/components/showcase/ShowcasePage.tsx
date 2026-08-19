@@ -18,6 +18,7 @@ import {
   PackageCheck
 } from 'lucide-react';
 import { api } from '../../api';
+import { supabase } from '../../supabase';
 import { Product } from '../../types';
 import OptimizedImage from '../OptimizedImage';
 import ImageViewer from '../ImageViewer';
@@ -79,6 +80,19 @@ export default function ShowcasePage() {
 
   useEffect(() => {
     loadData();
+
+    const channel = supabase
+      .channel('showcase_settings')
+      .on('broadcast', { event: 'settings_updated' }, ({ payload }) => {
+        if (payload) {
+          setSettings(payload);
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const isShowcaseLocked = settings?.showcaseEnabled === false;
