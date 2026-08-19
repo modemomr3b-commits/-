@@ -2,7 +2,7 @@ import { Order } from '../types';
 import { formatDateTime } from './time';
 
 export const printOrderInvoice = (order: Order) => {
-  const ITEMS_PER_PAGE = 25;
+  const ITEMS_PER_PAGE = 100;
   const items = order.items || [];
   const totalPages = Math.max(1, Math.ceil(items.length / ITEMS_PER_PAGE));
   const dateFormatted = formatDateTime(order.createdAt);
@@ -124,7 +124,7 @@ export const printOrderInvoice = (order: Order) => {
         <style>
           @page {
             size: A4 portrait;
-            margin: 6mm 8mm 6mm 8mm;
+            margin: 4mm;
           }
           * {
             box-sizing: border-box;
@@ -138,13 +138,13 @@ export const printOrderInvoice = (order: Order) => {
             background: #fff;
             color: #000;
             direction: rtl;
-            font-size: 11px;
-            line-height: 1.2;
+            font-size: 10px;
+            line-height: 1.1;
           }
           .print-page {
             width: 100%;
             height: 100%;
-            max-height: 285mm;
+            
             display: flex;
             flex-direction: column;
             justify-content: space-between;
@@ -158,8 +158,8 @@ export const printOrderInvoice = (order: Order) => {
             justify-content: space-between;
             align-items: center;
             border-bottom: 2px solid #111;
-            padding-bottom: 4px;
-            margin-bottom: 4px;
+            padding-bottom: 2px;
+            margin-bottom: 2px;
           }
           .company-name {
             font-size: 16px;
@@ -210,9 +210,9 @@ export const printOrderInvoice = (order: Order) => {
             background: #f3f3f3;
             border: 1px solid #ccc;
             border-radius: 4px;
-            padding: 3px 8px;
-            margin-bottom: 4px;
-            font-size: 9.5px;
+            padding: 2px 6px;
+            margin-bottom: 2px;
+            font-size: 8.5px;
           }
           .highlight-qty {
             font-weight: 900;
@@ -223,32 +223,32 @@ export const printOrderInvoice = (order: Order) => {
             border-radius: 2px;
           }
           .notes-box {
-            font-size: 9px;
+            font-size: 8px;
             background: #fff9db;
             border: 1px dashed #d4af37;
-            padding: 2px 6px;
-            margin-bottom: 4px;
+            padding: 1px 4px;
+            margin-bottom: 2px;
             border-radius: 3px;
           }
           .items-table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 4px;
+            margin-bottom: 2px;
             flex-grow: 1;
           }
           .items-table th {
             background: #222;
             color: #fff;
-            font-size: 9.5px;
+            font-size: 8px;
             font-weight: bold;
-            padding: 3px 4px;
+            padding: 1.5px 2px;
             text-align: center;
             border: 1px solid #222;
           }
           .items-table td {
-            padding: 2.2px 4px;
+            padding: 1px 2px;
             border: 1px solid #bbb;
-            font-size: 10px;
+            font-size: 8px;
             vertical-align: middle;
           }
           .item-row:nth-child(even) {
@@ -257,23 +257,23 @@ export const printOrderInvoice = (order: Order) => {
           .col-num {
             text-align: center;
             font-weight: bold;
-            font-size: 9px;
-            width: 26px;
+            font-size: 8px;
+            width: 20px;
           }
           .col-name {
             text-align: right;
             font-weight: bold;
           }
           .prod-title {
-            font-size: 10px;
+            font-size: 8px;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            max-width: 250px;
+            max-width: 300px;
           }
           .col-model {
             text-align: center;
-            font-size: 9.5px;
+            font-size: 8px;
             font-family: monospace;
           }
           .col-code {
@@ -283,27 +283,27 @@ export const printOrderInvoice = (order: Order) => {
             display: inline-block;
             font-family: monospace;
             font-weight: 900;
-            font-size: 11px;
-            letter-spacing: 0.5px;
+            font-size: 9px;
+            letter-spacing: 0px;
             background: #eee;
-            padding: 1px 5px;
-            border-radius: 3px;
+            padding: 0 2px;
+            border-radius: 2px;
             border: 1px solid #999;
           }
           .col-qty {
             text-align: center;
             font-weight: 900;
-            font-size: 11px;
+            font-size: 9px;
           }
           .qty-num {
-            font-size: 11px;
+            font-size: 9px;
             font-weight: 900;
           }
           .footer-row td {
             background: #f0f0f0;
-            font-size: 10px;
+            font-size: 9px;
             border-top: 2px solid #000;
-            padding: 3px 4px;
+            padding: 2px 3px;
           }
           .text-left {
             text-align: left;
@@ -315,10 +315,10 @@ export const printOrderInvoice = (order: Order) => {
           .page-footer {
             display: flex;
             justify-content: space-between;
-            padding-top: 4px;
+            padding-top: 2px;
             border-top: 1px solid #000;
             margin-top: 2px;
-            font-size: 8.5px;
+            font-size: 7.5px;
             color: #333;
           }
           .sig-box {
