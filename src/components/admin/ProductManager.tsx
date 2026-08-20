@@ -2799,21 +2799,6 @@ export default function ProductManager() {
                 </>
               )}
 
-              {/* Custom Gemini Pro API Key (Optional) */}
-              <div className="bg-brq-gold/10 border border-brq-gold/30 p-3 rounded-xl">
-                <label className="block text-xs font-bold text-brq-gold mb-1 flex items-center justify-between">
-                  <span>🔑 مفتاح Gemini API الخاص بك (اختياري / لحسابات Gemini Pro):</span>
-                  <span className="text-[10px] text-brq-gold/70 font-normal">يتم حفظه تلقائياً</span>
-                </label>
-                <input
-                  type="password"
-                  value={customApiKey}
-                  onChange={(e) => handleCustomApiKeyChange(e.target.value)}
-                  className="w-full bg-black/80 border border-brq-gold/40 rounded-lg px-3 py-1.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-brq-gold font-mono"
-                  placeholder="إذا كان لديك اشتراك Gemini Pro، أدخل المفتاح هنا لاستخدامه مباشرة (AIzaSy...)"
-                />
-              </div>
-
               {/* Error Message */}
               {aiError && (
                 <div className="p-3 bg-red-500/20 border border-red-500/40 rounded-xl text-xs text-red-300">
