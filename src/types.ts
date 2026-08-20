@@ -97,7 +97,7 @@ export interface Notification extends BaseEntity {
   updatedAt?: number;
 }
 
-export type OrderStatus = 'new' | 'reviewing' | 'contacted' | 'completed' | 'cancelled';
+export type OrderStatus = 'new' | 'reviewing' | 'contacted' | 'completed' | 'cancelled' | 'pending_agent';
 
 export interface Order extends BaseEntity {
   id: string;

@@ -321,6 +321,79 @@ app.post('/api/notify-publish', express.json(), async (req, res) => {
     }
   });
 
+  app.post('/api/showcase/login', async (req, res) => {
+    try {
+      const { visitorName, username, password } = req.body;
+      if (!visitorName || !username || !password) return res.status(400).json({ error: 'يرجى إدخال جميع الحقول' });
+
+      let udoc: any = null;
+
+      if (username === '1' && password === '100') {
+        udoc = { id: '1', username: '1', fullName: 'المستخدم 1', role: 'normal', isActive: true };
+      } else if (username === 'wafaa' && password === 'brq') {
+        udoc = { id: 'wafaa', username: 'wafaa', fullName: 'مدير النظام', role: 'admin', isActive: true };
+      } else {
+        const { data: snapshot, error } = await supabaseAdmin.from('users').select('*').eq('username', username);
+        if (error || !snapshot || snapshot.length === 0) {
+          return res.status(401).json({ error: 'بيانات الوكيل غير صحيحة' });
+        }
+        udoc = snapshot[0];
+        const isBcryptHash = udoc.password && udoc.password.startsWith('$2');
+        let isPasswordCorrect = false;
+
+        if (isBcryptHash) {
+            isPasswordCorrect = bcryptjs.compareSync(password, udoc.password);
+        } else {
+            isPasswordCorrect = (udoc.password === password);
+        }
+
+        if (!isPasswordCorrect) {
+            return res.status(401).json({ error: 'بيانات الوكيل غير صحيحة' });
+        }
+
+        if (udoc.status === 'inactive' || udoc.isActive === false) {
+            return res.status(403).json({ error: 'حساب الوكيل موقوف.' });
+        }
+      }
+
+      const { data: visitsData } = await supabaseAdmin.from('settings').select('*').match({ id: 'showcase_visits' }).single();
+      let visits = [];
+      if (visitsData && visitsData.data && Array.isArray(visitsData.data)) {
+        visits = visitsData.data;
+      }
+      
+      visits.push({
+        visitorName,
+        agentId: udoc.id,
+        agentName: udoc.fullName,
+        timestamp: Date.now()
+      });
+      
+      await supabaseAdmin.from('settings').upsert({ id: 'showcase_visits', data: visits });
+
+      res.json({
+        success: true,
+        agent: { id: udoc.id, fullName: udoc.fullName },
+        visitorName
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get('/api/showcase/visits', async (req, res) => {
+    try {
+      const { data: visitsData } = await supabaseAdmin.from('settings').select('*').match({ id: 'showcase_visits' }).single();
+      if (visitsData && visitsData.data) {
+        res.json(visitsData.data);
+      } else {
+        res.json([]);
+      }
+    } catch (e) {
+      res.json([]);
+    }
+  });
+
   app.get(["/api/secure/users", "/api/secure/users_v2"], async (req, res) => { console.log("GET /api/secure/users called");
     try {
       console.log('GET /api/secure/users called at ' + new Date().toISOString());

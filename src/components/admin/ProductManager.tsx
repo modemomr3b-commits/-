@@ -58,54 +58,39 @@ export default function ProductManager() {
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [aiStudioProduct, setAiStudioProduct] = useState<Product | null>(null);
-  const [aiPose, setAiPose] = useState<string>('model_seated');
-  const [aiDecorStyle, setAiDecorStyle] = useState<string>('marble');
+  const [aiCharacter, setAiCharacter] = useState<string>('none');
+  const [aiShoeCount, setAiShoeCount] = useState<string>('pair');
+  const [aiShoeColor, setAiShoeColor] = useState<string>('');
   const [aiCustomPrompt, setAiCustomPrompt] = useState<string>('');
   const [aiGenerating, setAiGenerating] = useState<boolean>(false);
   const [aiResultUrl, setAiResultUrl] = useState<string | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
 
-  const posePresets: Record<string, { label: string, prompt: string }> = {
-    'model_seated': {
-      label: '🧘‍♀️ شخصية جالسة (لابسة حذاء برجلها والثاني موضوع بالارض)',
-      prompt: 'A stylish person sitting gracefully on an elegant stool or bench, wearing one shoe of the pair on their foot, while the matching second shoe of the pair is placed neatly on the floor right beside their foot.'
-    },
-    'model_standing': {
-      label: '🧍‍♀️ شخصية واقفة (لابسة حذاء برجلها والثاني موضوع بالارض)',
-      prompt: 'A fashion model standing naturally, wearing one shoe on their foot, with the matching second shoe of the pair standing neatly on the floor next to them.'
-    },
-    'shoe_pair_stage': {
-      label: '👟 زوج أحذية كامل موضوع على منصة العرض',
-      prompt: 'A complete pair of shoes displayed together side-by-side on a luxury commercial display stage.'
-    },
-    'lifestyle_close': {
-      label: '🚶‍♂️ لقطة حركية عصرية مقربة للقدمين',
-      prompt: 'A dynamic close-up lifestyle shot of feet walking, showcasing the footwear in action.'
-    }
+  const characterPresets: Record<string, { label: string, prompt: string }> = {
+    'none': { label: 'بدون شخصية (الحذاء فقط)', prompt: 'The shoes are displayed standalone.' },
+    'woman': { label: 'مرأة', prompt: 'A stylish woman wearing the shoes.' },
+    'man': { label: 'رجل', prompt: 'A stylish man wearing the shoes.' },
+    'girl': { label: 'طفلة', prompt: 'A stylish little girl wearing the shoes.' },
+    'boy': { label: 'طفل', prompt: 'A stylish little boy wearing the shoes.' },
   };
 
-  const decorPresets: Record<string, { label: string, prompt: string }> = {
-    'marble': {
-      label: '🏛️ منصة رخام فاخرة ومرايا',
-      prompt: 'Luxury polished marble floor with subtle reflections, soft studio spotlights, and high-end atmosphere.'
-    },
-    'wood_nature': {
-      label: '🌿 ديكور خشبي طبيعي مع نباتات',
-      prompt: 'Warm natural hardwood floor surrounded by lush green tropical indoor plants and warm sunlight.'
-    },
-    'neon_modern': {
-      label: '⚡ معرض حديث نيون',
-      prompt: 'Modern glass platform with futuristic blue and gold accent neon lighting.'
-    },
-    'studio_clean': {
-      label: '🏢 استوديو رمادي راقي',
-      prompt: 'Clean neutral grey commercial advertising studio background with professional softbox lighting.'
-    },
-    'urban_street': {
-      label: '🌇 شارع عصري ومقهى أنيق',
-      prompt: 'Modern aesthetic outdoor city sidewalk next to a stylish cafe with golden hour natural sunlight.'
-    }
+  const shoeCountPresets: Record<string, { label: string, prompt: string }> = {
+    'one': { label: 'حذاء واحد', prompt: 'A single shoe.' },
+    'pair': { label: 'زوج أحذية', prompt: 'A matching pair of shoes.' },
+    'multiple': { label: 'مجموعة أحذية', prompt: 'Multiple pairs of these shoes in a dynamic arrangement.' },
   };
+
+  const shoeColorOptions = [
+    { label: 'اللون الأصلي', value: '' },
+    { label: 'أسود', value: 'black colored shoes' },
+    { label: 'أبيض', value: 'white colored shoes' },
+    { label: 'أحمر', value: 'red colored shoes' },
+    { label: 'أزرق', value: 'blue colored shoes' },
+    { label: 'بني', value: 'brown colored shoes' },
+    { label: 'وردي', value: 'pink colored shoes' },
+    { label: 'ذهبي', value: 'gold colored shoes' },
+    { label: 'فضي', value: 'silver colored shoes' },
+  ];
 
   const [customApiKey, setCustomApiKey] = useState<string>(() => {
     try {
@@ -136,9 +121,15 @@ export default function ProductManager() {
     setAiError(null);
     try {
       const currentImg = aiStudioProduct.finalImageUrl || aiStudioProduct.imageUrl;
-      const selectedPoseText = posePresets[aiPose]?.prompt || '';
-      const selectedDecorText = decorPresets[aiDecorStyle]?.prompt || '';
-      const finalPrompt = `${selectedPoseText} ${selectedDecorText} ${aiCustomPrompt.trim()}`.trim();
+      let finalPrompt = '';
+      if (aiCustomPrompt.trim().length > 0) {
+        finalPrompt = aiCustomPrompt.trim();
+      } else {
+        const charText = characterPresets[aiCharacter]?.prompt || '';
+        const countText = shoeCountPresets[aiShoeCount]?.prompt || '';
+        const colorText = aiShoeColor ? ` The shoes are ${aiShoeColor}.` : ' The shoes maintain their original colors.';
+        finalPrompt = `${charText} ${countText}${colorText} Professional commercial footwear advertisement photograph, photorealistic studio shot, 8k resolution, cinematic lighting.`;
+      }
 
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (customApiKey.trim()) {
@@ -155,8 +146,6 @@ export default function ProductManager() {
           body: JSON.stringify({
             imageBase64: currentImg,
             prompt: finalPrompt,
-            pose: aiPose,
-            decorStyle: aiDecorStyle,
             customApiKey: customApiKey.trim() || undefined,
           })
         });
@@ -168,8 +157,6 @@ export default function ProductManager() {
             body: JSON.stringify({
               imageBase64: currentImg,
               prompt: finalPrompt,
-              pose: aiPose,
-              decorStyle: aiDecorStyle,
               customApiKey: customApiKey.trim() || undefined,
             })
           });
@@ -2712,11 +2699,11 @@ export default function ProductManager() {
       {/* AI Shoe Decor Studio Modal */}
       {aiStudioProduct && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[250] backdrop-blur-md overflow-y-auto">
-          <div className="bg-slate-900 w-full max-w-2xl rounded-2xl border border-purple-500/40 shadow-2xl p-6 relative text-right my-8" dir="rtl">
+          <div className="bg-brq-black w-full max-w-2xl rounded-2xl border border-brq-gold/40 shadow-2xl p-6 relative text-right my-8" dir="rtl">
             {/* Header */}
-            <div className="flex justify-between items-center border-b border-white/10 pb-4 mb-4">
+            <div className="flex justify-between items-center border-b border-brq-gold/20 pb-4 mb-4">
               <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                <Sparkles className="w-6 h-6 text-purple-400 animate-pulse" />
+                <Sparkles className="w-6 h-6 text-brq-gold animate-pulse" />
                 توليد خلفية وديكور بالذكاء الاصطناعي (AI Studio)
               </h3>
               <button 
@@ -2733,7 +2720,7 @@ export default function ProductManager() {
               </p>
 
               {/* Product Info */}
-              <div className="flex items-center gap-3 p-3 bg-white/5 rounded-xl border border-white/10">
+              <div className="flex items-center gap-3 p-3 bg-white/5 rounded-xl border border-brq-gold/20">
                 <img 
                   src={aiStudioProduct.finalImageUrl || aiStudioProduct.imageUrl} 
                   alt={aiStudioProduct.name}
@@ -2745,63 +2732,84 @@ export default function ProductManager() {
                 </div>
               </div>
 
-              {/* 1. Pose Selection */}
+              {/* Text Prompt (Primary Override) */}
               <div>
-                <label className="block text-xs font-bold text-amber-300 mb-2">1. طريقة العرض وموضعة الحذاء (Pose):</label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                  {Object.entries(posePresets).map(([key, item]) => (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => setAiPose(key)}
-                      className={`p-3 rounded-xl text-right transition-all border leading-relaxed ${aiPose === key ? 'bg-amber-500/20 text-amber-200 border-amber-400 font-bold shadow-md ring-1 ring-amber-400' : 'bg-white/5 text-white/70 border-white/10 hover:bg-white/10'}`}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* 2. Decor Selection */}
-              <div>
-                <label className="block text-xs font-bold text-purple-300 mb-2">2. خلفية الاستوديو والديكور (Decor):</label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                  {Object.entries(decorPresets).map(([key, item]) => (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => setAiDecorStyle(key)}
-                      className={`p-2.5 rounded-xl text-right transition-all border font-medium ${aiDecorStyle === key ? 'bg-purple-600/30 text-purple-200 border-purple-400 font-bold shadow-md ring-1 ring-purple-400' : 'bg-white/5 text-white/70 border-white/10 hover:bg-white/10'}`}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Custom Prompt Extra Notes */}
-              <div>
-                <label className="block text-xs font-bold text-white/80 mb-1">تفاصيل إضافية مخصصة (اختياري):</label>
-                <input
-                  type="text"
+                <label className="block text-xs font-bold text-brq-gold mb-1">توليد بواسطة النص (أولوية قصوى):</label>
+                <textarea
                   value={aiCustomPrompt}
                   onChange={(e) => setAiCustomPrompt(e.target.value)}
-                  className="w-full bg-black/60 border border-white/20 rounded-xl px-3 py-2 text-xs text-white placeholder-white/40 focus:outline-none focus:border-purple-400"
-                  placeholder="مثلاً: إضافة تفاصيل إضاءة ذهبية خافتة..."
+                  className="w-full bg-black/60 border border-brq-gold/30 rounded-xl px-3 py-2 text-sm text-white placeholder-white/40 focus:outline-none focus:border-brq-gold"
+                  placeholder="اكتب هنا الوصف الدقيق للصورة (مثلاً: صورة لامرأة ترتدي الحذاء في شارع ممطر)... سيتم تجاهل الخيارات أدناه إذا كتبت نصاً هنا."
+                  rows={3}
                 />
               </div>
 
+              {aiCustomPrompt.trim().length === 0 && (
+                <>
+                  {/* 1. Character Selection */}
+                  <div>
+                    <label className="block text-xs font-bold text-brq-gold mb-2">شخصية العارض (Character):</label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                      {Object.entries(characterPresets).map(([key, item]) => (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => setAiCharacter(key)}
+                          className={`p-2 rounded-xl text-right transition-all border leading-relaxed ${aiCharacter === key ? 'bg-brq-gold/20 text-brq-gold border-brq-gold font-bold shadow-md ring-1 ring-brq-gold' : 'bg-white/5 text-white/70 border-white/10 hover:bg-white/10'}`}
+                        >
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 2. Shoe Count Selection */}
+                  <div>
+                    <label className="block text-xs font-bold text-brq-gold mb-2">عدد الأحذية في الصورة:</label>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                      {Object.entries(shoeCountPresets).map(([key, item]) => (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => setAiShoeCount(key)}
+                          className={`p-2 rounded-xl text-right transition-all border font-medium ${aiShoeCount === key ? 'bg-brq-gold/20 text-brq-gold border-brq-gold font-bold shadow-md ring-1 ring-brq-gold' : 'bg-white/5 text-white/70 border-white/10 hover:bg-white/10'}`}
+                        >
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 3. Shoe Color */}
+                  <div>
+                    <label className="block text-xs font-bold text-brq-gold mb-2">ألوان الأحذية (لتوجيه الذكاء الاصطناعي):</label>
+                    <div className="flex flex-wrap gap-2 text-xs">
+                      {shoeColorOptions.map((item) => (
+                        <button
+                          key={item.label}
+                          type="button"
+                          onClick={() => setAiShoeColor(item.value)}
+                          className={`px-3 py-1.5 rounded-full transition-all border ${aiShoeColor === item.value ? 'bg-brq-gold text-black font-bold border-brq-gold shadow-md' : 'bg-white/5 text-white/70 border-white/10 hover:bg-white/10'}`}
+                        >
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+
               {/* Custom Gemini Pro API Key (Optional) */}
-              <div className="bg-purple-950/20 border border-purple-500/30 p-3 rounded-xl">
-                <label className="block text-xs font-bold text-purple-300 mb-1 flex items-center justify-between">
+              <div className="bg-brq-gold/10 border border-brq-gold/30 p-3 rounded-xl">
+                <label className="block text-xs font-bold text-brq-gold mb-1 flex items-center justify-between">
                   <span>🔑 مفتاح Gemini API الخاص بك (اختياري / لحسابات Gemini Pro):</span>
-                  <span className="text-[10px] text-purple-400 font-normal">يتم حفظه تلقائياً</span>
+                  <span className="text-[10px] text-brq-gold/70 font-normal">يتم حفظه تلقائياً</span>
                 </label>
                 <input
                   type="password"
                   value={customApiKey}
                   onChange={(e) => handleCustomApiKeyChange(e.target.value)}
-                  className="w-full bg-black/80 border border-purple-500/40 rounded-lg px-3 py-1.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-purple-400 font-mono"
+                  className="w-full bg-black/80 border border-brq-gold/40 rounded-lg px-3 py-1.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-brq-gold font-mono"
                   placeholder="إذا كان لديك اشتراك Gemini Pro، أدخل المفتاح هنا لاستخدامه مباشرة (AIzaSy...)"
                 />
               </div>

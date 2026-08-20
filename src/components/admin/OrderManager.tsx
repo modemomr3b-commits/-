@@ -41,6 +41,10 @@ const statusMap: Record<OrderStatus, { label: string; color: string }> = {
     label: "ملغى",
     color: "bg-red-500/20 text-red-400 border-red-500/30",
   },
+  pending_agent: {
+    label: "بإنتظار موافقة الوكيل",
+    color: "bg-purple-500/20 text-purple-400 border-purple-500/30",
+  },
 };
 
 export default function OrderManager() {
@@ -189,6 +193,7 @@ export default function OrderManager() {
   };
 
   const filteredOrders = orders.filter((o) => {
+    if (o.status === 'pending_agent') return false;
     const custName = getOrderCustomerName(o);
     const matchesSearch =
       (o.orderNumber &&

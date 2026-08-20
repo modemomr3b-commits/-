@@ -64,6 +64,7 @@ export default function MemberOrders() {
       case 'contacted': return { label: 'تم التواصل', color: 'bg-orange-500 text-white border-orange-400', icon: Clock };
       case 'completed': return { label: 'مكتمل', color: 'bg-green-500 text-white border-green-400', icon: CheckCircle };
       case 'cancelled': return { label: 'ملغي', color: 'bg-red-500 text-white border-red-400', icon: XCircle };
+      case 'pending_agent': return { label: 'بإنتظار موافقتك (من المعرض)', color: 'bg-purple-500 text-white border-purple-400', icon: Clock };
       default: return { label: status, color: 'bg-gray-500 text-white border-gray-400', icon: Package };
     }
   };
@@ -94,6 +95,20 @@ export default function MemberOrders() {
       (o.notes || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
   });
+
+  const handleAgentAction = async (orderId: string, action: 'approve' | 'reject') => {
+    try {
+      const newStatus = action === 'approve' ? 'new' : 'cancelled';
+      await api.updateOrder(orderId, { status: newStatus });
+      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
+      if (selectedOrder?.id === orderId) {
+        setSelectedOrder({ ...selectedOrder, status: newStatus });
+      }
+      showToast(action === 'approve' ? 'تم الموافقة على الطلبية وإرسالها للإدارة' : 'تم رفض الطلبية');
+    } catch (err) {
+      showToast('حدث خطأ، يرجى المحاولة مرة أخرى', 'error');
+    }
+  };
 
   const handleDownloadAllImages = async (order: Order) => {
     if (!order.items || order.items.length === 0) {
@@ -302,6 +317,28 @@ export default function MemberOrders() {
                 <span className="font-bold text-lg text-emerald-400">{selectedOrder.totalQuantity || 0} قطعة</span>
               </div>
             </div>
+
+            {selectedOrder.status === 'pending_agent' && (
+              <div className="bg-purple-500/10 border border-purple-500/20 rounded-2xl p-4 space-y-3">
+                <p className="text-sm font-bold text-purple-300 flex items-center gap-2">
+                  <CheckCircle size={16} /> هذه الطلبية تم إنشاؤها من المعرض الخارجي وتنتظر موافقتك.
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleAgentAction(selectedOrder.id, 'approve')}
+                    className="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg"
+                  >
+                    <CheckCircle size={16} /> الموافقة وإرسال للإدارة
+                  </button>
+                  <button
+                    onClick={() => handleAgentAction(selectedOrder.id, 'reject')}
+                    className="flex-1 py-2.5 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg"
+                  >
+                    <XCircle size={16} /> رفض
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Action Buttons: Save Images + Print Sheet */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">

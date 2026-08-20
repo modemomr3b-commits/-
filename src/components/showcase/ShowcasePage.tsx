@@ -17,7 +17,9 @@ import {
   X,
   SlidersHorizontal,
   PackageCheck,
-  Home
+  Home,
+  ShoppingCart,
+  Plus
 } from 'lucide-react';
 import { api } from '../../api';
 import { supabase } from '../../supabase';
@@ -26,6 +28,8 @@ import { detectShowcaseCategory, VALID_SHOWCASE_CATEGORIES, SHOWCASE_CATEGORIES_
 import OptimizedImage from '../OptimizedImage';
 import ImageViewer from '../ImageViewer';
 import Animated3DLogo from '../ui/Animated3DLogo';
+import ShowcaseAuth from './ShowcaseAuth';
+import ShowcaseCartModal from './ShowcaseCartModal';
 
 export const SHOWCASE_CATEGORIES = [
   { id: 'all', name: 'الكل', icon: '✨', image: 'https://images.unsplash.com/photo-1558769132-cb1fac0840c8?auto=format&fit=crop&q=80&w=300' },
@@ -34,6 +38,15 @@ export const SHOWCASE_CATEGORIES = [
 
 export default function ShowcasePage() {
   const navigate = useNavigate();
+  const [authData, setAuthData] = useState<{ agent: { id: string, fullName: string }, visitorName: string } | null>(() => {
+    try {
+      const saved = sessionStorage.getItem('brq_showcase_auth');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [settings, setSettings] = useState<any>(null);
@@ -43,6 +56,20 @@ export default function ShowcasePage() {
   const [activeProduct, setActiveProduct] = useState<Product | null>(null);
   const [fullscreenImage, setFullscreenImage] = useState<{ src: string; alt: string; product: Product } | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const [cart, setCart] = useState<{product: Product, quantity: number}[]>([]);
+  const [isCartOpen, setIsCartOpen] = useState(false);
+
+  const addToCart = (product: Product) => {
+    setCart(prev => {
+      const exists = prev.find(item => item.product.id === product.id);
+      if (exists) {
+        return prev.map(item => item.product.id === product.id ? { ...item, quantity: item.quantity + 1 } : item);
+      }
+      return [...prev, { product, quantity: 1 }];
+    });
+    showToast('تمت إضافة الموديل إلى السلة');
+  };
 
   // Column view layout (1, 2, or 4)
   const [gridColumns, setGridColumns] = useState<1 | 2 | 4>(() => {
@@ -220,6 +247,18 @@ export default function ShowcasePage() {
     );
   }
 
+  if (!authData) {
+    return (
+      <ShowcaseAuth 
+        onSuccess={(agent, visitorName) => {
+          const newAuthData = { agent, visitorName };
+          sessionStorage.setItem('brq_showcase_auth', JSON.stringify(newAuthData));
+          setAuthData(newAuthData);
+        }}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-brq-black text-white pb-20 selection:bg-brq-gold selection:text-black" dir="rtl">
       
@@ -253,18 +292,22 @@ export default function ShowcasePage() {
                 <h1 className="text-lg sm:text-2xl font-black text-white leading-tight">
                   معرض شركة الوفاء المتميز
                 </h1>
+                <p className="text-[10px] sm:text-xs text-white/60 mt-1">
+                  أهلاً بك: <span className="text-brq-gold font-bold">{authData.visitorName}</span>
+                </p>
               </div>
             </div>
 
             {/* Top action buttons */}
             <div className="flex items-center gap-2">
               <button
-                onClick={() => navigate('/')}
-                className="flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/80 hover:text-white border border-white/10 text-xs sm:text-sm font-bold transition-all active:scale-95"
-                title="العودة للرئيسية"
+                onClick={() => {
+                  sessionStorage.removeItem('brq_showcase_auth');
+                  setAuthData(null);
+                }}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-xs font-bold transition-all"
               >
-                <Home size={16} />
-                <span className="hidden sm:inline">الرئيسية</span>
+                تسجيل خروج
               </button>
 
               <button
@@ -505,19 +548,52 @@ export default function ShowcasePage() {
                   </div>
 
                   {/* Download Image Button */}
-                  <button
-                    onClick={(e) => handleDownloadImage(e, p)}
-                    className="w-full mt-1 py-2 bg-white/10 hover:bg-white/20 text-white/90 hover:text-white border border-white/20 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-sm active:scale-98"
-                  >
-                    <Download size={14} />
-                    <span>تحميل الصورة</span>
-                  </button>
+                  <div className="flex items-center gap-2 mt-1">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); addToCart(p); }}
+                      className="flex-1 py-2 bg-brq-gold hover:bg-yellow-400 text-black border border-transparent rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-sm active:scale-95"
+                    >
+                      <Plus size={14} />
+                      <span>إضافة للسلة</span>
+                    </button>
+                    <button
+                      onClick={(e) => handleDownloadImage(e, p)}
+                      className="flex-1 py-2 bg-white/10 hover:bg-white/20 text-white/90 hover:text-white border border-white/20 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-sm active:scale-95"
+                    >
+                      <Download size={14} />
+                      <span>تحميل</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
           </div>
         )}
       </main>
+
+      {/* Floating Cart Button */}
+      <button
+        onClick={() => setIsCartOpen(true)}
+        className="fixed bottom-6 left-6 z-40 bg-brq-gold hover:bg-yellow-400 text-black p-4 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center border-4 border-brq-black"
+      >
+        <ShoppingCart size={24} />
+        {cart.length > 0 && (
+          <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full border-2 border-brq-black">
+            {cart.reduce((s, i) => s + i.quantity, 0)}
+          </span>
+        )}
+      </button>
+
+      {/* Cart Modal */}
+      {isCartOpen && (
+        <ShowcaseCartModal
+          cart={cart}
+          setCart={setCart}
+          onClose={() => setIsCartOpen(false)}
+          authData={authData}
+          showToast={showToast}
+        />
+      )}
 
       {/* Fullscreen Interactive Lightbox Image Viewer */}
       {fullscreenImage && (

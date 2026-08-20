@@ -22,16 +22,27 @@ function UserManagerContent() {
   });
   const [searchQuery, setSearchQuery] = useState('');
   const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set());
+  const [showcaseVisits, setShowcaseVisits] = useState<any[]>([]);
 
   useEffect(() => {
     let mounted = true;
     const fetchUsers = async () => {
       try {
-        const dbUsers = await api.getUsers();
+        const [dbUsers, visitsRes] = await Promise.all([
+          api.getUsers(),
+          fetch('/api/showcase/visits').catch(() => null)
+        ]);
+        
+        let visitsData = [];
+        if (visitsRes && visitsRes.ok) {
+           visitsData = await visitsRes.json();
+        }
+
         if (mounted) {
           console.log("Fetched users:", dbUsers);
           setDebugMsg("Fetched " + (dbUsers ? dbUsers.length : "null"));
           if (!Array.isArray(dbUsers)) {  setUsers([]); } else { setUsers(dbUsers.map((u: any) => ({...u, uid: u.id})));  }
+          if (Array.isArray(visitsData)) { setShowcaseVisits(visitsData); }
           setLoading(false);
         }
       } catch (e) {
@@ -414,6 +425,7 @@ function UserManagerContent() {
                            <th className="p-4 font-medium">الدخول</th>
                            <th className="p-4 font-medium">الحالة</th>
                            <th className="p-4 font-medium">آخر نشاط</th>
+                           <th className="p-4 font-medium">زيارات المعرض</th>
                            <th className="p-4 font-medium rounded-tl-lg">الإجراءات</th>
                         </tr>
                      </thead>
@@ -483,6 +495,18 @@ function UserManagerContent() {
                               </td>
                               <td className="p-4 text-xs text-white/50">
                                   {lastActivityText}
+                              </td>
+                              <td className="p-4">
+                                <div className="flex flex-col gap-1 max-h-24 overflow-y-auto no-scrollbar w-32">
+                                   <div className="text-[11px] text-brq-gold font-bold">
+                                      {showcaseVisits.filter(v => String(v.agentId) === String(user.uid)).length} زائر
+                                   </div>
+                                   {showcaseVisits.filter(v => String(v.agentId) === String(user.uid)).map((v, i) => (
+                                      <div key={i} className="text-[10px] text-white/60 truncate" title={`${v.visitorName} (${new Date(v.timestamp).toLocaleDateString()})`}>
+                                         - {v.visitorName}
+                                      </div>
+                                   ))}
+                                </div>
                               </td>
                               <td className="p-4">
                                  <div className="flex items-center gap-2">

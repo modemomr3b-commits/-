@@ -26,12 +26,13 @@ export default function AdminDashboard() {
         ]);
         if (mounted) {
           const onlineCount = usersRes.filter(u => u.isOnline || (u.lastActive && (Date.now() - u.lastActive < 300000))).length;
+          const realOrders = ordersRes.filter(o => o.status !== 'pending_agent');
           setStats({
             users: usersRes.length,
             onlineUsers: onlineCount,
             products: productsRes.length,
             categories: categoriesRes.length,
-            orders: ordersRes.length
+            orders: realOrders.length
           });
           setLogs(logsRes.slice(0, 50)); // Last 50 activities max
           setLoading(false);

@@ -454,8 +454,6 @@ export const api = {
     if (safeData.items) { safeData.products = safeData.items; delete safeData.items; }
     if (safeData.totalQuantity !== undefined) { safeData.total = safeData.totalQuantity; delete safeData.totalQuantity; }
     if (safeData.fullName !== undefined) { safeData.customerName = safeData.fullName; delete safeData.fullName; }
-    delete safeData.userId;
-    delete safeData.username;
     const { data: r, error } = await supabase.from('orders').insert(safeData).select().single(); 
     if (error) throw error; return r; 
   },

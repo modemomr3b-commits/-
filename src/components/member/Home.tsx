@@ -260,7 +260,7 @@ export default function Home() {
                 <button
                   onClick={() => {
                     const url = window.location.origin + '/showcase';
-                    const text = `✨ معرض شركة الوفاء المتميز BRQ ✨\nتفضلوا بالاطلاع على أحدث الموديلات والتشكيلات عبر الرابط التالي:\n${url}`;
+                    const text = `✨ معرض شركة الوفاء المتميز BRQ ✨\nتفضلوا بالاطلاع على أحدث الموديلات والتشكيلات عبر الرابط التالي:\n${url}\n\n🔐 رمز الدخول: ${user?.username || ''}\n🔑 كلمة المرور: ${user?.password || '---'}`;
                     if (navigator.share) {
                       navigator.share({
                         title: 'معرض شركة الوفاء المتميز',

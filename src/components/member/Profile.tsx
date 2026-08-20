@@ -13,6 +13,7 @@ const statusMap: Record<OrderStatus, { label: string, color: string }> = {
   contacted: { label: 'تم التواصل', color: 'bg-purple-500/20 text-purple-400 border-purple-500/30' },
   completed: { label: 'مكتمل', color: 'bg-green-500/20 text-green-400 border-green-500/30' },
   cancelled: { label: 'مرفوض/ملغى', color: 'bg-red-500/20 text-red-400 border-red-500/30' },
+  pending_agent: { label: 'بإنتظار موافقة الوكيل', color: 'bg-purple-500/20 text-purple-400 border-purple-500/30' },
 };
 
 export default function Profile() {
