@@ -234,8 +234,18 @@ export default function Home() {
               <div className="flex flex-wrap gap-1.5 mb-5 text-[11px]">
                 {SHOWCASE_CATEGORIES_METADATA.map((cat) => (
                   <span key={cat.id} className="flex items-center gap-1.5 bg-white/5 border border-white/10 text-white/90 px-2 py-1 rounded-lg">
-                    <img src={cat.image} alt={cat.name} className="w-5 h-5 rounded-full object-cover" referrerPolicy="no-referrer" />
-                    {cat.name}
+                    {cat.image ? (
+                      <img 
+                        src={cat.image} 
+                        alt={cat.name} 
+                        className="w-5 h-5 rounded-full object-cover shrink-0 shadow-sm" 
+                        referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          (e.target as HTMLElement).style.display = 'none';
+                        }}
+                      />
+                    ) : null}
+                    <span>{cat.name}</span>
                   </span>
                 ))}
               </div>

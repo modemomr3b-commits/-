@@ -33,7 +33,7 @@ import ShowcaseAuth from './ShowcaseAuth';
 import ShowcaseCartModal from './ShowcaseCartModal';
 
 export const SHOWCASE_CATEGORIES = [
-  { id: 'all', name: 'الكل', icon: '✨', image: 'https://images.unsplash.com/photo-1558769132-cb1fac0840c8?auto=format&fit=crop&q=80&w=300' },
+  { id: 'all', name: 'كل الأقسام', icon: '✨', image: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&q=80&w=300' },
   ...SHOWCASE_CATEGORIES_METADATA
 ];
 
@@ -471,7 +471,15 @@ export default function ShowcasePage() {
                   }`}
                 >
                   {cat.image ? (
-                    <img src={cat.image} alt={cat.name} className="w-6 h-6 rounded-full object-cover" referrerPolicy="no-referrer" />
+                    <img 
+                      src={cat.image} 
+                      alt={cat.name} 
+                      className="w-6 h-6 rounded-full object-cover shrink-0 shadow-sm" 
+                      referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = 'none';
+                      }}
+                    />
                   ) : (
                     <span className="w-6 h-6 flex items-center justify-center bg-black/20 rounded-full text-[11px]">{cat.icon}</span>
                   )}

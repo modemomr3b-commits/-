@@ -18,12 +18,12 @@ export type ShowcaseCategoryType = typeof VALID_SHOWCASE_CATEGORIES[number];
 export const SHOWCASE_CATEGORIES_METADATA = [
   { id: 'رجالي', name: 'رجالي', icon: '👞', image: 'https://images.unsplash.com/photo-1617137984095-74e4e5e3613f?auto=format&fit=crop&q=80&w=300' },
   { id: 'نسائي', name: 'نسائي', icon: '👠', image: 'https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&q=80&w=300' },
-  { id: 'شبابي', name: 'شبابي', icon: '👟', image: 'https://images.unsplash.com/photo-1529139574466-a303027c028b?auto=format&fit=crop&q=80&w=300' },
+  { id: 'شبابي', name: 'شبابي', icon: '👟', image: 'https://images.unsplash.com/photo-1509967419530-da38b4704bc6?auto=format&fit=crop&q=80&w=300' },
   { id: 'ولادي', name: 'ولادي', icon: '👦', image: 'https://images.unsplash.com/photo-1503919545889-aef636e10ad4?auto=format&fit=crop&q=80&w=300' },
   { id: 'بناتي', name: 'بناتي', icon: '👧', image: 'https://images.unsplash.com/photo-1518831959646-742c3a14ebf7?auto=format&fit=crop&q=80&w=300' },
   { id: 'طفل', name: 'طفل', icon: '🧒', image: 'https://images.unsplash.com/photo-1519238263530-99bdd11df2ea?auto=format&fit=crop&q=80&w=300' },
   { id: 'طفلة', name: 'طفلة', icon: '🎀', image: 'https://images.unsplash.com/photo-1519689680058-324335c77eba?auto=format&fit=crop&q=80&w=300' },
-  { id: 'بيبي', name: 'بيبي', icon: '🍼', image: 'https://images.unsplash.com/photo-1519766400364-8824efac6df2?auto=format&fit=crop&q=80&w=300' },
+  { id: 'بيبي', name: 'بيبي', icon: '🍼', image: 'https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4?auto=format&fit=crop&q=80&w=300' },
   { id: 'مواليد', name: 'مواليد', icon: '👶', image: 'https://images.unsplash.com/photo-1544126592-807ade215a0b?auto=format&fit=crop&q=80&w=300' },
   { id: 'الحقائب', name: 'الحقائب', icon: '👜', image: 'https://images.unsplash.com/photo-1590874103328-eac38a683ce7?auto=format&fit=crop&q=80&w=300' }
 ];
