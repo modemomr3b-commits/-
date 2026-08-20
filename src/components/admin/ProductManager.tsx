@@ -27,6 +27,7 @@ import {
   FolderInput,
   Sparkles,
   Wand2,
+  Layers,
 } from "lucide-react";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
@@ -146,6 +147,9 @@ export default function ProductManager() {
           body: JSON.stringify({
             imageBase64: currentImg,
             prompt: finalPrompt,
+            productName: aiStudioProduct.name,
+            productCategory: aiStudioProduct.category,
+            productDescription: aiStudioProduct.description,
             customApiKey: customApiKey.trim() || undefined,
           })
         });
@@ -157,6 +161,9 @@ export default function ProductManager() {
             body: JSON.stringify({
               imageBase64: currentImg,
               prompt: finalPrompt,
+              productName: aiStudioProduct.name,
+              productCategory: aiStudioProduct.category,
+              productDescription: aiStudioProduct.description,
               customApiKey: customApiKey.trim() || undefined,
             })
           });
@@ -892,12 +899,32 @@ export default function ProductManager() {
     setSelectedIds(next);
   };
 
-  const toggleAll = (visibleProducts: Product[]) => {
-    if (selectedIds.size === visibleProducts.length) {
+  const selectCurrentPage = () => {
+    const pageIds = paginatedProducts.map((p) => p.id!).filter(Boolean);
+    const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.has(id));
+    const next = new Set(selectedIds);
+    if (allPageSelected) {
+      pageIds.forEach((id) => next.delete(id));
+    } else {
+      pageIds.forEach((id) => next.add(id));
+    }
+    setSelectedIds(next);
+  };
+
+  const selectAllFiltered = () => {
+    if (selectedIds.size === filteredProducts.length && filteredProducts.length > 0) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(visibleProducts.map((p) => p.id!)));
+      setSelectedIds(new Set(filteredProducts.map((p) => p.id!).filter(Boolean)));
     }
+  };
+
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+  };
+
+  const toggleAll = (visibleProducts: Product[]) => {
+    selectCurrentPage();
   };
 
   const handleBulkDelete = () => {
@@ -1661,11 +1688,55 @@ export default function ProductManager() {
               </div>
 
               {(selectedIds.size > 0 || filterStatus === 'inactive') && (
-                <div className="flex items-center gap-3 w-full sm:w-auto overflow-x-auto pb-1">
+                <div className="flex items-center gap-2.5 w-full sm:w-auto overflow-x-auto pb-1 flex-wrap">
                   {selectedIds.size > 0 && (
-                    <span className="text-sm font-bold text-white/80 whitespace-nowrap">
-                      تم تحديد: {selectedIds.size}
-                    </span>
+                    <div className="flex items-center gap-1.5 bg-black/60 border border-brq-gold/40 px-2.5 py-1.5 rounded-xl shadow-sm">
+                      <span className="text-xs font-black text-brq-gold whitespace-nowrap">
+                        تم تحديد: {selectedIds.size}
+                      </span>
+
+                      {/* زر تحديد الصفحة الحالية */}
+                      <button
+                        type="button"
+                        onClick={selectCurrentPage}
+                        className={`text-xs px-2.5 py-1 rounded-lg font-bold transition-all flex items-center gap-1 border ${
+                          paginatedProducts.length > 0 && paginatedProducts.every((p) => selectedIds.has(p.id!))
+                            ? "bg-amber-400 text-black border-amber-400 shadow-sm"
+                            : "bg-white/10 text-white/90 hover:bg-white/20 border-white/20"
+                        }`}
+                        title="تحديد جميع منتجات الصفحة الحالية فقط"
+                      >
+                        <CheckSquare size={13} />
+                        <span>تحديد هذه الصفحة ({paginatedProducts.length})</span>
+                      </button>
+
+                      {/* زر تحديد كافة الصفحات */}
+                      {filteredProducts.length > paginatedProducts.length && (
+                        <button
+                          type="button"
+                          onClick={selectAllFiltered}
+                          className={`text-xs px-2.5 py-1 rounded-lg font-bold transition-all flex items-center gap-1 border ${
+                            selectedIds.size === filteredProducts.length
+                              ? "bg-amber-400 text-black border-amber-400 shadow-sm"
+                              : "bg-white/10 text-white/90 hover:bg-white/20 border-white/20"
+                          }`}
+                          title="تحديد كافة المنتجات في جميع الصفحات"
+                        >
+                          <Layers size={13} />
+                          <span>تحديد الكل ({filteredProducts.length})</span>
+                        </button>
+                      )}
+
+                      {/* إلغاء التحديد */}
+                      <button
+                        type="button"
+                        onClick={clearSelection}
+                        className="text-xs px-2 py-1 text-white/60 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                        title="إلغاء التحديد بالكامل"
+                      >
+                        ✕ إلغاء
+                      </button>
+                    </div>
                   )}
                   {selectedIds.size > 0 && (
                     <button
@@ -1837,11 +1908,21 @@ export default function ProductManager() {
                   <tr>
                     <th className="p-4 font-medium rounded-tr-lg w-10">
                       <button
-                        onClick={() => toggleAll(filteredProducts)}
-                        className="text-white/40 hover:text-white transition-colors"
+                        type="button"
+                        onClick={selectCurrentPage}
+                        className="text-white/40 hover:text-white transition-colors flex items-center gap-1"
+                        title={
+                          paginatedProducts.length > 0 && paginatedProducts.every((p) => selectedIds.has(p.id!))
+                            ? "إلغاء تحديد هذه الصفحة"
+                            : "تحديد جميع منتجات هذه الصفحة"
+                        }
                       >
-                        {selectedIds.size > 0 && selectedIds.size === filteredProducts.length ? (
+                        {paginatedProducts.length > 0 && paginatedProducts.every((p) => selectedIds.has(p.id!)) ? (
                           <CheckSquare size={18} className="text-brq-gold" />
+                        ) : selectedIds.size > 0 ? (
+                          <div className="w-4 h-4 rounded border-2 border-brq-gold flex items-center justify-center bg-brq-gold/20 text-brq-gold text-[10px] font-black leading-none">
+                            -
+                          </div>
                         ) : (
                           <Square size={18} />
                         )}

@@ -40,12 +40,19 @@ export default function ShowcasePage() {
   const navigate = useNavigate();
   const [authData, setAuthData] = useState<{ agent: { id: string, fullName: string }, visitorName: string } | null>(() => {
     try {
-      const saved = sessionStorage.getItem('brq_showcase_auth');
+      const saved = localStorage.getItem('brq_showcase_auth') || sessionStorage.getItem('brq_showcase_auth');
       return saved ? JSON.parse(saved) : null;
     } catch {
       return null;
     }
   });
+
+  // Clean URL if already authenticated
+  useEffect(() => {
+    if (authData && window.location.search.includes('invite=')) {
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [authData]);
 
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -164,32 +171,54 @@ export default function ShowcasePage() {
     return counts;
   }, [products, categories]);
 
-  // WhatsApp share handler
+  // WhatsApp share handler with fresh one-time invite generation
   const handleSharePage = async () => {
-    const url = window.location.href;
-    const text = `✨ معرض شركة الوفاء المتميز BRQ ✨\nتفضلوا بالاطلاع على أحدث الموديلات والتشكيلات الحصرية عبر الرابط التالي:\n${url}`;
-
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: 'معرض شركة الوفاء المتميز',
-          text: text,
-          url: url
-        });
-        showToast('تمت المشاركة بنجاح');
-        return;
-      } catch (err: any) {
-        if (err.name === 'AbortError') return;
-      }
-    }
-
-    // Fallback: Copy link or open WhatsApp
     try {
-      await navigator.clipboard.writeText(url);
-      showToast('تم نسخ رابط المعرض');
+      showToast('جاري تجهيز رابط دعوة مخصص...');
+      let url = `${window.location.origin}/showcase`;
+      if (authData?.agent?.id) {
+        try {
+          const res = await fetch('/api/showcase/create-invite', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              agentId: authData.agent.id,
+              agentName: authData.agent.fullName
+            })
+          });
+          const data = await res.json();
+          if (data.token) {
+            url = `${window.location.origin}/showcase?invite=${data.token}`;
+          }
+        } catch (e) {
+          console.error("Failed to create invite token:", e);
+        }
+      }
+
+      const agentName = authData?.agent?.fullName || 'الوكيل المعتمد';
+      const text = `✨ معرض شركة الوفاء المتميز BRQ ✨\nدعوة خاصة من: ${agentName}\nتفضل بالاطلاع على أحدث الموديلات والتشكيلات الحصرية عبر رابط الدعوة المخصص لك (صالح لمرة واحدة فقط):\n${url}`;
+
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: 'معرض شركة الوفاء المتميز',
+            text: text,
+            url: url
+          });
+          showToast('تمت مشاركة رابط الدعوة لمرة واحدة بنجاح');
+          return;
+        } catch (err: any) {
+          if (err.name === 'AbortError') return;
+        }
+      }
+
+      // Fallback: Copy link or open WhatsApp
+      await navigator.clipboard.writeText(text);
+      showToast('تم إنشاء ونسخ رابط دعوة مخصص لمرة واحدة ✨');
     } catch (e) {
-      const waUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
-      window.open(waUrl, '_blank');
+      const url = `${window.location.origin}/showcase`;
+      navigator.clipboard.writeText(url);
+      showToast('تم نسخ رابط المعرض');
     }
   };
 
@@ -252,6 +281,7 @@ export default function ShowcasePage() {
       <ShowcaseAuth 
         onSuccess={(agent, visitorName) => {
           const newAuthData = { agent, visitorName };
+          localStorage.setItem('brq_showcase_auth', JSON.stringify(newAuthData));
           sessionStorage.setItem('brq_showcase_auth', JSON.stringify(newAuthData));
           setAuthData(newAuthData);
         }}

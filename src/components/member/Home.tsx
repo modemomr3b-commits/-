@@ -258,16 +258,43 @@ export default function Home() {
                 </Link>
 
                 <button
-                  onClick={() => {
-                    const url = window.location.origin + '/showcase';
-                    const text = `✨ معرض شركة الوفاء المتميز BRQ ✨\nتفضلوا بالاطلاع على أحدث الموديلات والتشكيلات عبر الرابط التالي:\n${url}\n\n🔐 رمز الدخول: ${user?.username || ''}\n🔑 كلمة المرور: ${user?.password || '---'}`;
-                    if (navigator.share) {
-                      navigator.share({
-                        title: 'معرض شركة الوفاء المتميز',
-                        text: text,
-                        url: url
-                      }).catch(() => {});
-                    } else {
+                  onClick={async () => {
+                    try {
+                      showToast('جاري توليد رابط دعوة مخصص لمرة واحدة...');
+                      const res = await fetch('/api/showcase/create-invite', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          agentId: user?.id || user?.username || 'agent_1',
+                          agentName: user?.fullName || user?.username || 'الوكيل المعتمد'
+                        })
+                      });
+                      const data = await res.json();
+                      const inviteToken = data.token;
+                      const url = `${window.location.origin}/showcase?invite=${inviteToken}`;
+                      const agentDisplayName = user?.fullName || user?.username || 'الوكيل المعتمد';
+                      const text = `✨ معرض شركة الوفاء المتميز BRQ ✨\nدعوة خاصة من الوكيل: ${agentDisplayName}\nتفضل بالاطلاع على أحدث الموديلات والتشكيلات الحصرية عبر رابط الدعوة المخصص لك (صالح لمرة واحدة فقط):\n${url}`;
+
+                      if (navigator.share) {
+                        try {
+                          await navigator.share({
+                            title: 'معرض شركة الوفاء المتميز',
+                            text: text,
+                            url: url
+                          });
+                          showToast('تمت مشاركة رابط الدعوة لمرة واحدة بنجاح');
+                          return;
+                        } catch (err: any) {
+                          if (err.name === 'AbortError') return;
+                        }
+                      }
+
+                      await navigator.clipboard.writeText(text);
+                      showToast('تم إنشاء ونسخ رابط دعوة مخصص (صالح لمرة واحدة فقط) ✨');
+                    } catch (e) {
+                      console.error("Error creating invite:", e);
+                      // Fallback
+                      const url = `${window.location.origin}/showcase`;
                       navigator.clipboard.writeText(url);
                       showToast('تم نسخ رابط المعرض');
                     }
@@ -275,8 +302,14 @@ export default function Home() {
                   className="py-2.5 px-3 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 font-bold rounded-xl text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-[0_0_15px_rgba(16,185,129,0.15)]"
                 >
                   <Share2 size={15} className="text-emerald-400" />
-                  <span>مشاركة واتساب</span>
+                  <span>مشاركة رابط دعوة</span>
                 </button>
+              </div>
+
+              {/* Single-use security notice */}
+              <div className="flex items-center gap-1.5 text-[10px] text-white/40 bg-white/5 p-2 rounded-lg border border-white/5">
+                <Sparkles size={12} className="text-brq-gold shrink-0" />
+                <span>الروابط المُنشأة صالحة للاستخدام لمرة واحدة فقط وتُقفل تلقائياً بعد دخول الزائر.</span>
               </div>
 
               {/* Admin quick status toggle */}

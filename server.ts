@@ -137,7 +137,7 @@ app.post('/api/notify-publish', express.json(), async (req, res) => {
         });
       }
 
-      const { imageBase64, prompt } = req.body;
+      const { imageBase64, prompt, productName, productCategory } = req.body;
       const ai = new GoogleGenAI({
         apiKey,
         httpOptions: {
@@ -161,9 +161,10 @@ app.post('/api/notify-publish', express.json(), async (req, res) => {
       }
 
       let shoeDescription = '';
+      let detectedStyle = '';
       if (base64Data) {
         try {
-          // Quick 4-second timeout for vision analysis so request never hangs
+          // Vision analysis with 10s timeout to extract exact shoe style, colors, sole, and archetype
           const visionPromise = ai.models.generateContent({
             model: 'gemini-2.5-flash',
             contents: [
@@ -173,12 +174,24 @@ app.post('/api/notify-publish', express.json(), async (req, res) => {
                   mimeType: 'image/jpeg'
                 }
               },
-              { text: "Analyze this footwear item in detail. Describe its exact design, colors, patterns, sole type, strap/lace style, and material in 2 concise English sentences for product reproduction." }
+              { 
+                text: `You are an expert commercial footwear analyst. Carefully examine this exact shoe in the image.
+1. Determine the EXACT category archetype:
+   - Is it an athletic/sporty running sneaker (رياضي)?
+   - Is it a classic formal leather dress shoe / Oxford / Derby / Loafer (رسمي)?
+   - Is it a Skechers-style casual slip-on / mesh walking shoe / comfort sneaker (سكجر / كاجوال)?
+   - Is it high heels / sandals / boots / slides?
+2. Note the exact primary and accent colors, materials (leather, suede, knit mesh, rubber), patterns, and logos.
+3. Note the exact sole structure (chunky athletic foam sole, thin dress leather sole, textured rubber sole).
+
+Output a concise description in English specifying:
+"Footwear Style: [Exact Style: Athletic Sneaker / Formal Dress Shoe / Skechers Casual Slip-on]. Exact Visual Details: [colors, materials, upper patterns, sole design]. Must retain this EXACT shoe type, colorway, and design faithfully."`
+              }
             ]
           });
 
           const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Vision timeout')), 4000)
+            setTimeout(() => reject(new Error('Vision timeout')), 10000)
           );
 
           const visionRes: any = await Promise.race([visionPromise, timeoutPromise]);
@@ -188,7 +201,13 @@ app.post('/api/notify-publish', express.json(), async (req, res) => {
         }
       }
 
-      const combinedPrompt = `Professional commercial footwear product advertisement photograph. ${shoeDescription ? `Product feature details: ${shoeDescription}.` : ''} ${prompt || 'High-end footwear display photograph.'} Maintain strict consistency with the shoe colors, design, and structure. Photorealistic studio shot, 8k resolution, crisp focus, cinematic lighting.`;
+      const productContext = [productName, productCategory].filter(Boolean).join(' - ');
+      const combinedPrompt = `Professional high-end commercial footwear advertisement studio photograph. 
+${shoeDescription ? `Reference shoe analysis: ${shoeDescription}.` : ''} 
+${productContext ? `Shoe product name & category: ${productContext}.` : ''} 
+${prompt || 'Commercial product display photograph.'} 
+CRITICAL REQUIREMENT: The footwear in the photo MUST strictly match the exact style category (formal leather, sporty sneaker, or skechers/casual slip-on as in reference), exact colors, upper patterns, and sole design of the reference shoe. Do NOT generate a different type of shoe. 
+Photorealistic studio shot, 8k resolution, crisp focus, commercial catalog quality, cinematic lighting.`;
 
       let generatedImageUrl = '';
 
@@ -324,38 +343,171 @@ app.post('/api/notify-publish', express.json(), async (req, res) => {
     }
   });
 
+  app.post('/api/showcase/create-invite', express.json(), async (req, res) => {
+    try {
+      const { agentId, agentName } = req.body;
+      if (!agentId) {
+        return res.status(400).json({ error: 'معرف الوكيل مطلوب' });
+      }
+
+      // Generate a secure, unique invite token
+      const token = 'brq_' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36).substring(4);
+
+      const { data: invitesData } = await supabaseAdmin.from('settings').select('*').match({ id: 'showcase_invites' }).single();
+      let invites = [];
+      if (invitesData && invitesData.data && Array.isArray(invitesData.data)) {
+        invites = invitesData.data;
+      }
+
+      const newInvite = {
+        id: token,
+        token,
+        agentId,
+        agentName: agentName || 'الوكيل المعتمد',
+        createdAt: Date.now(),
+        isUsed: false,
+        usedByVisitor: null,
+        usedAt: null
+      };
+
+      invites.push(newInvite);
+      // Keep list manageable (last 500 invites)
+      if (invites.length > 500) {
+        invites = invites.slice(invites.length - 500);
+      }
+
+      await supabaseAdmin.from('settings').upsert({ id: 'showcase_invites', data: invites });
+
+      res.json({
+        success: true,
+        token,
+        inviteUrl: `/showcase?invite=${token}`,
+        agentName: newInvite.agentName
+      });
+    } catch (e: any) {
+      console.error('Error creating showcase invite:', e);
+      res.status(500).json({ error: e.message || 'فشل إنشاء رابط الدعوة' });
+    }
+  });
+
+  app.get('/api/showcase/verify-invite', async (req, res) => {
+    try {
+      const token = (req.query.token || req.query.invite) as string;
+      if (!token) {
+        return res.status(400).json({ valid: false, error: 'رمز الدعوة مفقود' });
+      }
+
+      const { data: invitesData } = await supabaseAdmin.from('settings').select('*').match({ id: 'showcase_invites' }).single();
+      let invites = [];
+      if (invitesData && invitesData.data && Array.isArray(invitesData.data)) {
+        invites = invitesData.data;
+      }
+
+      const invite = invites.find((inv: any) => inv.token === token || inv.id === token);
+
+      if (!invite) {
+        return res.json({ 
+          valid: false, 
+          reason: 'not_found', 
+          error: 'رابط الدعوة غير موجود أو منتهي الصلاحية' 
+        });
+      }
+
+      if (invite.isUsed) {
+        return res.json({ 
+          valid: false, 
+          reason: 'already_used', 
+          usedByVisitor: invite.usedByVisitor,
+          usedAt: invite.usedAt,
+          error: 'عذراً، هذا الرابط صالح للاستخدام لمرة واحدة فقط وقد تم استخدامه مسبقاً.' 
+        });
+      }
+
+      return res.json({
+        valid: true,
+        token: invite.token,
+        agent: {
+          id: invite.agentId,
+          fullName: invite.agentName
+        }
+      });
+    } catch (e: any) {
+      res.status(500).json({ valid: false, error: e.message });
+    }
+  });
+
   app.post('/api/showcase/login', async (req, res) => {
     try {
-      const { visitorName, username, password } = req.body;
-      if (!visitorName || !username || !password) return res.status(400).json({ error: 'يرجى إدخال جميع الحقول' });
+      const { visitorName, username, password, inviteToken } = req.body;
+      if (!visitorName || !visitorName.trim()) {
+        return res.status(400).json({ error: 'يرجى إدخال اسمك الكريم' });
+      }
 
       let udoc: any = null;
 
-      if (username === '1' && password === '100') {
-        udoc = { id: '1', username: '1', fullName: 'المستخدم 1', role: 'normal', isActive: true };
-      } else if (username === 'wafaa' && password === 'brq') {
-        udoc = { id: 'wafaa', username: 'wafaa', fullName: 'مدير النظام', role: 'admin', isActive: true };
+      // Scenario 1: Logging in via a Single-Use Invite Token
+      if (inviteToken) {
+        const { data: invitesData } = await supabaseAdmin.from('settings').select('*').match({ id: 'showcase_invites' }).single();
+        let invites = [];
+        if (invitesData && invitesData.data && Array.isArray(invitesData.data)) {
+          invites = invitesData.data;
+        }
+
+        const inviteIdx = invites.findIndex((inv: any) => inv.token === inviteToken || inv.id === inviteToken);
+        if (inviteIdx === -1) {
+          return res.status(403).json({ error: 'رابط الدعوة غير صالح أو غير موجود.' });
+        }
+
+        const currentInvite = invites[inviteIdx];
+        if (currentInvite.isUsed) {
+          return res.status(403).json({ 
+            error: 'عذراً! هذا الرابط صالح للاستخدام لمرة واحدة فقط وقد تم استخدامه مسبقاً. يرجى طلب رابط جديد من الوكيل.' 
+          });
+        }
+
+        // Mark the single-use invite as permanently USED
+        currentInvite.isUsed = true;
+        currentInvite.usedByVisitor = visitorName.trim();
+        currentInvite.usedAt = Date.now();
+        invites[inviteIdx] = currentInvite;
+
+        await supabaseAdmin.from('settings').upsert({ id: 'showcase_invites', data: invites });
+
+        udoc = {
+          id: currentInvite.agentId,
+          fullName: currentInvite.agentName,
+          username: currentInvite.agentName
+        };
       } else {
-        const { data: snapshot, error } = await supabaseAdmin.from('users').select('*').eq('username', username);
-        if (error || !snapshot || snapshot.length === 0) {
-          return res.status(401).json({ error: 'بيانات الوكيل غير صحيحة' });
-        }
-        udoc = snapshot[0];
-        const isBcryptHash = udoc.password && udoc.password.startsWith('$2');
-        let isPasswordCorrect = false;
+        // Scenario 2: Manual credentials login
+        if (!username || !password) return res.status(400).json({ error: 'يرجى إدخال بيانات الدخول كاملة' });
 
-        if (isBcryptHash) {
-            isPasswordCorrect = bcryptjs.compareSync(password, udoc.password);
+        if (username === '1' && password === '100') {
+          udoc = { id: '1', username: '1', fullName: 'المستخدم 1', role: 'normal', isActive: true };
+        } else if (username === 'wafaa' && password === 'brq') {
+          udoc = { id: 'wafaa', username: 'wafaa', fullName: 'مدير النظام', role: 'admin', isActive: true };
         } else {
-            isPasswordCorrect = (udoc.password === password);
-        }
-
-        if (!isPasswordCorrect) {
+          const { data: snapshot, error } = await supabaseAdmin.from('users').select('*').eq('username', username);
+          if (error || !snapshot || snapshot.length === 0) {
             return res.status(401).json({ error: 'بيانات الوكيل غير صحيحة' });
-        }
+          }
+          udoc = snapshot[0];
+          const isBcryptHash = udoc.password && udoc.password.startsWith('$2');
+          let isPasswordCorrect = false;
 
-        if (udoc.status === 'inactive' || udoc.isActive === false) {
-            return res.status(403).json({ error: 'حساب الوكيل موقوف.' });
+          if (isBcryptHash) {
+              isPasswordCorrect = bcryptjs.compareSync(password, udoc.password);
+          } else {
+              isPasswordCorrect = (udoc.password === password);
+          }
+
+          if (!isPasswordCorrect) {
+              return res.status(401).json({ error: 'بيانات الوكيل غير صحيحة' });
+          }
+
+          if (udoc.status === 'inactive' || udoc.isActive === false) {
+              return res.status(403).json({ error: 'حساب الوكيل موقوف.' });
+          }
         }
       }
 
@@ -366,9 +518,10 @@ app.post('/api/notify-publish', express.json(), async (req, res) => {
       }
       
       visits.push({
-        visitorName,
+        visitorName: visitorName.trim(),
         agentId: udoc.id,
         agentName: udoc.fullName,
+        inviteToken: inviteToken || null,
         timestamp: Date.now()
       });
       
@@ -377,7 +530,8 @@ app.post('/api/notify-publish', express.json(), async (req, res) => {
       res.json({
         success: true,
         agent: { id: udoc.id, fullName: udoc.fullName },
-        visitorName
+        visitorName: visitorName.trim(),
+        inviteToken: inviteToken || null
       });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
