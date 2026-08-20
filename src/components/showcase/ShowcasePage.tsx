@@ -25,6 +25,7 @@ import { api } from '../../api';
 import { supabase } from '../../supabase';
 import { Product, Category } from '../../types';
 import { detectShowcaseCategory, VALID_SHOWCASE_CATEGORIES, SHOWCASE_CATEGORIES_METADATA } from '../../utils/showcaseClassifier';
+import { useStore } from '../../store';
 import OptimizedImage from '../OptimizedImage';
 import ImageViewer from '../ImageViewer';
 import Animated3DLogo from '../ui/Animated3DLogo';
@@ -38,14 +39,56 @@ export const SHOWCASE_CATEGORIES = [
 
 export default function ShowcasePage() {
   const navigate = useNavigate();
+  const { user } = useStore();
+  
   const [authData, setAuthData] = useState<{ agent: { id: string, fullName: string }, visitorName: string } | null>(() => {
     try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const hasInvite = urlParams.get('invite') || urlParams.get('token');
+
+      // 1. If currently logged in as agent/member/admin and not visiting via someone else's invite link, bypass auth immediately
+      const storedAuth = localStorage.getItem('brq-storage');
+      let loggedUser = null;
+      if (storedAuth) {
+        try {
+          loggedUser = JSON.parse(storedAuth)?.state?.user;
+        } catch {}
+      }
+
+      if (loggedUser && !hasInvite) {
+        return {
+          agent: {
+            id: loggedUser.id || loggedUser.uid || loggedUser.username || 'agent_1',
+            fullName: loggedUser.fullName || loggedUser.username || 'الوكيل المعتمد'
+          },
+          visitorName: loggedUser.fullName || loggedUser.username || 'الوكيل'
+        };
+      }
+
+      // 2. Otherwise load saved guest session
       const saved = localStorage.getItem('brq_showcase_auth') || sessionStorage.getItem('brq_showcase_auth');
       return saved ? JSON.parse(saved) : null;
     } catch {
       return null;
     }
   });
+
+  // Auto-login if user object loads from zustand store and not in guest invite mode
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const hasInvite = urlParams.get('invite') || urlParams.get('token');
+    if (user && !hasInvite && !authData) {
+      const agentAuth = {
+        agent: {
+          id: user.id || user.uid || user.username || 'agent_1',
+          fullName: user.fullName || user.username || 'الوكيل المعتمد'
+        },
+        visitorName: user.fullName || user.username || 'الوكيل'
+      };
+      setAuthData(agentAuth);
+      localStorage.setItem('brq_showcase_auth', JSON.stringify(agentAuth));
+    }
+  }, [user, authData]);
 
   // Clean URL if already authenticated
   useEffect(() => {
@@ -174,7 +217,7 @@ export default function ShowcasePage() {
   // WhatsApp share handler with fresh one-time invite generation
   const handleSharePage = async () => {
     try {
-      showToast('جاري تجهيز رابط دعوة مخصص...');
+      showToast('جاري تحويلك إلى واتساب...');
       let url = `${window.location.origin}/showcase`;
       if (authData?.agent?.id) {
         try {
@@ -198,27 +241,19 @@ export default function ShowcasePage() {
       const agentName = authData?.agent?.fullName || 'الوكيل المعتمد';
       const text = `✨ معرض شركة الوفاء المتميز BRQ ✨\nدعوة خاصة من: ${agentName}\nتفضل بالاطلاع على أحدث الموديلات والتشكيلات الحصرية عبر رابط الدعوة المخصص لك (صالح لمرة واحدة فقط):\n${url}`;
 
-      if (navigator.share) {
-        try {
-          await navigator.share({
-            title: 'معرض شركة الوفاء المتميز',
-            text: text,
-            url: url
-          });
-          showToast('تمت مشاركة رابط الدعوة لمرة واحدة بنجاح');
-          return;
-        } catch (err: any) {
-          if (err.name === 'AbortError') return;
-        }
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch {
+        // ignore
       }
 
-      // Fallback: Copy link or open WhatsApp
-      await navigator.clipboard.writeText(text);
-      showToast('تم إنشاء ونسخ رابط دعوة مخصص لمرة واحدة ✨');
+      // Direct WhatsApp redirect to immediately pick a contact
+      const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+      window.location.href = waUrl;
     } catch (e) {
       const url = `${window.location.origin}/showcase`;
-      navigator.clipboard.writeText(url);
-      showToast('تم نسخ رابط المعرض');
+      const fallbackText = `✨ معرض شركة الوفاء المتميز BRQ ✨\n${url}`;
+      window.location.href = `https://api.whatsapp.com/send?text=${encodeURIComponent(fallbackText)}`;
     }
   };
 

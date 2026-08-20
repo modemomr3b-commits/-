@@ -62,14 +62,20 @@ export default function ImageViewer({
   const [copiedLink, setCopiedLink] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isPinching, setIsPinching] = useState(false);
   
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<HTMLDivElement>(null);
   const lastTap = useRef(0);
   const [hasDragged, setHasDragged] = useState(false);
-  const [touchStart, setTouchStart] = useState<{ x: number; y: number; time: number } | null>(null);
+  
+  // Refs for tracking live values inside touch event handlers without closure lag
+  const scaleRef = useRef(scale);
+  scaleRef.current = scale;
+  const positionRef = useRef(position);
+  positionRef.current = position;
 
-  const handleZoomIn = () => setScale(s => Math.min(Number((s + 0.5).toFixed(1)), 4));
+  const handleZoomIn = () => setScale(s => Math.min(Number((s + 0.5).toFixed(1)), 4.5));
   const handleZoomOut = () => {
     setScale(s => {
       const newScale = Math.max(Number((s - 0.5).toFixed(1)), 1);
@@ -125,7 +131,7 @@ export default function ImageViewer({
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault();
       if (e.deltaY < 0) {
-        setScale(s => Math.min(Number((s + 0.25).toFixed(2)), 4));
+        setScale(s => Math.min(Number((s + 0.25).toFixed(2)), 4.5));
       } else {
         setScale(s => {
           const newScale = Math.max(Number((s - 0.25).toFixed(2)), 1);
@@ -138,6 +144,186 @@ export default function ImageViewer({
     el.addEventListener('wheel', handleWheel, { passive: false });
     return () => el.removeEventListener('wheel', handleWheel);
   }, []);
+
+  // Mobile Touch Gestures: Pinch-to-Zoom & Pan with touch events
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    let touchState: {
+      mode: 'none' | 'drag' | 'pinch';
+      startX: number;
+      startY: number;
+      startPosX: number;
+      startPosY: number;
+      startDist: number;
+      startScale: number;
+      startTime: number;
+      hasMoved: boolean;
+    } = {
+      mode: 'none',
+      startX: 0,
+      startY: 0,
+      startPosX: 0,
+      startPosY: 0,
+      startDist: 0,
+      startScale: 1,
+      startTime: 0,
+      hasMoved: false,
+    };
+
+    const getDistance = (t1: Touch, t2: Touch) => {
+      return Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+    };
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 1) {
+        touchState = {
+          mode: 'drag',
+          startX: e.touches[0].clientX,
+          startY: e.touches[0].clientY,
+          startPosX: positionRef.current.x,
+          startPosY: positionRef.current.y,
+          startDist: 0,
+          startScale: scaleRef.current,
+          startTime: Date.now(),
+          hasMoved: false,
+        };
+        setIsDragging(scaleRef.current > 1);
+      } else if (e.touches.length >= 2) {
+        const dist = getDistance(e.touches[0], e.touches[1]);
+        touchState = {
+          mode: 'pinch',
+          startX: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+          startY: (e.touches[0].clientY + e.touches[1].clientY) / 2,
+          startPosX: positionRef.current.x,
+          startPosY: positionRef.current.y,
+          startDist: dist,
+          startScale: scaleRef.current,
+          startTime: Date.now(),
+          hasMoved: true,
+        };
+        setIsPinching(true);
+        setIsDragging(true);
+        setHasDragged(true);
+      }
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (touchState.mode === 'pinch' && e.touches.length >= 2) {
+        if (e.cancelable) e.preventDefault();
+        const currentDist = getDistance(e.touches[0], e.touches[1]);
+        if (touchState.startDist > 0) {
+          const factor = currentDist / touchState.startDist;
+          const targetScale = Math.min(Math.max(touchState.startScale * factor, 0.9), 5);
+          setScale(Number(targetScale.toFixed(2)));
+
+          // Smoothly pan with two-finger midpoint
+          const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+          const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+          const deltaX = midX - touchState.startX;
+          const deltaY = midY - touchState.startY;
+
+          setPosition({
+            x: touchState.startPosX + deltaX,
+            y: touchState.startPosY + deltaY,
+          });
+          setHasDragged(true);
+        }
+      } else if (touchState.mode === 'drag' && e.touches.length === 1) {
+        const dx = e.touches[0].clientX - touchState.startX;
+        const dy = e.touches[0].clientY - touchState.startY;
+
+        if (Math.hypot(dx, dy) > 8) {
+          touchState.hasMoved = true;
+          setHasDragged(true);
+        }
+
+        if (scaleRef.current > 1) {
+          if (e.cancelable) e.preventDefault();
+          setPosition({
+            x: touchState.startPosX + dx,
+            y: touchState.startPosY + dy,
+          });
+        }
+      }
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      if (touchState.mode === 'pinch') {
+        setIsPinching(false);
+        setIsDragging(false);
+        if (scaleRef.current < 1) {
+          setScale(1);
+          setPosition({ x: 0, y: 0 });
+        }
+        touchState.mode = 'none';
+        return;
+      }
+
+      if (touchState.mode === 'drag') {
+        setIsDragging(false);
+        const dt = Date.now() - touchState.startTime;
+        const changedTouch = e.changedTouches[0];
+        if (changedTouch) {
+          const dx = changedTouch.clientX - touchState.startX;
+          const dy = changedTouch.clientY - touchState.startY;
+
+          // Double tap gesture detection on mobile
+          if (!touchState.hasMoved && dt < 280) {
+            const now = Date.now();
+            if (now - lastTap.current < 300) {
+              if (scaleRef.current > 1) {
+                setScale(1);
+                setPosition({ x: 0, y: 0 });
+              } else {
+                setScale(2.5);
+                const rect = container.getBoundingClientRect();
+                const offsetX = (rect.width / 2 - changedTouch.clientX) * 1.2;
+                const offsetY = (rect.height / 2 - changedTouch.clientY) * 1.2;
+                setPosition({ x: offsetX, y: offsetY });
+              }
+              lastTap.current = 0;
+            } else {
+              lastTap.current = now;
+            }
+          }
+
+          // Single finger swipe when not zoomed
+          if (scaleRef.current <= 1 && touchState.hasMoved && dt < 450) {
+            // Horizontal swipe
+            if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.3) {
+              if (dx > 50 && onNext && hasNext) {
+                onNext();
+              } else if (dx < -50 && onPrev && hasPrev) {
+                onPrev();
+              }
+            } else if (dy > 120 && Math.abs(dy) > Math.abs(dx) * 1.5) {
+              // Downward swipe to close
+              onClose();
+            }
+          }
+        }
+
+        if (scaleRef.current <= 1) {
+          setPosition({ x: 0, y: 0 });
+        }
+        touchState.mode = 'none';
+      }
+    };
+
+    container.addEventListener('touchstart', onTouchStart, { passive: false });
+    container.addEventListener('touchmove', onTouchMove, { passive: false });
+    container.addEventListener('touchend', onTouchEnd, { passive: true });
+    container.addEventListener('touchcancel', onTouchEnd, { passive: true });
+
+    return () => {
+      container.removeEventListener('touchstart', onTouchStart);
+      container.removeEventListener('touchmove', onTouchMove);
+      container.removeEventListener('touchend', onTouchEnd);
+      container.removeEventListener('touchcancel', onTouchEnd);
+    };
+  }, [hasNext, hasPrev, onNext, onPrev, onClose]);
 
   // Lock body scroll
   useEffect(() => {
@@ -154,23 +340,17 @@ export default function ImageViewer({
     setPosition({ x: 0, y: 0 });
   }, [src]);
 
+  // Desktop Mouse Pointer Drag Handlers
   const handlePointerDown = (e: React.PointerEvent) => {
+    if (e.pointerType === 'touch') return; // Handled natively by touch listeners
     setHasDragged(false);
-    if (scale <= 1) {
-      setTouchStart({ x: e.clientX, y: e.clientY, time: Date.now() });
-      return;
-    }
+    if (scale <= 1) return;
     setIsDragging(true);
     setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y });
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
-    if (scale <= 1 && touchStart) {
-       const dx = e.clientX - touchStart.x;
-       const dy = e.clientY - touchStart.y;
-       if (Math.abs(dx) > 10 || Math.abs(dy) > 10) setHasDragged(true);
-       return;
-    }
+    if (e.pointerType === 'touch') return;
     if (!isDragging || scale <= 1) return;
     setHasDragged(true);
     setPosition({
@@ -180,23 +360,7 @@ export default function ImageViewer({
   };
 
   const handlePointerUp = (e: React.PointerEvent) => {
-    if (scale <= 1 && touchStart) {
-       const dx = e.clientX - touchStart.x;
-       const dy = e.clientY - touchStart.y;
-       const dt = Date.now() - touchStart.time;
-       
-       // Horizontal swipe for product navigation (Right = Next, Left = Prev)
-       if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.2 && dt < 500) {
-         if (dx > 40 && onNext && hasNext) {
-           onNext();
-         } else if (dx < -40 && onPrev && hasPrev) {
-           onPrev();
-         }
-       } else if (dy > 140 && dt < 400) {
-         onClose();
-       }
-       setTouchStart(null);
-    }
+    if (e.pointerType === 'touch') return;
     setIsDragging(false);
   };
 
@@ -516,7 +680,8 @@ export default function ImageViewer({
         {/* Center Cinema Image Stage */}
         <div 
           ref={containerRef}
-          className={`flex-1 relative flex items-center justify-center p-4 md:p-8 overflow-hidden ${
+          style={{ touchAction: 'none' }}
+          className={`flex-1 relative flex items-center justify-center p-2 sm:p-4 md:p-8 overflow-hidden select-none ${
             scale > 1 ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-zoom-in'
           }`}
           onPointerDown={handlePointerDown}
@@ -531,10 +696,10 @@ export default function ImageViewer({
                 e.stopPropagation();
                 onPrev();
               }}
-              className="absolute left-4 md:left-6 top-1/2 -translate-y-1/2 z-30 w-12 h-12 bg-black/70 hover:bg-black/95 border border-white/20 hover:border-amber-400/60 text-white rounded-full transition-all active:scale-90 shadow-2xl backdrop-blur-xl flex items-center justify-center hover:scale-105 group cursor-pointer"
+              className="absolute left-2 sm:left-4 md:left-6 top-1/2 -translate-y-1/2 z-30 w-10 h-10 sm:w-12 sm:h-12 bg-black/70 hover:bg-black/95 border border-white/20 hover:border-amber-400/60 text-white rounded-full transition-all active:scale-90 shadow-2xl backdrop-blur-xl flex items-center justify-center hover:scale-105 group cursor-pointer"
               title="المنتج السابق (سهم يسار)"
             >
-              <ChevronLeft size={28} className="text-white group-hover:text-amber-400 transition-colors" />
+              <ChevronLeft size={24} className="text-white group-hover:text-amber-400 transition-colors" />
             </button>
           )}
 
@@ -545,18 +710,20 @@ export default function ImageViewer({
                 e.stopPropagation();
                 onNext();
               }}
-              className="absolute right-4 md:right-6 top-1/2 -translate-y-1/2 z-30 w-12 h-12 bg-black/70 hover:bg-black/95 border border-white/20 hover:border-amber-400/60 text-white rounded-full transition-all active:scale-90 shadow-2xl backdrop-blur-xl flex items-center justify-center hover:scale-105 group cursor-pointer"
+              className="absolute right-2 sm:right-4 md:right-6 top-1/2 -translate-y-1/2 z-30 w-10 h-10 sm:w-12 sm:h-12 bg-black/70 hover:bg-black/95 border border-white/20 hover:border-amber-400/60 text-white rounded-full transition-all active:scale-90 shadow-2xl backdrop-blur-xl flex items-center justify-center hover:scale-105 group cursor-pointer"
               title="المنتج التالي (سهم يمين)"
             >
-              <ChevronRight size={28} className="text-white group-hover:text-amber-400 transition-colors" />
+              <ChevronRight size={24} className="text-white group-hover:text-amber-400 transition-colors" />
             </button>
           )}
 
-          {/* High Res Centered Image */}
+          {/* High Res Centered Image with Smooth Hardware-Accelerated Transforms */}
           <div
             style={{ 
                transform: `scale(${scale}) translate(${position.x / scale}px, ${position.y / scale}px)`,
-               transition: isDragging ? 'none' : 'transform 0.15s cubic-bezier(0.2, 0, 0, 1)'
+               transition: isDragging || isPinching ? 'none' : 'transform 0.2s cubic-bezier(0.2, 0, 0, 1)',
+               touchAction: 'none',
+               willChange: 'transform'
             }}
             className="relative flex items-center justify-center max-h-[86vh] max-w-[92vw] pointer-events-auto"
             onClick={(e) => {
@@ -581,14 +748,32 @@ export default function ImageViewer({
                src={src} 
                alt={alt} 
                size="full"
-               className="w-auto h-auto max-h-[82vh] max-w-[88vw] md:max-w-[70vw] drop-shadow-[0_20px_50px_rgba(0,0,0,0.9)] !pointer-events-none"
-               imgClassName="w-auto h-auto max-h-[82vh] max-w-[88vw] md:max-w-[70vw] object-contain rounded-2xl"
+               className="w-auto h-auto max-h-[82vh] max-w-[88vw] md:max-w-[70vw] drop-shadow-[0_20px_50px_rgba(0,0,0,0.9)] !pointer-events-none select-none"
+               imgClassName="w-auto h-auto max-h-[82vh] max-w-[88vw] md:max-w-[70vw] object-contain rounded-2xl select-none"
              />
           </div>
 
+          {/* Mobile Zoom Floating Indicator & Reset Pill */}
+          {scale > 1 && (
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 bg-black/85 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-amber-400/40 text-amber-300 text-xs font-mono font-bold shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+              <span>{Math.round(scale * 100)}%</span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleResetZoom();
+                }}
+                className="flex items-center gap-1 text-[11px] bg-amber-400 text-black px-2 py-0.5 rounded-full font-sans font-black hover:bg-amber-300 active:scale-95 transition-all cursor-pointer"
+                title="إعادة ضبط المقياس"
+              >
+                <RotateCcw size={11} />
+                <span>إعادة ضبط</span>
+              </button>
+            </div>
+          )}
+
           {/* Desktop Zoom & Keyboard Hints Pill at the Bottom */}
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 hidden md:flex items-center gap-3 bg-black/75 backdrop-blur-md px-4 py-1.5 rounded-full border border-white/10 text-[11px] text-white/70 font-mono pointer-events-none shadow-xl">
-            <span>عجلة الماوس: تكبير/تصغير</span>
+            <span>عجلة الماوس / لمس بأصبعين: تكبير/تصغير</span>
             <span>•</span>
             <span>الأسهم ➔ ⬅: تنقل</span>
             <span>•</span>

@@ -260,7 +260,7 @@ export default function Home() {
                 <button
                   onClick={async () => {
                     try {
-                      showToast('جاري توليد رابط دعوة مخصص لمرة واحدة...');
+                      showToast('جاري تحويلك إلى واتساب...');
                       const res = await fetch('/api/showcase/create-invite', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -273,36 +273,28 @@ export default function Home() {
                       const inviteToken = data.token;
                       const url = `${window.location.origin}/showcase?invite=${inviteToken}`;
                       const agentDisplayName = user?.fullName || user?.username || 'الوكيل المعتمد';
-                      const text = `✨ معرض شركة الوفاء المتميز BRQ ✨\nدعوة خاصة من الوكيل: ${agentDisplayName}\nتفضل بالاطلاع على أحدث الموديلات والتشكيلات الحصرية عبر رابط الدعوة المخصص لك (صالح لمرة واحدة فقط):\n${url}`;
+                      const text = `✨ معرض شركة الوفاء المتميز BRQ ✨\nدعوة خاصة من: ${agentDisplayName}\nتفضل بالاطلاع على أحدث الموديلات والتشكيلات الحصرية عبر رابط الدعوة المخصص لك (صالح لمرة واحدة فقط):\n${url}`;
 
-                      if (navigator.share) {
-                        try {
-                          await navigator.share({
-                            title: 'معرض شركة الوفاء المتميز',
-                            text: text,
-                            url: url
-                          });
-                          showToast('تمت مشاركة رابط الدعوة لمرة واحدة بنجاح');
-                          return;
-                        } catch (err: any) {
-                          if (err.name === 'AbortError') return;
-                        }
+                      try {
+                        await navigator.clipboard.writeText(text);
+                      } catch {
+                        // ignore clipboard errors
                       }
 
-                      await navigator.clipboard.writeText(text);
-                      showToast('تم إنشاء ونسخ رابط دعوة مخصص (صالح لمرة واحدة فقط) ✨');
+                      // Direct WhatsApp redirect to immediately pick a contact
+                      const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+                      window.location.href = waUrl;
                     } catch (e) {
                       console.error("Error creating invite:", e);
-                      // Fallback
-                      const url = `${window.location.origin}/showcase`;
-                      navigator.clipboard.writeText(url);
-                      showToast('تم نسخ رابط المعرض');
+                      const fallbackUrl = `${window.location.origin}/showcase`;
+                      const fallbackText = `✨ معرض شركة الوفاء المتميز BRQ ✨\n${fallbackUrl}`;
+                      window.location.href = `https://api.whatsapp.com/send?text=${encodeURIComponent(fallbackText)}`;
                     }
                   }}
-                  className="py-2.5 px-3 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 font-bold rounded-xl text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-[0_0_15px_rgba(16,185,129,0.15)]"
+                  className="py-2.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-[0_0_15px_rgba(16,185,129,0.3)]"
                 >
-                  <Share2 size={15} className="text-emerald-400" />
-                  <span>مشاركة رابط دعوة</span>
+                  <MessageCircle size={16} className="text-white fill-white/20" />
+                  <span>مشاركة عبر واتساب</span>
                 </button>
               </div>
 
