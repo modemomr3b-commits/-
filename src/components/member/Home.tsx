@@ -27,6 +27,7 @@ import { supabase } from "../../supabase";
 import { useStore } from "../../store";
 import Animated3DLogo from "../ui/Animated3DLogo";
 import { SHOWCASE_CATEGORIES_METADATA } from "../../utils/showcaseClassifier";
+import { createShowcaseInvite } from "../../services/showcaseService";
 import CategoryIcon from "../ui/CategoryIcon";
 
 const DEFAULT_ICONS = ["✨", "👟", "🇹🇷", "⭐", "🎒", "☀️", "🔥"];
@@ -271,18 +272,11 @@ export default function Home() {
                   onClick={async () => {
                     try {
                       showToast('جاري تحويلك إلى واتساب...');
-                      const res = await fetch('/api/showcase/create-invite', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          agentId: user?.id || user?.username || 'agent_1',
-                          agentName: user?.fullName || user?.username || 'الوكيل المعتمد'
-                        })
-                      });
-                      const data = await res.json();
-                      const inviteToken = data.token;
-                      const url = `${window.location.origin}/showcase?invite=${inviteToken}`;
+                      const agentId = user?.id || user?.username || 'agent_1';
                       const agentDisplayName = user?.fullName || user?.username || 'الوكيل المعتمد';
+                      
+                      const inviteRes = await createShowcaseInvite(agentId, agentDisplayName);
+                      const url = `${window.location.origin}${inviteRes.inviteUrl}`;
                       const text = `✨ معرض شركة الوفاء المتميز BRQ ✨\nدعوة خاصة من: ${agentDisplayName}\nتفضل بالاطلاع على أحدث الموديلات والتشكيلات الحصرية عبر رابط الدعوة المخصص لك (صالح لمرة واحدة فقط):\n${url}`;
 
                       try {

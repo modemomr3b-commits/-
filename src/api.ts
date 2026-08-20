@@ -11,16 +11,16 @@ const getData = async (table: string) => {
     const { data, error } = await supabase
       .from(table)
       .select('*')
-      .neq('isDeleted', true)
       .range(from, from + limit - 1);
       
     if (error) {
-      console.error(error);
+      console.error('Error in getData for table', table, error);
       return allData;
     }
     
     if (data && data.length > 0) {
-      allData = [...allData, ...data];
+      const activeData = data.filter((item: any) => item.isDeleted !== true);
+      allData = [...allData, ...activeData];
       if (data.length < limit) {
         break;
       }
@@ -107,8 +107,8 @@ export const api = {
     }
     
     // Fetch categories to resolve category/subcategory hierarchy
-    const { data: catData } = await supabase.from('categories').select('*').neq('isDeleted', true);
-    const categories = catData || [];
+    const { data: catData } = await supabase.from('categories').select('*');
+    const categories = (catData || []).filter((c: any) => c.isDeleted !== true);
 
     const currentCat = categories.find((c: any) => c.id === categoryId);
     const currentCatName = currentCat ? currentCat.name.toLowerCase().trim() : '';
@@ -398,10 +398,10 @@ export const api = {
   // USERS
   getUsers: async () => {
     try {
-      const { data, error } = await supabase.from('users').select('*').neq('isDeleted', true);
+      const { data, error } = await supabase.from('users').select('*');
       if (error) { console.error('Error fetching users:', error); throw error; }
-      console.log("api.ts getUsers got data length:", data?.length); 
-      return data || [];
+      const activeUsers = (data || []).filter((u: any) => u.isDeleted !== true);
+      return activeUsers;
     } catch (e) {
       console.error(e);
       throw e;

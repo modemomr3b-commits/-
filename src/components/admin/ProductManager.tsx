@@ -148,8 +148,8 @@ export default function ProductManager() {
             imageBase64: currentImg,
             prompt: finalPrompt,
             productName: aiStudioProduct.name,
-            productCategory: aiStudioProduct.category,
-            productDescription: aiStudioProduct.description,
+            productCategory: (aiStudioProduct as any).category || aiStudioProduct.categoryId,
+            productDescription: (aiStudioProduct as any).description,
             customApiKey: customApiKey.trim() || undefined,
           })
         });
@@ -162,8 +162,8 @@ export default function ProductManager() {
               imageBase64: currentImg,
               prompt: finalPrompt,
               productName: aiStudioProduct.name,
-              productCategory: aiStudioProduct.category,
-              productDescription: aiStudioProduct.description,
+              productCategory: (aiStudioProduct as any).category || aiStudioProduct.categoryId,
+              productDescription: (aiStudioProduct as any).description,
               customApiKey: customApiKey.trim() || undefined,
             })
           });

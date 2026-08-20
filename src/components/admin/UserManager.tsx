@@ -3,6 +3,7 @@ import { Users, Eye, EyeOff, Plus, Search, Filter, Edit, ShieldX, CheckCircle, K
 import { useState, useEffect } from 'react';
 import bcryptjs from 'bcryptjs';
 import { api } from '../../api';
+import { supabase } from '../../supabase';
 import { User, UserRole, DeviceAccess, UserStatus } from '../../types';
 import { useStore } from '../../store';
 
@@ -29,32 +30,59 @@ function UserManagerContent() {
     const fetchUsers = async () => {
       try {
         const [dbUsers, visitsRes] = await Promise.all([
-          api.getUsers(),
+          api.getUsers().catch(err => { console.error('api.getUsers error:', err); return []; }),
           fetch('/api/showcase/visits').catch(() => null)
         ]);
         
-        let visitsData = [];
+        let visitsData: any[] = [];
         if (visitsRes && visitsRes.ok) {
-           visitsData = await visitsRes.json();
+          try {
+            visitsData = await visitsRes.json();
+          } catch {}
+        }
+        
+        // Fallback for visits if API returns non-json or empty
+        if (!visitsData || visitsData.length === 0) {
+          try {
+            const { data: vSettings } = await supabase.from('settings').select('*').match({ id: 'showcase_visits' }).maybeSingle();
+            if (vSettings && vSettings.data && Array.isArray(vSettings.data)) {
+              visitsData = vSettings.data;
+            }
+          } catch {}
         }
 
         if (mounted) {
-          console.log("Fetched users:", dbUsers);
-          setDebugMsg("Fetched " + (dbUsers ? dbUsers.length : "null"));
-          if (!Array.isArray(dbUsers)) {  setUsers([]); } else { setUsers(dbUsers.map((u: any) => ({...u, uid: u.id})));  }
-          if (Array.isArray(visitsData)) { setShowcaseVisits(visitsData); }
+          if (!Array.isArray(dbUsers)) { 
+            setUsers([]); 
+          } else { 
+            setUsers(dbUsers.map((u: any) => ({ ...u, uid: u.id || u.uid }))); 
+          }
+          if (Array.isArray(visitsData)) { 
+            setShowcaseVisits(visitsData); 
+          }
           setLoading(false);
         }
       } catch (e) {
-        console.error("Error fetching users in UserManager:", e); setDebugMsg(String(e)); 
+        console.error("Error fetching users in UserManager:", e); 
+        setDebugMsg(String(e)); 
         if (mounted) setLoading(false);
       }
     };
+
     fetchUsers();
-    const inv = setInterval(fetchUsers, 5000);
+    const inv = setInterval(fetchUsers, 4000);
+
+    const channel = supabase
+      .channel('public:users_manager_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => {
+        fetchUsers();
+      })
+      .subscribe();
+
     return () => {
       mounted = false;
       clearInterval(inv);
+      supabase.removeChannel(channel);
     };
   }, []);
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Shield, User, KeyRound, ArrowRight, AlertTriangle, CheckCircle2, Lock, Sparkles, RefreshCw } from 'lucide-react';
 import Animated3DLogo from '../ui/Animated3DLogo';
+import { verifyShowcaseInvite, loginShowcase } from '../../services/showcaseService';
 
 interface ShowcaseAuthProps {
   onSuccess: (agentInfo: { id: string, fullName: string }, visitorName: string) => void;
@@ -41,9 +42,8 @@ export default function ShowcaseAuth({ onSuccess }: ShowcaseAuthProps) {
     setTokenChecking(true);
     setError('');
     try {
-      const res = await fetch(`/api/showcase/verify-invite?token=${encodeURIComponent(token)}`);
-      const data = await res.json();
-      setInviteInfo(data);
+      const data = await verifyShowcaseInvite(token);
+      setInviteInfo(data as any);
       if (!data.valid) {
         setError(data.error || 'هذا الرابط غير صالح أو تم استخدامه مسبقاً.');
       }
@@ -79,27 +79,14 @@ export default function ShowcaseAuth({ onSuccess }: ShowcaseAuthProps) {
 
     setLoading(true);
     try {
-      const payload: any = { visitorName: visitorName.trim() };
-      if (inviteToken) {
-        payload.inviteToken = inviteToken;
-      } else {
-        payload.username = username.trim();
-        payload.password = password.trim();
-      }
-
-      const res = await fetch('/api/showcase/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+      const res = await loginShowcase({
+        visitorName: visitorName.trim(),
+        inviteToken: inviteToken || undefined,
+        username: username.trim() || undefined,
+        password: password.trim() || undefined
       });
-      
-      const data = await res.json();
-      
-      if (!res.ok) {
-        throw new Error(data.error || 'فشل تسجيل الدخول');
-      }
 
-      onSuccess(data.agent, data.visitorName);
+      onSuccess(res.agent, res.visitorName);
     } catch (err: any) {
       setError(err.message || 'حدث خطأ أثناء الدخول');
     } finally {

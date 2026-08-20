@@ -25,6 +25,7 @@ import { api } from '../../api';
 import { supabase } from '../../supabase';
 import { Product, Category } from '../../types';
 import { detectShowcaseCategory, VALID_SHOWCASE_CATEGORIES, SHOWCASE_CATEGORIES_METADATA } from '../../utils/showcaseClassifier';
+import { createShowcaseInvite } from '../../services/showcaseService';
 import { useStore } from '../../store';
 import OptimizedImage from '../OptimizedImage';
 import ImageViewer from '../ImageViewer';
@@ -219,26 +220,18 @@ export default function ShowcasePage() {
     try {
       showToast('جاري تحويلك إلى واتساب...');
       let url = `${window.location.origin}/showcase`;
-      if (authData?.agent?.id) {
-        try {
-          const res = await fetch('/api/showcase/create-invite', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              agentId: authData.agent.id,
-              agentName: authData.agent.fullName
-            })
-          });
-          const data = await res.json();
-          if (data.token) {
-            url = `${window.location.origin}/showcase?invite=${data.token}`;
-          }
-        } catch (e) {
-          console.error("Failed to create invite token:", e);
+      const agentId = authData?.agent?.id || user?.id || 'agent_1';
+      const agentName = authData?.agent?.fullName || user?.fullName || 'الوكيل المعتمد';
+
+      try {
+        const inviteRes = await createShowcaseInvite(agentId, agentName);
+        if (inviteRes.token) {
+          url = `${window.location.origin}${inviteRes.inviteUrl}`;
         }
+      } catch (e) {
+        console.error("Failed to create invite token:", e);
       }
 
-      const agentName = authData?.agent?.fullName || 'الوكيل المعتمد';
       const text = `✨ معرض شركة الوفاء المتميز BRQ ✨\nدعوة خاصة من: ${agentName}\nتفضل بالاطلاع على أحدث الموديلات والتشكيلات الحصرية عبر رابط الدعوة المخصص لك (صالح لمرة واحدة فقط):\n${url}`;
 
       try {
