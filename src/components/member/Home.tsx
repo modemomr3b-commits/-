@@ -26,6 +26,7 @@ import { api } from "../../api";
 import { supabase } from "../../supabase";
 import { useStore } from "../../store";
 import Animated3DLogo from "../ui/Animated3DLogo";
+import { SHOWCASE_CATEGORIES_METADATA } from "../../utils/showcaseClassifier";
 import CategoryIcon from "../ui/CategoryIcon";
 
 const DEFAULT_ICONS = ["✨", "👟", "🇹🇷", "⭐", "🎒", "☀️", "🔥"];
@@ -231,9 +232,10 @@ export default function Home() {
 
               {/* Categories mini preview list */}
               <div className="flex flex-wrap gap-1.5 mb-5 text-[11px]">
-                {['رجالي', 'نسائي', 'شبابي', 'ولادي', 'بناتي', 'طفل', 'طفلة', 'بيبي', 'مواليد'].map((cat) => (
-                  <span key={cat} className="bg-white/5 border border-white/10 text-white/70 px-2 py-0.5 rounded-lg">
-                    {cat}
+                {SHOWCASE_CATEGORIES_METADATA.map((cat) => (
+                  <span key={cat.id} className="flex items-center gap-1.5 bg-white/5 border border-white/10 text-white/90 px-2 py-1 rounded-lg">
+                    <img src={cat.image} alt={cat.name} className="w-5 h-5 rounded-full object-cover" referrerPolicy="no-referrer" />
+                    {cat.name}
                   </span>
                 ))}
               </div>

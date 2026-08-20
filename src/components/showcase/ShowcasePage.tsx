@@ -22,22 +22,14 @@ import {
 import { api } from '../../api';
 import { supabase } from '../../supabase';
 import { Product, Category } from '../../types';
-import { detectShowcaseCategory, VALID_SHOWCASE_CATEGORIES } from '../../utils/showcaseClassifier';
+import { detectShowcaseCategory, VALID_SHOWCASE_CATEGORIES, SHOWCASE_CATEGORIES_METADATA } from '../../utils/showcaseClassifier';
 import OptimizedImage from '../OptimizedImage';
 import ImageViewer from '../ImageViewer';
 import Animated3DLogo from '../ui/Animated3DLogo';
 
 export const SHOWCASE_CATEGORIES = [
-  { id: 'all', name: 'الكل', icon: '✨' },
-  { id: 'رجالي', name: 'رجالي', icon: '👞' },
-  { id: 'نسائي', name: 'نسائي', icon: '👠' },
-  { id: 'شبابي', name: 'شبابي', icon: '👟' },
-  { id: 'ولادي', name: 'ولادي', icon: '👦' },
-  { id: 'بناتي', name: 'بناتي', icon: '👧' },
-  { id: 'طفل', name: 'طفل', icon: '🧒' },
-  { id: 'طفلة', name: 'طفلة', icon: '🎀' },
-  { id: 'بيبي', name: 'بيبي', icon: '🍼' },
-  { id: 'مواليد', name: 'مواليد', icon: '👶' },
+  { id: 'all', name: 'الكل', icon: '✨', image: 'https://images.unsplash.com/photo-1558769132-cb1fac0840c8?auto=format&fit=crop&q=80&w=300' },
+  ...SHOWCASE_CATEGORIES_METADATA
 ];
 
 export default function ShowcasePage() {
@@ -355,8 +347,8 @@ export default function ShowcasePage() {
             </div>
           </div>
 
-          {/* 9 Categories Tab Pills */}
-          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 text-xs">
+          {/* Categories Tab Pills */}
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-2 text-xs">
             {SHOWCASE_CATEGORIES.map((cat) => {
               const isSelected = selectedCategory === cat.id;
               const count = categoryCounts[cat.id] || 0;
@@ -364,13 +356,17 @@ export default function ShowcasePage() {
                 <button
                   key={cat.id}
                   onClick={() => setSelectedCategory(cat.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full whitespace-nowrap transition-all border shrink-0 ${
+                  className={`flex items-center gap-2 pr-4 pl-1.5 py-1.5 rounded-full whitespace-nowrap transition-all border shrink-0 ${
                     isSelected
                       ? 'bg-brq-gold text-black font-bold border-brq-gold shadow-[0_0_12px_rgba(251,191,36,0.3)]'
                       : 'bg-white/5 text-white/70 border-white/10 hover:bg-white/10 hover:text-white'
                   }`}
                 >
-                  <span>{cat.icon}</span>
+                  {cat.image ? (
+                    <img src={cat.image} alt={cat.name} className="w-6 h-6 rounded-full object-cover" referrerPolicy="no-referrer" />
+                  ) : (
+                    <span className="w-6 h-6 flex items-center justify-center bg-black/20 rounded-full text-[11px]">{cat.icon}</span>
+                  )}
                   <span>{cat.name}</span>
                   <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
                     isSelected ? 'bg-black/20 text-black' : 'bg-white/10 text-white/50'
