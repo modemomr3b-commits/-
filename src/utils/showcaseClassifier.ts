@@ -1,4 +1,5 @@
 import { Product, Category } from '../types';
+import menCategoryImg from '../assets/images/category_men_1787312072619.jpg';
 
 export const VALID_SHOWCASE_CATEGORIES = [
   'رجالي',
@@ -16,7 +17,7 @@ export const VALID_SHOWCASE_CATEGORIES = [
 export type ShowcaseCategoryType = typeof VALID_SHOWCASE_CATEGORIES[number];
 
 export const SHOWCASE_CATEGORIES_METADATA = [
-  { id: 'رجالي', name: 'رجالي', icon: '👞', image: '/showcase_categories/men.jpg' },
+  { id: 'رجالي', name: 'رجالي', icon: '👞', image: menCategoryImg },
   { id: 'نسائي', name: 'نسائي', icon: '👠', image: 'https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&q=80&w=300' },
   { id: 'شبابي', name: 'شبابي', icon: '👟', image: 'https://images.unsplash.com/photo-1509967419530-da38b4704bc6?auto=format&fit=crop&q=80&w=300' },
   { id: 'ولادي', name: 'ولادي', icon: '👦', image: 'https://images.unsplash.com/photo-1503919545889-aef636e10ad4?auto=format&fit=crop&q=80&w=300' },
