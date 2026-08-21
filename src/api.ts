@@ -446,22 +446,69 @@ export const api = {
       totalQuantity: o.total || o.totalQuantity || 0,
       fullName: o.customerName || o.fullName || o.username || '',
       username: o.username || o.customerName || '',
-      userId: o.customerName || o.username,
+      userId: o.userId || o.username || o.customerName || '',
     }));
   },
   createOrder: async (data: any) => { 
-    const safeData = { ...data };
-    if (safeData.items) { safeData.products = safeData.items; delete safeData.items; }
-    if (safeData.totalQuantity !== undefined) { safeData.total = safeData.totalQuantity; delete safeData.totalQuantity; }
-    if (safeData.fullName !== undefined) { safeData.customerName = safeData.fullName; delete safeData.fullName; }
+    const safeData: any = {};
+    if (data.orderNumber !== undefined) safeData.orderNumber = data.orderNumber;
+    if (data.status !== undefined) safeData.status = data.status;
+    if (data.notes !== undefined) safeData.notes = data.notes;
+    if (data.transport !== undefined) safeData.transport = data.transport;
+    if (data.createdAt !== undefined) safeData.createdAt = data.createdAt;
+    if (data.updatedAt !== undefined) safeData.updatedAt = data.updatedAt;
+    if (data.isDeleted !== undefined) safeData.isDeleted = data.isDeleted;
+
+    safeData.customerName = data.customerName || data.fullName || data.username || 'زبون';
+    safeData.username = data.username || data.customerName || '';
+
+    if (data.products !== undefined) {
+      safeData.products = data.products;
+    } else if (data.items !== undefined) {
+      safeData.products = data.items;
+    } else {
+      safeData.products = [];
+    }
+
+    if (data.total !== undefined) {
+      safeData.total = data.total;
+    } else if (data.totalQuantity !== undefined) {
+      safeData.total = data.totalQuantity;
+    } else {
+      safeData.total = 0;
+    }
+
     const { data: r, error } = await supabase.from('orders').insert(safeData).select().single(); 
     if (error) throw error; return r; 
   },
   updateOrder: async (id: string, data: any) => { 
-    const safeData = { ...data };
-    if (safeData.items) { safeData.products = safeData.items; delete safeData.items; }
-    if (safeData.totalQuantity !== undefined) { safeData.total = safeData.totalQuantity; delete safeData.totalQuantity; }
-    if (safeData.fullName !== undefined) { safeData.customerName = safeData.fullName; delete safeData.fullName; }
+    const safeData: any = {};
+    if (data.orderNumber !== undefined) safeData.orderNumber = data.orderNumber;
+    if (data.status !== undefined) safeData.status = data.status;
+    if (data.notes !== undefined) safeData.notes = data.notes;
+    if (data.transport !== undefined) safeData.transport = data.transport;
+    if (data.updatedAt !== undefined) safeData.updatedAt = data.updatedAt;
+    if (data.isDeleted !== undefined) safeData.isDeleted = data.isDeleted;
+    if (data.deletedAt !== undefined) safeData.deletedAt = data.deletedAt;
+    if (data.deletedBy !== undefined) safeData.deletedBy = data.deletedBy;
+
+    if (data.customerName !== undefined || data.fullName !== undefined) {
+      safeData.customerName = data.customerName || data.fullName;
+    }
+    if (data.username !== undefined) safeData.username = data.username;
+
+    if (data.products !== undefined) {
+      safeData.products = data.products;
+    } else if (data.items !== undefined) {
+      safeData.products = data.items;
+    }
+
+    if (data.total !== undefined) {
+      safeData.total = data.total;
+    } else if (data.totalQuantity !== undefined) {
+      safeData.total = data.totalQuantity;
+    }
+
     const { data: r, error } = await supabase.from('orders').update(safeData).match({ id }).select().single(); 
     if (error) throw error; return r; 
   },
