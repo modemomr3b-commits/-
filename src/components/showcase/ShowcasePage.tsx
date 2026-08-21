@@ -24,7 +24,7 @@ import {
 import { api } from '../../api';
 import { supabase } from '../../supabase';
 import { Product, Category } from '../../types';
-import { detectShowcaseCategory, VALID_SHOWCASE_CATEGORIES, SHOWCASE_CATEGORIES_METADATA } from '../../utils/showcaseClassifier';
+import { detectShowcaseCategory, VALID_SHOWCASE_CATEGORIES, SHOWCASE_CATEGORIES_METADATA, allCategoriesImg } from '../../utils/showcaseClassifier';
 import { createShowcaseInvite } from '../../services/showcaseService';
 import { useStore } from '../../store';
 import OptimizedImage from '../OptimizedImage';
@@ -34,7 +34,7 @@ import ShowcaseAuth from './ShowcaseAuth';
 import ShowcaseCartModal from './ShowcaseCartModal';
 
 export const SHOWCASE_CATEGORIES = [
-  { id: 'all', name: 'كل الأقسام', icon: '✨', image: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&q=80&w=300' },
+  { id: 'all', name: 'كل الأقسام', icon: '✨', image: allCategoriesImg },
   ...SHOWCASE_CATEGORIES_METADATA
 ];
 

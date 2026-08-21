@@ -1,5 +1,17 @@
 import { Product, Category } from '../types';
 import menCategoryImg from '../assets/images/category_men_1787312072619.jpg';
+import womenCategoryImg from '../assets/images/category_women_1787318893725.jpg';
+import youthCategoryImg from '../assets/images/category_youth_1787319166882.jpg';
+import boysCategoryImg from '../assets/images/category_boys_1787319748611.jpg';
+import girlsCategoryImg from '../assets/images/category_girls_gen_1787320846860.jpg';
+import tflaCategoryImg from '../assets/images/category_tfla_1787320971646.jpg';
+import tflCategoryImg from '../assets/images/category_tfl_gen_1787321708245.jpg';
+import babyCategoryImg from '../assets/images/category_baby_gen_1787321857235.jpg';
+import mowaleedCategoryImg from '../assets/images/category_mowaleed_1787322085497.jpg';
+import bagsCategoryImg from '../assets/images/category_bags_1787322379719.jpg';
+import allCategoriesImg from '../assets/images/category_all_1787322398380.jpg';
+
+export { allCategoriesImg, bagsCategoryImg };
 
 export const VALID_SHOWCASE_CATEGORIES = [
   'رجالي',
@@ -18,15 +30,15 @@ export type ShowcaseCategoryType = typeof VALID_SHOWCASE_CATEGORIES[number];
 
 export const SHOWCASE_CATEGORIES_METADATA = [
   { id: 'رجالي', name: 'رجالي', icon: '👞', image: menCategoryImg },
-  { id: 'نسائي', name: 'نسائي', icon: '👠', image: 'https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&q=80&w=300' },
-  { id: 'شبابي', name: 'شبابي', icon: '👟', image: 'https://images.unsplash.com/photo-1509967419530-da38b4704bc6?auto=format&fit=crop&q=80&w=300' },
-  { id: 'ولادي', name: 'ولادي', icon: '👦', image: 'https://images.unsplash.com/photo-1503919545889-aef636e10ad4?auto=format&fit=crop&q=80&w=300' },
-  { id: 'بناتي', name: 'بناتي', icon: '👧', image: 'https://images.unsplash.com/photo-1518831959646-742c3a14ebf7?auto=format&fit=crop&q=80&w=300' },
-  { id: 'طفل', name: 'طفل', icon: '🧒', image: 'https://images.unsplash.com/photo-1519238263530-99bdd11df2ea?auto=format&fit=crop&q=80&w=300' },
-  { id: 'طفلة', name: 'طفلة', icon: '🎀', image: 'https://images.unsplash.com/photo-1519689680058-324335c77eba?auto=format&fit=crop&q=80&w=300' },
-  { id: 'بيبي', name: 'بيبي', icon: '🍼', image: 'https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4?auto=format&fit=crop&q=80&w=300' },
-  { id: 'مواليد', name: 'مواليد', icon: '👶', image: 'https://images.unsplash.com/photo-1544126592-807ade215a0b?auto=format&fit=crop&q=80&w=300' },
-  { id: 'الحقائب', name: 'الحقائب', icon: '👜', image: 'https://images.unsplash.com/photo-1590874103328-eac38a683ce7?auto=format&fit=crop&q=80&w=300' }
+  { id: 'نسائي', name: 'نسائي', icon: '👠', image: womenCategoryImg },
+  { id: 'شبابي', name: 'شبابي', icon: '👟', image: youthCategoryImg },
+  { id: 'ولادي', name: 'ولادي', icon: '👦', image: boysCategoryImg },
+  { id: 'بناتي', name: 'بناتي', icon: '👧', image: girlsCategoryImg },
+  { id: 'طفل', name: 'طفل', icon: '🧒', image: tflCategoryImg },
+  { id: 'طفلة', name: 'طفلة', icon: '🎀', image: tflaCategoryImg },
+  { id: 'بيبي', name: 'بيبي', icon: '🍼', image: babyCategoryImg },
+  { id: 'مواليد', name: 'مواليد', icon: '👶', image: mowaleedCategoryImg },
+  { id: 'الحقائب', name: 'الحقائب', icon: '👜', image: bagsCategoryImg }
 ];
 
 /**
