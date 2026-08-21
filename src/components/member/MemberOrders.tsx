@@ -29,16 +29,18 @@ export default function MemberOrders() {
         if (user) {
           const uName = (user.username || '').toLowerCase().trim();
           const uFull = (user.fullName || '').toLowerCase().trim();
-          const uId = (user.id || user.uid || '').toString();
+          const uId = (user.id || user.uid || '').toString().toLowerCase().trim();
 
           userOrders = allOrders.filter(o => {
              const oUser = (o.userId || '').toString().toLowerCase().trim();
              const oName = (o.username || '').toLowerCase().trim();
-             const oFull = (o.fullName || o.customerName || '').toLowerCase().trim();
+             const oFull = (o.fullName || '').toLowerCase().trim();
+             const oCust = (o.customerName || '').toLowerCase().trim();
+             const oNotes = (o.notes || '').toLowerCase();
 
-             if (uId && oUser === uId) return true;
-             if (uName && (oUser === uName || oName === uName || oFull === uName)) return true;
-             if (uFull && (oUser === uFull || oName === uFull || oFull === uFull)) return true;
+             if (uId && (oUser === uId || oNotes.includes(uId))) return true;
+             if (uName && (oUser === uName || oName === uName || oFull === uName || oCust === uName || oNotes.includes(uName))) return true;
+             if (uFull && (oUser === uFull || oName === uFull || oFull === uFull || oCust === uFull || oNotes.includes(uFull))) return true;
              return false;
           });
         }
@@ -70,14 +72,18 @@ export default function MemberOrders() {
   };
 
   const getOrderCustomerName = (o: Order): string => {
-    if (o.customerName && o.customerName.trim()) {
-      return o.customerName.trim();
-    }
     if (o.notes) {
+      const matchVisitor = o.notes.match(/زائر المعرض:\s*([^\n\r]+)/);
+      if (matchVisitor && matchVisitor[1]?.trim()) {
+        return `زائر المعرض: ${matchVisitor[1].trim()}`;
+      }
       const match = o.notes.match(/اسم الزبون:\s*([^\n\r]+)/);
       if (match && match[1]?.trim()) {
         return match[1].trim();
       }
+    }
+    if (o.customerName && o.customerName.trim()) {
+      return o.customerName.trim();
     }
     if (o.fullName && o.fullName.trim() && o.fullName !== o.username) {
       return o.fullName.trim();

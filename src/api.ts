@@ -440,14 +440,27 @@ export const api = {
   // ORDERS
   getOrders: async () => {
     const data = await getData('orders');
-    return data.map((o: any) => ({
-      ...o,
-      items: o.products || o.items || [],
-      totalQuantity: o.total || o.totalQuantity || 0,
-      fullName: o.customerName || o.fullName || o.username || '',
-      username: o.customerName || o.username || '',
-      userId: o.userId || o.customerName || '',
-    }));
+    return data.map((o: any) => {
+      const notesStr = o.notes || '';
+      const agentMatch = notesStr.match(/الوكيل:\s*([^\n\r\(]+)/);
+      const agentIdMatch = notesStr.match(/معرف الوكيل:\s*([^\n\r]+)/);
+      const custMatch = notesStr.match(/اسم الزبون:\s*([^\n\r]+)/) || notesStr.match(/زائر المعرض:\s*([^\n\r]+)/);
+
+      const parsedAgentName = agentMatch ? agentMatch[1].trim() : '';
+      const parsedAgentId = agentIdMatch ? agentIdMatch[1].trim() : '';
+      const parsedCustomer = custMatch ? custMatch[1].trim() : '';
+
+      return {
+        ...o,
+        items: o.products || o.items || [],
+        totalQuantity: o.total || o.totalQuantity || 0,
+        fullName: parsedAgentName || o.customerName || o.fullName || o.username || '',
+        username: parsedAgentName || o.username || o.customerName || '',
+        userId: parsedAgentId || o.userId || '',
+        customerName: o.customerName || '',
+        displayCustomerName: parsedCustomer || o.customerName || '',
+      };
+    });
   },
   createOrder: async (data: any) => { 
     const safeData: any = {};
@@ -461,17 +474,38 @@ export const api = {
     if (data.deletedAt !== undefined) safeData.deletedAt = data.deletedAt;
     if (data.deletedBy !== undefined) safeData.deletedBy = data.deletedBy;
 
-    // Use customerName to store name identification
-    safeData.customerName = data.customerName || data.fullName || data.username || 'زبون';
+    // Identify agent and customer
+    const agentName = data.agentName || data.username || (data.status === 'pending_agent' ? '' : data.customerName || data.fullName);
+    const agentId = data.userId || data.agentId || '';
+    const visitorOrCust = data.visitorName || (data.status === 'pending_agent' ? data.fullName : data.customerName);
 
-    // Combine notes with transport or agent metadata if provided
-    let combinedNotes = data.notes || '';
-    if (data.transport && !combinedNotes.includes(data.transport)) {
-      combinedNotes = combinedNotes ? `${combinedNotes}\nالنقليات: ${data.transport}` : `النقليات: ${data.transport}`;
+    // Primary owner name in database column
+    safeData.customerName = agentName || data.customerName || data.fullName || data.username || 'زبون';
+
+    // Structured notes with agent and customer details
+    const notesParts: string[] = [];
+    if (data.status === 'pending_agent') {
+      notesParts.push(`طلبية من زائر المعرض: ${visitorOrCust || 'زائر المعرض'}`);
+    } else if (visitorOrCust && visitorOrCust !== safeData.customerName) {
+      notesParts.push(`اسم الزبون: ${visitorOrCust}`);
     }
-    if (combinedNotes) {
-      safeData.notes = combinedNotes;
+
+    if (agentName) {
+      notesParts.push(`الوكيل: ${agentName}`);
     }
+    if (agentId) {
+      notesParts.push(`معرف الوكيل: ${agentId}`);
+    }
+    if (data.transport) {
+      notesParts.push(`النقليات: ${data.transport}`);
+    }
+    if (data.notes) {
+      if (!notesParts.some(p => data.notes.includes(p))) {
+        notesParts.push(data.notes);
+      }
+    }
+
+    safeData.notes = Array.from(new Set(notesParts.filter(Boolean))).join('\n');
 
     if (data.products !== undefined) {
       safeData.products = data.products;
