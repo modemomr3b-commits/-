@@ -1,11 +1,12 @@
 import { formatDateTime, formatDate } from '../../utils/time';
-import { Users, Eye, EyeOff, Plus, Search, Filter, Edit, ShieldX, CheckCircle, KeyRound, MoreVertical, Loader2, X, Trash2, Smartphone, Monitor, Globe } from 'lucide-react';
+import { Users, Eye, EyeOff, Plus, Search, Filter, Edit, ShieldX, CheckCircle, KeyRound, MoreVertical, Loader2, X, Trash2, Smartphone, Monitor, Globe, Sparkles, Calendar, Clock, ExternalLink } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import bcryptjs from 'bcryptjs';
 import { api } from '../../api';
 import { supabase } from '../../supabase';
 import { User, UserRole, DeviceAccess, UserStatus } from '../../types';
 import { useStore } from '../../store';
+import { getShowcaseVisits, ShowcaseVisitRecord } from '../../services/showcaseService';
 
 import { UserManagerErrorBoundary } from "./UserManagerErrorBoundary";
 
@@ -23,33 +24,20 @@ function UserManagerContent() {
   });
   const [searchQuery, setSearchQuery] = useState('');
   const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set());
-  const [showcaseVisits, setShowcaseVisits] = useState<any[]>([]);
+  const [showcaseVisits, setShowcaseVisits] = useState<ShowcaseVisitRecord[]>([]);
+  const [allVisitsModalOpen, setAllVisitsModalOpen] = useState(false);
+  const [selectedAgentVisits, setSelectedAgentVisits] = useState<{ user: User; visits: ShowcaseVisitRecord[] } | null>(null);
+  const [modalSearch, setModalSearch] = useState('');
+  const [modalAgentFilter, setModalAgentFilter] = useState('all');
 
   useEffect(() => {
     let mounted = true;
     const fetchUsers = async () => {
       try {
-        const [dbUsers, visitsRes] = await Promise.all([
+        const [dbUsers, visitsData] = await Promise.all([
           api.getUsers().catch(err => { console.error('api.getUsers error:', err); return []; }),
-          fetch('/api/showcase/visits').catch(() => null)
+          getShowcaseVisits().catch(err => { console.error('getShowcaseVisits error:', err); return []; })
         ]);
-        
-        let visitsData: any[] = [];
-        if (visitsRes && visitsRes.ok) {
-          try {
-            visitsData = await visitsRes.json();
-          } catch {}
-        }
-        
-        // Fallback for visits if API returns non-json or empty
-        if (!visitsData || visitsData.length === 0) {
-          try {
-            const { data: vSettings } = await supabase.from('settings').select('*').match({ id: 'showcase_visits' }).maybeSingle();
-            if (vSettings && vSettings.data && Array.isArray(vSettings.data)) {
-              visitsData = vSettings.data;
-            }
-          } catch {}
-        }
 
         if (mounted) {
           if (!Array.isArray(dbUsers)) { 
@@ -245,6 +233,34 @@ function UserManagerContent() {
       }
   };
 
+  const formatTimeAgo = (timestamp?: number) => {
+    if (!timestamp) return '-';
+    const diffMins = Math.floor((Date.now() - timestamp) / 60000);
+    if (diffMins < 1) return 'الآن';
+    if (diffMins < 60) return `منذ ${diffMins} د`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `منذ ${diffHours} س`;
+    const diffDays = Math.floor(diffHours / 24);
+    return `منذ ${diffDays} ي`;
+  };
+
+  const getUserShowcaseVisits = (user: User) => {
+    const uId = String(user.uid || user.id || '').toLowerCase().trim();
+    const uName = String(user.username || '').toLowerCase().trim();
+    const uFull = String(user.fullName || '').toLowerCase().trim();
+
+    return showcaseVisits.filter(v => {
+      const vAgentId = String(v.agentId || '').toLowerCase().trim();
+      const vAgentName = String(v.agentName || '').toLowerCase().trim();
+
+      return (
+        (uId && (vAgentId === uId || vAgentName === uId)) ||
+        (uName && (vAgentId === uName || vAgentName === uName)) ||
+        (uFull && (vAgentId === uFull || vAgentName === uFull))
+      );
+    });
+  };
+
   // Online detection: activity within last 5 minutes (300000 ms)
   const isUserOnline = (user: User) => {
       if (user.isOnline) return true;
@@ -274,22 +290,47 @@ function UserManagerContent() {
     );
   });
 
+  const filteredShowcaseVisits = showcaseVisits.filter(v => {
+    if (modalAgentFilter !== 'all') {
+      const filterKey = modalAgentFilter.toLowerCase().trim();
+      const vAgentId = String(v.agentId || '').toLowerCase().trim();
+      const vAgentName = String(v.agentName || '').toLowerCase().trim();
+      if (vAgentId !== filterKey && vAgentName !== filterKey) return false;
+    }
+    if (!modalSearch) return true;
+    const sq = modalSearch.toLowerCase().trim();
+    return (
+      (v.visitorName && v.visitorName.toLowerCase().includes(sq)) ||
+      (v.agentName && v.agentName.toLowerCase().includes(sq)) ||
+      (v.agentId && v.agentId.toLowerCase().includes(sq))
+    );
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
          <div>
-             <h2 className="text-2xl font-bold text-white mb-1">إدارة المستخدمين</h2>
-             <p className="text-sm text-white/50">التحكم في الصلاحيات والمستخدمين النشطين</p>
+             <h2 className="text-2xl font-bold text-white mb-1">إدارة المستخدمين والمعرض</h2>
+             <p className="text-sm text-white/50">التحكم في الصلاحيات والمستخدمين وزوار روابط المعرض</p>
          </div>
-         <button onClick={() => {
-            if (!isAdding) {
-               const maxNum = users.reduce((max, u) => Math.max(max, u.userNumber || 0), 0);
-               setNewUser(prev => ({ ...prev, userNumber: maxNum + 1 }));
-            }
-            setIsAdding(!isAdding);
-         }} className="flex items-center justify-center gap-2 py-2.5 px-4 bg-brq-royal hover:bg-blue-600 text-white rounded-xl transition-all text-sm font-bold shadow-[0_4px_15px_rgba(30,94,255,0.3)]">
-             <Plus size={18} /> إضافة مستخدم
-         </button>
+         <div className="flex flex-wrap items-center gap-2.5">
+            <button 
+              onClick={() => setAllVisitsModalOpen(true)}
+              className="flex items-center justify-center gap-2 py-2.5 px-4 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 rounded-xl transition-all text-sm font-bold shadow-[0_4px_15px_rgba(245,158,11,0.2)] active:scale-95"
+            >
+               <Eye size={18} />
+               <span>سجل زوار المعرض ({showcaseVisits.length} زائر)</span>
+            </button>
+            <button onClick={() => {
+               if (!isAdding) {
+                  const maxNum = users.reduce((max, u) => Math.max(max, u.userNumber || 0), 0);
+                  setNewUser(prev => ({ ...prev, userNumber: maxNum + 1 }));
+               }
+               setIsAdding(!isAdding);
+            }} className="flex items-center justify-center gap-2 py-2.5 px-4 bg-brq-royal hover:bg-blue-600 text-white rounded-xl transition-all text-sm font-bold shadow-[0_4px_15px_rgba(30,94,255,0.3)] active:scale-95">
+                <Plus size={18} /> إضافة مستخدم
+            </button>
+         </div>
       </div>
 
       {isAdding && (
@@ -418,6 +459,19 @@ function UserManagerContent() {
                 <span className="text-sm">المستخدمين الموقوفين</span>
                 <span className="text-xl font-bold text-red-400">{users.length - activeUsersCount}</span>
             </div>
+            <div className="flex items-center justify-between pt-3 border-t border-white/10">
+                <div className="flex items-center gap-1.5 text-amber-300">
+                   <Eye size={15} />
+                   <span className="text-xs font-bold">إجمالي زوار المعرض</span>
+                </div>
+                <button 
+                  onClick={() => setAllVisitsModalOpen(true)}
+                  className="text-lg font-bold text-amber-400 hover:text-amber-300 underline font-mono cursor-pointer"
+                  title="عرض سجل جميع الزوار"
+                >
+                  {showcaseVisits.length}
+                </button>
+            </div>
          </div>
 
          {/* Users Table */}
@@ -467,6 +521,8 @@ function UserManagerContent() {
                                else if (diffMins < 60) lastActivityText = `منذ ${diffMins} دقيقة`;
                                else lastActivityText = formatDate(user.lastActive);
                            }
+
+                           const userVisits = getUserShowcaseVisits(user);
 
                            return (
                            <tr key={user.uid} className="hover:bg-white/5 transition-colors">
@@ -525,15 +581,43 @@ function UserManagerContent() {
                                   {lastActivityText}
                               </td>
                               <td className="p-4">
-                                <div className="flex flex-col gap-1 max-h-24 overflow-y-auto no-scrollbar w-32">
-                                   <div className="text-[11px] text-brq-gold font-bold">
-                                      {showcaseVisits.filter(v => String(v.agentId) === String(user.uid)).length} زائر
-                                   </div>
-                                   {showcaseVisits.filter(v => String(v.agentId) === String(user.uid)).map((v, i) => (
-                                      <div key={i} className="text-[10px] text-white/60 truncate" title={`${v.visitorName} (${new Date(v.timestamp).toLocaleDateString()})`}>
-                                         - {v.visitorName}
+                                <div className="flex flex-col gap-1 min-w-[130px]">
+                                   <button
+                                      onClick={() => setSelectedAgentVisits({ user, visits: userVisits })}
+                                      className={`flex items-center justify-between gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+                                         userVisits.length > 0
+                                            ? 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border-amber-500/30 shadow-[0_0_10px_rgba(245,158,11,0.15)]'
+                                            : 'bg-white/5 text-white/40 border-white/5 hover:bg-white/10'
+                                      }`}
+                                      title="انقر لفتح سجل زوار هذا الحساب"
+                                   >
+                                      <span className="flex items-center gap-1.5">
+                                         <Eye size={14} className={userVisits.length > 0 ? 'text-amber-400' : 'text-white/30'} />
+                                         <span>{userVisits.length} زائر</span>
+                                      </span>
+                                      {userVisits.length > 0 && (
+                                         <span className="text-[10px] bg-amber-400/20 px-1.5 py-0.5 rounded text-amber-200">عرض</span>
+                                      )}
+                                   </button>
+
+                                   {userVisits.length > 0 && (
+                                      <div className="flex flex-col gap-0.5 max-h-16 overflow-y-auto no-scrollbar pr-0.5">
+                                         {userVisits.slice(0, 2).map((v, i) => (
+                                            <div key={i} className="text-[10px] text-white/70 flex items-center justify-between gap-1 truncate" title={`${v.visitorName} (${formatDateTime(v.timestamp)})`}>
+                                               <span className="truncate text-amber-200/90">• {v.visitorName}</span>
+                                               <span className="text-[9px] text-white/40 shrink-0">{formatTimeAgo(v.timestamp)}</span>
+                                            </div>
+                                         ))}
+                                         {userVisits.length > 2 && (
+                                            <button 
+                                               onClick={() => setSelectedAgentVisits({ user, visits: userVisits })}
+                                               className="text-[9px] text-amber-400/80 font-bold hover:underline text-right"
+                                            >
+                                               +{userVisits.length - 2} زوار آخرين...
+                                            </button>
+                                         )}
                                       </div>
-                                   ))}
+                                   )}
                                 </div>
                               </td>
                               <td className="p-4">
@@ -556,7 +640,183 @@ function UserManagerContent() {
                            </tr>
                         )})}
                      </tbody>
-                  </table></div></>)}</div></div></div>);}
+                  </table></div></>)}</div></div>
+
+      {/* Modal 1: Selected Agent Visitors Modal */}
+      {selectedAgentVisits && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="glass-panel w-full max-w-lg rounded-2xl border border-amber-500/30 bg-slate-950 p-6 relative shadow-2xl flex flex-col max-h-[85vh]">
+            <button 
+              onClick={() => setSelectedAgentVisits(null)}
+              className="absolute top-4 left-4 p-2 text-white/50 hover:text-white bg-white/5 hover:bg-white/10 rounded-full transition-colors"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="flex items-center gap-3 mb-4 pb-4 border-b border-white/10">
+              <div className="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+                <Eye size={24} />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white">سجل زوار المعرض للوكيل</h3>
+                <p className="text-xs text-amber-300/90 font-medium mt-0.5">
+                  {selectedAgentVisits.user.fullName || selectedAgentVisits.user.username} (#{selectedAgentVisits.user.userNumber || '-'})
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between mb-3 text-xs bg-white/5 p-3 rounded-xl border border-white/5">
+              <span className="text-white/60">إجمالي الزوار المسجلين لهذا الوكيل:</span>
+              <span className="text-amber-400 font-bold text-sm font-mono">{selectedAgentVisits.visits.length} زائر</span>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+              {selectedAgentVisits.visits.length === 0 ? (
+                <div className="text-center py-10 text-white/40 text-xs">
+                  لم يقم أي زائر بالدخول عبر رابط هذا الوكيل حتى الآن.
+                </div>
+              ) : (
+                selectedAgentVisits.visits.map((visit, idx) => (
+                  <div key={idx} className="p-3 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between hover:bg-white/10 transition-colors">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-300 font-bold text-xs shrink-0">
+                        {idx + 1}
+                      </div>
+                      <div>
+                        <div className="text-sm font-bold text-white">{visit.visitorName}</div>
+                        <div className="text-[11px] text-white/40 flex items-center gap-1.5 mt-0.5">
+                          <Clock size={11} />
+                          <span>{formatDateTime(visit.timestamp)}</span>
+                          <span className="text-amber-300/80">({formatTimeAgo(visit.timestamp)})</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-left">
+                      <span className="px-2 py-0.5 text-[10px] rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">
+                        {visit.inviteToken ? 'رابط دعوة' : 'دخول مباشر'}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="mt-4 pt-3 border-t border-white/10 flex justify-end">
+              <button 
+                onClick={() => setSelectedAgentVisits(null)}
+                className="px-5 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-colors"
+              >
+                إغلاق
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal 2: All Showcase Visitors Modal */}
+      {allVisitsModalOpen && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="glass-panel w-full max-w-3xl rounded-2xl border border-amber-500/30 bg-slate-950 p-6 relative shadow-2xl flex flex-col max-h-[90vh]">
+            <button 
+              onClick={() => setAllVisitsModalOpen(false)}
+              className="absolute top-4 left-4 p-2 text-white/50 hover:text-white bg-white/5 hover:bg-white/10 rounded-full transition-colors"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="flex items-center gap-3 mb-4 pb-4 border-b border-white/10">
+              <div className="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+                <Eye size={24} />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-white">سجل جميع زوار المعرض</h3>
+                <p className="text-xs text-white/50">
+                  متابعة حية وشاملة لجميع الزوار الذين دخلوا عبر روابط وكلاء المعرض
+                </p>
+              </div>
+            </div>
+
+            {/* Filter and Search */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+              <div className="relative">
+                <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 w-4 h-4" />
+                <input 
+                  type="text"
+                  value={modalSearch}
+                  onChange={(e) => setModalSearch(e.target.value)}
+                  className="w-full bg-black/40 border border-white/10 rounded-lg pr-10 pl-4 py-2 text-xs focus:outline-none focus:border-amber-500/50 text-white"
+                  placeholder="بحث باسم الزائر أو الوكيل..."
+                />
+              </div>
+              <select 
+                value={modalAgentFilter}
+                onChange={(e) => setModalAgentFilter(e.target.value)}
+                className="bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs focus:border-amber-500/50 outline-none text-white"
+              >
+                <option value="all">جميع الوكلاء والحسابات ({showcaseVisits.length} زائر)</option>
+                {users.map(u => {
+                  const count = getUserShowcaseVisits(u).length;
+                  return (
+                    <option key={u.uid} value={u.username || u.fullName}>
+                      {u.fullName || u.username} ({count} زائر)
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+
+            {/* Visits List */}
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+              {filteredShowcaseVisits.length === 0 ? (
+                <div className="text-center py-12 text-white/40 text-sm">
+                  لا توجد زيارات مسجلة تطابق خيارات البحث.
+                </div>
+              ) : (
+                filteredShowcaseVisits.map((visit, idx) => (
+                  <div key={idx} className="p-3.5 rounded-xl bg-white/5 border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:bg-white/10 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-300 font-bold text-xs shrink-0">
+                        {idx + 1}
+                      </div>
+                      <div>
+                        <div className="text-sm font-bold text-white flex flex-wrap items-center gap-2">
+                          <span>{visit.visitorName}</span>
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/20 font-medium">
+                            الوكيل: {visit.agentName}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-white/40 flex items-center gap-2 mt-1">
+                          <Clock size={11} />
+                          <span>{formatDateTime(visit.timestamp)}</span>
+                          <span className="text-amber-300/80 font-mono">({formatTimeAgo(visit.timestamp)})</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-left flex items-center gap-2 self-end sm:self-auto">
+                      <span className="px-2.5 py-1 text-[11px] rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">
+                        {visit.inviteToken ? 'رابط دعوة خاص' : 'دخول مباشر'}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="mt-4 pt-3 border-t border-white/10 flex items-center justify-between text-xs text-white/50">
+              <span>المعروض: {filteredShowcaseVisits.length} من إجمالي {showcaseVisits.length} زائر</span>
+              <button 
+                onClick={() => setAllVisitsModalOpen(false)}
+                className="px-5 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-colors"
+              >
+                إغلاق
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 export default function UserManager() {
   return (
     <UserManagerErrorBoundary>

@@ -540,12 +540,55 @@ Photorealistic studio shot, 8k resolution, crisp focus, commercial catalog quali
 
   app.get('/api/showcase/visits', async (req, res) => {
     try {
-      const { data: visitsData } = await supabaseAdmin.from('settings').select('*').match({ id: 'showcase_visits' }).single();
-      if (visitsData && visitsData.data) {
-        res.json(visitsData.data);
-      } else {
-        res.json([]);
+      const [visitsRes, invitesRes] = await Promise.all([
+        supabaseAdmin.from('settings').select('*').match({ id: 'showcase_visits' }).maybeSingle(),
+        supabaseAdmin.from('settings').select('*').match({ id: 'showcase_invites' }).maybeSingle()
+      ]);
+
+      const visitsList: any[] = [];
+      const seen = new Set<string>();
+
+      if (visitsRes?.data?.data && Array.isArray(visitsRes.data.data)) {
+        for (const v of visitsRes.data.data) {
+          const timeKey = Math.floor((v.timestamp || 0) / 10000);
+          const key = `${v.visitorName}_${v.agentName || v.agentId}_${timeKey}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            visitsList.push({
+              id: v.id || `vis_${v.timestamp}`,
+              visitorName: v.visitorName || 'زائر',
+              agentId: v.agentId || v.agentName || '',
+              agentName: v.agentName || 'الوكيل',
+              timestamp: v.timestamp || Date.now(),
+              inviteToken: v.inviteToken || null,
+              method: v.inviteToken ? 'invite' : 'credentials'
+            });
+          }
+        }
       }
+
+      if (invitesRes?.data?.data && Array.isArray(invitesRes.data.data)) {
+        for (const inv of invitesRes.data.data) {
+          if (inv.isUsed && inv.usedByVisitor) {
+            const timeKey = Math.floor((inv.usedAt || inv.createdAt || 0) / 10000);
+            const key = `${inv.usedByVisitor}_${inv.agentName || inv.agentId}_${timeKey}`;
+            if (!seen.has(key)) {
+              seen.add(key);
+              visitsList.push({
+                id: inv.id || `inv_${inv.token}`,
+                visitorName: inv.usedByVisitor,
+                agentId: inv.agentId || inv.agentName,
+                agentName: inv.agentName || 'الوكيل',
+                timestamp: inv.usedAt || inv.createdAt || Date.now(),
+                inviteToken: inv.token,
+                method: 'invite'
+              });
+            }
+          }
+        }
+      }
+
+      res.json(visitsList.sort((a, b) => b.timestamp - a.timestamp));
     } catch (e) {
       res.json([]);
     }

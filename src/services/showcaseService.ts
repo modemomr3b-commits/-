@@ -257,7 +257,7 @@ export async function loginShowcase(params: {
     await supabase.from('settings').upsert({ id: 'showcase_invites', data: invites });
 
     // Log visit
-    logShowcaseVisitDirectly(currentInvite.agentName, cleanVisitor);
+    logShowcaseVisitDirectly(currentInvite.agentId, currentInvite.agentName, cleanVisitor, currentInvite.token);
 
     return {
       agent: {
@@ -278,7 +278,7 @@ export async function loginShowcase(params: {
 
   // Demo accounts
   if (cleanUsername === '1' && cleanPassword === '100') {
-    logShowcaseVisitDirectly('المستخدم 1', cleanVisitor);
+    logShowcaseVisitDirectly('1', 'المستخدم 1', cleanVisitor);
     return {
       agent: { id: '1', fullName: 'المستخدم 1', username: '1' },
       visitorName: cleanVisitor
@@ -286,7 +286,7 @@ export async function loginShowcase(params: {
   }
 
   if (cleanUsername === 'wafaa' && cleanPassword === 'brq') {
-    logShowcaseVisitDirectly('مدير النظام', cleanVisitor);
+    logShowcaseVisitDirectly('wafaa', 'مدير النظام', cleanVisitor);
     return {
       agent: { id: 'wafaa', fullName: 'مدير النظام', username: 'wafaa' },
       visitorName: cleanVisitor
@@ -321,7 +321,7 @@ export async function loginShowcase(params: {
     throw new Error('حساب الوكيل موقوف.');
   }
 
-  logShowcaseVisitDirectly(udoc.fullName || udoc.username, cleanVisitor);
+  logShowcaseVisitDirectly(udoc.id || udoc.uid || udoc.username, udoc.fullName || udoc.username, cleanVisitor);
 
   return {
     agent: {
@@ -333,7 +333,7 @@ export async function loginShowcase(params: {
   };
 }
 
-async function logShowcaseVisitDirectly(agentName: string, visitorName: string) {
+export async function logShowcaseVisitDirectly(agentId: string, agentName: string, visitorName: string, inviteToken?: string) {
   try {
     const { data: visitsData } = await supabase
       .from('settings')
@@ -348,8 +348,10 @@ async function logShowcaseVisitDirectly(agentName: string, visitorName: string) 
 
     visits.push({
       id: 'vis_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6),
-      agentName,
+      agentId: agentId || '',
+      agentName: agentName || 'الوكيل',
       visitorName,
+      inviteToken: inviteToken || null,
       timestamp: Date.now(),
       ip: 'Client Direct'
     });
@@ -361,5 +363,72 @@ async function logShowcaseVisitDirectly(agentName: string, visitorName: string) 
     await supabase.from('settings').upsert({ id: 'showcase_visits', data: visits });
   } catch (e) {
     console.warn("Could not log showcase visit:", e);
+  }
+}
+
+export interface ShowcaseVisitRecord {
+  id: string;
+  visitorName: string;
+  agentId: string;
+  agentName: string;
+  timestamp: number;
+  inviteToken?: string | null;
+  method: 'invite' | 'credentials';
+}
+
+export async function getShowcaseVisits(): Promise<ShowcaseVisitRecord[]> {
+  try {
+    const [visitsRes, invitesRes] = await Promise.all([
+      supabase.from('settings').select('*').match({ id: 'showcase_visits' }).maybeSingle(),
+      supabase.from('settings').select('*').match({ id: 'showcase_invites' }).maybeSingle()
+    ]);
+
+    const visitsList: ShowcaseVisitRecord[] = [];
+    const seen = new Set<string>();
+
+    if (visitsRes?.data?.data && Array.isArray(visitsRes.data.data)) {
+      for (const v of visitsRes.data.data) {
+        const timeKey = Math.floor((v.timestamp || 0) / 10000);
+        const key = `${v.visitorName}_${v.agentName || v.agentId}_${timeKey}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          visitsList.push({
+            id: v.id || `vis_${v.timestamp}`,
+            visitorName: v.visitorName || 'زائر',
+            agentId: v.agentId || v.agentName || '',
+            agentName: v.agentName || 'الوكيل',
+            timestamp: v.timestamp || Date.now(),
+            inviteToken: v.inviteToken || null,
+            method: v.inviteToken ? 'invite' : 'credentials'
+          });
+        }
+      }
+    }
+
+    if (invitesRes?.data?.data && Array.isArray(invitesRes.data.data)) {
+      for (const inv of invitesRes.data.data) {
+        if (inv.isUsed && inv.usedByVisitor) {
+          const timeKey = Math.floor((inv.usedAt || inv.createdAt || 0) / 10000);
+          const key = `${inv.usedByVisitor}_${inv.agentName || inv.agentId}_${timeKey}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            visitsList.push({
+              id: inv.id || `inv_${inv.token}`,
+              visitorName: inv.usedByVisitor,
+              agentId: inv.agentId || inv.agentName,
+              agentName: inv.agentName || 'الوكيل',
+              timestamp: inv.usedAt || inv.createdAt || Date.now(),
+              inviteToken: inv.token,
+              method: 'invite'
+            });
+          }
+        }
+      }
+    }
+
+    return visitsList.sort((a, b) => b.timestamp - a.timestamp);
+  } catch (e) {
+    console.error("Error fetching showcase visits:", e);
+    return [];
   }
 }
