@@ -2745,16 +2745,16 @@ export default function ProductManager() {
                 >
                   <option value="">اختر القسم الرئيسي...</option>
                   {categories
-                    .filter((c) => !c.parentId && !c.isHidden)
+                    .filter((c) => !c.parentId)
                     .map((cat) => (
                       <option key={cat.id} value={cat.id}>
-                        {cat.name}
+                        {cat.name} {cat.isHidden ? " (مخفي)" : ""}
                       </option>
                     ))}
                 </select>
               </div>
               
-              {moveToCategoryId && categories.some(c => c.parentId === moveToCategoryId && !c.isHidden) && (
+              {moveToCategoryId && categories.some(c => c.parentId === moveToCategoryId) && (
                 <div>
                   <label className="block text-sm font-medium text-white mb-1">
                     القسم الفرعي
@@ -2766,10 +2766,10 @@ export default function ProductManager() {
                   >
                     <option value="">بدون قسم فرعي (اختياري)</option>
                     {categories
-                      .filter((c) => c.parentId === moveToCategoryId && !c.isHidden)
+                      .filter((c) => c.parentId === moveToCategoryId)
                       .map((cat) => (
                         <option key={cat.id} value={cat.id}>
-                          {cat.name}
+                          {cat.name} {cat.isHidden ? " (مخفي)" : ""}
                         </option>
                       ))}
                   </select>
