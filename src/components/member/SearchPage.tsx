@@ -87,11 +87,9 @@ export default function SearchPage() {
   const filteredProductsAll = useMemo(() => {
     if (!query) return [];
     
-    let result = products.filter(p => !p.isLocked);
+    let result = products;
     if (searchArchived) {
       result = result.filter(p => p.isArchived);
-    } else {
-      result = result.filter(p => !p.isArchived && !p.isHidden);
     }
     
     return filterProductsBySearch(result, query, allCategories);
@@ -226,9 +224,23 @@ export default function SearchPage() {
                          ) : (
                            <span className="text-4xl opacity-50">👟</span>
                          )}
-                         {p.isArchived && (
-                           <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                             <span className="bg-red-500/80 text-white px-3 py-1 rounded-full text-xs font-bold border border-white/20 backdrop-blur-md">غير متوفر</span>
+                         {(p.isArchived || p.isHidden || p.isLocked) && (
+                           <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center p-2 z-10 pointer-events-none gap-1">
+                             {p.isArchived && (
+                               <span className="bg-red-600/90 text-white px-2.5 py-1 rounded-full text-[11px] font-bold border border-red-400 backdrop-blur-md shadow-md">
+                                 📦 مادة نافذة
+                               </span>
+                             )}
+                             {p.isLocked && (
+                               <span className="bg-amber-600/90 text-white px-2.5 py-1 rounded-full text-[11px] font-bold border border-amber-400 backdrop-blur-md shadow-md">
+                                 🔒 مقفل
+                               </span>
+                             )}
+                             {p.isHidden && !p.isArchived && (
+                               <span className="bg-zinc-800/90 text-white px-2.5 py-1 rounded-full text-[11px] font-bold border border-zinc-500 backdrop-blur-md shadow-md">
+                                 🚫 غير مفعل
+                               </span>
+                             )}
                            </div>
                          )}
                          {(p.finalImageUrl || p.imageUrl) && (

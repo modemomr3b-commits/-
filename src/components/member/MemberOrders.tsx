@@ -7,6 +7,7 @@ import { Link } from 'react-router';
 import OptimizedImage from '../OptimizedImage';
 import { downloadImages } from '../../utils/download';
 import { printOrderInvoice } from '../../utils/printOrder';
+import { parseOrderDetails } from '../../utils/orderUtils';
 
 export default function MemberOrders() {
   const { user, showToast } = useStore();
@@ -18,6 +19,7 @@ export default function MemberOrders() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState<{ progress: number; total: number } | null>(null);
+  const [processingOrderIds, setProcessingOrderIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const fetchOrders = async () => {
@@ -71,38 +73,22 @@ export default function MemberOrders() {
     }
   };
 
-  const getOrderCustomerName = (o: Order): string => {
-    if (o.notes) {
-      const matchVisitor = o.notes.match(/زائر المعرض:\s*([^\n\r]+)/);
-      if (matchVisitor && matchVisitor[1]?.trim()) {
-        return `زائر المعرض: ${matchVisitor[1].trim()}`;
-      }
-      const match = o.notes.match(/اسم الزبون:\s*([^\n\r]+)/);
-      if (match && match[1]?.trim()) {
-        return match[1].trim();
-      }
-    }
-    if (o.customerName && o.customerName.trim()) {
-      return o.customerName.trim();
-    }
-    if (o.fullName && o.fullName.trim() && o.fullName !== o.username) {
-      return o.fullName.trim();
-    }
-    return o.fullName || o.username || "";
-  };
-
   const filteredOrders = orders.filter(o => {
-    const custName = getOrderCustomerName(o);
+    const info = parseOrderDetails(o);
     return (
       !searchTerm || 
       (o.orderNumber || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (o.customerName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      custName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      info.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      info.agentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      info.transport.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (o.notes || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
   });
 
   const handleAgentAction = async (orderId: string, action: 'approve' | 'reject') => {
+    if (processingOrderIds.has(orderId)) return;
+    setProcessingOrderIds(prev => new Set(prev).add(orderId));
     try {
       const newStatus = action === 'approve' ? 'new' : 'cancelled';
       await api.updateOrder(orderId, { status: newStatus });
@@ -113,6 +99,12 @@ export default function MemberOrders() {
       showToast(action === 'approve' ? 'تم الموافقة على الطلبية وإرسالها للإدارة' : 'تم رفض الطلبية');
     } catch (err) {
       showToast('حدث خطأ، يرجى المحاولة مرة أخرى', 'error');
+    } finally {
+      setProcessingOrderIds(prev => {
+        const next = new Set(prev);
+        next.delete(orderId);
+        return next;
+      });
     }
   };
 
@@ -220,6 +212,7 @@ export default function MemberOrders() {
           {filteredOrders.map(order => {
             const statusConfig = getStatusDisplay(order.status);
             const StatusIcon = statusConfig.icon;
+            const info = parseOrderDetails(order);
             
             return (
               <div 
@@ -231,11 +224,11 @@ export default function MemberOrders() {
                   <div className="space-y-1">
                     <span className="text-xs text-white/50 block">رقم الطلب</span>
                     <span className="font-mono font-bold text-lg text-white group-hover:text-brq-gold transition-colors">{order.orderNumber}</span>
-                    {getOrderCustomerName(order) && (
+                    {info.customerName && (
                       <div className="flex items-center gap-1.5 pt-1">
                         <span className="text-[11px] text-white/50 font-medium">الزبون:</span>
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-md bg-amber-300 border border-amber-400 text-black font-black text-xs shadow-sm">
-                          {getOrderCustomerName(order)}
+                          {info.customerName}
                         </span>
                       </div>
                     )}
@@ -332,13 +325,24 @@ export default function MemberOrders() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => handleAgentAction(selectedOrder.id, 'approve')}
-                    className="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg"
+                    disabled={processingOrderIds.has(selectedOrder.id)}
+                    className="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <CheckCircle size={16} /> الموافقة وإرسال للإدارة
+                    {processingOrderIds.has(selectedOrder.id) ? (
+                      <>
+                        <Loader2 size={16} className="animate-spin" />
+                        <span>جاري المعالجة...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle size={16} /> الموافقة وإرسال للإدارة
+                      </>
+                    )}
                   </button>
                   <button
                     onClick={() => handleAgentAction(selectedOrder.id, 'reject')}
-                    className="flex-1 py-2.5 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg"
+                    disabled={processingOrderIds.has(selectedOrder.id)}
+                    className="flex-1 py-2.5 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <XCircle size={16} /> رفض
                   </button>
@@ -369,37 +373,54 @@ export default function MemberOrders() {
               <button
                 onClick={() => printOrderInvoice(selectedOrder)}
                 className="py-3 px-4 bg-white/10 hover:bg-white/20 text-white font-bold rounded-xl border border-white/20 flex items-center justify-center gap-2 transition-all text-sm shadow-md"
-                title="طباعة الطلبية (25 منتج في الورقة الواحدة)"
+                title="طباعة الطلبية (50 مادة بالورقة)"
               >
                 <Printer size={18} className="text-brq-gold" />
-                <span>طباعة الطلبية (25 مادة بالورقة)</span>
+                <span>طباعة الطلبية (50 مادة بالورقة)</span>
               </button>
             </div>
 
-            {/* Prominent Customer Name Banner */}
-            {getOrderCustomerName(selectedOrder) && (
-              <div className="p-4 bg-gradient-to-r from-amber-300 via-yellow-300 to-amber-400 rounded-2xl border-2 border-amber-500/50 shadow-lg text-black space-y-1">
-                <div className="text-xs font-bold text-black/70">اسم الزبون:</div>
-                <div className="flex items-center gap-2">
-                  <User size={24} className="text-black flex-shrink-0" />
-                  <span className="text-xl sm:text-2xl font-black text-black tracking-tight">
-                    {getOrderCustomerName(selectedOrder)}
-                  </span>
-                </div>
-              </div>
-            )}
+            {/* Customer, Transport & Notes Info */}
+            {(() => {
+              const modalInfo = parseOrderDetails(selectedOrder);
+              return (
+                <div className="space-y-3">
+                  {modalInfo.customerName && (
+                    <div className="p-4 bg-gradient-to-r from-amber-300 via-yellow-300 to-amber-400 rounded-2xl border-2 border-amber-500/50 shadow-lg text-black space-y-1">
+                      <div className="text-xs font-bold text-black/70">اسم الزبون:</div>
+                      <div className="flex items-center gap-2">
+                        <User size={24} className="text-black flex-shrink-0" />
+                        <span className="text-xl sm:text-2xl font-black text-black tracking-tight">
+                          {modalInfo.customerName}
+                        </span>
+                      </div>
+                    </div>
+                  )}
 
-            {/* Customer & Transport Details */}
-            {selectedOrder.notes && (
-              <div className="bg-white/5 p-4 rounded-2xl border border-white/5 space-y-2">
-                <h3 className="text-xs font-bold text-brq-gold flex items-center gap-1.5">
-                  <FileText size={16} /> معلومات الطلب والزبون والنقليات
-                </h3>
-                <p className="text-sm text-white/80 whitespace-pre-line leading-relaxed font-sans">
-                  {selectedOrder.notes}
-                </p>
-              </div>
-            )}
+                  {modalInfo.transport && (
+                    <div className="bg-blue-500/10 border border-blue-500/20 p-3.5 rounded-xl space-y-1">
+                      <div className="text-xs font-bold text-blue-300 flex items-center gap-1.5">
+                        <Truck size={15} /> النقليات والشحن:
+                      </div>
+                      <p className="text-sm text-white font-bold pr-5">
+                        {modalInfo.transport}
+                      </p>
+                    </div>
+                  )}
+
+                  {modalInfo.notes && (
+                    <div className="bg-white/5 p-4 rounded-2xl border border-white/5 space-y-2">
+                      <h3 className="text-xs font-bold text-brq-gold flex items-center gap-1.5">
+                        <FileText size={16} /> ملاحظات الطلبية:
+                      </h3>
+                      <p className="text-sm text-white/90 whitespace-pre-line leading-relaxed font-sans pr-5">
+                        {modalInfo.notes}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Products List */}
             <div className="space-y-3">

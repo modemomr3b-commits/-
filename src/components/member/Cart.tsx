@@ -1,6 +1,6 @@
-import { ShoppingBag, CheckCircle, Send, Plus, Minus, Trash2, ArrowRight } from 'lucide-react';
+import { ShoppingBag, CheckCircle, Send, Plus, Minus, Trash2, ArrowRight, Loader2 } from 'lucide-react';
 import { useStore } from '../../store';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { compressImage } from '../../utils/compressImage';
 
 import { api } from '../../api';
@@ -13,8 +13,10 @@ export default function Cart() {
   const [customerName, setCustomerName] = useState('');
   const [transport, setTransport] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSharingWhatsapp, setIsSharingWhatsapp] = useState(false);
   const [success, setSuccess] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const submissionLock = useRef(false);
   const navigate = useNavigate();
 
   const itemsPerPage = 25;
@@ -32,7 +34,9 @@ export default function Cart() {
   }, 0);
 
   const handleWhatsAppShare = async () => {
-    if (cart.length === 0) return;
+    if (cart.length === 0 || isSharingWhatsapp || isSubmitting || submissionLock.current) return;
+    submissionLock.current = true;
+    setIsSharingWhatsapp(true);
 
     // First, save the order into the database so it appears in Order History
     try {
@@ -123,6 +127,8 @@ export default function Cart() {
                 });
                 clearCart();
                 setSuccess(true);
+                submissionLock.current = false;
+                setIsSharingWhatsapp(false);
                 return;
             }
         } catch (err) {
@@ -137,18 +143,18 @@ export default function Cart() {
     window.open(`https://wa.me/?text=${encodeURIComponent(textFallback)}`, '_blank');
     clearCart();
     setSuccess(true);
+    submissionLock.current = false;
+    setIsSharingWhatsapp(false);
   };
 
   const handleSubmitOptions = async () => {
-    if (cart.length === 0 || !user) return;
+    if (cart.length === 0 || !user || isSubmitting || isSharingWhatsapp || submissionLock.current) return;
+    
+    // Lock submission immediately to prevent duplicate sends
+    submissionLock.current = true;
     setIsSubmitting(true);
+    
     try {
-      const fullNotes = [
-         customerName ? `اسم الزبون: ${customerName}` : '',
-         transport ? `النقليات: ${transport}` : '',
-         notes ? `ملاحظات إضافية: ${notes}` : ''
-      ].filter(Boolean).join('\n');
-
       const orderNumber = `BRQ-${Math.floor(1000 + Math.random() * 9000)}`;
       await api.createOrder({
         userId: user.id || user.uid,
@@ -164,7 +170,7 @@ export default function Cart() {
              product: item.product,
         })),
         totalQuantity: totalPieces,
-        notes: fullNotes,
+        notes: notes.trim() || undefined,
         createdAt: Date.now()
       });
 
@@ -188,7 +194,9 @@ export default function Cart() {
       setSuccess(true);
     } catch(e) {
       console.error(e);
-      alert('حدث خطأ أثناء إرسال الطلبية');
+      alert('حدث خطأ أثناء إرسال الطلبية، يرجى المحاولة مرة أخرى.');
+      submissionLock.current = false;
+      setIsSubmitting(false);
     } finally {
       setIsSubmitting(false);
     }
@@ -320,10 +328,15 @@ export default function Cart() {
       <div className="mt-8 mb-4 space-y-3">
          <button 
             onClick={handleSubmitOptions}
-            disabled={isSubmitting}
-            className="w-full flex items-center justify-center gap-2 py-4 bg-gradient-to-r from-brq-gold to-yellow-600 hover:from-yellow-500 hover:to-yellow-500 text-black rounded-xl font-bold tracking-wide shadow-[0_4px_20px_rgba(212,175,55,0.3)] transition-all hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100"
+            disabled={isSubmitting || isSharingWhatsapp}
+            className="w-full flex items-center justify-center gap-2 py-4 bg-gradient-to-r from-brq-gold to-yellow-600 hover:from-yellow-500 hover:to-yellow-500 text-black rounded-xl font-bold tracking-wide shadow-[0_4px_20px_rgba(212,175,55,0.3)] transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
          >
-            {isSubmitting ? <span className="animate-pulse">جاري إرسال الطلب...</span> : (
+            {isSubmitting ? (
+               <>
+                  <Loader2 size={20} className="animate-spin" />
+                  <span>جاري إرسال الطلبية للإدارة...</span>
+               </>
+            ) : (
                <>
                   <Send size={20} /> إرسال الطلبية للإدارة
                </>
@@ -331,9 +344,19 @@ export default function Cart() {
          </button>
          <button
             onClick={handleWhatsAppShare}
-            className="w-full flex items-center justify-center gap-2 py-4 bg-[#25D366] hover:bg-[#20bd5a] text-white rounded-xl font-bold tracking-wide transition-all hover:scale-[1.02]"
+            disabled={isSubmitting || isSharingWhatsapp}
+            className="w-full flex items-center justify-center gap-2 py-4 bg-[#25D366] hover:bg-[#20bd5a] text-white rounded-xl font-bold tracking-wide transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
          >
-            <Send size={20} /> مشاركة الطلبية عبر واتساب
+            {isSharingWhatsapp ? (
+               <>
+                  <Loader2 size={20} className="animate-spin" />
+                  <span>جاري تجهيز الطلبية للواتساب...</span>
+               </>
+            ) : (
+               <>
+                  <Send size={20} /> مشاركة الطلبية عبر واتساب
+               </>
+            )}
          </button>
       </div>
     </div>

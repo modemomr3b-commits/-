@@ -1229,6 +1229,25 @@ export default function ProductManager() {
   }, [products]);
 
   const filteredProducts = useMemo(() => products.filter(p => {
+    if (searchQuery && searchQuery.trim()) {
+      if (filterStatus === 'archived' && !p.isArchived) return false;
+      if (filterStatus === 'locked' && !p.isLocked) return false;
+      if (filterStatus === 'showcase' && !p.isShowcase) return false;
+      if (filterStatus === 'inactive' && !p.isHidden) return false;
+      if (filterStatus === 'active' && p.isHidden) return false;
+      if (filterStatus === 'duplicates' && !duplicatesSet.has(p.modelNumber || p.productCode)) return false;
+      if (filterCategoryId && p.categoryId !== filterCategoryId) return false;
+
+      const match = filterProductsBySearch([p], searchQuery, categories);
+      if (match.length === 0) return false;
+
+      if (searchDate) {
+        const productDateStr = new Date(p.createdAt || 0).toLocaleDateString('en-CA', { timeZone: 'Asia/Baghdad' });
+        if (productDateStr !== searchDate) return false;
+      }
+      return true;
+    }
+
     if (filterStatus === 'archived') {
       if (!p.isArchived) return false;
     } else if (filterStatus === 'locked') {
@@ -1262,7 +1281,7 @@ export default function ProductManager() {
     }
 
     return true;
-  }), [products, filterCategoryId, searchQuery, searchDate, filterStatus, duplicatesSet]);
+  }), [products, filterCategoryId, searchQuery, searchDate, filterStatus, duplicatesSet, categories]);
 
   const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -1297,7 +1316,7 @@ export default function ProductManager() {
             <Download size={18} /> تحميل متقدم
           </button>
           <button onClick={() => { setIsBatchAdding(!isBatchAdding); setIsAdding(false); }} className="flex-1 md:flex-none flex items-center justify-center gap-2 py-2.5 px-4 bg-brq-navy border border-brq-gold/50 text-brq-gold rounded-xl hover:bg-brq-gold hover:text-black transition-all text-sm font-bold shadow-md">
-            <Upload size={18} /> الرفع السريع (20 منتج) ⚡
+            <Upload size={18} /> النشر السريع للمنتجات ⚡
           </button>
           <button
             onClick={() => { setIsAdding(!isAdding); setIsBatchAdding(false); }}

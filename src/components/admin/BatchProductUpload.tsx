@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Loader2, Upload, X, CheckCircle2, AlertCircle, CheckSquare, Square, Layers, Check } from 'lucide-react';
+import { Loader2, Upload, X, CheckCircle2, AlertCircle, CheckSquare, Square, Layers, Check, Plus, Trash2 } from 'lucide-react';
 import { api } from '../../api';
 import { burnProductOverlay } from '../../utils/burnImage';
 import { Product, Category } from '../../types';
@@ -57,7 +57,7 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
   
   const emptyProduct = () => ({
     name: '',
-    categoryId: '',
+    categoryId: batchCategoryId || '',
     subcategoryId: '',
     productCode: '',
     modelNumber: '',
@@ -72,8 +72,30 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
     imageUrl: '',
   });
 
-  // 20 product cards
-  const [products, setProducts] = useState<Partial<Product>[]>(Array.from({ length: 20 }).map(emptyProduct));
+  // Start with 5 product cards or 20, dynamically expandable by +5
+  const [products, setProducts] = useState<Partial<Product>[]>(Array.from({ length: 5 }).map(emptyProduct));
+
+  // Add 5 more cards
+  const handleAddFiveCards = () => {
+    setProducts(prev => [
+      ...prev,
+      ...Array.from({ length: 5 }).map(emptyProduct)
+    ]);
+  };
+
+  // Remove a single card
+  const handleRemoveCard = (indexToRemove: number) => {
+    if (products.length <= 1) return;
+    setProducts(prev => prev.filter((_, i) => i !== indexToRemove));
+    setSelectedCards(prev => {
+      const next = new Set<number>();
+      prev.forEach(i => {
+        if (i < indexToRemove) next.add(i);
+        else if (i > indexToRemove) next.add(i - 1);
+      });
+      return next;
+    });
+  };
 
   // Toggle card selection for bulk assignment
   const toggleCardSelection = (index: number) => {
@@ -266,7 +288,7 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
     return null;
   };
 
-  // Ultra-Fast Parallel Publishing
+  // Ultra-Fast Parallel Publishing (Automatically created as inactive isHidden: true)
   const handleSubmitAll = async () => {
     const validProducts = products.filter(p => p.name && p.price);
     
@@ -310,6 +332,7 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
       setIsSubmitting(true);
 
       // 2. Parallel Processing: Upload/burn/save all valid products concurrently
+      // Set isHidden: true so products are inactive by default until enabled by the admin
       await Promise.all(
         validProducts.map(async (product) => {
           let finalImg = product.imageUrl;
@@ -328,13 +351,13 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
             finalImageUrl: finalImg,
             views: 0,
             isArchived: false,
-            isHidden: false,
+            isHidden: true, // Non-active (غير مفعل) by default as requested!
           } as any);
           
           api.logAction({
             userId: user?.uid || '',
             userName: user?.username || 'System',
-            action: 'إضافة منتج جديد (جملة - نشر سريع 20 منتج)',
+            action: 'إضافة منتج جديد (نشر سريع - غير مفعل تلقائياً)',
             entityType: 'product',
             entityId: created.id,
             details: { name: product.name, code: product.productCode },
@@ -359,7 +382,7 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
           <div
             className="absolute inset-0 bg-black/80 backdrop-blur-md"
             onClick={() => {
-              setProducts(Array.from({ length: 20 }).map(() => ({
+              setProducts(Array.from({ length: 5 }).map(() => ({
                 ...emptyProduct(),
                 categoryId: batchCategoryId
               })));
@@ -377,14 +400,14 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
               <CheckCircle2 size={40} className="text-brq-gold" />
             </div>
             <h3 className="text-2xl font-bold text-white mb-2">
-              تم النشر بنجاح!
+              تم النشر السريع بنجاح!
             </h3>
-            <p className="text-white/70 mb-8">
-              تم النشر بنجاح داخل التطبيق
+            <p className="text-white/70 mb-2 text-sm leading-relaxed">
+              تم نشر المنتجات بنجاح، وتلقائياً كمنتجات <span className="text-amber-400 font-bold">غير مفعلة</span> حتى تقوم بتفعيلها من قائمة المنتجات.
             </p>
             <button
               onClick={() => {
-                setProducts(Array.from({ length: 20 }).map(() => ({
+                setProducts(Array.from({ length: 5 }).map(() => ({
                   ...emptyProduct(),
                   categoryId: batchCategoryId
                 })));
@@ -393,7 +416,7 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
                 setIsSuccess(false);
                 setIsSubmitting(false);
               }}
-              className="w-full py-3 px-4 rounded-xl font-bold text-black bg-brq-gold hover:bg-yellow-500 transition-colors"
+              className="w-full mt-6 py-3 px-4 rounded-xl font-bold text-black bg-brq-gold hover:bg-yellow-500 transition-colors shadow-lg"
             >
               فهمت
             </button>
@@ -401,18 +424,32 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
         </div>
       )}
 
-      {/* Top Header: Flexible Category Assignment Bar */}
+      {/* Top Header: Flexible Category Assignment Bar & Add +5 Cards button */}
       <div className="flex flex-col gap-3 bg-black/40 p-4 rounded-xl border border-white/10" dir="rtl">
-        <div className="flex justify-between items-center pb-2 border-b border-white/10">
+        <div className="flex flex-wrap justify-between items-center pb-2 border-b border-white/10 gap-2">
           <div className="flex items-center gap-2">
-            <h3 className="text-brq-gold font-bold text-base">نمط الرفع السريع (20 منتج)</h3>
+            <h3 className="text-brq-gold font-bold text-base">النشر السريع للمنتجات ({products.length} بطاقة) ⚡</h3>
             <span className="text-xs text-white/50">
-              (حدد قسماً للكل أو خصص أقساماً مختلفة للبطاقات)
+              (المنتجات تنشر تلقائياً كمنتجات غير مفعلة)
             </span>
           </div>
-          <button onClick={onClose} className="text-white/50 hover:text-white p-1" title="إغلاق">
-            <X size={20} />
-          </button>
+
+          <div className="flex items-center gap-2">
+            {/* The requested option: Add 5 Cards on every click */}
+            <button
+              type="button"
+              onClick={handleAddFiveCards}
+              className="flex items-center gap-1.5 py-1.5 px-3.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/40 rounded-xl font-bold text-xs transition-all shadow-[0_0_12px_rgba(16,185,129,0.15)] active:scale-95"
+              title="إضافة 5 بطاقات جديدة لإدخال منتجات أكثر"
+            >
+              <Plus size={16} />
+              <span>إضافة 5 بطاقات (+5)</span>
+            </button>
+
+            <button onClick={onClose} className="text-white/50 hover:text-white p-1" title="إغلاق">
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         {/* Category Controls & Bulk Apply */}
@@ -438,9 +475,9 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
                 onClick={() => applyCategoryToAll(batchCategoryId)}
                 disabled={!batchCategoryId}
                 className="py-2 px-3 bg-brq-gold text-black rounded-lg font-bold text-xs hover:bg-yellow-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
-                title="تطبيق هذا القسم على جميع الـ 20 بطاقة"
+                title={`تطبيق هذا القسم على جميع الـ ${products.length} بطاقة`}
               >
-                تطبيق على الكل (20 بطاقة)
+                تطبيق على الكل ({products.length} بطاقة)
               </button>
 
               <button
@@ -461,7 +498,7 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
             <input
               type="number"
               min="1"
-              max="20"
+              max={products.length}
               value={rangeFrom}
               onChange={(e) => setRangeFrom(parseInt(e.target.value) || 1)}
               className="w-12 bg-white text-black font-bold font-mono px-1.5 py-1 rounded text-center outline-none"
@@ -470,7 +507,7 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
             <input
               type="number"
               min="1"
-              max="20"
+              max={products.length}
               value={rangeTo}
               onChange={(e) => setRangeTo(parseInt(e.target.value) || 1)}
               className="w-12 bg-white text-black font-bold font-mono px-1.5 py-1 rounded text-center outline-none"
@@ -495,7 +532,7 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
         </div>
       </div>
 
-      {/* Grid of 20 Cards */}
+      {/* Grid of Dynamic Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" dir="rtl">
         {products.map((product, idx) => {
           const isSelected = selectedCards.has(idx);
@@ -510,7 +547,7 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
                   : 'border-white/10'
               }`}
             >
-              {/* Card Header with Checkbox and Card Number */}
+              {/* Card Header with Checkbox, Card Number and Delete button */}
               <div className="flex justify-between items-center mb-3 border-b border-white/10 pb-2">
                 <label className="flex items-center gap-2 cursor-pointer select-none">
                   <input
@@ -524,11 +561,23 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
                   </span>
                 </label>
 
-                {product.categoryId && (
-                  <span className="text-[10px] bg-white/10 text-brq-gold px-2 py-0.5 rounded font-bold max-w-[120px] truncate" title={currentCat?.name}>
-                    {currentCat?.name}
-                  </span>
-                )}
+                <div className="flex items-center gap-1.5">
+                  {product.categoryId && (
+                    <span className="text-[10px] bg-white/10 text-brq-gold px-2 py-0.5 rounded font-bold max-w-[100px] truncate" title={currentCat?.name}>
+                      {currentCat?.name}
+                    </span>
+                  )}
+                  {products.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveCard(idx)}
+                      className="text-white/30 hover:text-red-400 p-1 transition-colors"
+                      title="حذف هذه البطاقة"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  )}
+                </div>
               </div>
               
               <div className="flex flex-col gap-2">
@@ -674,16 +723,26 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
         })}
       </div>
       
-      <div className="sticky bottom-0 bg-black/80 backdrop-blur-md p-4 border-t border-white/10 z-10 flex justify-center mt-4 rounded-xl">
+      {/* Sticky Bottom Actions Bar */}
+      <div className="sticky bottom-0 bg-black/80 backdrop-blur-md p-4 border-t border-white/10 z-10 flex flex-col sm:flex-row gap-3 items-center justify-between mt-4 rounded-xl" dir="rtl">
+          <button
+            type="button"
+            onClick={handleAddFiveCards}
+            className="w-full sm:w-auto py-3 px-5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 font-bold rounded-xl flex items-center justify-center gap-2 transition-all active:scale-95 text-sm"
+          >
+            <Plus size={18} />
+            <span>إضافة 5 بطاقات أخرى (+5)</span>
+          </button>
+
           <button
             onClick={handleSubmitAll}
             disabled={isSubmitting}
-            className="w-full md:w-1/2 py-4 text-lg bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 transition-colors shadow-lg shadow-emerald-500/20"
+            className="w-full sm:flex-1 py-4 text-base sm:text-lg bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 transition-colors shadow-lg shadow-emerald-500/20"
           >
             {isSubmitting ? (
               <><Loader2 className="w-6 h-6 animate-spin" /> جاري النشر بأقصى سرعة...</>
             ) : (
-              <><Upload className="w-6 h-6" /> نشر جميع المنتجات ({products.filter(p => p.name && p.price).length})</>
+              <><Upload className="w-6 h-6" /> نشر جميع المنتجات ({products.filter(p => p.name && p.price).length} منتج جاهز)</>
             )}
           </button>
       </div>

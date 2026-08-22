@@ -12,6 +12,8 @@ import {
   Check,
   Trash2,
   Printer,
+  Truck,
+  FileText,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { api } from "../../api";
@@ -19,6 +21,7 @@ import { Order, OrderStatus } from "../../types";
 import { useStore } from "../../store";
 import ImageViewer from "../ImageViewer";
 import { printOrderInvoice } from "../../utils/printOrder";
+import { parseOrderDetails } from "../../utils/orderUtils";
 
 const statusMap: Record<OrderStatus, { label: string; color: string }> = {
   new: {
@@ -176,37 +179,22 @@ export default function OrderManager() {
     printOrderInvoice(order);
   };
 
-  const getOrderCustomerName = (o: Order): string => {
-    if (o.customerName && o.customerName.trim()) {
-      return o.customerName.trim();
-    }
-    if (o.notes) {
-      const match = o.notes.match(/اسم الزبون:\s*([^\n\r]+)/);
-      if (match && match[1]?.trim()) {
-        return match[1].trim();
-      }
-    }
-    if (o.fullName && o.fullName.trim() && o.fullName !== o.username) {
-      return o.fullName.trim();
-    }
-    return o.fullName || o.username || "غير محدد";
-  };
-
   const filteredOrders = orders.filter((o) => {
     if (o.status === 'pending_agent') return false;
-    const custName = getOrderCustomerName(o);
+    const info = parseOrderDetails(o);
     const matchesSearch =
       (o.orderNumber &&
         o.orderNumber.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (o.username &&
-        o.username.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (o.fullName &&
-        o.fullName.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (o.customerName &&
-        o.customerName.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      custName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (o.notes &&
-        o.notes.toLowerCase().includes(searchQuery.toLowerCase()));
+      (info.agentName &&
+        info.agentName.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (info.customerName &&
+        info.customerName.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (info.transport &&
+        info.transport.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (info.notes &&
+        info.notes.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (info.displayNotes &&
+        info.displayNotes.toLowerCase().includes(searchQuery.toLowerCase()));
 
     const matchesStatus = filterStatus === "all" || o.status === filterStatus;
 
@@ -311,7 +299,7 @@ export default function OrderManager() {
               </thead>
               <tbody className="divide-y divide-white/5 text-white/90">
                 {filteredOrders.map((o) => {
-                  const customerName = getOrderCustomerName(o);
+                  const info = parseOrderDetails(o);
                   return (
                     <tr
                       key={o.id}
@@ -327,33 +315,42 @@ export default function OrderManager() {
                       </td>
                       <td className="p-4">
                         <div className="flex flex-col gap-1 items-start">
-                          <span className="text-[11px] text-white/50 font-bold">
-                            اسم الزبون:
-                          </span>
-                          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-300 border border-amber-400 text-black shadow-md">
-                            <UserCircle size={17} className="text-black flex-shrink-0" />
-                            <span className="text-base font-black text-black tracking-wide leading-tight">
-                              {customerName}
-                            </span>
-                          </div>
-                          {o.username && (
-                            <div className="text-xs text-white/60 flex items-center gap-1 mt-0.5">
-                              <span className="text-white/40">حساب الوكيل:</span>
-                              <span className="font-semibold text-white/90">{o.username}</span>
-                              {o.fullName && o.fullName !== customerName && o.fullName !== o.username && (
-                                <span className="text-white/50">({o.fullName})</span>
-                              )}
+                          {info.customerName ? (
+                            <>
+                              <span className="text-[11px] text-white/50 font-bold">
+                                اسم الزبون:
+                              </span>
+                              <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-300 border border-amber-400 text-black shadow-md">
+                                <UserCircle size={17} className="text-black flex-shrink-0" />
+                                <span className="text-base font-black text-black tracking-wide leading-tight">
+                                  {info.customerName}
+                                </span>
+                              </div>
+                              <div className="text-xs text-white/60 flex items-center gap-1 mt-0.5">
+                                <span className="text-white/40">حساب الوكيل:</span>
+                                <span className="font-semibold text-white/90">{info.agentName}</span>
+                              </div>
+                            </>
+                          ) : (
+                            <div className="flex flex-col gap-0.5">
+                              <div className="inline-flex items-center gap-1.5 text-white">
+                                <UserCircle size={17} className="text-brq-gold flex-shrink-0" />
+                                <span className="font-bold text-sm text-white">
+                                  {info.agentName}
+                                </span>
+                              </div>
+                              <span className="text-[11px] text-white/40 font-normal">طلب مباشر من الوكيل</span>
                             </div>
                           )}
                         </div>
                       </td>
                       <td className="p-4">
-                        {o.notes ? (
-                          <div className="p-2 rounded-lg bg-white/90 border border-gray-300 text-black shadow-sm text-xs font-bold whitespace-pre-wrap max-w-[200px] break-words">
-                            {o.notes}
+                        {info.displayNotes ? (
+                          <div className="p-2.5 rounded-lg bg-white/90 border border-gray-300 text-black shadow-sm text-xs font-bold whitespace-pre-wrap max-w-[220px] break-words leading-relaxed">
+                            {info.displayNotes}
                           </div>
                         ) : (
-                          <span className="text-white/30 text-xs">لا يوجد</span>
+                          <span className="text-white/25 text-xs font-mono">—</span>
                         )}
                       </td>
                       <td className="p-4 font-mono">
@@ -487,52 +484,67 @@ export default function OrderManager() {
             <div className="flex-1 overflow-hidden grid grid-cols-1 md:grid-cols-12 divide-y md:divide-y-0 md:divide-x md:divide-x-reverse divide-white/10">
               {/* Column 1: Order & Customer Details (5 Cols) */}
               <div className="md:col-span-5 p-5 space-y-4 overflow-y-auto max-h-[40vh] md:max-h-[calc(92vh-100px)] bg-black/20">
-                {/* Customer Info */}
-                <div className="space-y-3">
-                  {/* Prominent Customer Name Block */}
-                  <div className="p-4 bg-gradient-to-r from-amber-300 via-yellow-300 to-amber-400 rounded-2xl border-2 border-amber-500/50 shadow-lg text-black space-y-1">
-                    <div className="text-xs font-bold text-black/70">اسم الزبون:</div>
-                    <div className="flex items-center gap-2">
-                      <UserCircle size={26} className="text-black flex-shrink-0" />
-                      <span className="text-xl sm:text-2xl font-black text-black tracking-tight">
-                        {getOrderCustomerName(selectedOrder)}
-                      </span>
-                    </div>
-                  </div>
+                {/* Customer & Agent Info */}
+                {(() => {
+                  const modalInfo = parseOrderDetails(selectedOrder);
+                  return (
+                    <div className="space-y-3">
+                      {/* Prominent Customer Name Block (only if customerName exists) */}
+                      {modalInfo.customerName && (
+                        <div className="p-4 bg-gradient-to-r from-amber-300 via-yellow-300 to-amber-400 rounded-2xl border-2 border-amber-500/50 shadow-lg text-black space-y-1">
+                          <div className="text-xs font-bold text-black/70">اسم الزبون:</div>
+                          <div className="flex items-center gap-2">
+                            <UserCircle size={26} className="text-black flex-shrink-0" />
+                            <span className="text-xl sm:text-2xl font-black text-black tracking-tight">
+                              {modalInfo.customerName}
+                            </span>
+                          </div>
+                        </div>
+                      )}
 
-                  <div className="p-3.5 bg-white/5 rounded-xl border border-white/10">
-                    <div className="text-xs text-white/50 mb-1">حساب الوكيل المرسل</div>
-                    <div className="font-bold flex items-center gap-2 text-white">
-                      <UserCircle size={18} className="text-brq-gold" />{" "}
-                      {selectedOrder.username}
-                      {selectedOrder.fullName && selectedOrder.fullName !== selectedOrder.username && selectedOrder.fullName !== getOrderCustomerName(selectedOrder) && (
-                        <span className="text-xs text-white/60 font-normal">({selectedOrder.fullName})</span>
+                      <div className="p-3.5 bg-white/5 rounded-xl border border-white/10">
+                        <div className="text-xs text-white/50 mb-1">حساب الوكيل المرسل</div>
+                        <div className="font-bold flex items-center gap-2 text-white">
+                          <UserCircle size={18} className="text-brq-gold" />{" "}
+                          {modalInfo.agentName}
+                        </div>
+                      </div>
+
+                      {modalInfo.transport && (
+                        <div className="p-3.5 bg-blue-500/10 border border-blue-500/20 rounded-xl space-y-1">
+                          <div className="text-xs text-blue-300 font-bold flex items-center gap-1.5">
+                            <Truck size={15} /> النقليات والشحن:
+                          </div>
+                          <div className="text-sm font-bold text-white pr-5">
+                            {modalInfo.transport}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Total Pieces Summary Box */}
+                      <div className="p-3.5 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center justify-between">
+                        <span className="text-xs font-bold text-amber-300">
+                          إجمالي عدد القطع المطلوبة:
+                        </span>
+                        <span className="text-lg font-black text-brq-gold font-mono">
+                          {selectedOrder.totalQuantity} قطعة
+                        </span>
+                      </div>
+
+                      {/* Customer Notes */}
+                      {modalInfo.notes && (
+                        <div className="p-3.5 bg-yellow-500/10 border border-yellow-500/20 rounded-xl space-y-1">
+                          <h4 className="text-xs font-bold text-yellow-400 flex items-center gap-1.5">
+                            <FileText size={15} /> ملاحظات الطلبية:
+                          </h4>
+                          <p className="text-xs text-white/90 leading-relaxed whitespace-pre-wrap font-medium pr-5">
+                            {modalInfo.notes}
+                          </p>
+                        </div>
                       )}
                     </div>
-                  </div>
-                </div>
-
-                {/* Total Pieces Summary Box */}
-                <div className="p-3.5 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center justify-between">
-                  <span className="text-xs font-bold text-amber-300">
-                    إجمالي عدد القطع المطلوبة:
-                  </span>
-                  <span className="text-lg font-black text-brq-gold font-mono">
-                    {selectedOrder.totalQuantity} قطعة
-                  </span>
-                </div>
-
-                {/* Customer Notes */}
-                {selectedOrder.notes && (
-                  <div className="p-3.5 bg-yellow-500/10 border border-yellow-500/20 rounded-xl space-y-1">
-                    <h4 className="text-xs font-bold text-yellow-400">
-                      ملاحظات العميل والتفاصيل:
-                    </h4>
-                    <p className="text-xs text-white/90 leading-relaxed whitespace-pre-wrap font-medium">
-                      {selectedOrder.notes}
-                    </p>
-                  </div>
-                )}
+                  );
+                })()}
 
                 {/* Status quick changer */}
                 <div className="pt-2 border-t border-white/10 space-y-2">

@@ -21,6 +21,7 @@ export default function Products() {
   const { categoryId } = useParams();
   const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
+  const [allStoreProducts, setAllStoreProducts] = useState<Product[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [gridColumns, setGridColumns] = useState<1 | 2 | 4>(() => {
@@ -61,11 +62,14 @@ export default function Products() {
       const cats = await api.getCategories();
       setAllCategories(cats);
       
+      const allStore = await api.getProducts();
+      setAllStoreProducts(allStore);
+      
       let allProducts = [];
       if (categoryId) {
         allProducts = await api.getProductsByCategory(categoryId);
       } else {
-        allProducts = await api.getProducts();
+        allProducts = allStore;
       }
       
       let fetchedProducts = allProducts.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked);
@@ -186,6 +190,31 @@ export default function Products() {
   };
 
   const filteredProductsAll = useMemo(() => {
+    // When searching: search across allStoreProducts (includes active, inactive, locked, archived/out of stock)
+    if (searchTerm && searchTerm.trim()) {
+      const source = allStoreProducts.length > 0 ? allStoreProducts : products;
+      let result = filterProductsBySearch(source, searchTerm, allCategories);
+      if (activeSub) {
+        const subCatObj = allCategories.find(c => c.id === activeSub);
+        const subName = subCatObj ? subCatObj.name.toLowerCase().trim() : '';
+
+        result = result.filter((p) => {
+          if (p.subcategoryId === activeSub || p.categoryId === activeSub) return true;
+          if (subName) {
+            const pName = (p.name || '').toLowerCase();
+            const pCode = (p.productCode || '').toLowerCase();
+            const pModel = (p.modelNumber || '').toLowerCase();
+            if (pName.includes(subName) || pCode.includes(subName) || pModel.includes(subName)) {
+              return true;
+            }
+          }
+          return false;
+        });
+      }
+      return result;
+    }
+
+    // Normal browsing without search term: show category-filtered and regular active products
     let result = products;
     if (activeSub) {
       const subCatObj = allCategories.find(c => c.id === activeSub);
@@ -204,11 +233,8 @@ export default function Products() {
         return false;
       });
     }
-    if (searchTerm) {
-      result = filterProductsBySearch(result, searchTerm, allCategories);
-    }
     return result;
-  }, [activeSub, products, searchTerm, allCategories]);
+  }, [activeSub, products, allStoreProducts, searchTerm, allCategories]);
   
   // Pagination logic
   const totalPages = Math.ceil(filteredProductsAll.length / itemsPerPage);
@@ -434,10 +460,10 @@ export default function Products() {
             </button>
             <div>
               <h2 className="font-bold text-sm text-brq-gold">
-                {categoryName}
+                {searchTerm ? 'نتائج البحث الشامل' : categoryName}
               </h2>
               <p className="text-[10px] text-white/50">
-                {filteredProducts.length} منتجات
+                {filteredProductsAll.length} منتجات {searchTerm ? '(بحث في جميع المواد والموديلات)' : ''}
               </p>
             </div>
           </div>
@@ -457,11 +483,19 @@ export default function Products() {
           </div>
           <input
             type="text"
-            className="w-full bg-white/5 border border-white/10 text-white text-sm rounded-lg focus:ring-brq-gold focus:border-brq-gold block pl-3 pr-10 py-2.5 transition-colors placeholder:text-white/30"
-            placeholder="ابحث في هذا القسم..."
+            className="w-full bg-white/5 border border-white/10 text-white text-sm rounded-lg focus:ring-brq-gold focus:border-brq-gold block pl-8 pr-10 py-2.5 transition-colors placeholder:text-white/40"
+            placeholder="ابحث عن أي موديل، كود، أو اسم منتج..."
             value={searchTerm}
             onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
           />
+          {searchTerm && (
+            <button
+              onClick={() => { setSearchTerm(''); setCurrentPage(1); }}
+              className="absolute inset-y-0 left-0 flex items-center pl-3 text-white/50 hover:text-white"
+            >
+              ✕
+            </button>
+          )}
         </div>
 
         {subCategories.length > 0 && (
@@ -847,9 +881,23 @@ export default function Products() {
                 ) : (
                   <div className="text-white/30 text-3xl">👟</div>
                 )}
-                {(p.isArchived || p.isHidden) && (
-                  <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-10 pointer-events-none">
-                    <span className="bg-red-500/80 text-white px-3 py-1 rounded-full text-xs font-bold border border-white/20 backdrop-blur-md">نافذ / غير متوفر</span>
+                {(p.isArchived || p.isHidden || p.isLocked) && (
+                  <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center p-2 z-10 pointer-events-none gap-1">
+                    {p.isArchived && (
+                      <span className="bg-red-600/90 text-white px-2.5 py-1 rounded-full text-[11px] font-bold border border-red-400 backdrop-blur-md shadow-lg">
+                        📦 مادة نافذة
+                      </span>
+                    )}
+                    {p.isLocked && (
+                      <span className="bg-amber-600/90 text-white px-2.5 py-1 rounded-full text-[11px] font-bold border border-amber-400 backdrop-blur-md shadow-lg">
+                        🔒 مقفل من الإدارة
+                      </span>
+                    )}
+                    {p.isHidden && !p.isArchived && (
+                      <span className="bg-zinc-800/90 text-white px-2.5 py-1 rounded-full text-[11px] font-bold border border-zinc-500 backdrop-blur-md shadow-lg">
+                        🚫 غير مفعل
+                      </span>
+                    )}
                   </div>
                 )}
               </div>

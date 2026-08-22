@@ -1,4 +1,12 @@
-export const burnProductOverlay = (product: any, rawImageUrl: string): Promise<string> => {
+export const burnProductOverlay = async (product: any, rawImageUrl: string): Promise<string> => {
+  try {
+    if (typeof document !== 'undefined' && document.fonts) {
+      await document.fonts.ready;
+    }
+  } catch {
+    // Ignore font ready check failure if unsupported
+  }
+
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';

@@ -74,19 +74,15 @@ export default function ProductDetail() {
       try {
         const found = await api.getProductById(productId as string);
         if (mounted) {
-          if (found && (found.isHidden || found.isLocked)) {
-            setProduct(null);
+          setProduct(found || null);
+          if (found && found.categoryId) {
+            const catProducts = await api.getProductsByCategory(found.categoryId);
+            const active = catProducts.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked);
+            if (mounted) setSiblingProducts(active);
           } else {
-            setProduct(found || null);
-            if (found && found.categoryId) {
-              const catProducts = await api.getProductsByCategory(found.categoryId);
-              const active = catProducts.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked);
-              if (mounted) setSiblingProducts(active);
-            } else {
-              const allProducts = await api.getProducts();
-              const active = allProducts.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked);
-              if (mounted) setSiblingProducts(active);
-            }
+            const allProducts = await api.getProducts();
+            const active = allProducts.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked);
+            if (mounted) setSiblingProducts(active);
           }
           setLoading(false);
         }
@@ -504,6 +500,24 @@ export default function ProductDetail() {
                     <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-white/70 text-xs font-mono">
                       <Hash size={12} className="text-white/40" />
                       <span>الرمز: {product.modelNumber}</span>
+                    </span>
+                  )}
+
+                  {product.isArchived && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-500/20 border border-red-500/40 text-red-300 text-xs font-bold">
+                      📦 مادة نافذة (أرشيف)
+                    </span>
+                  )}
+
+                  {product.isLocked && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-bold">
+                      🔒 مقفل من الإدارة
+                    </span>
+                  )}
+
+                  {product.isHidden && !product.isArchived && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-zinc-700/40 border border-zinc-600/40 text-zinc-300 text-xs font-bold">
+                      🚫 غير مفعل
                     </span>
                   )}
                 </div>

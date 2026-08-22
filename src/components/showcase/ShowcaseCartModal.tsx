@@ -37,7 +37,7 @@ export default function ShowcaseCartModal({ cart, setCart, onClose, authData, sh
         agentName: authData.agent.fullName,
         fullName: authData.visitorName,
         visitorName: authData.visitorName,
-        customerName: authData.agent.fullName,
+        customerName: `زائر المعرض: ${authData.visitorName}`,
         orderNumber,
         status: 'pending_agent',
         items: cart.map(item => ({
@@ -46,7 +46,7 @@ export default function ShowcaseCartModal({ cart, setCart, onClose, authData, sh
              product: item.product,
         })),
         totalQuantity: totalQuantity,
-        notes: `طلبية من زائر المعرض: ${authData.visitorName}\nالوكيل: ${authData.agent.fullName}\nمعرف الوكيل: ${authData.agent.id}`,
+        notes: '',
         createdAt: Date.now()
       });
       showToast('تم إرسال الطلبية بنجاح إلى الوكيل!');
