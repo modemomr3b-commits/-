@@ -16,6 +16,7 @@ const ProductDetail = lazy(() => import('./components/member/ProductDetail'));
 const Favorites = lazy(() => import('./components/member/Favorites'));
 const Cart = lazy(() => import('./components/member/Cart'));
 const MemberOrders = lazy(() => import('./components/member/MemberOrders'));
+const CustomerOrders = lazy(() => import('./components/member/CustomerOrders'));
 const SearchPage = lazy(() => import('./components/member/SearchPage'));
 const Profile = lazy(() => import('./components/member/Profile'));
 const Messages = lazy(() => import('./components/member/Messages'));
@@ -110,6 +111,7 @@ export default function App() {
               <Route path="favorites" element={<Favorites />} />
               <Route path="cart" element={<Cart />} />
               <Route path="orders" element={<MemberOrders />} />
+              <Route path="customer-orders" element={<CustomerOrders />} />
               <Route path="search" element={<SearchPage />} />
               <Route path="profile" element={<Profile />} />
               <Route path="messages" element={<Messages />} />

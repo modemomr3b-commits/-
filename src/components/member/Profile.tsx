@@ -1,11 +1,13 @@
 import { formatDateTime, formatDate } from '../../utils/time';
 import { useStore } from '../../store';
-import { Download, Share, UserCircle, ShoppingBag, Eye, LogOut, ChevronDown, ChevronUp, Bell } from 'lucide-react';
+import { Download, Share, UserCircle, ShoppingBag, Eye, LogOut, ChevronDown, ChevronUp, Bell, Users, ArrowLeft } from 'lucide-react';
+import { Link } from 'react-router';
 import { subscribeToPushNotifications, isSubscribed } from '../../pushService';
 import { useState, useEffect } from 'react';
 import { api } from '../../api';
 import { Order, OrderStatus } from '../../types';
 import { usePWAInstall } from '../../hooks/usePWAInstall';
+import { parseOrderDetails } from '../../utils/orderUtils';
 
 const statusMap: Record<OrderStatus, { label: string, color: string }> = {
   new: { label: 'قيد المراجعة', color: 'bg-yellow-500/20 text-yellow-500 border-yellow-500/30' },
@@ -20,6 +22,7 @@ export default function Profile() {
   const { user, setUser, showToast } = useStore();
   const { deferredPrompt, isIOS: isIos, handleInstallClick: handleInstall } = usePWAInstall();
   const [orders, setOrders] = useState<Order[]>([]);
+  const [pendingCustomerCount, setPendingCustomerCount] = useState(0);
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [pushEnabled, setPushEnabled] = useState(false);
@@ -52,8 +55,14 @@ export default function Profile() {
             if (uName && (oUser === uName || oName === uName || oFull === uName || oCust === uName || oNotes.includes(uName))) return true;
             if (uFull && (oUser === uFull || oName === uFull || oFull === uFull || oCust === uFull || oNotes.includes(uFull))) return true;
             return false;
-         }).sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0));
-         setOrders(myOrders);
+         });
+
+         const pCount = myOrders.filter(o => o.status === 'pending_agent').length;
+         setPendingCustomerCount(pCount);
+
+         const nonPending = myOrders.filter(o => o.status !== 'pending_agent')
+           .sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0));
+         setOrders(nonPending);
        } catch(e) {
          console.error(e);
        } finally {
@@ -158,6 +167,37 @@ export default function Profile() {
           )}
         </div>
       )}
+
+      {/* Customer Orders Shortcut */}
+      <Link
+        to="/customer-orders"
+        className="glass-panel p-5 rounded-2xl border border-purple-500/30 bg-gradient-to-r from-purple-950/40 via-purple-900/20 to-black/50 hover:border-purple-400 transition-all flex items-center justify-between gap-4 group shadow-lg shadow-purple-900/20"
+      >
+        <div className="flex items-center gap-3.5">
+          <div className="w-12 h-12 rounded-2xl bg-purple-500/20 border border-purple-400/30 flex items-center justify-center text-purple-300 shadow-inner group-hover:scale-105 transition-transform">
+            <Users size={24} />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-lg font-black text-white group-hover:text-purple-200 transition-colors">
+                طلبات الزبائن
+              </h3>
+              {pendingCustomerCount > 0 && (
+                <span className="bg-purple-500 text-white text-xs font-black px-2 py-0.5 rounded-full animate-pulse">
+                  {pendingCustomerCount} جديدة
+                </span>
+              )}
+            </div>
+            <p className="text-white/60 text-xs mt-0.5">
+              مراجعة والموافقة على طلبات زوار المعرض لإرسالها لإدارة الموقع
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-1 text-xs font-bold text-purple-300 group-hover:text-white transition-colors bg-purple-500/20 px-3 py-2 rounded-xl border border-purple-400/30">
+          <span>عرض الطلبات</span>
+          <ArrowLeft size={16} />
+        </div>
+      </Link>
 
       {/* Order History */}
       <div className="glass-panel p-6 rounded-2xl border border-white/10 flex-1">

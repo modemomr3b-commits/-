@@ -1,6 +1,7 @@
 import { Outlet, Link, useLocation } from 'react-router';
 import { useStore } from '../store.ts';
-import { Home, Search, Heart, ShoppingBag, User, Download, X, Share, MessageCircle, LayoutDashboard, Package } from 'lucide-react';
+import { api } from '../api.ts';
+import { Home, Search, Heart, ShoppingBag, User, Download, X, Share, MessageCircle, LayoutDashboard, Package, Users } from 'lucide-react';
 import { cn } from '../lib/utils.ts';
 import { motion, AnimatePresence } from 'motion/react';
 import { usePWAInstall } from '../hooks/usePWAInstall';
@@ -12,13 +13,55 @@ export default function MemberLayout() {
   const location = useLocation();
   const { deferredPrompt, isIOS, showInstallPrompt, setShowInstallPrompt, handleInstallClick } = usePWAInstall();
   const [isLogoHovered, setIsLogoHovered] = useState(false);
+  const [pendingCustomerOrdersCount, setPendingCustomerOrdersCount] = useState(0);
 
   const isBannerVisible = showInstallPrompt;
+
+  useEffect(() => {
+    let isMounted = true;
+    const checkCustomerOrders = async () => {
+      if (!user) return;
+      try {
+        const allOrders = await api.getOrders();
+        const uName = (user.username || '').toLowerCase().trim();
+        const uFull = (user.fullName || '').toLowerCase().trim();
+        const uId = (user.id || user.uid || '').toString().toLowerCase().trim();
+
+        const pending = allOrders.filter(o => {
+          if (o.status !== 'pending_agent') return false;
+          const oUser = (o.userId || '').toString().toLowerCase().trim();
+          const oName = (o.username || '').toLowerCase().trim();
+          const oFull = (o.fullName || '').toLowerCase().trim();
+          const oCust = (o.customerName || '').toLowerCase().trim();
+          const oNotes = (o.notes || '').toLowerCase();
+
+          if (uId && (oUser === uId || oNotes.includes(uId))) return true;
+          if (uName && (oUser === uName || oName === uName || oFull === uName || oCust === uName || oNotes.includes(uName))) return true;
+          if (uFull && (oUser === uFull || oName === uFull || oFull === uFull || oCust === uFull || oNotes.includes(uFull))) return true;
+          return false;
+        });
+
+        if (isMounted) {
+          setPendingCustomerOrdersCount(pending.length);
+        }
+      } catch (err) {
+        // silent check
+      }
+    };
+
+    checkCustomerOrders();
+    const interval = setInterval(checkCustomerOrders, 15000); // Check every 15s
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [user, location.pathname]);
 
   const navItems = [
     { icon: Home, path: '/', label: 'الرئيسية' },
     { icon: Search, path: '/search', label: 'بحث' },
     { icon: Package, path: '/orders', label: 'سجل الطلبات' },
+    { icon: Users, path: '/customer-orders', label: 'طلبات الزبائن', badge: pendingCustomerOrdersCount },
     { icon: ShoppingBag, path: '/cart', label: 'الطلبات', badge: cart.length },
     { icon: MessageCircle, path: '/messages', label: 'الرسائل' },
     { icon: User, path: '/profile', label: 'حسابي' },
@@ -71,16 +114,39 @@ export default function MemberLayout() {
           })}
         </nav>
 
-        <div className="p-4 border-t border-brq-gold/20 mt-auto">
-          <div className="flex items-center gap-3 p-3 rounded-xl bg-black/40 border border-white/5">
-             <img src="/assets/avatar-placeholder.png" alt="" className="w-10 h-10 rounded-xl opacity-80" onError={(e) => (e.currentTarget.style.display = 'none')} />
+        <div className="p-4 border-t border-brq-gold/20 mt-auto flex flex-col gap-2">
+          {/* Customer Orders quick action */}
+          <Link
+            to="/customer-orders"
+            className={cn(
+              "flex items-center justify-between p-2.5 rounded-xl border text-xs font-bold transition-all group",
+              pendingCustomerOrdersCount > 0
+                ? "bg-purple-600/20 text-purple-200 border-purple-500/40 shadow-lg shadow-purple-900/30 hover:bg-purple-600/30"
+                : "bg-white/5 text-white/70 border-white/10 hover:bg-white/10 hover:text-white"
+            )}
+          >
+            <div className="flex items-center gap-2">
+              <Users size={16} className={pendingCustomerOrdersCount > 0 ? "text-purple-400" : "text-white/60"} />
+              <span>طلبات الزبائن</span>
+            </div>
+            {pendingCustomerOrdersCount > 0 ? (
+              <span className="bg-purple-500 text-white text-[11px] font-black px-2 py-0.5 rounded-full shadow-sm animate-pulse">
+                {pendingCustomerOrdersCount} جديدة
+              </span>
+            ) : (
+              <span className="text-[10px] text-white/40">المعرض</span>
+            )}
+          </Link>
+
+          <Link to="/profile" className="flex items-center gap-3 p-3 rounded-xl bg-black/40 border border-white/5 hover:border-brq-gold/30 transition-colors group">
+             <img src="/assets/avatar-placeholder.png" alt="" className="w-10 h-10 rounded-xl opacity-80 group-hover:opacity-100 transition-opacity" onError={(e) => (e.currentTarget.style.display = 'none')} />
              <div className="flex-1 overflow-hidden">
-               <p className="text-sm font-bold text-white truncate">{user?.username || 'مستخدم'}</p>
+               <p className="text-sm font-bold text-white truncate group-hover:text-brq-gold transition-colors">{user?.username || 'مستخدم'}</p>
                <p className="text-xs text-brq-gold truncate uppercase text-left dir-ltr">{user?.role || 'member'}</p>
              </div>
-          </div>
+          </Link>
           {(user?.role === 'admin' || user?.role === 'sales') && (
-            <Link to="/admin" className="mt-3 flex items-center justify-center w-full py-2.5 bg-gradient-to-r from-brq-gold/20 to-brq-royal/40 text-brq-gold rounded-xl border border-brq-gold/30 text-sm font-bold font-mono hover:from-brq-gold/30 hover:to-brq-royal/50 transition-colors gap-2 shadow-lg shadow-brq-gold/10">
+            <Link to="/admin" className="mt-1 flex items-center justify-center w-full py-2.5 bg-gradient-to-r from-brq-gold/20 to-brq-royal/40 text-brq-gold rounded-xl border border-brq-gold/30 text-sm font-bold font-mono hover:from-brq-gold/30 hover:to-brq-royal/50 transition-colors gap-2 shadow-lg shadow-brq-gold/10">
               <LayoutDashboard size={16} /> لوحة التحكم
             </Link>
           )}
@@ -91,26 +157,47 @@ export default function MemberLayout() {
         <div className="absolute top-[-100px] left-[-100px] w-96 h-96 bg-brq-gold/5 blur-[120px] rounded-full pointer-events-none md:block hidden"></div>
         
         {/* Top Header - Mobile */}
-        <header className="md:hidden sticky top-0 z-50 glass-panel border-b border-brq-gold/20 px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 flex items-center justify-center relative">
-              <Animated3DLogo scale={0.4} />
+        <header className="md:hidden sticky top-0 z-50 glass-panel border-b border-brq-gold/20 px-3 py-2.5 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-10 h-10 flex items-center justify-center relative">
+              <Animated3DLogo scale={0.35} />
             </div>
             <div className="flex flex-col">
-              <span className="text-brq-gold font-bold text-lg tracking-wide uppercase">BRQ</span>
-              <span className="text-xs text-white/50">شركة الوفاء</span>
+              <span className="text-brq-gold font-bold text-base tracking-wide uppercase">BRQ</span>
+              <span className="text-[10px] text-white/50">شركة الوفاء</span>
             </div>
           </div>
+
           <div className="flex gap-2 items-center">
+            {/* Customer Orders button right next to user profile on mobile */}
+            <Link
+              to="/customer-orders"
+              className={cn(
+                "px-2.5 py-1.5 rounded-xl border flex items-center gap-1.5 text-xs font-bold transition-all shadow-md relative",
+                pendingCustomerOrdersCount > 0
+                  ? "bg-purple-600/30 text-purple-200 border-purple-400/50 shadow-purple-500/20 animate-pulse"
+                  : "bg-white/10 text-white/80 border-white/10 hover:bg-white/20"
+              )}
+            >
+              <Users size={15} className="text-purple-300" />
+              <span className="text-xs">طلبات الزبائن</span>
+              {pendingCustomerOrdersCount > 0 && (
+                <span className="bg-purple-500 text-white font-black text-[10px] px-1.5 py-0.2 rounded-full min-w-[18px] text-center shadow-lg">
+                  {pendingCustomerOrdersCount}
+                </span>
+              )}
+            </Link>
+
             {(user?.role === 'admin' || user?.role === 'sales') && (
-              <Link to="/admin" className="px-3 py-1.5 bg-brq-royal/20 text-brq-gold rounded-lg border border-brq-gold/30 text-xs font-bold font-mono hover:bg-brq-royal/40 flex items-center gap-1 shadow-lg shadow-brq-gold/10">
-                <LayoutDashboard size={14} />
-                لوحة التحكم
+              <Link to="/admin" className="px-2.5 py-1.5 bg-brq-royal/20 text-brq-gold rounded-lg border border-brq-gold/30 text-xs font-bold font-mono hover:bg-brq-royal/40 flex items-center gap-1 shadow-lg shadow-brq-gold/10">
+                <LayoutDashboard size={13} />
+                <span className="hidden sm:inline">لوحة التحكم</span>
               </Link>
             )}
-            <div className="w-10 h-10 rounded-full bg-brq-black border border-brq-gold/30 flex items-center justify-center">
-              <img src="/assets/avatar-placeholder.png" alt="" className="w-8 h-8 rounded-full opacity-50" onError={(e) => (e.currentTarget.style.display = 'none')} />
-            </div>
+
+            <Link to="/profile" className="w-9 h-9 rounded-full bg-brq-black border border-brq-gold/30 flex items-center justify-center relative overflow-hidden">
+              <img src="/assets/avatar-placeholder.png" alt="" className="w-7 h-7 rounded-full opacity-70" onError={(e) => (e.currentTarget.style.display = 'none')} />
+            </Link>
           </div>
         </header>
 

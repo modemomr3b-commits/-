@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useStore } from '../../store';
 import { api } from '../../api';
 import { Order } from '../../types';
-import { Package, Clock, CheckCircle, Search, XCircle, MoreHorizontal, Download, X, Eye, FileText, User, Truck, Hash, Calendar, Loader2, Printer } from 'lucide-react';
+import { Package, Clock, CheckCircle, Search, XCircle, MoreHorizontal, Download, X, Eye, FileText, User, Truck, Hash, Calendar, Loader2, Printer, Users, ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router';
 import OptimizedImage from '../OptimizedImage';
 import { downloadImages } from '../../utils/download';
@@ -12,6 +12,7 @@ import { parseOrderDetails } from '../../utils/orderUtils';
 export default function MemberOrders() {
   const { user, showToast } = useStore();
   const [orders, setOrders] = useState<Order[]>([]);
+  const [pendingCount, setPendingCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   
@@ -47,9 +48,14 @@ export default function MemberOrders() {
           });
         }
         
-        // Sort by newest first
-        userOrders.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-        setOrders(userOrders);
+        // Count pending orders from showcase
+        const pCount = userOrders.filter(o => o.status === 'pending_agent').length;
+        setPendingCount(pCount);
+
+        // Sort by newest first and exclude pending_agent from general order history
+        const approvedAndDirectOrders = userOrders.filter(o => o.status !== 'pending_agent');
+        approvedAndDirectOrders.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        setOrders(approvedAndDirectOrders);
       } catch (err) {
         console.error(err);
         showToast("فشل تحميل الطلبات", "error");
@@ -195,6 +201,35 @@ export default function MemberOrders() {
           />
         </div>
       </div>
+
+      {/* Pending Customer Orders Notification Banner */}
+      {pendingCount > 0 && (
+        <Link
+          to="/customer-orders"
+          className="p-4 rounded-2xl bg-gradient-to-r from-purple-900/50 via-purple-800/40 to-purple-950/60 border border-purple-400/40 flex items-center justify-between gap-4 text-white hover:border-purple-300 transition-all shadow-[0_0_20px_rgba(168,85,247,0.2)] group"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-purple-500/20 border border-purple-400/40 flex items-center justify-center text-purple-300">
+              <Users size={22} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-sm text-purple-200">طلبات زبائن جديدة بانتظار موافقتك!</span>
+                <span className="bg-purple-500 text-white text-xs font-black px-2 py-0.5 rounded-full shadow-sm">
+                  {pendingCount}
+                </span>
+              </div>
+              <p className="text-xs text-white/70 mt-0.5">
+                قام زوار المعرض بإرسال طلبيات لحسابك، اضغط هنا للمراجعة والموافقة عليها لإرسالها للإدارة
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 text-xs font-bold text-purple-300 group-hover:text-white transition-colors bg-purple-500/20 px-3 py-2 rounded-xl border border-purple-400/30 flex-shrink-0">
+            <span>مراجعة الطلبات</span>
+            <ArrowLeft size={16} />
+          </div>
+        </Link>
+      )}
 
       {filteredOrders.length === 0 ? (
         <div className="glass-panel p-12 rounded-2xl flex flex-col items-center justify-center text-center border border-white/5">

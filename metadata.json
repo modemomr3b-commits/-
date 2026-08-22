@@ -1,6 +1,6 @@
 {
-  "name": "",
-  "description": "",
+  "name": "شركة الوفاء - نظام إدارة المنتجات والطلبات",
+  "description": "منظومة متكاملة لإدارة معارض وطلبات الوكلاء والزبائن وإدارة المخزون لشركة الوفاء",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

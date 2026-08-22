@@ -472,7 +472,6 @@ export const api = {
     // Identify agent and customer
     const agentName = data.username || data.agentName || data.fullName || 'الوكيل';
     safeData.username = agentName;
-    safeData.fullName = agentName;
     if (data.userId) safeData.userId = data.userId;
 
     // Only set customerName if explicitly provided and distinct from agent
@@ -482,12 +481,15 @@ export const api = {
       safeData.customerName = `زائر المعرض: ${data.visitorName.trim()}`;
     }
 
+    // Build clean notes string
+    const notesArray: string[] = [];
     if (data.transport && data.transport.trim()) {
-      safeData.transport = data.transport.trim();
+      notesArray.push(`النقليات: ${data.transport.trim()}`);
     }
-
-    // Keep user's notes clean without any boilerplate headers
-    safeData.notes = (data.notes || '').trim();
+    if (data.notes && data.notes.trim()) {
+      notesArray.push(data.notes.trim());
+    }
+    safeData.notes = notesArray.join('\n').trim();
 
     if (data.products !== undefined) {
       safeData.products = data.products;
