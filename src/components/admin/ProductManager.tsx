@@ -290,7 +290,7 @@ export default function ProductManager() {
     showcaseCategory: "رجالي",
   });
 
-  const [filterStatus, setFilterStatus] = useState<"all" | "active" | "archived" | "inactive" | "duplicates" | "locked" | "showcase" | null>(null);
+  const [filterStatus, setFilterStatus] = useState<"all" | "active" | "archived" | "inactive" | "duplicates" | "locked" | "showcase" | null>("active");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [searchDate, setSearchDate] = useState("");
@@ -1226,60 +1226,74 @@ export default function ProductManager() {
     return { duplicatesSet: dups, modelMap: map };
   }, [products]);
 
-  const filteredProducts = useMemo(() => products.filter(p => {
-    if (searchQuery && searchQuery.trim()) {
-      if (filterStatus === 'archived' && !p.isArchived) return false;
-      if (filterStatus === 'locked' && !p.isLocked) return false;
-      if (filterStatus === 'showcase' && !p.isShowcase) return false;
-      if (filterStatus === 'inactive' && !p.isHidden) return false;
-      if (filterStatus === 'active' && p.isHidden) return false;
-      if (filterStatus === 'duplicates' && !duplicatesSet.has(p.modelNumber || p.productCode)) return false;
-      if (filterCategoryId && p.categoryId !== filterCategoryId) return false;
+  // Tab counts for clear visual counters
+  const tabCounts = useMemo(() => {
+    return {
+      all: products.length,
+      active: products.filter(p => !p.isHidden && !p.isArchived && !p.isLocked).length,
+      inactive: products.filter(p => p.isHidden && !p.isArchived && !p.isLocked).length,
+      archived: products.filter(p => p.isArchived).length,
+      locked: products.filter(p => p.isLocked).length,
+      duplicates: products.filter(p => duplicatesSet.has(p.modelNumber || p.productCode)).length,
+      showcase: products.filter(p => p.isShowcase).length,
+    };
+  }, [products, duplicatesSet]);
 
-      const match = filterProductsBySearch([p], searchQuery, categories);
-      if (match.length === 0) return false;
+  const filteredProducts = useMemo(() => {
+    return products.filter(p => {
+      // 1. Filter by Status Tab
+      if (filterStatus === 'active') {
+        // Only active: NOT hidden, NOT out of stock/archived, NOT locked
+        if (p.isHidden || p.isArchived || p.isLocked) return false;
+      } else if (filterStatus === 'inactive') {
+        // Only inactive: isHidden is true, NOT out of stock/archived, NOT locked
+        if (!p.isHidden || p.isArchived || p.isLocked) return false;
+      } else if (filterStatus === 'archived') {
+        // Only out of stock/archived
+        if (!p.isArchived) return false;
+      } else if (filterStatus === 'locked') {
+        // Only locked
+        if (!p.isLocked) return false;
+      } else if (filterStatus === 'duplicates') {
+        // Only duplicates
+        if (!duplicatesSet.has(p.modelNumber || p.productCode)) return false;
+      } else if (filterStatus === 'showcase') {
+        // Only showcase
+        if (!p.isShowcase) return false;
+      } else if (filterStatus === 'all') {
+        // All products regardless of active/inactive/archived/locked!
+      } else if (filterStatus === null) {
+        // If null and no search, hide
+        if (!searchQuery && !searchDate && !filterCategoryId) return false;
+        // If search exists but no tab selected, default to active
+        if (p.isHidden || p.isArchived || p.isLocked) return false;
+      }
 
+      // 2. Filter by Category / Section
+      if (filterCategoryId) {
+        const isDirect = p.categoryId === filterCategoryId || p.subcategoryId === filterCategoryId;
+        if (!isDirect) {
+          const childIds = categories.filter(c => c.parentId === filterCategoryId).map(c => c.id);
+          const isChild = childIds.includes(p.categoryId) || (p.subcategoryId ? childIds.includes(p.subcategoryId) : false);
+          if (!isChild) return false;
+        }
+      }
+
+      // 3. Filter by Search Query (Name, Code, Model, etc.)
+      if (searchQuery && searchQuery.trim()) {
+        const match = filterProductsBySearch([p], searchQuery, categories);
+        if (match.length === 0) return false;
+      }
+
+      // 4. Filter by Date
       if (searchDate) {
         const productDateStr = new Date(p.createdAt || 0).toLocaleDateString('en-CA', { timeZone: 'Asia/Baghdad' });
         if (productDateStr !== searchDate) return false;
       }
+
       return true;
-    }
-
-    if (filterStatus === 'archived') {
-      if (!p.isArchived) return false;
-    } else if (filterStatus === 'locked') {
-      if (!p.isLocked) return false;
-    } else if (filterStatus === 'showcase') {
-      if (!p.isShowcase) return false;
-    } else {
-      if (p.isArchived) return false;
-      if (p.isLocked) return false;
-      
-      if (filterStatus === 'inactive' && !p.isHidden) return false;
-      if (filterStatus === 'active' && p.isHidden) return false;
-      if (filterStatus === 'duplicates' && !duplicatesSet.has(p.modelNumber || p.productCode)) return false;
-      if (filterStatus === null && !searchQuery) return false;
-    }
-
-    if (filterStatus !== 'archived' && filterStatus !== 'locked' && filterStatus !== 'showcase') {
-      if (filterCategoryId && p.categoryId !== filterCategoryId) {
-        return false;
-      }
-    }
-
-    if (searchQuery) {
-      const match = filterProductsBySearch([p], searchQuery, categories);
-      if (match.length === 0) return false;
-    }
-
-    if (searchDate) {
-      const productDateStr = new Date(p.createdAt || 0).toLocaleDateString('en-CA', { timeZone: 'Asia/Baghdad' });
-      if (productDateStr !== searchDate) return false;
-    }
-
-    return true;
-  }), [products, filterCategoryId, searchQuery, searchDate, filterStatus, duplicatesSet, categories]);
+    });
+  }, [products, filterCategoryId, searchQuery, searchDate, filterStatus, duplicatesSet, categories]);
 
   const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -1610,56 +1624,74 @@ export default function ProductManager() {
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="flex gap-4 border-b border-white/10 pb-0 overflow-x-auto">
+          <div className="flex gap-2 sm:gap-4 border-b border-white/10 pb-0 overflow-x-auto">
             <button
               onClick={() => setFilterStatus("all")}
-              className={`pb-2 px-2 text-sm font-bold border-b-2 transition-colors whitespace-nowrap ${filterStatus === "all" ? "border-brq-gold text-brq-gold" : "border-transparent text-white/50 hover:text-white"}`}
+              className={`pb-2 px-2.5 text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 ${filterStatus === "all" ? "border-brq-gold text-brq-gold" : "border-transparent text-white/50 hover:text-white"}`}
             >
               الكل
+              <span className="text-[10px] bg-white/10 px-1.5 py-0.5 rounded-full font-mono">
+                {tabCounts.all}
+              </span>
             </button>
             <button
               onClick={() => setFilterStatus("active")}
-              className={`pb-2 px-2 text-sm font-bold border-b-2 transition-colors ${filterStatus === "active" ? "border-brq-gold text-brq-gold" : "border-transparent text-white/50 hover:text-white"}`}
+              className={`pb-2 px-2.5 text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 ${filterStatus === "active" ? "border-emerald-400 text-emerald-400" : "border-transparent text-white/50 hover:text-white"}`}
             >
               المنتجات الفعالة
+              <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded-full font-mono font-bold">
+                {tabCounts.active}
+              </span>
             </button>
             <button
               onClick={() => setFilterStatus("inactive")}
-              className={`pb-2 px-2 text-sm font-bold border-b-2 transition-colors ${filterStatus === "inactive" ? "border-brq-gold text-brq-gold" : "border-transparent text-white/50 hover:text-white"}`}
+              className={`pb-2 px-2.5 text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 ${filterStatus === "inactive" ? "border-yellow-400 text-yellow-400" : "border-transparent text-white/50 hover:text-white"}`}
             >
               المواد غير الفعالة
+              <span className="text-[10px] bg-yellow-500/20 text-yellow-300 px-1.5 py-0.5 rounded-full font-mono font-bold">
+                {tabCounts.inactive}
+              </span>
             </button>
             <button
               onClick={() => setFilterStatus("archived")}
-              className={`pb-2 px-2 text-sm font-bold border-b-2 transition-colors ${filterStatus === "archived" ? "border-brq-gold text-brq-gold" : "border-transparent text-white/50 hover:text-white"}`}
+              className={`pb-2 px-2.5 text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 ${filterStatus === "archived" ? "border-red-400 text-red-400" : "border-transparent text-white/50 hover:text-white"}`}
             >
               المواد النافذة
+              <span className="text-[10px] bg-red-500/20 text-red-300 px-1.5 py-0.5 rounded-full font-mono font-bold">
+                {tabCounts.archived}
+              </span>
             </button>
             <button
               onClick={() => setFilterStatus("duplicates")}
-              className={`pb-2 px-2 text-sm font-bold border-b-2 transition-colors ${filterStatus === "duplicates" ? "border-brq-gold text-brq-gold" : "border-transparent text-white/50 hover:text-white"}`}
+              className={`pb-2 px-2.5 text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 ${filterStatus === "duplicates" ? "border-cyan-400 text-cyan-400" : "border-transparent text-white/50 hover:text-white"}`}
             >
               المواد المكررة
+              <span className="text-[10px] bg-cyan-500/20 text-cyan-300 px-1.5 py-0.5 rounded-full font-mono font-bold">
+                {tabCounts.duplicates}
+              </span>
             </button>
             <button
               onClick={() => setFilterStatus("locked")}
-              className={`pb-2 px-2 text-sm font-bold border-b-2 transition-colors ${filterStatus === "locked" ? "border-brq-gold text-brq-gold" : "border-transparent text-white/50 hover:text-white"}`}
+              className={`pb-2 px-2.5 text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 ${filterStatus === "locked" ? "border-purple-400 text-purple-400" : "border-transparent text-white/50 hover:text-white"}`}
             >
               المواد المقفلة
+              <span className="text-[10px] bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded-full font-mono font-bold">
+                {tabCounts.locked}
+              </span>
             </button>
             <button
               onClick={() => setFilterStatus("showcase")}
-              className={`pb-2 px-2 text-sm font-bold border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap ${filterStatus === "showcase" ? "border-amber-400 text-amber-300" : "border-transparent text-white/50 hover:text-white"}`}
+              className={`pb-2 px-2.5 text-sm font-bold border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap ${filterStatus === "showcase" ? "border-amber-400 text-amber-300" : "border-transparent text-white/50 hover:text-white"}`}
             >
               <Sparkles size={14} className="text-amber-400" />
               معرض الوفاء المتميز
               <span className="text-[10px] bg-amber-400/20 text-amber-300 px-1.5 py-0.5 rounded-full font-mono font-bold">
-                {products.filter(p => p.isShowcase).length}
+                {tabCounts.showcase}
               </span>
             </button>
             <button
               onClick={() => setIsDownloadDialogOpen(true)}
-              className="pb-2 px-2 text-sm font-bold border-b-2 border-transparent text-brq-gold hover:text-white transition-colors flex items-center gap-1"
+              className="pb-2 px-2.5 text-sm font-bold border-b-2 border-transparent text-brq-gold hover:text-white transition-colors flex items-center gap-1 whitespace-nowrap"
             >
               <Download size={14} /> تحميل جميع الصور (Zip)
             </button>
@@ -1694,9 +1726,20 @@ export default function ProductManager() {
                     className="appearance-none pl-8 pr-10 py-2.5 bg-white border-2 border-brq-royal rounded-lg text-sm font-bold text-black hover:bg-gray-50 transition-colors focus:outline-none focus:border-brq-gold shadow-sm"
                   >
                     <option value="">جميع الأقسام</option>
-                    {categories.filter(c => !c.parentId).map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
+                    {categories.filter(c => !c.parentId).map(mainCat => {
+                      const subCats = categories.filter(sub => sub.parentId === mainCat.id);
+                      if (subCats.length === 0) {
+                        return <option key={mainCat.id} value={mainCat.id}>{mainCat.name}</option>;
+                      }
+                      return (
+                        <optgroup key={mainCat.id} label={mainCat.name}>
+                          <option value={mainCat.id}>كل {mainCat.name}</option>
+                          {subCats.map(sub => (
+                            <option key={sub.id} value={sub.id}>-- {sub.name}</option>
+                          ))}
+                        </optgroup>
+                      );
+                    })}
                   </select>
                   <Filter className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 w-4 h-4 pointer-events-none" />
                 </div>
