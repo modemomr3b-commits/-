@@ -23,7 +23,16 @@ export default function Products() {
   const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
   const [allStoreProducts, setAllStoreProducts] = useState<Product[]>([]);
-  const [searchTerm, setSearchTerm] = useState("");
+  
+  // Initialize state from return storage if matching category
+  const [searchTerm, setSearchTerm] = useState(() => {
+    const returnCat = sessionStorage.getItem('return_category');
+    if (returnCat === (categoryId || 'all')) {
+      return sessionStorage.getItem('return_searchTerm') || "";
+    }
+    return "";
+  });
+  
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [gridColumns, setGridColumns] = useState<1 | 2 | 4>(() => {
     const saved = localStorage.getItem('brq_catalog_cols');
@@ -32,7 +41,15 @@ export default function Products() {
   const [isViewModeOpen, setIsViewModeOpen] = useState(false);
   const [subCategories, setSubCategories] = useState<any[]>([]);
   const [allCategories, setAllCategories] = useState<Category[]>([]);
-  const [activeSub, setActiveSub] = useState<string | null>(null);
+  
+  const [activeSub, setActiveSub] = useState<string | null>(() => {
+    const returnCat = sessionStorage.getItem('return_category');
+    if (returnCat === (categoryId || 'all')) {
+      return sessionStorage.getItem('return_sub');
+    }
+    return null;
+  });
+  
   const [loading, setLoading] = useState(true);
   const { addToCart, updateQuantity, removeFromCart, cart, user, showToast } = useStore();
   const [historyProduct, setHistoryProduct] = useState<Product | null>(null);
@@ -43,7 +60,15 @@ export default function Products() {
   const [downloadProgress, setDownloadProgress] = useState<{ progress: number, total: number } | null>(null);
   const [downloadChoiceDialog, setDownloadChoiceDialog] = useState<{ isOpen: boolean; message: string; onDownloadStudio: () => void; onDownloadZip: () => void; onDownloadAllElastic?: () => void } | null>(null);
   const [initialLoading, setInitialLoading] = useState(true);
-  const [currentPage, setCurrentPage] = useState(1);
+  
+  const [currentPage, setCurrentPage] = useState(() => {
+    const returnCat = sessionStorage.getItem('return_category');
+    if (returnCat === (categoryId || 'all')) {
+      const savedPage = sessionStorage.getItem('return_page');
+      return savedPage ? parseInt(savedPage, 10) : 1;
+    }
+    return 1;
+  });
   const itemsPerPage = 40; // High speed 40 items per page for instant render and low network burden
   const isAndroid = /Android/i.test(navigator.userAgent || '');
   const maxShareLimit = isAndroid ? 10 : 100;
@@ -166,39 +191,51 @@ export default function Products() {
     const returnCat = sessionStorage.getItem('return_category');
     if (returnCat !== (categoryId || 'all')) {
       window.scrollTo(0, 0);
+      setCurrentPage(1);
+      setActiveSub(null);
+      setSearchTerm('');
     }
   }, [categoryId]);
 
   useEffect(() => {
-    if (!loading) {
+    if (!loading && products.length > 0) {
       const returnCat = sessionStorage.getItem('return_category');
       if (returnCat === (categoryId || 'all')) {
         const savedPage = sessionStorage.getItem('return_page');
-        if (savedPage) setCurrentPage(parseInt(savedPage));
+        if (savedPage) setCurrentPage(parseInt(savedPage, 10));
         
         const savedSub = sessionStorage.getItem('return_sub');
         if (savedSub) setActiveSub(savedSub);
         
-        const savedScroll = sessionStorage.getItem('return_scroll');
-        if (savedScroll) {
-          setTimeout(() => window.scrollTo(0, parseInt(savedScroll)), 500);
-        }
-        
         const savedSearch = sessionStorage.getItem('return_searchTerm');
         if (savedSearch) setSearchTerm(savedSearch);
-        
-        sessionStorage.removeItem('return_category');
-        sessionStorage.removeItem('return_searchTerm');
-        sessionStorage.removeItem('return_page');
-        sessionStorage.removeItem('return_scroll');
-        sessionStorage.removeItem('return_sub');
-      } else {
-        setCurrentPage(1);
-        setActiveSub(null);
-        // window.scrollTo(0, 0) is already handled in the other effect immediately
+
+        const savedScroll = sessionStorage.getItem('return_scroll');
+        if (savedScroll) {
+          const targetY = parseInt(savedScroll, 10);
+          // Restore immediately
+          window.scrollTo(0, targetY);
+          
+          // Re-verify after layout settling
+          requestAnimationFrame(() => {
+            window.scrollTo(0, targetY);
+          });
+          const timer = setTimeout(() => {
+            window.scrollTo(0, targetY);
+          }, 150);
+          
+          // Clear return session keys after restoring
+          sessionStorage.removeItem('return_category');
+          sessionStorage.removeItem('return_searchTerm');
+          sessionStorage.removeItem('return_page');
+          sessionStorage.removeItem('return_scroll');
+          sessionStorage.removeItem('return_sub');
+          
+          return () => clearTimeout(timer);
+        }
       }
     }
-  }, [loading, categoryId]);
+  }, [loading, categoryId, products.length]);
 
   const handleAddToCart = (e: React.MouseEvent, p: Product) => {
     e.preventDefault();

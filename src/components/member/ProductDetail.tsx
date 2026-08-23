@@ -95,7 +95,27 @@ export default function ProductDetail() {
     return () => { mounted = false; };
   }, [productId]);
 
-  // Determine current index, prev and next products
+  // Close helper that reliably returns the user to where they came from
+  const handleClose = () => {
+    const returnCat = sessionStorage.getItem('return_category');
+    const returnSearch = sessionStorage.getItem('return_search');
+    
+    // Check if we can go back in browser history
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      // Fallback if opened directly or history was lost
+      if (returnSearch === 'true') {
+        navigate('/search');
+      } else if (returnCat && returnCat !== 'all') {
+        navigate(`/category/${returnCat}`);
+      } else if (product?.categoryId) {
+        navigate(`/category/${product.categoryId}`);
+      } else {
+        navigate('/');
+      }
+    }
+  };
   const currentIndex = useMemo(() => {
     if (!product || siblingProducts.length === 0) return -1;
     return siblingProducts.findIndex(p => p.id === product.id);
@@ -159,7 +179,7 @@ export default function ProductDetail() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        navigate(-1);
+        handleClose();
       }
       if (e.key === 'ArrowRight' && nextProduct) goToNext();
       if (e.key === 'ArrowLeft' && prevProduct) goToPrev();
@@ -239,7 +259,7 @@ export default function ProductDetail() {
            goToPrev();
          }
        } else if (dy > 140 && dt < 400) {
-         navigate(-1);
+         handleClose();
        }
        setTouchStart(null);
     }
@@ -426,7 +446,7 @@ export default function ProductDetail() {
 
           {/* Close / Return Button */}
           <button 
-            onClick={() => navigate(-1)}
+            onClick={handleClose}
             className="px-3.5 py-1.5 text-white bg-white/10 hover:bg-red-500/80 rounded-xl transition-all border border-white/15 active:scale-95 flex items-center gap-1.5 shadow-lg group text-xs font-bold cursor-pointer"
             title="العودة (Esc)"
           >

@@ -65,24 +65,33 @@ export default function SearchPage() {
   }, [searchInput]);
 
   useEffect(() => {
-    if (!loading) {
+    if (!loading && products.length > 0) {
       if (sessionStorage.getItem('return_search') === 'true') {
         const savedPage = sessionStorage.getItem('return_search_page');
-        if (savedPage) setCurrentPage(parseInt(savedPage));
+        if (savedPage) setCurrentPage(parseInt(savedPage, 10));
         
         const savedScroll = sessionStorage.getItem('return_search_scroll');
         if (savedScroll) {
-          setTimeout(() => window.scrollTo(0, parseInt(savedScroll)), 500);
+          const targetY = parseInt(savedScroll, 10);
+          window.scrollTo(0, targetY);
+          requestAnimationFrame(() => {
+            window.scrollTo(0, targetY);
+          });
+          const timer = setTimeout(() => {
+            window.scrollTo(0, targetY);
+          }, 150);
+          
+          sessionStorage.removeItem('return_search');
+          sessionStorage.removeItem('return_search_page');
+          sessionStorage.removeItem('return_search_scroll');
+          sessionStorage.removeItem('return_search_query');
+          sessionStorage.removeItem('return_search_archived');
+          
+          return () => clearTimeout(timer);
         }
-        
-        sessionStorage.removeItem('return_search');
-        sessionStorage.removeItem('return_search_page');
-        sessionStorage.removeItem('return_search_scroll');
-        sessionStorage.removeItem('return_search_query');
-        sessionStorage.removeItem('return_search_archived');
       }
     }
-  }, [loading]);
+  }, [loading, products.length]);
 
   const filteredProductsAll = useMemo(() => {
     if (!query) return [];
