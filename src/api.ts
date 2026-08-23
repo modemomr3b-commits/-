@@ -470,9 +470,8 @@ export const api = {
     if (data.deletedBy !== undefined) safeData.deletedBy = data.deletedBy;
 
     // Identify agent and customer
-    const agentName = data.username || data.agentName || data.fullName || 'الوكيل';
+    const agentName = (data.username || data.agentName || data.fullName || 'الوكيل').trim();
     safeData.username = agentName;
-    if (data.userId) safeData.userId = data.userId;
 
     // Only set customerName if explicitly provided and distinct from agent
     if (data.customerName && data.customerName.trim() && data.customerName.trim() !== agentName) {

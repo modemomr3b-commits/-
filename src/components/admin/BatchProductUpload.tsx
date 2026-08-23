@@ -185,6 +185,13 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
     });
   };
 
+  const getNormalizedRate = () => {
+    const r = usdRate || 1500;
+    if (r >= 50000) return Math.round(r / 100);
+    if (r >= 50 && r <= 500) return Math.round(r * 10);
+    return Math.round(r);
+  };
+
   const updateProductCalculations = (
     index: number,
     updates: Partial<Product>
@@ -193,17 +200,17 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
       const newProducts = [...prev];
       const target = { ...newProducts[index], ...updates };
 
-      const usdValue = target.dozenPriceUsd || 0;
-      const iqdValue = target.price || 0;
+      const usdValue = Number(target.dozenPriceUsd) || 0;
+      const iqdValue = Number(target.price) || 0;
       
-      const calcPieces = target.forceStandardCrush ? 12 : (target.piecesCount || 12);
+      const calcPieces = target.forceStandardCrush ? 12 : (Number(target.piecesCount) || 12);
       
-      const pieceUsd = calcPieces > 0 ? usdValue / calcPieces : 0;
-      const pieceIqd = calcPieces > 0 ? iqdValue / calcPieces : 0;
+      const pieceUsd = calcPieces > 0 ? Number((usdValue / calcPieces).toFixed(2)) : 0;
+      const pieceIqd = calcPieces > 0 ? Math.round(iqdValue / calcPieces) : 0;
 
       newProducts[index] = {
         ...target,
-        piecePriceUsd: Number(pieceUsd.toFixed(2)),
+        piecePriceUsd: pieceUsd,
         piecePriceIqd: pieceIqd,
       };
       return newProducts;
@@ -211,13 +218,17 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
   };
 
   const handleUsdPriceChange = (index: number, usdValue: number) => {
-    const iqdValue = usdValue * usdRate;
-    updateProductCalculations(index, { dozenPriceUsd: usdValue, price: iqdValue });
+    const rate = getNormalizedRate();
+    const cleanUsd = Number(Number(usdValue).toFixed(2));
+    const iqdValue = Math.round(cleanUsd * rate);
+    updateProductCalculations(index, { dozenPriceUsd: cleanUsd, price: iqdValue });
   };
 
   const handleIqdPriceChange = (index: number, iqdValue: number) => {
-    const usdValue = usdRate > 0 ? iqdValue / usdRate : 0;
-    updateProductCalculations(index, { dozenPriceUsd: Number(usdValue.toFixed(2)), price: iqdValue });
+    const rate = getNormalizedRate();
+    const cleanIqd = Math.round(Number(iqdValue) || 0);
+    const usdValue = rate > 0 ? Number((cleanIqd / rate).toFixed(2)) : 0;
+    updateProductCalculations(index, { dozenPriceUsd: usdValue, price: cleanIqd });
   };
 
   const handlePackagingTextChange = (index: number, packaging: string) => {

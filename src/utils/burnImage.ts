@@ -116,13 +116,16 @@ export const burnProductOverlay = async (product: any, rawImageUrl: string): Pro
             ctx.fillRect(pceX, boxY, pceW, pceH);
         }
 
+        const calcPieces = (product.forceStandardCrush ?? true) ? 12 : (Number(product.piecesCount) || (parseInt(product.packaging) > 0 ? parseInt(product.packaging) : 12));
+        const finalPiecePrice = product.piecePriceIqd || (product.price && calcPieces > 0 ? Math.round(product.price / calcPieces) : 0);
+
         ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'; // Dark text for label
         ctx.font = `${24 * scale}px Cairo, sans-serif`;
         // In Arabic, we're writing rtl but the text origin is right for fillText because of ctx.textAlign = 'right'
         ctx.fillText('سعر المفرد (القطعة)', pceX + pceW - (20 * scale), boxY + (15 * scale));
         ctx.fillStyle = '#000000'; // Black text for price
         ctx.font = `bold ${36 * scale}px Cairo, sans-serif`;
-        ctx.fillText((product.piecePriceIqd ? Number(product.piecePriceIqd).toLocaleString("en-US") : '---') + ' د.ع', pceX + pceW - (20 * scale), boxY + (45 * scale));
+        ctx.fillText((finalPiecePrice ? Number(finalPiecePrice).toLocaleString("en-US") : '---') + ' د.ع', pceX + pceW - (20 * scale), boxY + (45 * scale));
 
         // --- Middle BRQ Text inside ribbon ---
         ctx.textAlign = 'center';

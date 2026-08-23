@@ -408,17 +408,11 @@ export default function ProductManager() {
     };
   }, []);
 
-  const handleUpdateUsdRate = async (newRate: number) => {
-    setUsdRate(newRate);
-    try {
-      const currentSettings = (await api.getSettings()) || {};
-      await api.updateSettings({
-        ...currentSettings,
-        usdExchangeRate: newRate,
-      });
-    } catch (e) {
-      console.error("Failed to update USD rate", e);
-    }
+  const getNormalizedRate = () => {
+    const r = usdRate || 1500;
+    if (r >= 50000) return Math.round(r / 100);
+    if (r >= 50 && r <= 500) return Math.round(r * 10);
+    return Math.round(r);
   };
 
   const handleUsdPriceChange = (
@@ -428,16 +422,18 @@ export default function ProductManager() {
     const target = isEditing ? editingProduct : newProduct;
     if (!target) return;
     
-    const iqdValue = usdValue * usdRate;
-    const calcPieces = (target.forceStandardCrush ?? true) ? 12 : (target.piecesCount || 12);
-    const pieceUsd = calcPieces > 0 ? usdValue / calcPieces : 0;
-    const pieceIqd = calcPieces > 0 ? iqdValue / calcPieces : 0;
+    const rate = getNormalizedRate();
+    const cleanUsd = Number(Number(usdValue).toFixed(2));
+    const iqdValue = Math.round(cleanUsd * rate);
+    const calcPieces = (target.forceStandardCrush ?? true) ? 12 : (Number(target.piecesCount) || 12);
+    const pieceUsd = calcPieces > 0 ? Number((cleanUsd / calcPieces).toFixed(2)) : 0;
+    const pieceIqd = calcPieces > 0 ? Math.round(iqdValue / calcPieces) : 0;
 
     const updated = {
       ...target,
-      dozenPriceUsd: Number(usdValue.toFixed(2)),
+      dozenPriceUsd: cleanUsd,
       price: iqdValue,
-      piecePriceUsd: Number(pieceUsd.toFixed(2)),
+      piecePriceUsd: pieceUsd,
       piecePriceIqd: pieceIqd,
     };
 
@@ -452,16 +448,18 @@ export default function ProductManager() {
     const target = isEditing ? editingProduct : newProduct;
     if (!target) return;
     
-    const usdValue = usdRate > 0 ? iqdValue / usdRate : 0;
-    const calcPieces = (target.forceStandardCrush ?? true) ? 12 : (target.piecesCount || 12);
-    const pieceUsd = calcPieces > 0 ? usdValue / calcPieces : 0;
-    const pieceIqd = calcPieces > 0 ? iqdValue / calcPieces : 0;
+    const rate = getNormalizedRate();
+    const cleanIqd = Math.round(Number(iqdValue) || 0);
+    const usdValue = rate > 0 ? Number((cleanIqd / rate).toFixed(2)) : 0;
+    const calcPieces = (target.forceStandardCrush ?? true) ? 12 : (Number(target.piecesCount) || 12);
+    const pieceUsd = calcPieces > 0 ? Number((usdValue / calcPieces).toFixed(2)) : 0;
+    const pieceIqd = calcPieces > 0 ? Math.round(cleanIqd / calcPieces) : 0;
 
     const updated = {
       ...target,
-      dozenPriceUsd: Number(usdValue.toFixed(2)),
-      price: iqdValue,
-      piecePriceUsd: Number(pieceUsd.toFixed(2)),
+      dozenPriceUsd: usdValue,
+      price: cleanIqd,
+      piecePriceUsd: pieceUsd,
       piecePriceIqd: pieceIqd,
     };
 
@@ -487,17 +485,17 @@ export default function ProductManager() {
     const target = isEditing ? editingProduct : newProduct;
     if (!target) return;
 
-    const calcPieces = forceStandardCrush ? 12 : (target.piecesCount || 12);
-    const usdValue = target.dozenPriceUsd || 0;
-    const iqdValue = target.price || 0;
+    const calcPieces = forceStandardCrush ? 12 : (Number(target.piecesCount) || 12);
+    const usdValue = Number(target.dozenPriceUsd) || 0;
+    const iqdValue = Number(target.price) || 0;
     
-    const pieceUsd = calcPieces > 0 ? usdValue / calcPieces : 0;
-    const pieceIqd = calcPieces > 0 ? iqdValue / calcPieces : 0;
+    const pieceUsd = calcPieces > 0 ? Number((usdValue / calcPieces).toFixed(2)) : 0;
+    const pieceIqd = calcPieces > 0 ? Math.round(iqdValue / calcPieces) : 0;
 
     const updated = {
       ...target,
       forceStandardCrush,
-      piecePriceUsd: Number(pieceUsd.toFixed(2)),
+      piecePriceUsd: pieceUsd,
       piecePriceIqd: pieceIqd,
     };
 
@@ -512,17 +510,17 @@ export default function ProductManager() {
     const target = isEditing ? editingProduct : newProduct;
     if (!target) return;
 
-    const calcPieces = (target.forceStandardCrush ?? true) ? 12 : piecesCount;
-    const usdValue = target.dozenPriceUsd || 0;
-    const iqdValue = target.price || 0;
+    const calcPieces = (target.forceStandardCrush ?? true) ? 12 : (Number(piecesCount) || 12);
+    const usdValue = Number(target.dozenPriceUsd) || 0;
+    const iqdValue = Number(target.price) || 0;
     
-    const pieceUsd = calcPieces > 0 ? usdValue / calcPieces : 0;
-    const pieceIqd = calcPieces > 0 ? iqdValue / calcPieces : 0;
+    const pieceUsd = calcPieces > 0 ? Number((usdValue / calcPieces).toFixed(2)) : 0;
+    const pieceIqd = calcPieces > 0 ? Math.round(iqdValue / calcPieces) : 0;
 
     const updated = {
       ...target,
       piecesCount,
-      piecePriceUsd: Number(pieceUsd.toFixed(2)),
+      piecePriceUsd: pieceUsd,
       piecePriceIqd: pieceIqd,
     };
 
@@ -1297,21 +1295,6 @@ export default function ProductManager() {
           </p>
         </div>
         <div className="flex gap-2 w-full md:w-auto items-center">
-          <div className="flex items-center gap-2 bg-black/40 border border-white/10 rounded-xl px-3 py-1.5 focus-within:border-brq-gold/50 transition-colors hidden md:flex">
-            <DollarSign size={16} className="text-brq-gold" />
-            <div className="flex flex-col">
-              <span className="text-[10px] text-white/50 leading-none mb-1">
-                سعر التكسير
-              </span>
-              <input
-                type="number"
-                value={usdRate}
-                onChange={(e) => handleUpdateUsdRate(Number(e.target.value))}
-                className="w-16 bg-transparent text-sm text-white font-mono outline-none leading-none"
-                dir="ltr"
-              />
-            </div>
-          </div>
           <button onClick={() => setIsDownloadDialogOpen(true)} className="flex-1 md:flex-none flex items-center justify-center gap-2 py-2.5 px-4 bg-brq-gold/20 border border-brq-gold/50 text-brq-gold rounded-xl hover:bg-brq-gold/30 transition-all text-sm font-bold">
             <Download size={18} /> تحميل متقدم
           </button>
@@ -1445,15 +1428,28 @@ export default function ProductManager() {
                 />
               </div>
             )}
-            {newProduct.piecesCount ? (
-              <div className="md:col-span-2 bg-white/5 p-3 rounded-lg border border-white/10 mt-2 text-center">
-                <p className="text-xs text-white/50 mb-1">
-                  سعر القطعة (بالدينار)
-                </p>
-                <p className="font-mono text-lg font-bold text-brq-gold">
-                  {newProduct.piecePriceIqd?.toLocaleString("en-US")}{" "}
-                  <span className="text-sm">د.ع</span>
-                </p>
+            {newProduct.piecePriceIqd ? (
+              <div className="md:col-span-2 bg-white/5 p-3 rounded-lg border border-white/10 mt-2 flex items-center justify-around text-center">
+                <div>
+                  <p className="text-xs text-white/50 mb-1">
+                    سعر القطعة (التكسيرة بالدينار)
+                  </p>
+                  <p className="font-mono text-lg font-bold text-brq-gold">
+                    {newProduct.piecePriceIqd.toLocaleString("en-US")}{" "}
+                    <span className="text-sm">د.ع</span>
+                  </p>
+                </div>
+                {newProduct.piecePriceUsd !== undefined && newProduct.piecePriceUsd > 0 && (
+                  <div>
+                    <p className="text-xs text-white/50 mb-1">
+                      سعر القطعة (بالدولار)
+                    </p>
+                    <p className="font-mono text-lg font-bold text-blue-400">
+                      ${newProduct.piecePriceUsd}{" "}
+                      <span className="text-sm">USD</span>
+                    </p>
+                  </div>
+                )}
               </div>
             ) : null}
             <div>
@@ -2360,15 +2356,28 @@ export default function ProductManager() {
                   />
                 </div>
               )}
-              {editingProduct.piecesCount ? (
-                <div className="md:col-span-2 bg-white/5 p-3 rounded-lg border border-white/10 mt-2 text-center">
-                  <p className="text-xs text-white/50 mb-1">
-                    سعر القطعة (بالدينار)
-                  </p>
-                  <p className="font-mono text-lg font-bold text-brq-gold">
-                    {editingProduct.piecePriceIqd?.toLocaleString("en-US")}{" "}
-                    <span className="text-sm">د.ع</span>
-                  </p>
+              {editingProduct.piecePriceIqd ? (
+                <div className="md:col-span-2 bg-white/5 p-3 rounded-lg border border-white/10 mt-2 flex items-center justify-around text-center">
+                  <div>
+                    <p className="text-xs text-white/50 mb-1">
+                      سعر القطعة (التكسيرة بالدينار)
+                    </p>
+                    <p className="font-mono text-lg font-bold text-brq-gold">
+                      {editingProduct.piecePriceIqd.toLocaleString("en-US")}{" "}
+                      <span className="text-sm">د.ع</span>
+                    </p>
+                  </div>
+                  {editingProduct.piecePriceUsd !== undefined && editingProduct.piecePriceUsd > 0 && (
+                    <div>
+                      <p className="text-xs text-white/50 mb-1">
+                        سعر القطعة (بالدولار)
+                      </p>
+                      <p className="font-mono text-lg font-bold text-blue-400">
+                        ${editingProduct.piecePriceUsd}{" "}
+                        <span className="text-sm">USD</span>
+                      </p>
+                    </div>
+                  )}
                 </div>
               ) : null}
               <div>

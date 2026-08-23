@@ -99,21 +99,58 @@ export default function SettingsManager() {
         <div className="glass-panel p-6 rounded-2xl border border-white/5 space-y-4">
           <div className="flex items-center gap-3 border-b border-white/5 pb-4">
             <DollarSign className="text-brq-gold" size={24} />
-            <h3 className="font-bold text-lg">إعدادات سعر التكسير</h3>
+            <div>
+              <h3 className="font-bold text-lg">سعر صرف الدولار والتكسير</h3>
+              <p className="text-[11px] text-white/50">المعتمد لحساب أسعار المنتجات والتكسيرة</p>
+            </div>
           </div>
           <div className="space-y-3">
              <div>
-               <label className="text-xs text-white/50 mb-1 block">سعر الدولار مقابل الدينار لليوم</label>
+               <label className="text-xs text-white/70 mb-1.5 block font-bold">
+                 سعر صرف الدولار (لكل 1 دولار)
+               </label>
                <input 
                   type="number" 
                   value={settings.usdExchangeRate || ''} 
+                  placeholder="مثال: 1500 أو 1530"
                   onChange={e => setSettings({...settings, usdExchangeRate: Number(e.target.value)})}
-                  className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500" 
+                  className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black font-mono font-bold placeholder:text-gray-400" 
                />
-               <p className="text-[10px] text-white/40 mt-1">
-                 تغيير هذا السعر سيؤثر على حساب أسعار المنتجات الجديدة فقط (سعر الدرزن).
-               </p>
              </div>
+
+             {/* Live calculation helper */}
+             {settings.usdExchangeRate ? (
+               <div className="bg-white/5 rounded-xl p-3 border border-white/10 space-y-1.5 text-xs">
+                 <div className="flex justify-between items-center text-white/70">
+                   <span>سعر الـ 100 دولار:</span>
+                   <span className="font-mono font-bold text-brq-gold">
+                     {(
+                       (settings.usdExchangeRate >= 50000 
+                         ? settings.usdExchangeRate 
+                         : settings.usdExchangeRate >= 50 && settings.usdExchangeRate <= 500
+                           ? settings.usdExchangeRate * 1000
+                           : settings.usdExchangeRate * 100)
+                     ).toLocaleString('en-US')} د.ع
+                   </span>
+                 </div>
+                 <div className="flex justify-between items-center text-white/70">
+                   <span>سعر الـ 1 دولار:</span>
+                   <span className="font-mono font-bold text-blue-400">
+                     {(
+                       (settings.usdExchangeRate >= 50000 
+                         ? Math.round(settings.usdExchangeRate / 100) 
+                         : settings.usdExchangeRate >= 50 && settings.usdExchangeRate <= 500
+                           ? Math.round(settings.usdExchangeRate * 10)
+                           : Math.round(settings.usdExchangeRate))
+                     ).toLocaleString('en-US')} د.ع
+                   </span>
+                 </div>
+               </div>
+             ) : null}
+
+             <p className="text-[11px] text-white/40 leading-relaxed">
+               يتم اعتماد هذا السعر في النظام تلقائياً لتحويل أسعار الدولار إلى الدينار وتكسير القطع.
+             </p>
           </div>
         </div>
 
