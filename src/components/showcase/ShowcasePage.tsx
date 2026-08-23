@@ -32,6 +32,7 @@ import ImageViewer from '../ImageViewer';
 import Animated3DLogo from '../ui/Animated3DLogo';
 import ShowcaseAuth from './ShowcaseAuth';
 import ShowcaseCartModal from './ShowcaseCartModal';
+import { localCache } from '../../utils/localCache';
 
 export const SHOWCASE_CATEGORIES = [
   { id: 'all', name: 'كل الأقسام', icon: '✨', image: allCategoriesImg },
@@ -110,6 +111,8 @@ export default function ShowcasePage() {
 
   const [cart, setCart] = useState<{product: Product, quantity: number}[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 40;
 
   const addToCart = (product: Product) => {
     setCart(prev => {
@@ -136,7 +139,6 @@ export default function ShowcasePage() {
 
   const loadData = async () => {
     try {
-      setLoading(true);
       const [allProds, appSettings, allCats] = await Promise.all([
         api.getProducts(),
         api.getSettings(),
@@ -156,6 +158,24 @@ export default function ShowcasePage() {
   };
 
   useEffect(() => {
+    let mounted = true;
+
+    // Instant local cache restore
+    Promise.all([
+      localCache.get<any[]>('all_products'),
+      localCache.get<any[]>('all_categories')
+    ]).then(([cachedProds, cachedCats]) => {
+      if (!mounted) return;
+      if (cachedProds && cachedProds.length > 0) {
+        const showcaseProds = cachedProds.filter(p => p.isShowcase && !p.isArchived && !p.isHidden);
+        setProducts(showcaseProds);
+        setLoading(false);
+      }
+      if (cachedCats && cachedCats.length > 0) {
+        setCategories(cachedCats);
+      }
+    });
+
     loadData();
 
     const channel = supabase
@@ -182,6 +202,11 @@ export default function ShowcasePage() {
     return detectShowcaseCategory(p, categories);
   };
 
+  // Reset page when category or search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedCategory, searchTerm]);
+
   // Filter products by category and search
   const filteredProducts = useMemo(() => {
     return products.filter(p => {
@@ -203,6 +228,12 @@ export default function ShowcasePage() {
       return true;
     });
   }, [products, selectedCategory, searchTerm, categories]);
+
+  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage) || 1;
+  const paginatedProducts = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredProducts.slice(start, start + itemsPerPage);
+  }, [filteredProducts, currentPage]);
 
   // Counts per category
   const categoryCounts = useMemo(() => {
@@ -541,7 +572,7 @@ export default function ShowcasePage() {
               ? "grid grid-cols-1 max-w-2xl mx-auto gap-5" 
               : "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4"
           }`}>
-            {filteredProducts.map((p, idx) => (
+            {paginatedProducts.map((p, idx) => (
               <div
                 key={p.id}
                 onClick={() => {
@@ -647,6 +678,28 @@ export default function ShowcasePage() {
                   </div>
                 </div>
               </div>
+            ))}
+          </div>
+        )}
+
+        {/* Pagination Controls */}
+        {totalPages > 1 && !loading && filteredProducts.length > 0 && (
+          <div className="flex flex-wrap justify-center items-center gap-2 mt-8 mb-16 pb-12" dir="ltr">
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNumber) => (
+              <button
+                key={pageNumber}
+                onClick={() => {
+                  setCurrentPage(pageNumber);
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className={`w-10 h-10 flex items-center justify-center rounded-xl font-bold text-sm transition-all ${
+                  currentPage === pageNumber 
+                    ? 'bg-brq-gold text-black scale-110 shadow-[0_0_15px_rgba(255,215,0,0.4)] border-2 border-yellow-300' 
+                    : 'bg-white/5 border border-white/10 text-white hover:bg-white/10'
+                }`}
+              >
+                {pageNumber}
+              </button>
             ))}
           </div>
         )}

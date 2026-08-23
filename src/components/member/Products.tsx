@@ -14,6 +14,7 @@ import { DownloadChoiceDialog } from "../shared/DownloadChoiceDialog";
 import { PriceHistoryViewer } from "./PriceHistoryViewer";
 import ImageViewer from "../ImageViewer";
 import { shuffleProductsForUser } from '../../utils/shuffle';
+import { localCache } from "../../utils/localCache";
 
 const MOCK_PRODUCTS: Product[] = [];
 
@@ -43,7 +44,7 @@ export default function Products() {
   const [downloadChoiceDialog, setDownloadChoiceDialog] = useState<{ isOpen: boolean; message: string; onDownloadStudio: () => void; onDownloadZip: () => void; onDownloadAllElastic?: () => void } | null>(null);
   const [initialLoading, setInitialLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 100;
+  const itemsPerPage = 40; // High speed 40 items per page for instant render and low network burden
   const isAndroid = /Android/i.test(navigator.userAgent || '');
   const maxShareLimit = isAndroid ? 10 : 100;
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false);
@@ -93,6 +94,32 @@ export default function Products() {
   useEffect(() => {
     let mounted = true;
     let fetchTimeout: any;
+
+    // Instant local cache restoration so the user experiences NO wait time
+    const cacheKey = categoryId ? `products_cat_${categoryId}` : 'all_products';
+    Promise.all([
+      localCache.get<any[]>('all_categories'),
+      localCache.get<any[]>(cacheKey)
+    ]).then(([cachedCats, cachedProds]) => {
+      if (!mounted) return;
+      if (cachedCats && cachedCats.length > 0) {
+        setAllCategories(cachedCats);
+        if (categoryId) {
+          const cat = cachedCats.find((c: any) => c.id === categoryId);
+          if (cat) setCategoryName(cat.name);
+          const subs = cachedCats
+            .filter((c: any) => c.parentId === categoryId && !c.isHidden)
+            .sort((a: any, b: any) => a.order - b.order);
+          setSubCategories(subs);
+        }
+      }
+      if (cachedProds && cachedProds.length > 0) {
+        let fetchedProducts = cachedProds.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked);
+        setProducts(shuffleProductsForUser(fetchedProducts));
+        setLoading(false);
+        setInitialLoading(false);
+      }
+    });
 
     const init = async () => {
       try {

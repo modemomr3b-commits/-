@@ -29,6 +29,7 @@ import Animated3DLogo from "../ui/Animated3DLogo";
 import { SHOWCASE_CATEGORIES_METADATA } from "../../utils/showcaseClassifier";
 import { createShowcaseInvite } from "../../services/showcaseService";
 import CategoryIcon from "../ui/CategoryIcon";
+import { localCache } from "../../utils/localCache";
 
 const DEFAULT_ICONS = ["✨", "👟", "🇹🇷", "⭐", "🎒", "☀️", "🔥"];
 
@@ -79,6 +80,18 @@ export default function Home() {
   useEffect(() => {
     let mounted = true;
     let fetchTimeout: any;
+
+    // Instant local cache check to prevent loading spinners
+    localCache.get<any[]>('all_categories').then((cachedCats) => {
+      if (mounted && cachedCats && cachedCats.length > 0) {
+        setCategories(
+          cachedCats
+            .filter((c) => !c.isHidden && !c.parentId)
+            .sort((a: any, b: any) => (a.order || 0) - (b.order || 0)),
+        );
+        setLoading(false);
+      }
+    });
 
     const initialFetch = async () => {
       try {

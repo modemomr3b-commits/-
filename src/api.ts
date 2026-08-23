@@ -2,6 +2,7 @@ import { getServerTime } from './utils/time';
 import { supabase } from './supabase';
 import { ActivityLog } from './types';
 import { parseOrderDetails } from './utils/orderUtils';
+import { localCache } from './utils/localCache';
 
 const getData = async (table: string) => {
   let allData: any[] = [];
@@ -64,12 +65,15 @@ const getDeletedData = async (table: string) => {
 };
 
 
-// Simple memory cache for fast browsing
+// Fast in-memory and persistent IndexedDB cache
 const memCache: Record<string, { data: any, timestamp: number }> = {};
-const CACHE_TTL = 30000; // 30 seconds
+const MEM_CACHE_TTL = 60000; // 1 minute in-memory
 
 export const api = {
-  clearCache: () => { Object.keys(memCache).forEach(k => delete memCache[k]); },
+  clearCache: () => { 
+    Object.keys(memCache).forEach(k => delete memCache[k]); 
+    localCache.clearAll().catch(() => {});
+  },
   uploadImage: async (base64Str: string): Promise<string> => {
     try {
       if (!base64Str || !base64Str.startsWith('data:image')) return base64Str;
@@ -103,14 +107,33 @@ export const api = {
   // PRODUCTS
   getProductsByCategory: async (categoryId: string) => {
     const cacheKey = `products_cat_${categoryId}`;
-    if (memCache[cacheKey] && Date.now() - memCache[cacheKey].timestamp < CACHE_TTL) {
+    if (memCache[cacheKey] && Date.now() - memCache[cacheKey].timestamp < MEM_CACHE_TTL) {
       return memCache[cacheKey].data;
     }
     
-    // Fetch categories to resolve category/subcategory hierarchy
-    const { data: catData } = await supabase.from('categories').select('*');
-    const categories = (catData || []).filter((c: any) => c.isDeleted !== true);
+    // Check persistent local cache for instant retrieval
+    const cachedCatProds = await localCache.get<any[]>(cacheKey, 1000 * 60 * 10);
+    if (cachedCatProds && cachedCatProds.length > 0) {
+      memCache[cacheKey] = { data: cachedCatProds, timestamp: Date.now() };
+      // Background revalidation
+      setTimeout(async () => {
+        try {
+          const fresh = await api.getProductsByCategoryDirect(categoryId);
+          if (fresh) {
+            memCache[cacheKey] = { data: fresh, timestamp: Date.now() };
+            localCache.set(cacheKey, fresh);
+          }
+        } catch {}
+      }, 50);
+      return cachedCatProds;
+    }
 
+    return api.getProductsByCategoryDirect(categoryId);
+  },
+
+  getProductsByCategoryDirect: async (categoryId: string) => {
+    const cacheKey = `products_cat_${categoryId}`;
+    const categories = await api.getCategories();
     const currentCat = categories.find((c: any) => c.id === categoryId);
     const currentCatName = currentCat ? currentCat.name.toLowerCase().trim() : '';
 
@@ -129,8 +152,10 @@ export const api = {
     });
 
     memCache[cacheKey] = { data: res, timestamp: Date.now() };
+    localCache.set(cacheKey, res).catch(() => {});
     return res;
   },
+
   getProductById: async (id: string) => {
     const { data, error } = await supabase.from('products').select('*').eq('id', id).single();
     if (error || !data) return null;
@@ -145,11 +170,42 @@ export const api = {
       forceStandardCrush: data.size?.forceStandardCrush ?? true
     };
   },
+
   getProducts: async () => {
     const cacheKey = 'all_products';
-    if (memCache[cacheKey] && Date.now() - memCache[cacheKey].timestamp < CACHE_TTL) {
+    if (memCache[cacheKey] && Date.now() - memCache[cacheKey].timestamp < MEM_CACHE_TTL) {
       return memCache[cacheKey].data;
     }
+
+    // Check fast local cache
+    const localData = await localCache.get<any[]>(cacheKey, 1000 * 60 * 10);
+    if (localData && localData.length > 0) {
+      memCache[cacheKey] = { data: localData, timestamp: Date.now() };
+      // Background revalidation
+      setTimeout(async () => {
+        try {
+          const freshData = await getData('products');
+          if (freshData && freshData.length > 0) {
+            const res = freshData.map((p: any) => ({
+              ...p,
+              isHidden: p.size?.isHidden !== undefined ? p.size.isHidden : (p.isHidden ?? false),
+              isLocked: p.size?.isLocked !== undefined ? p.size.isLocked : (p.isLocked ?? false),
+              isArchived: p.size?.isArchived !== undefined ? p.size.isArchived : (p.isArchived ?? false),
+              isShowcase: p.size?.isShowcase !== undefined ? p.size.isShowcase : (p.isShowcase ?? false),
+              showcaseCategory: p.size?.showcaseCategory || p.showcaseCategory || '',
+              oldPriceInfo: p.size?.oldPriceInfo || undefined,
+              forceStandardCrush: p.size?.forceStandardCrush ?? true,
+              updatedAt: p.size?.updatedAt || p.createdAt
+            })).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+            memCache[cacheKey] = { data: res, timestamp: Date.now() };
+            localCache.set(cacheKey, res).catch(() => {});
+          }
+        } catch {}
+      }, 50);
+      return localData;
+    }
+
     const data = await getData('products');
     const res = data.map((p: any) => ({
       ...p,
@@ -164,6 +220,7 @@ export const api = {
     })).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
     memCache[cacheKey] = { data: res, timestamp: Date.now() };
+    localCache.set(cacheKey, res).catch(() => {});
     return res;
   },
   createProduct: async (data: any) => { 
@@ -368,11 +425,28 @@ export const api = {
   // CATEGORIES
   getCategories: async () => {
     const cacheKey = 'all_categories';
-    if (memCache[cacheKey] && Date.now() - memCache[cacheKey].timestamp < CACHE_TTL) {
+    if (memCache[cacheKey] && Date.now() - memCache[cacheKey].timestamp < MEM_CACHE_TTL) {
       return memCache[cacheKey].data;
     }
+
+    const localCats = await localCache.get<any[]>(cacheKey, 1000 * 60 * 15);
+    if (localCats && localCats.length > 0) {
+      memCache[cacheKey] = { data: localCats, timestamp: Date.now() };
+      setTimeout(async () => {
+        try {
+          const fresh = await getData('categories');
+          if (fresh && fresh.length > 0) {
+            memCache[cacheKey] = { data: fresh, timestamp: Date.now() };
+            localCache.set(cacheKey, fresh).catch(() => {});
+          }
+        } catch {}
+      }, 50);
+      return localCats;
+    }
+
     const res = await getData('categories');
     memCache[cacheKey] = { data: res, timestamp: Date.now() };
+    localCache.set(cacheKey, res).catch(() => {});
     return res;
   },
   createCategory: async (data: any) => { 
