@@ -7,7 +7,7 @@ import { Link } from 'react-router';
 import OptimizedImage from '../OptimizedImage';
 import { downloadImages } from '../../utils/download';
 import { printOrderInvoice } from '../../utils/printOrder';
-import { parseOrderDetails } from '../../utils/orderUtils';
+import { parseOrderDetails, isOrderBelongsToAgent } from '../../utils/orderUtils';
 
 export default function CustomerOrders() {
   const { user, showToast } = useStore();
@@ -26,25 +26,9 @@ export default function CustomerOrders() {
       
       let userOrders = allOrders;
       if (user) {
-        const uName = (user.username || '').toLowerCase().trim();
-        const uFull = (user.fullName || '').toLowerCase().trim();
-        const uId = (user.id || user.uid || '').toString().toLowerCase().trim();
-
-        userOrders = allOrders.filter(o => {
-          const oUser = (o.userId || '').toString().toLowerCase().trim();
-          const oName = (o.username || '').toLowerCase().trim();
-          const oFull = (o.fullName || '').toLowerCase().trim();
-          const oCust = (o.customerName || '').toLowerCase().trim();
-          const oNotes = (o.notes || '').toLowerCase();
-
-          if (uId && (oUser === uId || oNotes.includes(uId))) return true;
-          if (uName && (oUser === uName || oName === uName || oFull === uName || oCust === uName || oNotes.includes(uName))) return true;
-          if (uFull && (oUser === uFull || oName === uFull || oFull === uFull || oCust === uFull || oNotes.includes(uFull))) return true;
-          return false;
-        });
+        userOrders = allOrders.filter(o => isOrderBelongsToAgent(o, user));
       }
       
-      // Filter orders that have customer information or came from showcase (or status pending_agent)
       userOrders.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
       setOrders(userOrders);
     } catch (err) {

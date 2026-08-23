@@ -7,7 +7,7 @@ import { useState, useEffect } from 'react';
 import { api } from '../../api';
 import { Order, OrderStatus } from '../../types';
 import { usePWAInstall } from '../../hooks/usePWAInstall';
-import { parseOrderDetails } from '../../utils/orderUtils';
+import { parseOrderDetails, isOrderBelongsToAgent } from '../../utils/orderUtils';
 
 const statusMap: Record<OrderStatus, { label: string, color: string }> = {
   new: { label: 'قيد المراجعة', color: 'bg-yellow-500/20 text-yellow-500 border-yellow-500/30' },
@@ -40,22 +40,7 @@ export default function Profile() {
        if (!user?.id && !user?.uid) return;
        try {
          const allOrders = await api.getOrders();
-         const uName = (user.username || '').toLowerCase().trim();
-         const uFull = (user.fullName || '').toLowerCase().trim();
-         const uId = (user.id || user.uid || '').toString().toLowerCase().trim();
-
-         const myOrders = allOrders.filter(o => {
-            const oUser = (o.userId || '').toString().toLowerCase().trim();
-            const oName = (o.username || '').toLowerCase().trim();
-            const oFull = (o.fullName || '').toLowerCase().trim();
-            const oCust = (o.customerName || '').toLowerCase().trim();
-            const oNotes = (o.notes || '').toLowerCase();
-
-            if (uId && (oUser === uId || oNotes.includes(uId))) return true;
-            if (uName && (oUser === uName || oName === uName || oFull === uName || oCust === uName || oNotes.includes(uName))) return true;
-            if (uFull && (oUser === uFull || oName === uFull || oFull === uFull || oCust === uFull || oNotes.includes(uFull))) return true;
-            return false;
-         });
+         const myOrders = allOrders.filter(o => isOrderBelongsToAgent(o, user));
 
          const pCount = myOrders.filter(o => o.status === 'pending_agent').length;
          setPendingCustomerCount(pCount);

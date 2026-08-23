@@ -13,6 +13,8 @@ interface ShowcaseCartModalProps {
 
 export default function ShowcaseCartModal({ cart, setCart, onClose, authData, showToast }: ShowcaseCartModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [visitorNotes, setVisitorNotes] = useState('');
+  const [visitorPhone, setVisitorPhone] = useState('');
 
   const totalQuantity = cart.reduce((sum, item) => sum + item.quantity, 0);
 
@@ -31,13 +33,23 @@ export default function ShowcaseCartModal({ cart, setCart, onClose, authData, sh
     setIsSubmitting(true);
     try {
       const orderNumber = `BRQ-${Math.floor(1000 + Math.random() * 9000)}`;
+      const noteParts: string[] = [];
+      if (visitorPhone.trim()) {
+        noteParts.push(`هاتف الزبون: ${visitorPhone.trim()}`);
+      }
+      if (visitorNotes.trim()) {
+        noteParts.push(visitorNotes.trim());
+      }
+
       await api.createOrder({
         userId: authData.agent.id,
+        agentId: authData.agent.id,
         username: authData.agent.fullName,
         agentName: authData.agent.fullName,
         fullName: authData.visitorName,
         visitorName: authData.visitorName,
         customerName: `زائر المعرض: ${authData.visitorName}`,
+        customerPhone: visitorPhone.trim() || undefined,
         orderNumber,
         status: 'pending_agent',
         items: cart.map(item => ({
@@ -46,7 +58,7 @@ export default function ShowcaseCartModal({ cart, setCart, onClose, authData, sh
              product: item.product,
         })),
         totalQuantity: totalQuantity,
-        notes: '',
+        notes: noteParts.join('\n').trim(),
         createdAt: Date.now()
       });
       showToast('تم إرسال الطلبية بنجاح إلى الوكيل!');
@@ -113,20 +125,38 @@ export default function ShowcaseCartModal({ cart, setCart, onClose, authData, sh
 
         {/* Footer */}
         {cart.length > 0 && (
-          <div className="p-4 border-t border-white/10 bg-black/40">
-            <div className="flex justify-between items-center mb-4">
+          <div className="p-4 border-t border-white/10 bg-black/40 space-y-3">
+            {/* Optional Phone & Notes */}
+            <div className="space-y-2">
+              <input
+                type="tel"
+                placeholder="رقم الهاتف (اختياري)..."
+                value={visitorPhone}
+                onChange={(e) => setVisitorPhone(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder:text-white/40 focus:border-brq-gold/50 outline-none"
+              />
+              <textarea
+                rows={2}
+                placeholder="ملاحظات إضافية للوكيل (اختياري)..."
+                value={visitorNotes}
+                onChange={(e) => setVisitorNotes(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder:text-white/40 focus:border-brq-gold/50 outline-none resize-none"
+              />
+            </div>
+
+            <div className="flex justify-between items-center py-1">
               <span className="text-white/70 text-sm">إجمالي القطع</span>
               <span className="text-xl font-bold text-white">{totalQuantity}</span>
             </div>
             <button
               onClick={handleSubmit}
               disabled={isSubmitting}
-              className="w-full bg-brq-gold hover:bg-yellow-400 text-black font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-70"
+              className="w-full bg-brq-gold hover:bg-yellow-400 text-black font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-70 shadow-lg shadow-yellow-500/10"
             >
               {isSubmitting ? (
                 <>
                   <Loader2 size={18} className="animate-spin" />
-                  جاري الإرسال...
+                  جاري الإرسال للوكيل...
                 </>
               ) : (
                 'إرسال الطلبية للوكيل'

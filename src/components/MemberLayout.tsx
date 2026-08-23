@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { usePWAInstall } from '../hooks/usePWAInstall';
 import { useState, useEffect } from 'react';
 import Animated3DLogo from './ui/Animated3DLogo';
+import { isOrderBelongsToAgent } from '../utils/orderUtils';
 
 export default function MemberLayout() {
   const { cart, user } = useStore();
@@ -23,23 +24,7 @@ export default function MemberLayout() {
       if (!user) return;
       try {
         const allOrders = await api.getOrders();
-        const uName = (user.username || '').toLowerCase().trim();
-        const uFull = (user.fullName || '').toLowerCase().trim();
-        const uId = (user.id || user.uid || '').toString().toLowerCase().trim();
-
-        const pending = allOrders.filter(o => {
-          if (o.status !== 'pending_agent') return false;
-          const oUser = (o.userId || '').toString().toLowerCase().trim();
-          const oName = (o.username || '').toLowerCase().trim();
-          const oFull = (o.fullName || '').toLowerCase().trim();
-          const oCust = (o.customerName || '').toLowerCase().trim();
-          const oNotes = (o.notes || '').toLowerCase();
-
-          if (uId && (oUser === uId || oNotes.includes(uId))) return true;
-          if (uName && (oUser === uName || oName === uName || oFull === uName || oCust === uName || oNotes.includes(uName))) return true;
-          if (uFull && (oUser === uFull || oName === uFull || oFull === uFull || oCust === uFull || oNotes.includes(uFull))) return true;
-          return false;
-        });
+        const pending = allOrders.filter(o => o.status === 'pending_agent' && isOrderBelongsToAgent(o, user));
 
         if (isMounted) {
           setPendingCustomerOrdersCount(pending.length);

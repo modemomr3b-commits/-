@@ -448,12 +448,16 @@ export const api = {
         ...o,
         items: o.products || o.items || [],
         totalQuantity: o.total || o.totalQuantity || 0,
+        userId: o.userId || parsed.agentId || '',
+        agentId: parsed.agentId || o.userId || '',
+        agentName: parsed.agentName || o.agentName || '',
         fullName: parsed.agentName || o.fullName || o.username || '',
         username: o.username || parsed.agentName || '',
-        customerName: parsed.customerName || (o.customerName !== o.username ? o.customerName : '') || '',
+        customerName: parsed.customerName || (o.customerName !== parsed.agentName ? o.customerName : '') || '',
         transport: parsed.transport || o.transport || '',
         notes: parsed.notes,
         displayNotes: parsed.displayNotes,
+        rawNotes: o.notes || '',
       };
     });
   },
@@ -471,15 +475,19 @@ export const api = {
 
     // Identify agent and customer
     const agentName = (data.username || data.agentName || data.fullName || 'الوكيل').trim();
+    const agentId = (data.userId || data.agentId || '').toString().trim();
     const explicitCustomer = data.customerName?.trim() || (data.visitorName ? `زائر المعرض: ${data.visitorName.trim()}` : '');
 
     // Set customerName in table (if explicit customer exists use it, otherwise use agent name)
     safeData.customerName = explicitCustomer || agentName || 'الوكيل';
 
-    // Build structured notes with all details (agent, customer, transport, notes)
+    // Build structured notes with all details (agent, agentId, customer, transport, notes)
     const notesArray: string[] = [];
     if (agentName) {
       notesArray.push(`الوكيل: ${agentName}`);
+    }
+    if (agentId) {
+      notesArray.push(`معرف الوكيل: ${agentId}`);
     }
     if (explicitCustomer && explicitCustomer !== agentName) {
       notesArray.push(`اسم الزبون: ${explicitCustomer}`);
@@ -489,7 +497,7 @@ export const api = {
     }
     if (data.notes && data.notes.trim()) {
       const raw = data.notes.trim();
-      if (!raw.startsWith('الوكيل:') && !raw.startsWith('اسم الزبون:')) {
+      if (!raw.startsWith('الوكيل:') && !raw.startsWith('اسم الزبون:') && !raw.startsWith('معرف الوكيل:')) {
         notesArray.push(raw);
       }
     }
