@@ -517,7 +517,7 @@ export default function Products() {
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-3">
             <button
-              onClick={() => navigate(-1)}
+              onClick={() => navigate('/')}
               className="p-2 bg-white/5 rounded-lg border border-white/10 text-white hover:bg-white/10 transition-colors"
             >
               <ChevronRight size={20} />

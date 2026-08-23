@@ -100,20 +100,15 @@ export default function ProductDetail() {
     const returnCat = sessionStorage.getItem('return_category');
     const returnSearch = sessionStorage.getItem('return_search');
     
-    // Check if we can go back in browser history
-    if (window.history.length > 1) {
-      navigate(-1);
+    // Explicit navigation to prevent kicking the user out of the app
+    if (returnSearch === 'true') {
+      navigate('/search');
+    } else if (returnCat) {
+      navigate(`/category/${returnCat}`);
+    } else if (product?.categoryId) {
+      navigate(`/category/${product.categoryId}`);
     } else {
-      // Fallback if opened directly or history was lost
-      if (returnSearch === 'true') {
-        navigate('/search');
-      } else if (returnCat && returnCat !== 'all') {
-        navigate(`/category/${returnCat}`);
-      } else if (product?.categoryId) {
-        navigate(`/category/${product.categoryId}`);
-      } else {
-        navigate('/');
-      }
+      navigate('/');
     }
   };
   const currentIndex = useMemo(() => {
@@ -338,7 +333,7 @@ export default function ProductDetail() {
       <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#050608] text-white/60 p-6 text-center">
         <p className="text-lg mb-4">المنتج غير موجود أو تم حذفه</p>
         <button 
-          onClick={() => navigate(-1)} 
+          onClick={handleClose} 
           className="px-6 py-2.5 bg-amber-400 text-black font-bold rounded-xl shadow-lg hover:bg-amber-300 transition-colors"
         >
           العودة
