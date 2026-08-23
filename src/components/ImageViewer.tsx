@@ -63,7 +63,7 @@ export default function ImageViewer({
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [showSidebar, setShowSidebar] = useState(true);
-  const [showMobileSheet, setShowMobileSheet] = useState(true);
+  const [showMobileSheet, setShowMobileSheet] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -824,7 +824,7 @@ export default function ImageViewer({
         {product && (
           <div 
             className={`md:hidden absolute bottom-0 left-0 right-0 z-30 bg-[#0c0d12]/98 backdrop-blur-2xl border-t border-white/15 rounded-t-3xl transition-transform duration-300 shadow-[0_-10px_30px_rgba(0,0,0,0.8)] ${
-              showMobileSheet ? "translate-y-0" : "translate-y-[calc(100%-48px)]"
+              showMobileSheet ? "translate-y-0" : "translate-y-[calc(100%-32px)]"
             }`}
             dir="rtl"
             onClick={(e) => e.stopPropagation()}
@@ -832,38 +832,37 @@ export default function ImageViewer({
             {/* Sheet Handle */}
             <button 
               onClick={() => setShowMobileSheet(!showMobileSheet)}
-              className="w-full py-3 flex items-center justify-center text-white/50 hover:text-white cursor-pointer"
+              className="w-full py-2 flex items-center justify-center text-white/50 hover:text-white cursor-pointer"
             >
-              <div className="w-12 h-1.5 bg-white/20 rounded-full mb-1" />
+              <div className="w-10 h-1 bg-white/20 rounded-full" />
             </button>
-
-            <div className="px-5 pb-6 space-y-4 max-h-[60vh] overflow-y-auto text-right">
+            <div className="px-4 pb-4 space-y-2.5 max-h-[60vh] overflow-y-auto text-right">
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <h2 className="text-base font-black text-white leading-tight">
+                  <h2 className="text-sm font-black text-white leading-tight">
                     {product.name}
                   </h2>
                   {product.productCode && (
-                    <span className="inline-block mt-1 text-[11px] font-mono text-amber-300 font-bold bg-amber-400/15 border border-amber-400/30 px-2 py-0.5 rounded">
+                    <span className="inline-block mt-0.5 text-[10px] font-mono text-amber-300 font-bold bg-amber-400/15 border border-amber-400/30 px-1.5 py-0.5 rounded">
                       كود: {product.productCode}
                     </span>
                   )}
                 </div>
-                <div className="text-left font-mono font-black text-amber-300 text-lg">
+                <div className="text-left font-mono font-black text-amber-300 text-base">
                   {product.price ? `${product.price.toLocaleString("en-US")} د.ع` : ''}
                 </div>
               </div>
 
               {/* Mobile Specs Grid */}
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="bg-white/5 p-2.5 rounded-xl border border-white/10">
-                  <span className="text-white/40 text-[10px] block">سعر القطعة</span>
+              <div className="grid grid-cols-2 gap-1.5 text-[10px]">
+                <div className="bg-white/5 p-1.5 px-2 rounded-lg border border-white/10 flex items-center justify-between">
+                  <span className="text-white/40">القطعة</span>
                   <span className="font-bold font-mono text-white">
                     {product.piecePriceIqd ? `${product.piecePriceIqd.toLocaleString("en-US")} د.ع` : '---'}
                   </span>
                 </div>
-                <div className="bg-white/5 p-2.5 rounded-xl border border-white/10">
-                  <span className="text-white/40 text-[10px] block">التعبئة</span>
+                <div className="bg-white/5 p-1.5 px-2 rounded-lg border border-white/10 flex items-center justify-between">
+                  <span className="text-white/40">التعبئة</span>
                   <span className="font-bold font-mono text-white">
                     {product.piecesCount ? `${product.piecesCount} قطعة` : (product.packaging || '12 قطعة')}
                   </span>
@@ -871,7 +870,7 @@ export default function ImageViewer({
               </div>
 
               {/* Mobile Action Buttons */}
-              <div className="grid grid-cols-1 gap-2 pt-1">
+              <div className="grid grid-cols-2 gap-1.5 pt-0.5">
                 {product && (
                   <button
                     onClick={() => {
@@ -884,7 +883,7 @@ export default function ImageViewer({
                       setAddedToCartSuccess(true);
                       setTimeout(() => setAddedToCartSuccess(false), 2000);
                     }}
-                    className={`py-3 px-3 font-black rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-lg active:scale-95 transition-all cursor-pointer ${
+                    className={`py-2 px-2 font-black rounded-lg text-xs flex items-center justify-center gap-1 shadow-lg active:scale-95 transition-all cursor-pointer ${
                       addedToCartSuccess
                         ? "bg-emerald-500 text-white shadow-emerald-500/30"
                         : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30"
@@ -892,31 +891,29 @@ export default function ImageViewer({
                   >
                     {addedToCartSuccess ? (
                       <>
-                        <Check size={16} className="text-white animate-bounce" />
-                        <span>تمت الإضافة إلى السلة!</span>
+                        <Check size={14} className="text-white animate-bounce" />
+                        <span className="text-[10px] sm:text-xs">تمت الإضافة!</span>
                       </>
                     ) : (
                       <>
-                        <ShoppingCart size={16} />
-                        <span>إضافة إلى السلة</span>
+                        <ShoppingCart size={14} />
+                        <span className="text-[10px] sm:text-xs">إضافة للسلة</span>
                       </>
                     )}
                   </button>
                 )}
-
                 <button
                   onClick={handleDownload}
                   disabled={isDownloading}
-                  className="py-2.5 px-3 bg-amber-400 text-black font-black rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-lg cursor-pointer"
+                  className="py-2 px-2 bg-amber-400 text-black font-black rounded-lg text-[10px] sm:text-xs flex items-center justify-center gap-1 shadow-lg cursor-pointer"
                 >
-                  <Download size={15} />
+                  <Download size={14} />
                   <span>تحميل الصورة</span>
                 </button>
               </div>
             </div>
           </div>
         )}
-
       </div>
     </div>
   );

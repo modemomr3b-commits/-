@@ -1,0 +1,25 @@
+                onClick={handleDownload}
+                disabled={isDownloading}
+                className="py-2 px-2 bg-amber-400 text-black font-black rounded-lg text-[10px] sm:text-xs flex items-center justify-center gap-1 shadow-lg cursor-pointer"
+              >
+                <Download size={14} />
+                <span>تحميل الصورة</span>
+              </button>
+              <button
+                onClick={handleWhatsAppShare}
+                className="py-2 px-2 bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 font-bold rounded-lg text-[10px] sm:text-xs flex items-center justify-center gap-1 cursor-pointer"
+              >
+                <MessageCircle size={14} />
+              </button>
+            </div>
+          </div>
+          </div>
+        </div>
+      </div>
+      {/* Price History Modal */}
+      {historyProduct && (
+        <PriceHistoryViewer product={historyProduct} onClose={() => setHistoryProduct(null)} />
+      )}
+    </div>
+  );
+}
