@@ -1725,21 +1725,14 @@ export default function ProductManager() {
                     onChange={(e) => setFilterCategoryId(e.target.value)}
                     className="appearance-none pl-8 pr-10 py-2.5 bg-white border-2 border-brq-royal rounded-lg text-sm font-bold text-black hover:bg-gray-50 transition-colors focus:outline-none focus:border-brq-gold shadow-sm"
                   >
-                    <option value="">جميع الأقسام</option>
-                    {categories.filter(c => !c.parentId).map(mainCat => {
-                      const subCats = categories.filter(sub => sub.parentId === mainCat.id);
-                      if (subCats.length === 0) {
-                        return <option key={mainCat.id} value={mainCat.id}>{mainCat.name}</option>;
-                      }
-                      return (
-                        <optgroup key={mainCat.id} label={mainCat.name}>
-                          <option value={mainCat.id}>كل {mainCat.name}</option>
-                          {subCats.map(sub => (
-                            <option key={sub.id} value={sub.id}>-- {sub.name}</option>
-                          ))}
-                        </optgroup>
-                      );
-                    })}
+                    <option value="">جميع الأقسام الرئيسية</option>
+                    {categories
+                      .filter(c => !c.parentId)
+                      .map(mainCat => (
+                        <option key={mainCat.id} value={mainCat.id}>
+                          {mainCat.name}
+                        </option>
+                      ))}
                   </select>
                   <Filter className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 w-4 h-4 pointer-events-none" />
                 </div>

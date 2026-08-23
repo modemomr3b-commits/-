@@ -358,6 +358,21 @@ export default function ShowcasePage() {
 
             {/* Top action buttons */}
             <div className="flex items-center gap-2">
+              {/* Home button for logged-in accounts */}
+              {user && (
+                <button
+                  onClick={() => {
+                    const homeRoute = user.role === 'admin' ? '/admin' : '/';
+                    navigate(homeRoute);
+                  }}
+                  className="flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-xl bg-amber-400/20 hover:bg-amber-400/30 text-amber-300 border border-amber-400/40 text-xs sm:text-sm font-bold transition-all shadow-[0_0_15px_rgba(251,191,36,0.2)] active:scale-95 cursor-pointer"
+                  title="الرجوع إلى الصفحة الرئيسية"
+                >
+                  <Home size={16} className="text-amber-400" />
+                  <span className="hidden sm:inline">الرئيسية</span>
+                </button>
+              )}
+
               <button
                 onClick={() => {
                   sessionStorage.removeItem('brq_showcase_auth');
@@ -669,6 +684,7 @@ export default function ShowcasePage() {
           product={fullscreenImage.product}
           currentIndex={filteredProducts.findIndex(p => p.id === fullscreenImage.product.id)}
           totalCount={filteredProducts.length}
+          onAddToCart={addToCart}
           onClose={() => setFullscreenImage(null)}
           onNext={() => {
             const currIdx = filteredProducts.findIndex(p => p.id === fullscreenImage.product.id);

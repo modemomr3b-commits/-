@@ -21,11 +21,13 @@ import {
   Layers,
   ArrowRight,
   ArrowLeft,
-  Loader2
+  Loader2,
+  ShoppingCart
 } from 'lucide-react';
 import OptimizedImage from './OptimizedImage';
 import { Product } from '../types';
 import { formatDate } from '../utils/time';
+import { useStore } from '../store';
 
 interface ImageViewerProps {
   src: string;
@@ -38,6 +40,7 @@ interface ImageViewerProps {
   product?: Product | null;
   currentIndex?: number;
   totalCount?: number;
+  onAddToCart?: (product: Product) => void;
 }
 
 export default function ImageViewer({ 
@@ -50,8 +53,11 @@ export default function ImageViewer({
   hasNext = false,
   product = null,
   currentIndex,
-  totalCount
+  totalCount,
+  onAddToCart
 }: ImageViewerProps) {
+  const store = useStore();
+  const [addedToCartSuccess, setAddedToCartSuccess] = useState(false);
   const [scale, setScale] = useState(1);
   const [isDragging, setIsDragging] = useState(false);
   const [position, setPosition] = useState({ x: 0, y: 0 });
@@ -619,6 +625,39 @@ export default function ImageViewer({
 
               {/* Action Buttons */}
               <div className="space-y-2.5 pt-1">
+                {/* Add to Cart Button */}
+                {product && (
+                  <button
+                    onClick={() => {
+                      if (onAddToCart) {
+                        onAddToCart(product);
+                      } else if (store?.addToCart) {
+                        store.addToCart(product, 1);
+                        store.showToast?.(`تمت إضافة "${product.name}" إلى السلة`, 'success');
+                      }
+                      setAddedToCartSuccess(true);
+                      setTimeout(() => setAddedToCartSuccess(false), 2000);
+                    }}
+                    className={`w-full py-3.5 px-4 font-black rounded-xl text-sm transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer shadow-lg ${
+                      addedToCartSuccess
+                        ? "bg-emerald-500 text-white shadow-emerald-500/30"
+                        : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30"
+                    }`}
+                  >
+                    {addedToCartSuccess ? (
+                      <>
+                        <Check size={18} className="text-white animate-bounce" />
+                        <span>تمت الإضافة إلى السلة!</span>
+                      </>
+                    ) : (
+                      <>
+                        <ShoppingCart size={18} />
+                        <span>إضافة إلى السلة</span>
+                      </>
+                    )}
+                  </button>
+                )}
+
                 {/* High Res Download Button */}
                 <button
                   onClick={handleDownload}
@@ -833,6 +872,38 @@ export default function ImageViewer({
 
               {/* Mobile Action Buttons */}
               <div className="grid grid-cols-1 gap-2 pt-1">
+                {product && (
+                  <button
+                    onClick={() => {
+                      if (onAddToCart) {
+                        onAddToCart(product);
+                      } else if (store?.addToCart) {
+                        store.addToCart(product, 1);
+                        store.showToast?.(`تمت إضافة "${product.name}" إلى السلة`, 'success');
+                      }
+                      setAddedToCartSuccess(true);
+                      setTimeout(() => setAddedToCartSuccess(false), 2000);
+                    }}
+                    className={`py-3 px-3 font-black rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-lg active:scale-95 transition-all cursor-pointer ${
+                      addedToCartSuccess
+                        ? "bg-emerald-500 text-white shadow-emerald-500/30"
+                        : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30"
+                    }`}
+                  >
+                    {addedToCartSuccess ? (
+                      <>
+                        <Check size={16} className="text-white animate-bounce" />
+                        <span>تمت الإضافة إلى السلة!</span>
+                      </>
+                    ) : (
+                      <>
+                        <ShoppingCart size={16} />
+                        <span>إضافة إلى السلة</span>
+                      </>
+                    )}
+                  </button>
+                )}
+
                 <button
                   onClick={handleDownload}
                   disabled={isDownloading}
