@@ -237,6 +237,43 @@ export default function Products() {
     }
   }, [loading, categoryId, products.length]);
 
+  // Hardware back button support for overlays
+  const isAnyOverlayOpen = fullscreenIndex !== null || fullscreenImage !== null || historyProduct !== null || isFilterModalOpen || downloadChoiceDialog !== null;
+  const prevOverlayState = useRef(false);
+
+  useEffect(() => {
+    if (isAnyOverlayOpen && !prevOverlayState.current) {
+      // Overlay just opened -> Push a dummy state
+      window.history.pushState({ overlay: true }, '');
+      prevOverlayState.current = true;
+    } else if (!isAnyOverlayOpen && prevOverlayState.current) {
+      // Overlay just closed programmatically (e.g. by Close button)
+      // Pop the dummy state if it's there
+      if (window.history.state && window.history.state.overlay) {
+        window.history.back();
+      }
+      prevOverlayState.current = false;
+    }
+  }, [isAnyOverlayOpen]);
+
+  useEffect(() => {
+    const handlePopState = (e: PopStateEvent) => {
+      if (prevOverlayState.current) {
+        // Hardware back button pressed. The dummy state is already popped by the browser.
+        // Close all overlays.
+        setFullscreenIndex(null);
+        setFullscreenImage(null);
+        setHistoryProduct(null);
+        setIsFilterModalOpen(false);
+        setDownloadChoiceDialog(null);
+        prevOverlayState.current = false;
+      }
+    };
+    
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
   const handleAddToCart = (e: React.MouseEvent, p: Product) => {
     e.preventDefault();
     e.stopPropagation();

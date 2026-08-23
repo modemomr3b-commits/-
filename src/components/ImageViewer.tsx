@@ -407,50 +407,50 @@ export default function ImageViewer({
       className="fixed inset-0 z-[100] flex flex-col bg-[#050608]/98 backdrop-blur-2xl select-none overflow-hidden text-white"
     >
       {/* Top Header Bar */}
-      <header className="relative z-30 h-16 px-4 md:px-6 flex items-center justify-between border-b border-white/10 bg-black/60 backdrop-blur-xl shrink-0">
+      <header className="relative z-30 h-12 sm:h-14 px-2 sm:px-4 md:px-6 flex items-center justify-between border-b border-white/10 bg-black/60 backdrop-blur-xl shrink-0">
         
         {/* Left Side: Details Button, Fullscreen, Zoom Controls */}
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-1.5 sm:gap-3">
           {product && (
             <button
               onClick={() => {
                 setShowSidebar(!showSidebar);
                 setShowMobileSheet(!showMobileSheet);
               }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border shadow-lg cursor-pointer ${
+              className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold transition-all border shadow-lg cursor-pointer ${
                 showSidebar 
                   ? "bg-amber-400/15 text-amber-300 border-amber-400/60 shadow-[0_0_15px_rgba(251,191,36,0.15)]" 
                   : "bg-white/5 text-white/70 border-white/10 hover:bg-white/10 hover:text-white"
               }`}
               title="إظهار / إخفاء التفاصيل"
             >
-              <Layers size={16} className={showSidebar ? "text-amber-400" : "text-white/60"} />
-              <span>التفاصيل</span>
+              <Layers size={14} className={showSidebar ? "text-amber-400" : "text-white/60"} />
+              <span className="hidden sm:inline">التفاصيل</span>
             </button>
           )}
 
           {/* Fullscreen Button */}
           <button
             onClick={handleToggleFullscreen}
-            className="p-2 text-white/80 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all cursor-pointer"
+            className="p-1.5 sm:p-2 text-white/80 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg sm:rounded-xl transition-all cursor-pointer"
             title={isFullscreen ? "إنهاء ملء الشاشة (F)" : "ملء الشاشة (F)"}
           >
-            {isFullscreen ? <Minimize size={17} /> : <Maximize size={17} />}
+            {isFullscreen ? <Minimize size={15} /> : <Maximize size={15} />}
           </button>
 
           {/* Zoom Controls */}
-          <div className="flex items-center gap-1 bg-white/5 border border-white/10 p-1 rounded-xl shadow-lg">
+          <div className="flex items-center gap-0.5 sm:gap-1 bg-white/5 border border-white/10 p-0.5 sm:p-1 rounded-lg sm:rounded-xl shadow-lg">
             <button 
               onClick={handleZoomOut}
               disabled={scale <= 1}
-              className="text-white/80 hover:text-white hover:bg-white/10 disabled:opacity-30 p-1.5 rounded-lg transition-all cursor-pointer"
+              className="text-white/80 hover:text-white hover:bg-white/10 disabled:opacity-30 p-1 sm:p-1.5 rounded-md sm:rounded-lg transition-all cursor-pointer"
               title="تصغير (-)"
             >
-              <ZoomOut size={16} />
+              <ZoomOut size={14} />
             </button>
             <button
               onClick={handleResetZoom}
-              className="text-white text-xs font-mono font-bold px-2 py-1 hover:bg-white/10 rounded-md transition-colors min-w-[50px] text-center cursor-pointer"
+              className="text-white text-[10px] sm:text-xs font-mono font-bold px-1 sm:px-2 py-0.5 sm:py-1 hover:bg-white/10 rounded-md transition-colors min-w-[40px] sm:min-w-[50px] text-center cursor-pointer"
               title="إعادة ضبط (0)"
             >
               {Math.round(scale * 100)}%
@@ -458,18 +458,18 @@ export default function ImageViewer({
             <button 
               onClick={handleZoomIn}
               disabled={scale >= 4}
-              className="text-white/80 hover:text-white hover:bg-white/10 disabled:opacity-30 p-1.5 rounded-lg transition-all cursor-pointer"
+              className="text-white/80 hover:text-white hover:bg-white/10 disabled:opacity-30 p-1 sm:p-1.5 rounded-md sm:rounded-lg transition-all cursor-pointer"
               title="تكبير (+)"
             >
-              <ZoomIn size={16} />
+              <ZoomIn size={14} />
             </button>
             {scale > 1 && (
               <button
                 onClick={handleResetZoom}
-                className="text-amber-400 hover:bg-amber-400/20 p-1.5 rounded-lg transition-all cursor-pointer"
+                className="text-amber-400 hover:bg-amber-400/20 p-1 sm:p-1.5 rounded-md sm:rounded-lg transition-all cursor-pointer"
                 title="إعادة ضبط المقياس (0)"
               >
-                <RotateCcw size={15} />
+                <RotateCcw size={13} />
               </button>
             )}
           </div>

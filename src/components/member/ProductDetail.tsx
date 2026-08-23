@@ -351,48 +351,48 @@ export default function ProductDetail() {
       className="fixed inset-0 z-40 md:z-50 flex flex-col bg-[#050608]/98 backdrop-blur-2xl select-none overflow-hidden text-white"
     >
       {/* Top Header Bar */}
-      <header className="relative z-30 h-16 px-4 md:px-6 flex items-center justify-between border-b border-white/10 bg-black/60 backdrop-blur-xl shrink-0">
+      <header className="relative z-30 h-12 sm:h-14 px-2 sm:px-4 md:px-6 flex items-center justify-between border-b border-white/10 bg-black/60 backdrop-blur-xl shrink-0">
         
         {/* Left Side: Details Button, Fullscreen, Zoom Controls */}
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-1.5 sm:gap-3">
           <button
             onClick={() => {
               setShowSidebar(!showSidebar);
               setShowMobileSheet(!showMobileSheet);
             }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border shadow-lg cursor-pointer ${
+            className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold transition-all border shadow-lg cursor-pointer ${
               showSidebar 
                 ? "bg-amber-400/15 text-amber-300 border-amber-400/60 shadow-[0_0_15px_rgba(251,191,36,0.15)]" 
                 : "bg-white/5 text-white/70 border-white/10 hover:bg-white/10 hover:text-white"
             }`}
             title="إظهار / إخفاء التفاصيل"
           >
-            <Layers size={16} className={showSidebar ? "text-amber-400" : "text-white/60"} />
-            <span>التفاصيل</span>
+            <Layers size={14} className={showSidebar ? "text-amber-400" : "text-white/60"} />
+            <span className="hidden sm:inline">التفاصيل</span>
           </button>
 
           {/* Fullscreen Button */}
           <button
             onClick={handleToggleFullscreen}
-            className="p-2 text-white/80 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all cursor-pointer"
+            className="p-1.5 sm:p-2 text-white/80 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg sm:rounded-xl transition-all cursor-pointer"
             title={isFullscreen ? "إنهاء ملء الشاشة (F)" : "ملء الشاشة (F)"}
           >
-            {isFullscreen ? <Minimize size={17} /> : <Maximize size={17} />}
+            {isFullscreen ? <Minimize size={15} /> : <Maximize size={15} />}
           </button>
 
           {/* Zoom Controls */}
-          <div className="flex items-center gap-1 bg-white/5 border border-white/10 p-1 rounded-xl shadow-lg">
+          <div className="flex items-center gap-0.5 sm:gap-1 bg-white/5 border border-white/10 p-0.5 sm:p-1 rounded-lg sm:rounded-xl shadow-lg">
             <button 
               onClick={handleZoomOut}
               disabled={scale <= 1}
-              className="text-white/80 hover:text-white hover:bg-white/10 disabled:opacity-30 p-1.5 rounded-lg transition-all cursor-pointer"
+              className="text-white/80 hover:text-white hover:bg-white/10 disabled:opacity-30 p-1 sm:p-1.5 rounded-md sm:rounded-lg transition-all cursor-pointer"
               title="تصغير (-)"
             >
-              <ZoomOut size={16} />
+              <ZoomOut size={14} />
             </button>
             <button
               onClick={handleResetZoom}
-              className="text-white text-xs font-mono font-bold px-2 py-1 hover:bg-white/10 rounded-md transition-colors min-w-[50px] text-center cursor-pointer"
+              className="text-white text-[10px] sm:text-xs font-mono font-bold px-1 sm:px-2 py-0.5 sm:py-1 hover:bg-white/10 rounded-md transition-colors min-w-[40px] sm:min-w-[50px] text-center cursor-pointer"
               title="إعادة ضبط (0)"
             >
               {Math.round(scale * 100)}%
@@ -400,39 +400,39 @@ export default function ProductDetail() {
             <button 
               onClick={handleZoomIn}
               disabled={scale >= 4}
-              className="text-white/80 hover:text-white hover:bg-white/10 disabled:opacity-30 p-1.5 rounded-lg transition-all cursor-pointer"
+              className="text-white/80 hover:text-white hover:bg-white/10 disabled:opacity-30 p-1 sm:p-1.5 rounded-md sm:rounded-lg transition-all cursor-pointer"
               title="تكبير (+)"
             >
-              <ZoomIn size={16} />
+              <ZoomIn size={14} />
             </button>
             {scale > 1 && (
               <button
                 onClick={handleResetZoom}
-                className="text-amber-400 hover:bg-amber-400/20 p-1.5 rounded-lg transition-all cursor-pointer"
+                className="text-amber-400 hover:bg-amber-400/20 p-1 sm:p-1.5 rounded-md sm:rounded-lg transition-all cursor-pointer"
                 title="إعادة ضبط المقياس (0)"
               >
-                <RotateCcw size={15} />
+                <RotateCcw size={13} />
               </button>
             )}
           </div>
         </div>
 
         {/* Right Side: Product Title + Code Badge, Sibling Counter, Close / Back Button */}
-        <div className="flex items-center gap-2 sm:gap-3" dir="rtl">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-3" dir="rtl">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             {product.productCode && (
-              <span className="text-xs font-mono font-black bg-amber-400 text-black px-2 py-0.5 rounded shadow-sm">
+              <span className="text-[10px] sm:text-xs font-mono font-black bg-amber-400 text-black px-1.5 sm:px-2 py-0.5 rounded shadow-sm">
                 {product.productCode}
               </span>
             )}
-            <span className="text-sm sm:text-base font-bold text-white max-w-[140px] sm:max-w-xs md:max-w-md truncate">
+            <span className="text-[10px] sm:text-sm md:text-base font-bold text-white max-w-[80px] sm:max-w-[140px] md:max-w-xs truncate">
               {product.name}
             </span>
           </div>
 
           {siblingProducts.length > 0 && currentIndex >= 0 && (
-            <div className="hidden sm:flex items-center gap-1.5 bg-black/50 border border-white/15 px-3 py-1 rounded-xl text-xs font-mono text-white/80">
-              <Layers size={13} className="text-amber-400" />
+            <div className="hidden sm:flex items-center gap-1 sm:gap-1.5 bg-black/50 border border-white/15 px-2 sm:px-3 py-0.5 sm:py-1 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-mono text-white/80">
+              <Layers size={11} className="text-amber-400" />
               <span>{currentIndex + 1}</span>
               <span className="text-white/40">/</span>
               <span>{siblingProducts.length}</span>
@@ -442,11 +442,11 @@ export default function ProductDetail() {
           {/* Close / Return Button */}
           <button 
             onClick={handleClose}
-            className="px-3.5 py-1.5 text-white bg-white/10 hover:bg-red-500/80 rounded-xl transition-all border border-white/15 active:scale-95 flex items-center gap-1.5 shadow-lg group text-xs font-bold cursor-pointer"
+            className="px-2 sm:px-3.5 py-1 sm:py-1.5 text-white bg-white/10 hover:bg-red-500/80 rounded-lg sm:rounded-xl transition-all border border-white/15 active:scale-95 flex items-center gap-1 sm:gap-1.5 shadow-lg group text-[10px] sm:text-xs font-bold cursor-pointer"
             title="العودة (Esc)"
           >
-            <X size={17} className="group-hover:rotate-90 transition-transform duration-200" />
-            <span>إغلاق</span>
+            <X size={14} className="group-hover:rotate-90 transition-transform duration-200" />
+            <span className="hidden sm:inline">إغلاق</span>
           </button>
         </div>
       </header>
