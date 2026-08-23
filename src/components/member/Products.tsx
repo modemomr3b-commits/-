@@ -61,18 +61,40 @@ export default function Products() {
   const [downloadChoiceDialog, setDownloadChoiceDialog] = useState<{ isOpen: boolean; message: string; onDownloadStudio: () => void; onDownloadZip: () => void; onDownloadAllElastic?: () => void } | null>(null);
   const [initialLoading, setInitialLoading] = useState(true);
   
-  const [currentPage, setCurrentPage] = useState(() => {
+  const [displayCount, setDisplayCount] = useState(() => {
     const returnCat = sessionStorage.getItem('return_category');
     if (returnCat === (categoryId || 'all')) {
-      const savedPage = sessionStorage.getItem('return_page');
-      return savedPage ? parseInt(savedPage, 10) : 1;
+      const savedCount = sessionStorage.getItem('return_display_count');
+      return savedCount ? parseInt(savedCount, 10) : 50;
     }
-    return 1;
+    return 50;
   });
-  const itemsPerPage = 40; // High speed 40 items per page for instant render and low network burden
+  const batchSize = 50; // 50 items per batch
   const isAndroid = /Android/i.test(navigator.userAgent || '');
   const maxShareLimit = isAndroid ? 10 : 100;
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false);
+
+  // Reset displayCount when search term or subcategory changes
+  useEffect(() => {
+    setDisplayCount(50);
+  }, [activeSub, searchTerm]);
+
+  // Infinite scroll listener to automatically load next batch when scrolling down (up to 100 products total)
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 600) {
+        setDisplayCount(prev => {
+          if (prev < 100) {
+            return Math.min(prev + batchSize, 100);
+          }
+          return prev;
+        });
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -191,7 +213,7 @@ export default function Products() {
     const returnCat = sessionStorage.getItem('return_category');
     if (returnCat !== (categoryId || 'all')) {
       window.scrollTo(0, 0);
-      setCurrentPage(1);
+      setDisplayCount(50);
       setActiveSub(null);
       setSearchTerm('');
     }
@@ -201,8 +223,8 @@ export default function Products() {
     if (!loading && products.length > 0) {
       const returnCat = sessionStorage.getItem('return_category');
       if (returnCat === (categoryId || 'all')) {
-        const savedPage = sessionStorage.getItem('return_page');
-        if (savedPage) setCurrentPage(parseInt(savedPage, 10));
+        const savedCount = sessionStorage.getItem('return_display_count');
+        if (savedCount) setDisplayCount(parseInt(savedCount, 10));
         
         const savedSub = sessionStorage.getItem('return_sub');
         if (savedSub) setActiveSub(savedSub);
@@ -227,7 +249,7 @@ export default function Products() {
           // Clear return session keys after restoring
           sessionStorage.removeItem('return_category');
           sessionStorage.removeItem('return_searchTerm');
-          sessionStorage.removeItem('return_page');
+          sessionStorage.removeItem('return_display_count');
           sessionStorage.removeItem('return_scroll');
           sessionStorage.removeItem('return_sub');
           
@@ -337,10 +359,10 @@ export default function Products() {
     return result;
   }, [activeSub, products, allStoreProducts, searchTerm, allCategories]);
   
-  // Pagination logic
-  const totalPages = Math.ceil(filteredProductsAll.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const filteredProducts = useMemo(() => filteredProductsAll.slice(startIndex, startIndex + itemsPerPage), [filteredProductsAll, startIndex, itemsPerPage]);
+  // Infinite scroll sliced products
+  const filteredProducts = useMemo(() => {
+    return filteredProductsAll.slice(0, displayCount);
+  }, [filteredProductsAll, displayCount]);
 
 
   
@@ -587,11 +609,11 @@ export default function Products() {
             className="w-full bg-white/5 border border-white/10 text-white text-sm rounded-lg focus:ring-brq-gold focus:border-brq-gold block pl-8 pr-10 py-2.5 transition-colors placeholder:text-white/40"
             placeholder="ابحث عن أي موديل، كود، أو اسم منتج..."
             value={searchTerm}
-            onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+            onChange={(e) => { setSearchTerm(e.target.value); setDisplayCount(40); }}
           />
           {searchTerm && (
             <button
-              onClick={() => { setSearchTerm(''); setCurrentPage(1); }}
+              onClick={() => { setSearchTerm(''); setDisplayCount(40); }}
               className="absolute inset-y-0 left-0 flex items-center pl-3 text-white/50 hover:text-white"
             >
               ✕
@@ -602,7 +624,7 @@ export default function Products() {
         {subCategories.length > 0 && (
           <div className="flex gap-2 overflow-x-auto py-2 mb-2 scrollbar-hide">
             <button
-              onClick={() => { setActiveSub(null); setCurrentPage(1); }}
+              onClick={() => { setActiveSub(null); setDisplayCount(40); }}
               className={`whitespace-nowrap px-4 py-1.5 rounded-full text-xs font-bold transition-colors ${
                 activeSub === null 
                   ? "bg-brq-gold text-black" 
@@ -614,7 +636,7 @@ export default function Products() {
             {subCategories.map((sub) => (
               <button
                 key={sub.id}
-                onClick={() => { setActiveSub(sub.id); setCurrentPage(1); }}
+                onClick={() => { setActiveSub(sub.id); setDisplayCount(40); }}
                 className={`whitespace-nowrap px-4 py-1.5 rounded-full text-xs font-bold transition-colors ${
                   activeSub === sub.id 
                     ? "bg-brq-gold text-black" 
@@ -894,7 +916,7 @@ export default function Products() {
                   return;
                 }
                 sessionStorage.setItem('return_category', categoryId || 'all');
-                sessionStorage.setItem('return_page', currentPage.toString());
+                sessionStorage.setItem('return_display_count', displayCount.toString());
                 sessionStorage.setItem('return_searchTerm', searchTerm);
                 if (activeSub) sessionStorage.setItem('return_sub', activeSub);
                 sessionStorage.setItem('return_scroll', window.scrollY.toString());
@@ -1091,25 +1113,13 @@ export default function Products() {
         </div>
       )}
 
-      {/* Pagination Controls */}
-      {totalPages > 1 && !loading && filteredProducts.length > 0 && (
-        <div className="flex flex-wrap justify-center items-center gap-2 mt-4 mb-16 pb-24" dir="ltr">
-          {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNumber) => (
-            <button
-              key={pageNumber}
-              onClick={() => {
-                setCurrentPage(pageNumber);
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              className={`w-12 h-12 flex items-center justify-center rounded-xl font-bold text-lg transition-all ${
-                currentPage === pageNumber 
-                  ? 'bg-brq-gold text-black scale-110 shadow-[0_0_15px_rgba(255,215,0,0.4)] border-2 border-yellow-300' 
-                  : 'bg-brq-card border border-brq-border text-white hover:bg-white/10'
-              }`}
-            >
-              {pageNumber}
-            </button>
-          ))}
+      {/* Infinite Scroll Loading Indicator */}
+      {displayCount < filteredProductsAll.length && !loading && filteredProducts.length > 0 && (
+        <div className="flex justify-center items-center py-8 mb-16 pb-24">
+          <div className="flex items-center gap-2.5 text-brq-gold text-sm bg-brq-card/80 backdrop-blur-md px-6 py-3 rounded-full border border-brq-border shadow-[0_0_20px_rgba(212,175,55,0.2)] animate-pulse">
+            <Loader2 size={18} className="animate-spin text-brq-gold" />
+            <span>جاري تحميل المزيد تلقائياً ({displayCount} من {filteredProductsAll.length})...</span>
+          </div>
         </div>
       )}
 

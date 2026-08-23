@@ -577,6 +577,7 @@ export const api = {
     }
     safeData.notes = notesArray.join('\n').trim();
 
+
     if (data.products !== undefined) {
       safeData.products = data.products;
     } else if (data.items !== undefined) {
