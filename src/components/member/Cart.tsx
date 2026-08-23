@@ -175,20 +175,28 @@ export default function Cart() {
       });
 
       // log action
-      await api.logAction({
-        userId: user.id || user.uid,
-        userName: user.username,
-        action: 'إنشاء طلب',
-        entityType: 'order',
-        entityId: orderNumber,
-        details: { totalPieces }
-      });
+      try {
+        await api.logAction({
+          userId: user.id || user.uid,
+          userName: user.username,
+          action: 'إنشاء طلب',
+          entityType: 'order',
+          entityId: orderNumber,
+          details: { totalPieces }
+        });
+      } catch (logErr) {
+        console.warn('logAction notice:', logErr);
+      }
 
       // Create notification for admins
-      await api.createNotification({
-         message: `لديك طلب جديد من المستخدم: ${user.fullName || user.username}`,
-         type: 'order'
-      });
+      try {
+        await api.createNotification({
+           message: `لديك طلب جديد من المستخدم: ${user.fullName || user.username}`,
+           type: 'order'
+        });
+      } catch (notifErr) {
+        console.warn('createNotification notice:', notifErr);
+      }
 
       clearCart();
       setSuccess(true);

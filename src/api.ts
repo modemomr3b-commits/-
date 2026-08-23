@@ -471,22 +471,27 @@ export const api = {
 
     // Identify agent and customer
     const agentName = (data.username || data.agentName || data.fullName || 'الوكيل').trim();
-    safeData.username = agentName;
+    const explicitCustomer = data.customerName?.trim() || (data.visitorName ? `زائر المعرض: ${data.visitorName.trim()}` : '');
 
-    // Only set customerName if explicitly provided and distinct from agent
-    if (data.customerName && data.customerName.trim() && data.customerName.trim() !== agentName) {
-      safeData.customerName = data.customerName.trim();
-    } else if (data.visitorName && data.visitorName.trim()) {
-      safeData.customerName = `زائر المعرض: ${data.visitorName.trim()}`;
-    }
+    // Set customerName in table (if explicit customer exists use it, otherwise use agent name)
+    safeData.customerName = explicitCustomer || agentName || 'الوكيل';
 
-    // Build clean notes string
+    // Build structured notes with all details (agent, customer, transport, notes)
     const notesArray: string[] = [];
+    if (agentName) {
+      notesArray.push(`الوكيل: ${agentName}`);
+    }
+    if (explicitCustomer && explicitCustomer !== agentName) {
+      notesArray.push(`اسم الزبون: ${explicitCustomer}`);
+    }
     if (data.transport && data.transport.trim()) {
       notesArray.push(`النقليات: ${data.transport.trim()}`);
     }
     if (data.notes && data.notes.trim()) {
-      notesArray.push(data.notes.trim());
+      const raw = data.notes.trim();
+      if (!raw.startsWith('الوكيل:') && !raw.startsWith('اسم الزبون:')) {
+        notesArray.push(raw);
+      }
     }
     safeData.notes = notesArray.join('\n').trim();
 
