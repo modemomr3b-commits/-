@@ -389,8 +389,8 @@ export default function ShowcasePage() {
 
             {/* Top action buttons */}
             <div className="flex items-center gap-2">
-              {/* Home button for logged-in accounts */}
-              {user && (
+              {/* Home button only for full accounts, NOT for regular visitors */}
+              {user && user.uid && !localStorage.getItem('brq_showcase_auth') && !sessionStorage.getItem('brq_showcase_auth') && (
                 <button
                   onClick={() => {
                     const homeRoute = user.role === 'admin' ? '/admin' : '/';
