@@ -225,7 +225,7 @@ export default function SearchPage() {
                             sessionStorage.setItem('return_search_query', searchInput);
                             sessionStorage.setItem('return_search_archived', searchArchived.toString());
                           }}>
-                      <div className="w-full aspect-[4/5] bg-black/40 relative flex items-center justify-center p-0 overflow-hidden">
+                      <div className="w-full aspect-[1/1] bg-black/40 relative flex items-center justify-center p-0 overflow-hidden">
                          {p.finalImageUrl || p.imageUrl ? (
                            <div className="absolute inset-0">
                              <OptimizedImage src={p.finalImageUrl || p.imageUrl} alt={p.name || ''} size="medium" className="w-full h-full" imgClassName="object-contain w-full h-full" />

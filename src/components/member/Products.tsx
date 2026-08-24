@@ -1001,7 +1001,7 @@ export default function Products() {
               )}
               
               <div 
-                className="w-full aspect-[4/5] bg-black/40 relative flex items-center justify-center border-b border-white/5 p-0 overflow-hidden cursor-pointer group/img"
+                className="w-full aspect-[1/1] bg-black/40 relative flex items-center justify-center border-b border-white/5 p-0 overflow-hidden cursor-pointer group/img"
                 onClick={(e) => {
                   if (isSelectionMode) return;
                   e.preventDefault();

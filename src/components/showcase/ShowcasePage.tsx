@@ -587,7 +587,7 @@ export default function ShowcasePage() {
                 className="glass-card rounded-2xl overflow-hidden flex flex-col border border-white/10 hover:border-brq-gold transition-all duration-300 group cursor-pointer shadow-lg hover:shadow-[0_8px_30px_rgba(0,0,0,0.8)] relative bg-black/40"
               >
                 {/* Image Container */}
-                <div className="w-full aspect-[4/5] bg-black/60 relative flex items-center justify-center overflow-hidden border-b border-white/5">
+                <div className="w-full aspect-[1/1] bg-black/60 relative flex items-center justify-center overflow-hidden border-b border-white/5">
                   {p.finalImageUrl || p.imageUrl ? (
                     <OptimizedImage
                       src={p.finalImageUrl || p.imageUrl}
@@ -601,78 +601,78 @@ export default function ShowcasePage() {
                   )}
 
                   {/* Category Tag Badge */}
-                  <span className="absolute top-2.5 right-2.5 z-10 bg-black/70 backdrop-blur-md text-brq-gold border border-brq-gold/30 text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md">
+                  <span className="absolute top-2 right-2 z-10 bg-black/70 backdrop-blur-md text-brq-gold border border-brq-gold/30 text-[9px] font-bold px-1.5 py-0.5 rounded-full shadow-md">
                     {getShowcaseCategory(p)}
                   </span>
 
                   {/* Top Action Buttons (Download) */}
-                  <div className="absolute top-2.5 left-2.5 z-10 flex flex-col gap-1.5 opacity-90 group-hover:opacity-100 transition-opacity">
+                  <div className="absolute top-2 left-2 z-10 flex flex-col gap-1 opacity-90 group-hover:opacity-100 transition-opacity">
                     <button
                       onClick={(e) => handleDownloadImage(e, p)}
-                      className="p-2 rounded-xl bg-black/60 backdrop-blur-md border border-white/20 text-white hover:bg-emerald-600 hover:text-white transition-all shadow-md active:scale-90"
+                      className="p-1.5 rounded-lg bg-black/60 backdrop-blur-md border border-white/20 text-white hover:bg-emerald-600 hover:text-white transition-all shadow-md active:scale-90"
                       title="تحميل الصورة"
                     >
-                      <Download size={15} />
+                      <Download size={13} />
                     </button>
                   </div>
                 </div>
 
                 {/* Product Information */}
-                <div className="p-2.5 flex flex-col justify-between flex-1 gap-1.5 bg-gradient-to-b from-transparent to-black/60">
+                <div className="p-2 flex flex-col justify-between flex-1 gap-1 bg-gradient-to-b from-transparent to-black/60">
                   <div>
-                    <div className="flex justify-between items-start gap-1.5">
-                      <h3 className="font-bold text-white text-xs leading-tight line-clamp-2">
+                    <div className="flex justify-between items-start gap-1">
+                      <h3 className="font-bold text-white text-[11px] leading-tight line-clamp-1">
                         {p.name}
                       </h3>
                       {p.productCode && (
-                        <span className="text-[10px] text-brq-gold bg-brq-gold/10 border border-brq-gold/25 px-1.5 py-0.5 rounded font-mono font-bold shrink-0">
+                        <span className="text-[9px] text-brq-gold bg-brq-gold/10 border border-brq-gold/25 px-1 py-0.5 rounded font-mono font-bold shrink-0">
                           {p.productCode}
                         </span>
                       )}
                     </div>
 
                     {p.modelNumber && (
-                      <p className="text-[10px] text-white/50 font-mono mt-0.5">
+                      <p className="text-[9px] text-white/50 font-mono mt-0.5">
                         الرمز: <span className="text-white/80">{p.modelNumber}</span>
                       </p>
                     )}
                   </div>
 
                   {/* Pricing and Pieces */}
-                  <div className="pt-1.5 border-t border-white/5 flex items-end justify-between">
+                  <div className="pt-1 border-t border-white/5 flex items-end justify-between">
                     <div>
-                      <p className="text-brq-gold font-bold text-xs sm:text-sm font-mono">
-                        {p.price?.toLocaleString('en-US')} <span className="text-[9px] font-sans">د.ع</span>
+                      <p className="text-brq-gold font-bold text-xs font-mono">
+                        {p.price?.toLocaleString('en-US')} <span className="text-[8px] font-sans">د.ع</span>
                       </p>
-                      <p className="text-[8px] text-white/40">سعر الجملة</p>
+                      <p className="text-[7px] text-white/40">سعر الجملة</p>
                     </div>
 
                     {p.piecesCount ? (
                       <div className="text-left">
-                        <p className="text-white font-mono text-xs font-bold">{p.piecesCount} ق</p>
-                        <p className="text-[8px] text-white/40">الكرتون</p>
+                        <p className="text-white font-mono text-[11px] font-bold">{p.piecesCount} ق</p>
+                        <p className="text-[7px] text-white/40">الكرتون</p>
                       </div>
                     ) : p.packaging ? (
-                      <span className="text-[9px] text-white/60 bg-white/10 px-1.5 py-0.5 rounded">
+                      <span className="text-[8px] text-white/60 bg-white/10 px-1 py-0.5 rounded">
                         {p.packaging}
                       </span>
                     ) : null}
                   </div>
 
                   {/* Download Image Button */}
-                  <div className="flex items-center gap-1.5 mt-0.5">
+                  <div className="flex items-center gap-1 mt-0.5">
                     <button
                       onClick={(e) => { e.stopPropagation(); addToCart(p); }}
-                      className="flex-1 py-1.5 bg-brq-gold hover:bg-yellow-400 text-black border border-transparent rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition-all shadow-sm active:scale-95"
+                      className="flex-1 py-1 bg-brq-gold hover:bg-yellow-400 text-black border border-transparent rounded-md text-[11px] font-bold flex items-center justify-center gap-1 transition-all shadow-sm active:scale-95"
                     >
-                      <Plus size={13} />
+                      <Plus size={12} />
                       <span>إضافة للسلة</span>
                     </button>
                     <button
                       onClick={(e) => handleDownloadImage(e, p)}
-                      className="flex-1 py-1.5 bg-white/10 hover:bg-white/20 text-white/90 hover:text-white border border-white/20 rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition-all shadow-sm active:scale-95"
+                      className="flex-1 py-1 bg-white/10 hover:bg-white/20 text-white/90 hover:text-white border border-white/20 rounded-md text-[11px] font-bold flex items-center justify-center gap-1 transition-all shadow-sm active:scale-95"
                     >
-                      <Download size={13} />
+                      <Download size={12} />
                       <span>تحميل</span>
                     </button>
                   </div>
