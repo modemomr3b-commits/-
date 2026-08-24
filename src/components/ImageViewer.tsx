@@ -63,7 +63,7 @@ export default function ImageViewer({
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [showSidebar, setShowSidebar] = useState(true);
-  const [showMobileSheet, setShowMobileSheet] = useState(false);
+  const [showMobileSheet, setShowMobileSheet] = useState(true);
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -764,7 +764,7 @@ export default function ImageViewer({
                touchAction: 'none',
                willChange: 'transform'
             }}
-            className="relative flex items-center justify-center max-h-[86vh] max-w-[92vw] pointer-events-auto"
+            className="relative flex items-center justify-center max-h-[55vh] md:max-h-[86vh] max-w-[92vw] pointer-events-auto mb-20 md:mb-0"
             onClick={(e) => {
               if (hasDragged) {
                 e.stopPropagation();
@@ -787,8 +787,8 @@ export default function ImageViewer({
                src={src} 
                alt={alt} 
                size="full"
-               className="w-auto h-auto max-h-[82vh] max-w-[88vw] md:max-w-[70vw] drop-shadow-[0_20px_50px_rgba(0,0,0,0.9)] !pointer-events-none select-none"
-               imgClassName="w-auto h-auto max-h-[82vh] max-w-[88vw] md:max-w-[70vw] object-contain rounded-2xl select-none"
+               className="w-auto h-auto max-h-[50vh] sm:max-h-[56vh] md:max-h-[82vh] max-w-[88vw] md:max-w-[70vw] drop-shadow-[0_20px_50px_rgba(0,0,0,0.9)] !pointer-events-none select-none"
+               imgClassName="w-auto h-auto max-h-[50vh] sm:max-h-[56vh] md:max-h-[82vh] max-w-[88vw] md:max-w-[70vw] object-contain rounded-2xl select-none"
              />
           </div>
 
