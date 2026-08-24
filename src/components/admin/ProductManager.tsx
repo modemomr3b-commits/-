@@ -781,14 +781,18 @@ export default function ProductManager() {
   };
 
   const handleToggleArchive = async (p: Product) => {
+    const nextArchived = !p.isArchived;
     // Optimistic update
     setProducts((prev) =>
       prev.map((prod) =>
-        prod.id === p.id ? { ...prod, isArchived: !prod.isArchived } : prod
+        prod.id === p.id 
+          ? { ...prod, isArchived: nextArchived, ...(nextArchived ? { isShowcase: false } : {}) } 
+          : prod
       )
     );
     try {
-      await api.updateProduct(p.id!, { isArchived: !p.isArchived });
+      const updates = nextArchived ? { isArchived: nextArchived, isShowcase: false } : { isArchived: nextArchived };
+      await api.updateProduct(p.id!, updates);
     } catch (e) {
       console.error(e);
       // Revert optimistic update
@@ -984,12 +988,15 @@ export default function ProductManager() {
     try {
       setProducts((prev) =>
         prev.map((prod) =>
-          selectedIds.has(prod.id!) ? { ...prod, isArchived: archive } : prod
+          selectedIds.has(prod.id!) 
+            ? { ...prod, isArchived: archive, ...(archive ? { isShowcase: false } : {}) } 
+            : prod
         )
       );
       
       const ids = Array.from(selectedIds);
-      await api.bulkUpdateProducts(ids, { isArchived: archive });
+      const updates = archive ? { isArchived: archive, isShowcase: false } : { isArchived: archive };
+      await api.bulkUpdateProducts(ids, updates);
       
       setSelectedIds(new Set());
     } catch (e: any) {
