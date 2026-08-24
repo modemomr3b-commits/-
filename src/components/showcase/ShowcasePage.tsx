@@ -618,61 +618,61 @@ export default function ShowcasePage() {
                 </div>
 
                 {/* Product Information */}
-                <div className="p-3.5 flex flex-col justify-between flex-1 gap-2 bg-gradient-to-b from-transparent to-black/60">
+                <div className="p-2.5 flex flex-col justify-between flex-1 gap-1.5 bg-gradient-to-b from-transparent to-black/60">
                   <div>
-                    <div className="flex justify-between items-start gap-2">
-                      <h3 className="font-bold text-white text-xs sm:text-sm leading-tight line-clamp-2">
+                    <div className="flex justify-between items-start gap-1.5">
+                      <h3 className="font-bold text-white text-xs leading-tight line-clamp-2">
                         {p.name}
                       </h3>
                       {p.productCode && (
-                        <span className="text-[10px] text-brq-gold bg-brq-gold/10 border border-brq-gold/20 px-1.5 py-0.5 rounded font-mono font-bold shrink-0">
+                        <span className="text-[10px] text-brq-gold bg-brq-gold/10 border border-brq-gold/25 px-1.5 py-0.5 rounded font-mono font-bold shrink-0">
                           {p.productCode}
                         </span>
                       )}
                     </div>
 
                     {p.modelNumber && (
-                      <p className="text-[11px] text-white/50 font-mono mt-1">
+                      <p className="text-[10px] text-white/50 font-mono mt-0.5">
                         الرمز: <span className="text-white/80">{p.modelNumber}</span>
                       </p>
                     )}
                   </div>
 
                   {/* Pricing and Pieces */}
-                  <div className="pt-2 border-t border-white/5 flex items-end justify-between">
+                  <div className="pt-1.5 border-t border-white/5 flex items-end justify-between">
                     <div>
-                      <p className="text-brq-gold font-bold text-sm sm:text-base font-mono">
-                        {p.price?.toLocaleString('en-US')} <span className="text-[10px] font-sans">د.ع</span>
+                      <p className="text-brq-gold font-bold text-xs sm:text-sm font-mono">
+                        {p.price?.toLocaleString('en-US')} <span className="text-[9px] font-sans">د.ع</span>
                       </p>
-                      <p className="text-[9px] text-white/40">سعر الجملة</p>
+                      <p className="text-[8px] text-white/40">سعر الجملة</p>
                     </div>
 
                     {p.piecesCount ? (
                       <div className="text-left">
                         <p className="text-white font-mono text-xs font-bold">{p.piecesCount} ق</p>
-                        <p className="text-[9px] text-white/40">الكرتون</p>
+                        <p className="text-[8px] text-white/40">الكرتون</p>
                       </div>
                     ) : p.packaging ? (
-                      <span className="text-[10px] text-white/60 bg-white/10 px-2 py-0.5 rounded">
+                      <span className="text-[9px] text-white/60 bg-white/10 px-1.5 py-0.5 rounded">
                         {p.packaging}
                       </span>
                     ) : null}
                   </div>
 
                   {/* Download Image Button */}
-                  <div className="flex items-center gap-2 mt-1">
+                  <div className="flex items-center gap-1.5 mt-0.5">
                     <button
                       onClick={(e) => { e.stopPropagation(); addToCart(p); }}
-                      className="flex-1 py-2 bg-brq-gold hover:bg-yellow-400 text-black border border-transparent rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-sm active:scale-95"
+                      className="flex-1 py-1.5 bg-brq-gold hover:bg-yellow-400 text-black border border-transparent rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition-all shadow-sm active:scale-95"
                     >
-                      <Plus size={14} />
+                      <Plus size={13} />
                       <span>إضافة للسلة</span>
                     </button>
                     <button
                       onClick={(e) => handleDownloadImage(e, p)}
-                      className="flex-1 py-2 bg-white/10 hover:bg-white/20 text-white/90 hover:text-white border border-white/20 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-sm active:scale-95"
+                      className="flex-1 py-1.5 bg-white/10 hover:bg-white/20 text-white/90 hover:text-white border border-white/20 rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition-all shadow-sm active:scale-95"
                     >
-                      <Download size={14} />
+                      <Download size={13} />
                       <span>تحميل</span>
                     </button>
                   </div>
