@@ -57,12 +57,98 @@ export default function ProductManager() {
   const [isBatchAdding, setIsBatchAdding] = useState(false);
   const [batchCategoryId, setBatchCategoryId] = useState<string>("");
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false);
+  const [isAutoShowcaseOpen, setIsAutoShowcaseOpen] = useState(false);
+
+  // Real-time background sync polling every 6 seconds
+  useEffect(() => {
+    const pollInterval = setInterval(async () => {
+      try {
+        const fresh = await api.getProducts();
+        if (fresh && fresh.length > 0) {
+          setProducts(fresh);
+        }
+      } catch {}
+    }, 6000);
+    return () => clearInterval(pollInterval);
+  }, []);
+
+  const [autoShowcaseMainCategory, setAutoShowcaseMainCategory] = useState<string>("الكل");
+  const [autoShowcaseCollection, setAutoShowcaseCollection] = useState<string>("الكل");
+  const [autoShowcaseCount, setAutoShowcaseCount] = useState<number>(100);
+
+  const handleAutoPublishShowcase = async () => {
+    setIsSubmitting(true);
+    try {
+      let available = products.filter(p => !p.isHidden && !p.isArchived && !p.isLocked && !p.isShowcase);
+      
+      if (autoShowcaseMainCategory !== "الكل") {
+        available = available.filter(p => p.categoryId === autoShowcaseMainCategory);
+      }
+
+      if (autoShowcaseCollection !== "الكل") {
+        available = available.filter(p => {
+          const cat = p.showcaseCategory || detectShowcaseCategory(p, categories);
+          return cat === autoShowcaseCollection;
+        });
+      }
+
+      if (available.length === 0) {
+        alert("لا توجد منتجات متاحة للنشر في المعرض ضمن هذا الصنف أو القسم. ربما تم نشر جميع المنتجات بالفعل.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      const historyKey = 'alwafaa_showcase_rotation_ids';
+      let publishedHistory: string[] = [];
+      try {
+        publishedHistory = JSON.parse(localStorage.getItem(historyKey) || '[]');
+      } catch {}
+
+      let unPublished = available.filter(p => !publishedHistory.includes(p.id!));
+
+      if (unPublished.length === 0) {
+        publishedHistory = [];
+        localStorage.setItem(historyKey, JSON.stringify([]));
+        unPublished = available;
+      }
+
+      const selectedToPublish = unPublished.slice(0, autoShowcaseCount);
+      const selectedIds = selectedToPublish.map(p => p.id!);
+
+      const updates = selectedToPublish.map(p => {
+        const cat = p.showcaseCategory || detectShowcaseCategory(p, categories) || (autoShowcaseCollection !== "الكل" ? autoShowcaseCollection : 'رجالي');
+        return api.updateProduct(p.id!, { isShowcase: true, showcaseCategory: cat });
+      });
+
+      await Promise.all(updates);
+
+      const newHistory = [...publishedHistory, ...selectedIds];
+      localStorage.setItem(historyKey, JSON.stringify(newHistory));
+
+      setProducts(prev => prev.map(p => {
+        if (selectedIds.includes(p.id!)) {
+          const cat = p.showcaseCategory || detectShowcaseCategory(p, categories) || (autoShowcaseCollection !== "الكل" ? autoShowcaseCollection : 'رجالي');
+          return { ...p, isShowcase: true, showcaseCategory: cat };
+        }
+        return p;
+      }));
+
+      alert(`تم بنجاح نشر ${selectedToPublish.length} موديل تلقائياً في معرض شركة الوفاء المتميز (دورة تدوير جديدة بدون تكرار)!`);
+      setIsAutoShowcaseOpen(false);
+    } catch (e: any) {
+      console.error(e);
+      alert("حدث خطأ أثناء النشر التلقائي: " + e.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [aiStudioProduct, setAiStudioProduct] = useState<Product | null>(null);
   const [aiCharacter, setAiCharacter] = useState<string>('none');
   const [aiShoeCount, setAiShoeCount] = useState<string>('pair');
   const [aiShoeColor, setAiShoeColor] = useState<string>('');
   const [aiCustomPrompt, setAiCustomPrompt] = useState<string>('');
+  const [aiChangeBackgroundOnly, setAiChangeBackgroundOnly] = useState<boolean>(false);
   const [aiGenerating, setAiGenerating] = useState<boolean>(false);
   const [aiResultUrl, setAiResultUrl] = useState<string | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
@@ -151,6 +237,7 @@ export default function ProductManager() {
             productCategory: (aiStudioProduct as any).category || aiStudioProduct.categoryId,
             productDescription: (aiStudioProduct as any).description,
             customApiKey: customApiKey.trim() || undefined,
+            changeBackgroundOnly: aiChangeBackgroundOnly,
           })
         });
 
@@ -165,6 +252,7 @@ export default function ProductManager() {
               productCategory: (aiStudioProduct as any).category || aiStudioProduct.categoryId,
               productDescription: (aiStudioProduct as any).description,
               customApiKey: customApiKey.trim() || undefined,
+              changeBackgroundOnly: aiChangeBackgroundOnly,
             })
           });
           if (res2.ok) {
@@ -1036,6 +1124,56 @@ export default function ProductManager() {
     }
   };
 
+  const smartDetectMainCategoryId = (product: Product) => {
+    const catObj = categories.find(c => c.id === product.categoryId);
+    const subObj = categories.find(c => c.id === product.subcategoryId);
+    const text = `${product.name || ''} ${catObj ? catObj.name : ''} ${subObj ? subObj.name : ''}`.toLowerCase();
+    const mainCategories = categories.filter(c => !c.parentId);
+    
+    let targetName = 'رجالي';
+    if (text.includes('نساء') || text.includes('نسائي') || text.includes('نسائية')) targetName = 'نسائي';
+    else if (text.includes('رجال') || text.includes('رجالي') || text.includes('رجالية')) targetName = 'رجالي';
+    else if (text.includes('شباب') || text.includes('شبابي')) targetName = 'شبابي';
+    else if (text.includes('ولاد') || text.includes('ولادي')) targetName = 'ولادي';
+    else if (text.includes('بنات') || text.includes('بناتي')) targetName = 'بناتي';
+    else if (text.includes('طفل') || text.includes('أطفال')) targetName = 'طفل';
+    else if (text.includes('طفلة')) targetName = 'طفلة';
+    else if (text.includes('بيبي')) targetName = 'بيبي';
+    else if (text.includes('مواليد')) targetName = 'مواليد';
+
+    const found = mainCategories.find(c => c.name.toLowerCase().includes(targetName));
+    return found ? found.id : (mainCategories[0]?.id || '');
+  };
+
+  const handleSmartAutoMove = async () => {
+    if (selectedIds.size === 0) return;
+    setIsSubmitting(true);
+    try {
+      const updates: Promise<any>[] = [];
+      const updatedProducts = products.map(prod => {
+        if (selectedIds.has(prod.id!)) {
+          const matchedCatId = smartDetectMainCategoryId(prod);
+          updates.push(api.updateProduct(prod.id!, { categoryId: matchedCatId, subcategoryId: '' }));
+          return { ...prod, categoryId: matchedCatId, subcategoryId: '' };
+        }
+        return prod;
+      });
+
+      await Promise.all(updates);
+      setProducts(updatedProducts);
+      setSelectedIds(new Set());
+      setIsMoveModalOpen(false);
+      setMoveToCategoryId("");
+      setMoveToSubcategoryId("");
+      alert("تم النقل الذكي التلقائي لجميع المنتجات المحددة إلى أقسامها الرئيسية (رجالي، نسائي، إلخ) بنجاح!");
+    } catch (e: any) {
+      console.error(e);
+      alert("حدث خطأ أثناء النقل التلقائي: " + e.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleBulkShare = async () => {
     if (selectedIds.size === 0) return;
 
@@ -1321,6 +1459,9 @@ export default function ProductManager() {
           </button>
           <button onClick={() => { setIsBatchAdding(!isBatchAdding); setIsAdding(false); }} className="flex-1 md:flex-none flex items-center justify-center gap-2 py-2.5 px-4 bg-brq-navy border border-brq-gold/50 text-brq-gold rounded-xl hover:bg-brq-gold hover:text-black transition-all text-sm font-bold shadow-md">
             <Upload size={18} /> النشر السريع للمنتجات ⚡
+          </button>
+          <button onClick={() => setIsAutoShowcaseOpen(true)} className="flex-1 md:flex-none flex items-center justify-center gap-2 py-2.5 px-4 bg-amber-500/20 border border-amber-500/50 text-amber-300 rounded-xl hover:bg-amber-500/30 transition-all text-sm font-bold shadow-md">
+            <Sparkles size={18} /> النشر التلقائي للمعرض 🪄
           </button>
           <button
             onClick={() => { setIsAdding(!isAdding); setIsBatchAdding(false); }}
@@ -2782,6 +2923,22 @@ export default function ProductManager() {
             <h3 className="text-xl font-bold text-white mb-4">نقل {selectedIds.size} منتجات</h3>
             
             <div className="space-y-4 mb-6">
+              {/* Smart Auto Move Button */}
+              <div className="p-3 bg-indigo-950/60 border border-indigo-500/40 rounded-xl">
+                <button
+                  type="button"
+                  onClick={handleSmartAutoMove}
+                  disabled={isSubmitting}
+                  className="w-full py-2.5 px-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer"
+                >
+                  <Sparkles size={14} />
+                  نقل ذكي تلقائي (رجالي للرجالي، نسائي للنسائي...) 🪄
+                </button>
+                <p className="text-[10px] text-white/60 text-center mt-1.5">
+                  أو اختر يدوياً أدناه (بدون الحاجة لقسم فرعي):
+                </p>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-white mb-1">
                   القسم الرئيسي <span className="text-red-500">*</span>
@@ -2882,6 +3039,20 @@ export default function ProductManager() {
                   <h4 className="font-bold text-white text-sm">{aiStudioProduct.name}</h4>
                   <p className="text-xs text-white/50 font-mono">كود المنتج: {aiStudioProduct.productCode || '---'}</p>
                 </div>
+              </div>
+
+              {/* Change Background Only Toggle */}
+              <div className="p-3 bg-purple-950/60 border border-purple-500/40 rounded-xl flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-brq-gold" />
+                  <span className="text-xs font-bold text-white">تغيير الخلفية فقط (الحفاظ على المنتج وألوانه وتفاصيله بدقة 100%)</span>
+                </div>
+                <input 
+                  type="checkbox"
+                  checked={aiChangeBackgroundOnly}
+                  onChange={(e) => setAiChangeBackgroundOnly(e.target.checked)}
+                  className="w-4 h-4 accent-brq-gold cursor-pointer"
+                />
               </div>
 
               {/* Text Prompt (Primary Override) */}
@@ -3010,6 +3181,91 @@ export default function ProductManager() {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isAutoShowcaseOpen && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[250] backdrop-blur-md">
+          <div className="bg-brq-card border border-brq-gold/40 rounded-2xl p-6 max-w-lg w-full relative space-y-5 shadow-2xl" dir="rtl">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-brq-gold" />
+                <h3 className="text-xl font-bold text-white">النشر التلقائي في معرض شركة الوفاء المتميز 🪄</h3>
+              </div>
+              <button onClick={() => setIsAutoShowcaseOpen(false)} className="text-white/60 hover:text-white">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-sm">
+              <p className="text-white/70 text-xs leading-relaxed">
+                حدد القسم الرئيسي والصنف والعدد المطلوب. سيقوم النظام تلقائياً باختيار الموديلات الجديدة غير المكررة (مع نظام تدوير دوري يمنع تكرار الموديلات المنشورة حتى اكتمال الدورة الكاملة).
+              </p>
+
+              <div>
+                <label className="block text-xs font-bold text-white mb-1">القسم الرئيسي للموقع:</label>
+                <select
+                  value={autoShowcaseMainCategory}
+                  onChange={(e) => setAutoShowcaseMainCategory(e.target.value)}
+                  className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm font-bold text-black"
+                >
+                  <option value="الكل">جميع الأقسام الرئيسية</option>
+                  {categories.filter(c => !c.parentId).map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-white mb-1">تشكيلة الصنف (التصنيف):</label>
+                <select
+                  value={autoShowcaseCollection}
+                  onChange={(e) => setAutoShowcaseCollection(e.target.value)}
+                  className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm font-bold text-black"
+                >
+                  <option value="الكل">الكل (تلقائي)</option>
+                  <option value="رجالي">👞 رجالي</option>
+                  <option value="نسائي">👠 نسائي</option>
+                  <option value="شبابي">👟 شبابي</option>
+                  <option value="ولادي">👦 ولادي</option>
+                  <option value="بناتي">👧 بناتي</option>
+                  <option value="طفل">🧒 طفل</option>
+                  <option value="طفلة">🎀 طفلة</option>
+                  <option value="بيبي">🍼 بيبي</option>
+                  <option value="مواليد">👶 مواليد</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-white mb-1">عدد الصور/الموديلات المطلوب نشرها:</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={500}
+                  value={autoShowcaseCount}
+                  onChange={(e) => setAutoShowcaseCount(parseInt(e.target.value) || 100)}
+                  className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm font-bold text-black"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 justify-end pt-3 border-t border-white/10">
+              <button
+                onClick={() => setIsAutoShowcaseOpen(false)}
+                className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-lg text-sm"
+              >
+                إلغاء
+              </button>
+              <button
+                onClick={handleAutoPublishShowcase}
+                disabled={isSubmitting}
+                className="px-6 py-2 bg-brq-gold hover:bg-yellow-400 text-black font-bold rounded-lg text-sm flex items-center gap-2 shadow-lg disabled:opacity-50"
+              >
+                {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                بدء النشر التلقائي الذكي
+              </button>
             </div>
           </div>
         </div>

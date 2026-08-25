@@ -8,6 +8,7 @@ import { filterProductsBySearch } from '../../utils/search';
 import { Product } from '../../types';
 import OptimizedImage from '../OptimizedImage';
 import { useStore } from '../../store';
+import { isWafaaUser } from '../../utils/wafaaHelper';
 
 export default function SearchPage() {
   const { user, showToast } = useStore();
@@ -15,6 +16,7 @@ export default function SearchPage() {
   const [allCategories, setAllCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [expandedProducts, setExpandedProducts] = useState<Record<string, boolean>>({});
   
   const [query, setQuery] = useState('');
   const [searchInput, setSearchInput] = useState('');

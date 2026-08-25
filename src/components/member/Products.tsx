@@ -15,6 +15,7 @@ import { PriceHistoryViewer } from "./PriceHistoryViewer";
 import ImageViewer from "../ImageViewer";
 import { shuffleProductsForUser } from '../../utils/shuffle';
 import { localCache } from "../../utils/localCache";
+import { isWafaaUser } from "../../utils/wafaaHelper";
 
 const MOCK_PRODUCTS: Product[] = [];
 
@@ -55,6 +56,20 @@ export default function Products() {
   const [historyProduct, setHistoryProduct] = useState<Product | null>(null);
   const [fullscreenImage, setFullscreenImage] = useState<{ src: string, alt: string } | null>(null);
   const [fullscreenIndex, setFullscreenIndex] = useState<number | null>(null);
+  const [expandedProducts, setExpandedProducts] = useState<Record<string, boolean>>({});
+
+  // Real-time background sync polling every 6 seconds for multi-user sync
+  useEffect(() => {
+    const pollInterval = setInterval(async () => {
+      try {
+        const fresh = await api.getProducts();
+        if (fresh && fresh.length > 0) {
+          setProducts(fresh);
+        }
+      } catch {}
+    }, 6000);
+    return () => clearInterval(pollInterval);
+  }, []);
 
   const [categoryName, setCategoryName] = useState("جميع المنتجات");
   const [downloadProgress, setDownloadProgress] = useState<{ progress: number, total: number } | null>(null);
@@ -924,11 +939,14 @@ export default function Products() {
             ? "p-4 grid grid-cols-1 max-w-xl mx-auto gap-5" 
             : "p-3 sm:p-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5 sm:gap-4"
         }`}>
-          {filteredProducts.map((p) => (
+          {filteredProducts.map((p) => {
+            const isWafaa = isWafaaUser(user);
+            const isExpanded = isWafaa ? !!expandedProducts[p.id!] : true;
+            return (
             <Link to={`/product/${p.id}`} state={{ product: p }}
               key={p.id}
-              className={`glass-card rounded-2xl overflow-hidden flex flex-col border relative group transition-colors shadow-lg ${
-                selectedIds.has(p.id!) ? "border-blue-500 bg-blue-500/10" : "border-white/5 hover:border-brq-gold"
+              className={`rounded-2xl overflow-hidden flex flex-col relative group transition-all shadow-xl bg-[#2C1E16] border border-[#4A3328] hover:border-brq-gold/70 ${
+                selectedIds.has(p.id!) ? "ring-2 ring-blue-500" : ""
               }`}
               onClick={(e) => {
                 if (isSelectionMode) {
@@ -1045,7 +1063,23 @@ export default function Products() {
                   </div>
                 )}
               </div>
-              <div className="p-3 flex flex-col gap-2 bg-gradient-to-b from-transparent to-black/40">
+
+              {/* Collapsible toggle for Wafaa account */}
+              {isWafaa && (
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setExpandedProducts(prev => ({ ...prev, [p.id!]: !prev[p.id!] }));
+                  }}
+                  className="w-full py-2 bg-[#1F140E] hover:bg-[#36251B] text-brq-gold text-xs font-bold flex items-center justify-center gap-1.5 border-b border-[#4A3328] transition-colors"
+                >
+                  <span>{isExpanded ? 'إخفاء تفاصيل الموديل ▴' : 'عرض تفاصيل الموديل ▾'}</span>
+                </button>
+              )}
+
+              {isExpanded && (
+              <div className="p-3 flex flex-col gap-2 bg-[#2C1E16]">
                 <div className="flex justify-between items-start gap-2">
                   <h3
                     className="font-bold text-white text-xs leading-tight line-clamp-2"
@@ -1053,7 +1087,7 @@ export default function Products() {
                   >
                     {p.name}
                   </h3>
-                  <span className="text-[10px] text-white/60 bg-white/10 px-1 py-0.5 rounded font-mono shrink-0">
+                  <span className="text-[10px] text-white bg-white/15 px-1.5 py-0.5 rounded font-mono shrink-0">
                     {p.productCode || "---"}
                   </span>
                 </div>
@@ -1063,55 +1097,59 @@ export default function Products() {
                     <p className="text-brq-gold font-bold text-sm">
                       {p.price?.toLocaleString("en-US")}
                     </p>
-                    <p className="text-[9px] text-white/40">د.ع / الجملة</p>
+                    <p className="text-[9px] text-white/80">د.ع / الجملة</p>
                     {user?.role === 'admin' && p.dozenPriceUsd !== undefined && (
                       <div className="mt-1">
                         <p className="text-brq-blue text-xs font-bold font-mono">
                           ${p.dozenPriceUsd}
                         </p>
-                        <p className="text-[9px] text-white/40">دولار / الجملة</p>
+                        <p className="text-[9px] text-white/80">دولار / الجملة</p>
                       </div>
                     )}
                   </div>
                   {p.piecesCount && (
                     <div className="flex flex-col items-end">
-                      <p className="text-white font-mono text-xs">
+                      <p className="text-white font-mono text-xs font-bold">
                         {p.piecesCount}
                       </p>
-                      <p className="text-[9px] text-white/40">
+                      <p className="text-[9px] text-white/80">
                         الكمية/عدد القطع
                       </p>
                     </div>
                   )}
                 </div>
                 {user?.role === 'admin' && (
-                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/5">
+                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/10">
                     <div className="flex flex-col">
-                      <p className="text-[9px] text-white/40 mb-0.5">تاريخ النزول</p>
-                      <p className="text-[10px] text-white/70 font-mono tracking-tight">{p.createdAt ? formatDate(p.createdAt) : '---'}</p>
+                      <p className="text-[9px] text-white/70 mb-0.5">تاريخ النزول</p>
+                      <p className="text-[10px] text-white font-mono tracking-tight">{p.createdAt ? formatDate(p.createdAt) : '---'}</p>
                     </div>
                     <div className="flex flex-col items-end">
-                      <p className="text-[9px] text-white/40 mb-0.5">أخر تحديث</p>
-                      <p className="text-[10px] text-white/70 font-mono tracking-tight">{p.updatedAt ? formatDate(p.updatedAt) : (p.createdAt ? formatDate(p.createdAt) : '---')}</p>
+                      <p className="text-[9px] text-white/70 mb-0.5">أخر تحديث</p>
+                      <p className="text-[10px] text-white font-mono tracking-tight">{p.updatedAt ? formatDate(p.updatedAt) : (p.createdAt ? formatDate(p.createdAt) : '---')}</p>
                     </div>
                   </div>
                 )}
                 <div className="mt-2">
-                  {(() => {
+                  {p.isArchived ? (
+                    <div className="w-full py-1.5 bg-red-950/50 border border-red-500/30 rounded-lg text-red-300 font-medium text-xs text-center">
+                      مادة نافذة (غير قابلة للطلب)
+                    </div>
+                  ) : (() => {
                     const cartItem = cart.find(item => item.product.id === p.id);
                     if (cartItem) {
                       return (
-                        <div className="flex items-center justify-between w-full h-8 bg-brq-royal/20 border border-brq-royal/50 rounded-lg">
+                        <div className="flex items-center justify-between w-full h-8 bg-brq-royal/30 border border-brq-royal/60 rounded-lg">
                           <button
                             onClick={(e) => handleUpdateQuantity(e, p, cartItem.quantity + 1)}
-                            className="h-full px-3 text-white hover:bg-brq-royal/50 rounded-r-lg transition-colors"
+                            className="h-full px-3 text-white hover:bg-brq-royal/50 rounded-r-lg transition-colors font-bold"
                           >
                             +
                           </button>
                           <span className="text-white font-bold text-xs">{cartItem.quantity}</span>
                           <button
                             onClick={(e) => handleUpdateQuantity(e, p, cartItem.quantity - 1)}
-                            className="h-full px-3 text-white hover:bg-brq-royal/50 rounded-l-lg transition-colors"
+                            className="h-full px-3 text-white hover:bg-brq-royal/50 rounded-l-lg transition-colors font-bold"
                           >
                             -
                           </button>
@@ -1121,7 +1159,7 @@ export default function Products() {
                     return (
                       <button
                         onClick={(e) => handleAddToCart(e, p)}
-                        className="w-full py-1.5 bg-brq-royal/20 hover:bg-brq-royal border border-brq-royal/50 rounded-lg text-white font-medium text-xs flex items-center justify-center gap-1.5 transition-colors"
+                        className="w-full py-1.5 bg-brq-royal/30 hover:bg-brq-royal border border-brq-royal/60 rounded-lg text-white font-medium text-xs flex items-center justify-center gap-1.5 transition-colors"
                       >
                         <ShoppingCart size={14} /> إضافة
                       </button>
@@ -1129,8 +1167,10 @@ export default function Products() {
                   })()}
                 </div>
               </div>
+              )}
             </Link>
-          ))}
+            );
+          })}
         </div>
       )}
 

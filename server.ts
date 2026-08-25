@@ -137,7 +137,7 @@ app.post('/api/notify-publish', express.json(), async (req, res) => {
         });
       }
 
-      const { imageBase64, prompt, productName, productCategory } = req.body;
+      const { imageBase64, prompt, productName, productCategory, changeBackgroundOnly } = req.body;
       const ai = new GoogleGenAI({
         apiKey,
         httpOptions: {
@@ -202,11 +202,15 @@ Output a concise description in English specifying:
       }
 
       const productContext = [productName, productCategory].filter(Boolean).join(' - ');
+      const backgroundOnlyInstruction = changeBackgroundOnly 
+        ? `STRICT REQUIREMENT: Change ONLY the background studio environment or setting. The footwear product from the source image MUST be preserved 100% exactly as it is: maintain its exact colors, upper materials, logos, sole design, straps, and exact shape/angle without any modification to the shoe itself.`
+        : `CRITICAL REQUIREMENT: The footwear in the photo MUST strictly match the exact style category (formal leather, sporty sneaker, or skechers/casual slip-on as in reference), exact colors, upper patterns, and sole design of the reference shoe. Do NOT generate a different type of shoe.`;
+
       const combinedPrompt = `Professional high-end commercial footwear advertisement studio photograph. 
 ${shoeDescription ? `Reference shoe analysis: ${shoeDescription}.` : ''} 
 ${productContext ? `Shoe product name & category: ${productContext}.` : ''} 
 ${prompt || 'Commercial product display photograph.'} 
-CRITICAL REQUIREMENT: The footwear in the photo MUST strictly match the exact style category (formal leather, sporty sneaker, or skechers/casual slip-on as in reference), exact colors, upper patterns, and sole design of the reference shoe. Do NOT generate a different type of shoe. 
+${backgroundOnlyInstruction}
 Photorealistic studio shot, 8k resolution, crisp focus, commercial catalog quality, cinematic lighting.`;
 
       let generatedImageUrl = '';
