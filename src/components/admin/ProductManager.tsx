@@ -1822,7 +1822,7 @@ export default function ProductManager() {
               onClick={() => setFilterStatus("locked")}
               className={`pb-2 px-2.5 text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 ${filterStatus === "locked" ? "border-purple-400 text-purple-400" : "border-transparent text-white/50 hover:text-white"}`}
             >
-              المواد المقفلة
+              المواد المقفلة من قبل الادمن
               <span className="text-[10px] bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded-full font-mono font-bold">
                 {tabCounts.locked}
               </span>
@@ -1974,7 +1974,7 @@ export default function ProductManager() {
                       className="flex items-center gap-2 px-4 py-2 bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded-lg text-sm hover:bg-purple-500/30 transition-colors font-bold whitespace-nowrap disabled:opacity-50"
                     >
                       {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Lock size={16} />}
-                      نقل للمواد المقفلة
+                      نقل للمواد المقفلة من قبل الادمن
                     </button>
                   )}
                   {selectedIds.size > 0 && filterStatus === 'locked' && (
@@ -1984,7 +1984,7 @@ export default function ProductManager() {
                       className="flex items-center gap-2 px-4 py-2 bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded-lg text-sm hover:bg-purple-500/30 transition-colors font-bold whitespace-nowrap disabled:opacity-50"
                     >
                       {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Unlock size={16} />}
-                      استرجاع من المواد المقفلة
+                      استرجاع من المواد المقفلة من قبل الادمن
                     </button>
                   )}
                   {selectedIds.size > 0 && filterStatus !== 'archived' && (
@@ -2363,8 +2363,8 @@ export default function ProductManager() {
                               className="p-1.5 hover:bg-purple-500/20 text-purple-400 rounded transition-colors"
                               title={
                                 p.isLocked
-                                  ? "استرجاع من المواد المقفلة"
-                                  : "نقل للمواد المقفلة"
+                                  ? "استرجاع من المواد المقفلة من قبل الادمن"
+                                  : "نقل للمواد المقفلة من قبل الادمن"
                               }
                             >
                               {p.isLocked ? <Unlock size={16} /> : <Lock size={16} />}
@@ -3209,7 +3209,7 @@ export default function ProductManager() {
                 <select
                   value={autoShowcaseMainCategory}
                   onChange={(e) => setAutoShowcaseMainCategory(e.target.value)}
-                  className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm font-bold text-black"
+                  className="w-full bg-white border-2 border-brq-gold rounded-xl px-3 py-2.5 text-base font-bold text-black shadow-md"
                 >
                   <option value="الكل">جميع الأقسام الرئيسية</option>
                   {categories.filter(c => !c.parentId).map(c => (
@@ -3223,7 +3223,7 @@ export default function ProductManager() {
                 <select
                   value={autoShowcaseCollection}
                   onChange={(e) => setAutoShowcaseCollection(e.target.value)}
-                  className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm font-bold text-black"
+                  className="w-full bg-white border-2 border-brq-gold rounded-xl px-3 py-2.5 text-base font-bold text-black shadow-md"
                 >
                   <option value="الكل">الكل (تلقائي)</option>
                   <option value="رجالي">👞 رجالي</option>
@@ -3246,7 +3246,7 @@ export default function ProductManager() {
                   max={500}
                   value={autoShowcaseCount}
                   onChange={(e) => setAutoShowcaseCount(parseInt(e.target.value) || 100)}
-                  className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm font-bold text-black"
+                  className="w-full bg-white border-2 border-brq-gold rounded-xl px-3 py-2.5 text-base font-bold text-black shadow-md font-mono"
                 />
               </div>
             </div>

@@ -480,7 +480,7 @@ export default function ImageViewer({
           {product && (
             <div className="flex items-center gap-2">
               {product.productCode && (
-                <span className="text-xs font-mono font-black bg-amber-400 text-black px-2 py-0.5 rounded shadow-sm">
+                <span className="text-xs sm:text-sm md:text-base font-mono font-black bg-amber-400 text-black px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-md shadow-md tracking-wider">
                   {product.productCode}
                 </span>
               )}
@@ -549,12 +549,12 @@ export default function ImageViewer({
                   <div className="pt-1">
                     <button
                       onClick={() => handleCopyCode(product.productCode)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-amber-400/10 hover:bg-amber-400/20 text-amber-300 border border-amber-400/30 text-xs font-mono font-bold transition-colors group cursor-pointer"
+                      className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-amber-400/15 hover:bg-amber-400/25 text-amber-300 border border-amber-400/40 text-sm md:text-base font-mono font-extrabold transition-colors group cursor-pointer shadow-sm"
                       title="انقر لنسخ كود المنتج"
                     >
-                      <Tag size={13} className="text-amber-400" />
+                      <Tag size={16} className="text-amber-400" />
                       <span>الكود: {product.productCode}</span>
-                      {copiedCode ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} className="opacity-50 group-hover:opacity-100" />}
+                      {copiedCode ? <Check size={16} className="text-emerald-400" /> : <Copy size={16} className="opacity-60 group-hover:opacity-100" />}
                     </button>
                   </div>
                 )}
@@ -843,7 +843,7 @@ export default function ImageViewer({
                     {product.name}
                   </h2>
                   {product.productCode && (
-                    <span className="inline-block mt-0.5 text-[10px] font-mono text-amber-300 font-bold bg-amber-400/15 border border-amber-400/30 px-1.5 py-0.5 rounded">
+                    <span className="inline-block mt-1 text-xs sm:text-sm font-mono text-amber-300 font-black bg-amber-400/20 border border-amber-400/40 px-2 py-0.5 rounded-md">
                       كود: {product.productCode}
                     </span>
                   )}

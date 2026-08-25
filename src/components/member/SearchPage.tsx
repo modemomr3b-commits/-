@@ -322,7 +322,7 @@ export default function SearchPage() {
                            <h3 className="font-bold text-xs text-white line-clamp-1">{p.name}</h3>
                          </div>
                          <div className="flex justify-between items-end mt-auto pt-2 border-t border-white/5">
-                           <span className="text-xs font-mono text-white/50">{p.productCode}</span>
+                           <span className="text-xs sm:text-sm font-mono font-bold text-amber-300 bg-white/10 px-2 py-0.5 rounded border border-amber-400/20">{p.productCode}</span>
                            <div className="flex flex-col items-end">
                              <span className="font-bold text-brq-gold text-sm">{Number(p.price).toLocaleString("en-US")} <span className="text-[10px]">د.ع</span></span>
                              {user?.role === 'admin' && p.dozenPriceUsd !== undefined && (

@@ -625,7 +625,7 @@ export default function ShowcasePage() {
                         {p.name}
                       </h3>
                       {p.productCode && (
-                        <span className="text-[9px] text-brq-gold bg-brq-gold/10 border border-brq-gold/25 px-1 py-0.5 rounded font-mono font-bold shrink-0">
+                        <span className="text-[11px] sm:text-xs text-brq-gold bg-brq-gold/15 border border-brq-gold/30 px-1.5 py-0.5 rounded font-mono font-black shrink-0">
                           {p.productCode}
                         </span>
                       )}

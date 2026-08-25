@@ -1087,7 +1087,7 @@ export default function Products() {
                   >
                     {p.name}
                   </h3>
-                  <span className="text-[10px] text-white bg-white/15 px-1.5 py-0.5 rounded font-mono shrink-0">
+                  <span className="text-xs sm:text-sm text-white bg-white/20 px-2 py-0.5 rounded-md font-mono font-bold shrink-0 tracking-wide border border-white/20">
                     {p.productCode || "---"}
                   </span>
                 </div>
