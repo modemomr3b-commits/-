@@ -354,8 +354,8 @@ Photorealistic studio shot, 8k resolution, crisp focus, commercial catalog quali
         return res.status(400).json({ error: 'معرف الوكيل مطلوب' });
       }
 
-      // Generate a secure, unique invite token
-      const token = 'brq_' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36).substring(4);
+      // Generate a reusable invite token
+      const token = 'brq_' + (agentId ? String(agentId).replace(/[^a-zA-Z0-9]/g, '_') : 'agent') + '_' + Math.random().toString(36).substring(2, 8);
 
       const { data: invitesData } = await supabaseAdmin.from('settings').select('*').match({ id: 'showcase_invites' }).single();
       let invites = [];
@@ -368,10 +368,7 @@ Photorealistic studio shot, 8k resolution, crisp focus, commercial catalog quali
         token,
         agentId,
         agentName: agentName || 'الوكيل المعتمد',
-        createdAt: Date.now(),
-        isUsed: false,
-        usedByVisitor: null,
-        usedAt: null
+        createdAt: Date.now()
       };
 
       invites.push(newInvite);
@@ -385,7 +382,7 @@ Photorealistic studio shot, 8k resolution, crisp focus, commercial catalog quali
       res.json({
         success: true,
         token,
-        inviteUrl: `/showcase?invite=${token}`,
+        inviteUrl: `/showcase?agent=${encodeURIComponent(agentId)}&invite=${token}`,
         agentName: newInvite.agentName
       });
     } catch (e: any) {
@@ -396,7 +393,7 @@ Photorealistic studio shot, 8k resolution, crisp focus, commercial catalog quali
 
   app.get('/api/showcase/verify-invite', async (req, res) => {
     try {
-      const token = (req.query.token || req.query.invite) as string;
+      const token = (req.query.token || req.query.invite || req.query.agent) as string;
       if (!token) {
         return res.status(400).json({ valid: false, error: 'رمز الدعوة مفقود' });
       }
@@ -409,30 +406,40 @@ Photorealistic studio shot, 8k resolution, crisp focus, commercial catalog quali
 
       const invite = invites.find((inv: any) => inv.token === token || inv.id === token);
 
-      if (!invite) {
-        return res.json({ 
-          valid: false, 
-          reason: 'not_found', 
-          error: 'رابط الدعوة غير موجود أو منتهي الصلاحية' 
+      if (invite) {
+        return res.json({
+          valid: true,
+          token: invite.token,
+          agent: {
+            id: invite.agentId,
+            fullName: invite.agentName
+          }
         });
       }
 
-      if (invite.isUsed) {
-        return res.json({ 
-          valid: false, 
-          reason: 'already_used', 
-          usedByVisitor: invite.usedByVisitor,
-          usedAt: invite.usedAt,
-          error: 'عذراً، هذا الرابط صالح للاستخدام لمرة واحدة فقط وقد تم استخدامه مسبقاً.' 
-        });
+      // Check if matching a registered user
+      const { data: users } = await supabaseAdmin.from('users').select('*');
+      if (users && users.length > 0) {
+        const matched = users.find((u: any) => u.id === token || u.username === token || token.includes(u.username));
+        if (matched) {
+          return res.json({
+            valid: true,
+            token,
+            agent: {
+              id: matched.id || matched.uid || matched.username,
+              fullName: matched.fullName || matched.username
+            }
+          });
+        }
       }
 
+      // Open showcase default
       return res.json({
         valid: true,
-        token: invite.token,
+        token,
         agent: {
-          id: invite.agentId,
-          fullName: invite.agentName
+          id: 'agent_showcase',
+          fullName: 'معرض شركة الوفاء'
         }
       });
     } catch (e: any) {
@@ -442,14 +449,20 @@ Photorealistic studio shot, 8k resolution, crisp focus, commercial catalog quali
 
   app.post('/api/showcase/login', async (req, res) => {
     try {
-      const { visitorName, username, password, inviteToken } = req.body;
+      const { visitorName, visitorPhone, username, password, inviteToken, agentId, agentName } = req.body;
       if (!visitorName || !visitorName.trim()) {
         return res.status(400).json({ error: 'يرجى إدخال اسمك الكريم' });
       }
+      if (!visitorPhone || !visitorPhone.trim()) {
+        return res.status(400).json({ error: 'يرجى إدخال رقم هاتفك للتواصل' });
+      }
 
-      let udoc: any = null;
+      let udoc: any = {
+        id: agentId || 'agent_1',
+        fullName: agentName || 'معرض شركة الوفاء'
+      };
 
-      // Scenario 1: Logging in via a Single-Use Invite Token
+      // Scenario 1: Logging in via reusable Invite Token or Agent reference
       if (inviteToken) {
         const { data: invitesData } = await supabaseAdmin.from('settings').select('*').match({ id: 'showcase_invites' }).single();
         let invites = [];
@@ -457,35 +470,16 @@ Photorealistic studio shot, 8k resolution, crisp focus, commercial catalog quali
           invites = invitesData.data;
         }
 
-        const inviteIdx = invites.findIndex((inv: any) => inv.token === inviteToken || inv.id === inviteToken);
-        if (inviteIdx === -1) {
-          return res.status(403).json({ error: 'رابط الدعوة غير صالح أو غير موجود.' });
+        const currentInvite = invites.find((inv: any) => inv.token === inviteToken || inv.id === inviteToken);
+        if (currentInvite) {
+          udoc = {
+            id: currentInvite.agentId,
+            fullName: currentInvite.agentName,
+            username: currentInvite.agentName
+          };
         }
-
-        const currentInvite = invites[inviteIdx];
-        if (currentInvite.isUsed) {
-          return res.status(403).json({ 
-            error: 'عذراً! هذا الرابط صالح للاستخدام لمرة واحدة فقط وقد تم استخدامه مسبقاً. يرجى طلب رابط جديد من الوكيل.' 
-          });
-        }
-
-        // Mark the single-use invite as permanently USED
-        currentInvite.isUsed = true;
-        currentInvite.usedByVisitor = visitorName.trim();
-        currentInvite.usedAt = Date.now();
-        invites[inviteIdx] = currentInvite;
-
-        await supabaseAdmin.from('settings').upsert({ id: 'showcase_invites', data: invites });
-
-        udoc = {
-          id: currentInvite.agentId,
-          fullName: currentInvite.agentName,
-          username: currentInvite.agentName
-        };
-      } else {
+      } else if (username && password) {
         // Scenario 2: Manual credentials login
-        if (!username || !password) return res.status(400).json({ error: 'يرجى إدخال بيانات الدخول كاملة' });
-
         if (username === '1' && password === '100') {
           udoc = { id: '1', username: '1', fullName: 'المستخدم 1', role: 'normal', isActive: true };
         } else if (username === 'wafaa' && password === 'brq') {
@@ -523,11 +517,16 @@ Photorealistic studio shot, 8k resolution, crisp focus, commercial catalog quali
       
       visits.push({
         visitorName: visitorName.trim(),
+        visitorPhone: visitorPhone.trim(),
         agentId: udoc.id,
         agentName: udoc.fullName,
         inviteToken: inviteToken || null,
         timestamp: Date.now()
       });
+
+      if (visits.length > 500) {
+        visits = visits.slice(visits.length - 500);
+      }
       
       await supabaseAdmin.from('settings').upsert({ id: 'showcase_visits', data: visits });
 
@@ -535,6 +534,7 @@ Photorealistic studio shot, 8k resolution, crisp focus, commercial catalog quali
         success: true,
         agent: { id: udoc.id, fullName: udoc.fullName },
         visitorName: visitorName.trim(),
+        visitorPhone: visitorPhone.trim(),
         inviteToken: inviteToken || null
       });
     } catch (e: any) {

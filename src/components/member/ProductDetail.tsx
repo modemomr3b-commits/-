@@ -421,11 +421,11 @@ export default function ProductDetail() {
         <div className="flex items-center gap-1.5 sm:gap-3" dir="rtl">
           <div className="flex items-center gap-1.5 sm:gap-2">
             {product.productCode && (
-              <span className="text-xs sm:text-sm md:text-base font-mono font-black bg-amber-400 text-black px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-md shadow-md tracking-wider">
+              <span className="text-sm sm:text-base md:text-lg font-mono font-black bg-amber-400 text-black px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-lg shadow-lg tracking-wider border border-amber-300">
                 {product.productCode}
               </span>
             )}
-            <span className="text-[10px] sm:text-sm md:text-base font-bold text-white max-w-[80px] sm:max-w-[140px] md:max-w-xs truncate">
+            <span className="text-xs sm:text-base md:text-lg font-bold text-white max-w-[90px] sm:max-w-[150px] md:max-w-xs truncate">
               {product.name}
             </span>
           </div>
@@ -502,18 +502,18 @@ export default function ProductDetail() {
                   {product.productCode && (
                     <button
                       onClick={() => handleCopyCode(product.productCode)}
-                      className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-amber-400/15 hover:bg-amber-400/25 text-amber-300 border border-amber-400/40 text-sm md:text-base font-mono font-extrabold transition-colors group cursor-pointer shadow-sm"
+                      className="inline-flex items-center gap-2.5 px-4 py-2 rounded-2xl bg-amber-400/20 hover:bg-amber-400/30 text-amber-300 border-2 border-amber-400/60 text-base md:text-lg lg:text-xl font-mono font-black transition-all group cursor-pointer shadow-md active:scale-95"
                       title="انقر لنسخ كود المنتج"
                     >
-                      <Tag size={16} className="text-amber-400" />
-                      <span>الكود: {product.productCode}</span>
-                      {copiedCode ? <Check size={16} className="text-emerald-400" /> : <Copy size={16} className="opacity-60 group-hover:opacity-100" />}
+                      <Tag size={20} className="text-amber-400" />
+                      <span>كود المنتج: {product.productCode}</span>
+                      {copiedCode ? <Check size={18} className="text-emerald-400" /> : <Copy size={18} className="opacity-60 group-hover:opacity-100" />}
                     </button>
                   )}
 
                   {product.modelNumber && (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-white/70 text-xs font-mono">
-                      <Hash size={12} className="text-white/40" />
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-white/80 text-sm font-mono font-bold">
+                      <Hash size={14} className="text-white/40" />
                       <span>الرمز: {product.modelNumber}</span>
                     </span>
                   )}
@@ -799,7 +799,7 @@ export default function ProductDetail() {
                   {product.name}
                 </h2>
                 {product.productCode && (
-                  <span className="inline-block mt-1 text-xs sm:text-sm font-mono text-amber-300 font-black bg-amber-400/20 border border-amber-400/40 px-2 py-0.5 rounded-md">
+                  <span className="inline-block mt-1.5 text-sm sm:text-base font-mono text-amber-300 font-black bg-amber-400/20 border-2 border-amber-400/50 px-3 py-1 rounded-xl shadow-sm tracking-wider">
                     كود: {product.productCode}
                   </span>
                 )}

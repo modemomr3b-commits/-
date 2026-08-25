@@ -290,7 +290,7 @@ export default function Home() {
                       
                       const inviteRes = await createShowcaseInvite(agentId, agentDisplayName);
                       const url = `${window.location.origin}${inviteRes.inviteUrl}`;
-                      const text = `✨ معرض شركة الوفاء المتميز BRQ ✨\nدعوة خاصة من: ${agentDisplayName}\nتفضل بالاطلاع على أحدث الموديلات والتشكيلات الحصرية عبر رابط الدعوة المخصص لك (صالح لمرة واحدة فقط):\n${url}`;
+                      const text = `✨ معرض شركة الوفاء المتميز BRQ ✨\nدعوة خاصة من: ${agentDisplayName}\nتفضل بالاطلاع على أحدث الموديلات والتشكيلات الحصرية عبر الرابط المباشر:\n${url}`;
 
                       try {
                         await navigator.clipboard.writeText(text);

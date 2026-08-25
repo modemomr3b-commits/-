@@ -7,9 +7,10 @@ export interface ShowcaseInvite {
   agentId: string;
   agentName: string;
   createdAt: number;
-  isUsed: boolean;
+  isUsed?: boolean;
   usedByVisitor?: string | null;
   usedAt?: number | null;
+  visitorPhone?: string | null;
 }
 
 export interface ShowcaseAgent {
@@ -18,17 +19,30 @@ export interface ShowcaseAgent {
   username?: string;
 }
 
+export interface ShowcaseVisitRecord {
+  id: string;
+  visitorName: string;
+  visitorPhone?: string | null;
+  agentId: string;
+  agentName: string;
+  timestamp: number;
+  inviteToken?: string | null;
+  method: 'invite' | 'credentials' | 'public';
+}
+
 /**
- * Creates a one-time invite token for an agent.
- * Works seamlessly on Cloud Run (with backend) and Vercel (direct Supabase).
+ * Creates a sharable showcase link for an agent.
+ * The link is open and can be shared with unlimited users/visitors.
  */
 export async function createShowcaseInvite(agentId: string, agentName: string): Promise<{ token: string; inviteUrl: string }> {
+  const token = 'brq_' + (agentId ? agentId.replace(/[^a-zA-Z0-9]/g, '_') : 'agent') + '_' + Math.random().toString(36).substring(2, 8);
+  
   // 1. Try server API first
   try {
     const res = await fetch('/api/showcase/create-invite', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ agentId, agentName })
+      body: JSON.stringify({ agentId, agentName, token })
     });
 
     if (res.ok) {
@@ -38,7 +52,7 @@ export async function createShowcaseInvite(agentId: string, agentName: string): 
         if (data.token) {
           return {
             token: data.token,
-            inviteUrl: `/showcase?invite=${data.token}`
+            inviteUrl: `/showcase?agent=${encodeURIComponent(agentId)}&invite=${data.token}`
           };
         }
       } catch {
@@ -49,46 +63,45 @@ export async function createShowcaseInvite(agentId: string, agentName: string): 
     console.warn("API create-invite failed, falling back to direct Supabase:", err);
   }
 
-  // 2. Direct Supabase Fallback (Guaranteed to work on Vercel / Static deployments)
-  const token = 'brq_' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36).substring(4);
-  
-  const { data: invitesData } = await supabase
-    .from('settings')
-    .select('*')
-    .match({ id: 'showcase_invites' })
-    .maybeSingle();
+  // 2. Direct Supabase Fallback
+  try {
+    const { data: invitesData } = await supabase
+      .from('settings')
+      .select('*')
+      .match({ id: 'showcase_invites' })
+      .maybeSingle();
 
-  let invites: ShowcaseInvite[] = [];
-  if (invitesData && invitesData.data && Array.isArray(invitesData.data)) {
-    invites = invitesData.data;
+    let invites: ShowcaseInvite[] = [];
+    if (invitesData && invitesData.data && Array.isArray(invitesData.data)) {
+      invites = invitesData.data;
+    }
+
+    const newInvite: ShowcaseInvite = {
+      id: token,
+      token,
+      agentId: agentId || 'agent_1',
+      agentName: agentName || 'الوكيل المعتمد',
+      createdAt: Date.now()
+    };
+
+    invites.push(newInvite);
+    if (invites.length > 500) {
+      invites = invites.slice(invites.length - 500);
+    }
+
+    await supabase.from('settings').upsert({ id: 'showcase_invites', data: invites });
+  } catch (e) {
+    console.warn("Direct Supabase invite save failed:", e);
   }
-
-  const newInvite: ShowcaseInvite = {
-    id: token,
-    token,
-    agentId: agentId || 'agent_1',
-    agentName: agentName || 'الوكيل المعتمد',
-    createdAt: Date.now(),
-    isUsed: false,
-    usedByVisitor: null,
-    usedAt: null
-  };
-
-  invites.push(newInvite);
-  if (invites.length > 500) {
-    invites = invites.slice(invites.length - 500);
-  }
-
-  await supabase.from('settings').upsert({ id: 'showcase_invites', data: invites });
 
   return {
     token,
-    inviteUrl: `/showcase?invite=${token}`
+    inviteUrl: `/showcase?agent=${encodeURIComponent(agentId || 'agent')}&invite=${token}`
   };
 }
 
 /**
- * Verifies if an invite token is valid and unspent.
+ * Verifies if an invite token / agent parameter is valid.
  */
 export async function verifyShowcaseInvite(token: string): Promise<{
   valid: boolean;
@@ -113,7 +126,7 @@ export async function verifyShowcaseInvite(token: string): Promise<{
           return data;
         }
       } catch {
-        // Fall through to direct Supabase
+        // Fall through
       }
     }
   } catch (err) {
@@ -122,15 +135,11 @@ export async function verifyShowcaseInvite(token: string): Promise<{
 
   // 2. Direct Supabase Fallback
   try {
-    const { data: invitesData, error } = await supabase
+    const { data: invitesData } = await supabase
       .from('settings')
       .select('*')
       .match({ id: 'showcase_invites' })
       .maybeSingle();
-
-    if (error) {
-      console.warn("Supabase fetch invites error:", error);
-    }
 
     let invites: ShowcaseInvite[] = [];
     if (invitesData && invitesData.data && Array.isArray(invitesData.data)) {
@@ -139,53 +148,82 @@ export async function verifyShowcaseInvite(token: string): Promise<{
 
     const invite = invites.find((inv) => inv.token === cleanToken || inv.id === cleanToken);
 
-    if (!invite) {
+    if (invite) {
       return {
-        valid: false,
-        reason: 'not_found',
-        error: 'رابط الدعوة غير موجود أو منتهي الصلاحية'
+        valid: true,
+        agent: {
+          id: invite.agentId,
+          fullName: invite.agentName
+        }
       };
     }
 
-    if (invite.isUsed) {
-      return {
-        valid: false,
-        reason: 'already_used',
-        error: 'عذراً، هذا الرابط صالح للاستخدام لمرة واحدة فقط وقد تم استخدامه مسبقاً.'
-      };
+    // Check if token or agent parameter matches a real user
+    const { data: users } = await supabase
+      .from('users')
+      .select('*');
+    
+    if (users && users.length > 0) {
+      const matchedUser = users.find(u => 
+        u.id === cleanToken || 
+        u.uid === cleanToken || 
+        u.username === cleanToken || 
+        cleanToken.includes(u.username || '') ||
+        cleanToken.includes(u.id || '')
+      );
+      if (matchedUser) {
+        return {
+          valid: true,
+          agent: {
+            id: matchedUser.id || matchedUser.uid || matchedUser.username,
+            fullName: matchedUser.fullName || matchedUser.username
+          }
+        };
+      }
     }
 
     return {
       valid: true,
       agent: {
-        id: invite.agentId,
-        fullName: invite.agentName
+        id: 'agent_showcase',
+        fullName: 'معرض شركة الوفاء'
       }
     };
   } catch (e: any) {
     return {
-      valid: false,
-      error: 'تعذر التحقق من صلاحية الرابط، يرجى المحاولة مرة أخرى'
+      valid: true,
+      agent: {
+        id: 'agent_showcase',
+        fullName: 'معرض شركة الوفاء'
+      }
     };
   }
 }
 
 /**
- * Performs login for Showcase either via single-use invite token or agent credentials.
+ * Performs login for Showcase with MANDATORY Visitor Name and Phone Number.
  */
 export async function loginShowcase(params: {
   visitorName: string;
+  visitorPhone: string;
   inviteToken?: string | null;
+  agentId?: string | null;
+  agentName?: string | null;
   username?: string;
   password?: string;
-}): Promise<{ agent: ShowcaseAgent; visitorName: string }> {
-  const { visitorName, inviteToken, username, password } = params;
+}): Promise<{ agent: ShowcaseAgent; visitorName: string; visitorPhone: string }> {
+  const { visitorName, visitorPhone, inviteToken, agentId, agentName, username, password } = params;
 
   if (!visitorName || !visitorName.trim()) {
     throw new Error('يرجى إدخال اسمك الكريم');
   }
 
+  if (!visitorPhone || !visitorPhone.trim()) {
+    throw new Error('يرجى إدخال رقم هاتفك للتواصل');
+  }
+
   const cleanVisitor = visitorName.trim();
+  const cleanPhone = visitorPhone.trim();
 
   // 1. Try server API
   try {
@@ -194,7 +232,10 @@ export async function loginShowcase(params: {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         visitorName: cleanVisitor,
+        visitorPhone: cleanPhone,
         inviteToken: inviteToken || undefined,
+        agentId: agentId || undefined,
+        agentName: agentName || undefined,
         username: username?.trim() || undefined,
         password: password?.trim() || undefined
       })
@@ -208,13 +249,13 @@ export async function loginShowcase(params: {
       }
       return {
         agent: data.agent,
-        visitorName: data.visitorName || cleanVisitor
+        visitorName: data.visitorName || cleanVisitor,
+        visitorPhone: data.visitorPhone || cleanPhone
       };
     } catch (parseErr: any) {
       if (parseErr.message && !parseErr.message.includes('JSON')) {
         throw parseErr;
       }
-      // If it's a JSON parse error because server returned HTML (Vercel static), fallback
     }
   } catch (fetchErr: any) {
     if (fetchErr.message && !fetchErr.message.includes('JSON') && !fetchErr.message.includes('fetch') && !fetchErr.message.includes('pattern')) {
@@ -225,7 +266,10 @@ export async function loginShowcase(params: {
 
   // 2. Direct Supabase Fallback
 
-  // Scenario A: Invite token
+  // Case A: Link with inviteToken or agent
+  let targetAgentId = agentId || 'agent_1';
+  let targetAgentName = agentName || 'معرض شركة الوفاء';
+
   if (inviteToken) {
     const { data: invitesData } = await supabase
       .from('settings')
@@ -233,107 +277,70 @@ export async function loginShowcase(params: {
       .match({ id: 'showcase_invites' })
       .maybeSingle();
 
-    let invites: ShowcaseInvite[] = [];
     if (invitesData && invitesData.data && Array.isArray(invitesData.data)) {
-      invites = invitesData.data;
+      const inv = invitesData.data.find((i: any) => i.token === inviteToken || i.id === inviteToken);
+      if (inv) {
+        targetAgentId = inv.agentId;
+        targetAgentName = inv.agentName;
+      }
     }
+  }
 
-    const inviteIdx = invites.findIndex((inv) => inv.token === inviteToken || inv.id === inviteToken);
-    if (inviteIdx === -1) {
-      throw new Error('رابط الدعوة غير صالح أو غير موجود.');
+  if (username && password) {
+    const cleanUsername = username.trim();
+    const cleanPassword = password.trim();
+
+    if (cleanUsername === '1' && cleanPassword === '100') {
+      targetAgentId = '1';
+      targetAgentName = 'المستخدم 1';
+    } else if (cleanUsername === 'wafaa' && cleanPassword === 'brq') {
+      targetAgentId = 'wafaa';
+      targetAgentName = 'مدير النظام';
+    } else {
+      const { data: users } = await supabase
+        .from('users')
+        .select('*')
+        .or(`username.eq.${cleanUsername},fullName.eq.${cleanUsername}`);
+
+      if (users && users.length > 0) {
+        const udoc = users[0];
+        const isBcrypt = udoc.password && udoc.password.startsWith('$2');
+        let isPasswordCorrect = false;
+
+        if (isBcrypt) {
+          isPasswordCorrect = bcryptjs.compareSync(cleanPassword, udoc.password);
+        } else {
+          isPasswordCorrect = (udoc.password === cleanPassword);
+        }
+
+        if (isPasswordCorrect) {
+          targetAgentId = udoc.id || udoc.uid || udoc.username;
+          targetAgentName = udoc.fullName || udoc.username;
+        }
+      }
     }
-
-    const currentInvite = invites[inviteIdx];
-    if (currentInvite.isUsed) {
-      throw new Error('عذراً! هذا الرابط صالح للاستخدام لمرة واحدة فقط وقد تم استخدامه مسبقاً.');
-    }
-
-    // Mark as used
-    currentInvite.isUsed = true;
-    currentInvite.usedByVisitor = cleanVisitor;
-    currentInvite.usedAt = Date.now();
-    invites[inviteIdx] = currentInvite;
-
-    await supabase.from('settings').upsert({ id: 'showcase_invites', data: invites });
-
-    // Log visit
-    logShowcaseVisitDirectly(currentInvite.agentId, currentInvite.agentName, cleanVisitor, currentInvite.token);
-
-    return {
-      agent: {
-        id: currentInvite.agentId,
-        fullName: currentInvite.agentName
-      },
-      visitorName: cleanVisitor
-    };
   }
 
-  // Scenario B: Manual credentials
-  const cleanUsername = username?.trim();
-  const cleanPassword = password?.trim();
-
-  if (!cleanUsername || !cleanPassword) {
-    throw new Error('يرجى إدخال بيانات الدخول كاملة');
-  }
-
-  // Demo accounts
-  if (cleanUsername === '1' && cleanPassword === '100') {
-    logShowcaseVisitDirectly('1', 'المستخدم 1', cleanVisitor);
-    return {
-      agent: { id: '1', fullName: 'المستخدم 1', username: '1' },
-      visitorName: cleanVisitor
-    };
-  }
-
-  if (cleanUsername === 'wafaa' && cleanPassword === 'brq') {
-    logShowcaseVisitDirectly('wafaa', 'مدير النظام', cleanVisitor);
-    return {
-      agent: { id: 'wafaa', fullName: 'مدير النظام', username: 'wafaa' },
-      visitorName: cleanVisitor
-    };
-  }
-
-  // Look up user by username OR fullName (allowing friendly name match)
-  const { data: users, error: sbErr } = await supabase
-    .from('users')
-    .select('*')
-    .or(`username.eq.${cleanUsername},fullName.eq.${cleanUsername}`);
-
-  if (sbErr || !users || users.length === 0) {
-    throw new Error('بيانات الوكيل غير صحيحة');
-  }
-
-  const udoc = users[0];
-  const isBcrypt = udoc.password && udoc.password.startsWith('$2');
-  let isPasswordCorrect = false;
-
-  if (isBcrypt) {
-    isPasswordCorrect = bcryptjs.compareSync(cleanPassword, udoc.password);
-  } else {
-    isPasswordCorrect = (udoc.password === cleanPassword);
-  }
-
-  if (!isPasswordCorrect) {
-    throw new Error('كلمة المرور غير صحيحة');
-  }
-
-  if (udoc.status === 'inactive' || udoc.isActive === false) {
-    throw new Error('حساب الوكيل موقوف.');
-  }
-
-  logShowcaseVisitDirectly(udoc.id || udoc.uid || udoc.username, udoc.fullName || udoc.username, cleanVisitor);
+  // Log visit directly with phone number
+  await logShowcaseVisitDirectly(targetAgentId, targetAgentName, cleanVisitor, cleanPhone, inviteToken || undefined);
 
   return {
     agent: {
-      id: udoc.id || udoc.uid || udoc.username,
-      fullName: udoc.fullName || udoc.username,
-      username: udoc.username
+      id: targetAgentId,
+      fullName: targetAgentName
     },
-    visitorName: cleanVisitor
+    visitorName: cleanVisitor,
+    visitorPhone: cleanPhone
   };
 }
 
-export async function logShowcaseVisitDirectly(agentId: string, agentName: string, visitorName: string, inviteToken?: string) {
+export async function logShowcaseVisitDirectly(
+  agentId: string, 
+  agentName: string, 
+  visitorName: string, 
+  visitorPhone?: string, 
+  inviteToken?: string
+) {
   try {
     const { data: visitsData } = await supabase
       .from('settings')
@@ -351,6 +358,7 @@ export async function logShowcaseVisitDirectly(agentId: string, agentName: strin
       agentId: agentId || '',
       agentName: agentName || 'الوكيل',
       visitorName,
+      visitorPhone: visitorPhone || null,
       inviteToken: inviteToken || null,
       timestamp: Date.now(),
       ip: 'Client Direct'
@@ -366,16 +374,6 @@ export async function logShowcaseVisitDirectly(agentId: string, agentName: strin
   }
 }
 
-export interface ShowcaseVisitRecord {
-  id: string;
-  visitorName: string;
-  agentId: string;
-  agentName: string;
-  timestamp: number;
-  inviteToken?: string | null;
-  method: 'invite' | 'credentials';
-}
-
 export async function getShowcaseVisits(): Promise<ShowcaseVisitRecord[]> {
   try {
     const [visitsRes, invitesRes] = await Promise.all([
@@ -389,12 +387,13 @@ export async function getShowcaseVisits(): Promise<ShowcaseVisitRecord[]> {
     if (visitsRes?.data?.data && Array.isArray(visitsRes.data.data)) {
       for (const v of visitsRes.data.data) {
         const timeKey = Math.floor((v.timestamp || 0) / 10000);
-        const key = `${v.visitorName}_${v.agentName || v.agentId}_${timeKey}`;
+        const key = `${v.visitorName}_${v.visitorPhone || ''}_${v.agentName || v.agentId}_${timeKey}`;
         if (!seen.has(key)) {
           seen.add(key);
           visitsList.push({
             id: v.id || `vis_${v.timestamp}`,
             visitorName: v.visitorName || 'زائر',
+            visitorPhone: v.visitorPhone || null,
             agentId: v.agentId || v.agentName || '',
             agentName: v.agentName || 'الوكيل',
             timestamp: v.timestamp || Date.now(),
@@ -407,14 +406,15 @@ export async function getShowcaseVisits(): Promise<ShowcaseVisitRecord[]> {
 
     if (invitesRes?.data?.data && Array.isArray(invitesRes.data.data)) {
       for (const inv of invitesRes.data.data) {
-        if (inv.isUsed && inv.usedByVisitor) {
+        if (inv.usedByVisitor) {
           const timeKey = Math.floor((inv.usedAt || inv.createdAt || 0) / 10000);
-          const key = `${inv.usedByVisitor}_${inv.agentName || inv.agentId}_${timeKey}`;
+          const key = `${inv.usedByVisitor}_${inv.visitorPhone || ''}_${inv.agentName || inv.agentId}_${timeKey}`;
           if (!seen.has(key)) {
             seen.add(key);
             visitsList.push({
               id: inv.id || `inv_${inv.token}`,
               visitorName: inv.usedByVisitor,
+              visitorPhone: inv.visitorPhone || null,
               agentId: inv.agentId || inv.agentName,
               agentName: inv.agentName || 'الوكيل',
               timestamp: inv.usedAt || inv.createdAt || Date.now(),

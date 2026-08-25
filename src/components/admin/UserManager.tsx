@@ -1,5 +1,5 @@
 import { formatDateTime, formatDate } from '../../utils/time';
-import { Users, Eye, EyeOff, Plus, Search, Filter, Edit, ShieldX, CheckCircle, KeyRound, MoreVertical, Loader2, X, Trash2, Smartphone, Monitor, Globe, Sparkles, Calendar, Clock, ExternalLink } from 'lucide-react';
+import { Users, Eye, EyeOff, Plus, Search, Filter, Edit, ShieldX, CheckCircle, KeyRound, MoreVertical, Loader2, X, Trash2, Smartphone, Monitor, Globe, Sparkles, Calendar, Clock, ExternalLink, Phone } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import bcryptjs from 'bcryptjs';
 import { api } from '../../api';
@@ -301,6 +301,7 @@ function UserManagerContent() {
     const sq = modalSearch.toLowerCase().trim();
     return (
       (v.visitorName && v.visitorName.toLowerCase().includes(sq)) ||
+      (v.visitorPhone && v.visitorPhone.toLowerCase().includes(sq)) ||
       (v.agentName && v.agentName.toLowerCase().includes(sq)) ||
       (v.agentId && v.agentId.toLowerCase().includes(sq))
     );
@@ -677,17 +678,31 @@ function UserManagerContent() {
                 </div>
               ) : (
                 selectedAgentVisits.visits.map((visit, idx) => (
-                  <div key={idx} className="p-3 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between hover:bg-white/10 transition-colors">
-                    <div className="flex items-center gap-2.5">
+                  <div key={idx} className="p-3.5 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between hover:bg-white/10 transition-colors">
+                    <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-300 font-bold text-xs shrink-0">
                         {idx + 1}
                       </div>
                       <div>
-                        <div className="text-sm font-bold text-white">{visit.visitorName}</div>
+                        <div className="text-sm font-bold text-white flex items-center gap-2">
+                          <span>{visit.visitorName}</span>
+                          {visit.visitorPhone && (
+                            <a
+                              href={`https://wa.me/${visit.visitorPhone.replace(/[^0-9]/g, '')}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 border border-emerald-500/30 flex items-center gap-1 font-mono transition-colors"
+                              title="تواصل عبر واتساب"
+                            >
+                              <Phone size={11} />
+                              <span dir="ltr">{visit.visitorPhone}</span>
+                            </a>
+                          )}
+                        </div>
                         <div className="text-[11px] text-white/40 flex items-center gap-1.5 mt-0.5">
                           <Clock size={11} />
                           <span>{formatDateTime(visit.timestamp)}</span>
-                          <span className="text-amber-300/80">({formatTimeAgo(visit.timestamp)})</span>
+                          <span className="text-amber-300/80 font-mono">({formatTimeAgo(visit.timestamp)})</span>
                         </div>
                       </div>
                     </div>
@@ -781,6 +796,18 @@ function UserManagerContent() {
                       <div>
                         <div className="text-sm font-bold text-white flex flex-wrap items-center gap-2">
                           <span>{visit.visitorName}</span>
+                          {visit.visitorPhone && (
+                            <a
+                              href={`https://wa.me/${visit.visitorPhone.replace(/[^0-9]/g, '')}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 border border-emerald-500/30 flex items-center gap-1 font-mono transition-colors"
+                              title="تواصل عبر واتساب"
+                            >
+                              <Phone size={11} />
+                              <span dir="ltr">{visit.visitorPhone}</span>
+                            </a>
+                          )}
                           <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/20 font-medium">
                             الوكيل: {visit.agentName}
                           </span>
@@ -794,7 +821,7 @@ function UserManagerContent() {
                     </div>
                     <div className="text-left flex items-center gap-2 self-end sm:self-auto">
                       <span className="px-2.5 py-1 text-[11px] rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">
-                        {visit.inviteToken ? 'رابط دعوة خاص' : 'دخول مباشر'}
+                        {visit.inviteToken ? 'رابط دعوة' : 'دخول مباشر'}
                       </span>
                     </div>
                   </div>

@@ -246,13 +246,13 @@ export default function ShowcasePage() {
     return counts;
   }, [products, categories]);
 
-  // WhatsApp share handler with fresh one-time invite generation
+  // WhatsApp share handler with reusable showcase link
   const handleSharePage = async () => {
     try {
       showToast('جاري تحويلك إلى واتساب...');
       let url = `${window.location.origin}/showcase`;
       const agentId = authData?.agent?.id || user?.id || 'agent_1';
-      const agentName = authData?.agent?.fullName || user?.fullName || 'الوكيل المعتمد';
+      const agentName = authData?.agent?.fullName || user?.fullName || 'معرض شركة الوفاء';
 
       try {
         const inviteRes = await createShowcaseInvite(agentId, agentName);
@@ -260,10 +260,10 @@ export default function ShowcasePage() {
           url = `${window.location.origin}${inviteRes.inviteUrl}`;
         }
       } catch (e) {
-        console.error("Failed to create invite token:", e);
+        console.error("Failed to create invite link:", e);
       }
 
-      const text = `✨ معرض شركة الوفاء المتميز BRQ ✨\nدعوة خاصة من: ${agentName}\nتفضل بالاطلاع على أحدث الموديلات والتشكيلات الحصرية عبر رابط الدعوة المخصص لك (صالح لمرة واحدة فقط):\n${url}`;
+      const text = `✨ معرض شركة الوفاء المتميز BRQ ✨\nدعوة خاصة من: ${agentName}\nتفضل بالاطلاع على أحدث الموديلات والتشكيلات الحصرية عبر الرابط التالي:\n${url}`;
 
       try {
         await navigator.clipboard.writeText(text);
@@ -338,8 +338,8 @@ export default function ShowcasePage() {
   if (!authData) {
     return (
       <ShowcaseAuth 
-        onSuccess={(agent, visitorName) => {
-          const newAuthData = { agent, visitorName };
+        onSuccess={(agent, visitorName, visitorPhone) => {
+          const newAuthData = { agent, visitorName, visitorPhone };
           localStorage.setItem('brq_showcase_auth', JSON.stringify(newAuthData));
           sessionStorage.setItem('brq_showcase_auth', JSON.stringify(newAuthData));
           setAuthData(newAuthData);
