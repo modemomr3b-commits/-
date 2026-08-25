@@ -584,10 +584,10 @@ export default function ShowcasePage() {
                     });
                   }
                 }}
-                className="glass-card rounded-2xl overflow-hidden flex flex-col border border-white/10 hover:border-brq-gold transition-all duration-300 group cursor-pointer shadow-lg hover:shadow-[0_8px_30px_rgba(0,0,0,0.8)] relative bg-black/40"
+                className="rounded-2xl overflow-hidden flex flex-col border-2 border-orange-500/40 hover:border-orange-400 transition-all duration-300 group cursor-pointer shadow-lg hover:shadow-[0_8px_30px_rgba(249,115,22,0.25)] relative bg-gradient-to-b from-[#2E1505] to-[#1A0A02]"
               >
                 {/* Image Container */}
-                <div className="w-full aspect-[1/1] bg-black/60 relative flex items-center justify-center overflow-hidden border-b border-white/5">
+                <div className="w-full aspect-[1/1] bg-black/50 relative flex items-center justify-center overflow-hidden border-b border-orange-500/20">
                   {p.finalImageUrl || p.imageUrl ? (
                     <OptimizedImage
                       src={p.finalImageUrl || p.imageUrl}
@@ -601,7 +601,7 @@ export default function ShowcasePage() {
                   )}
 
                   {/* Category Tag Badge */}
-                  <span className="absolute top-2 right-2 z-10 bg-black/70 backdrop-blur-md text-brq-gold border border-brq-gold/30 text-[9px] font-bold px-1.5 py-0.5 rounded-full shadow-md">
+                  <span className="absolute top-2 right-2 z-10 bg-black/70 backdrop-blur-md text-orange-300 border border-orange-500/30 text-[9px] font-bold px-1.5 py-0.5 rounded-full shadow-md">
                     {getShowcaseCategory(p)}
                   </span>
 
@@ -618,14 +618,14 @@ export default function ShowcasePage() {
                 </div>
 
                 {/* Product Information */}
-                <div className="p-2 flex flex-col justify-between flex-1 gap-1 bg-gradient-to-b from-transparent to-black/60">
+                <div className="p-2.5 flex flex-col justify-between flex-1 gap-1 bg-gradient-to-b from-[#381B08] to-[#200E03]">
                   <div>
                     <div className="flex justify-between items-start gap-1">
                       <h3 className="font-bold text-white text-[11px] leading-tight line-clamp-1">
                         {p.name}
                       </h3>
                       {p.productCode && (
-                        <span className="text-[11px] sm:text-xs text-brq-gold bg-brq-gold/15 border border-brq-gold/30 px-1.5 py-0.5 rounded font-mono font-black shrink-0">
+                        <span className="text-[11px] sm:text-xs text-amber-300 bg-amber-400/20 border border-amber-400/40 px-1.5 py-0.5 rounded font-mono font-black shrink-0">
                           {p.productCode}
                         </span>
                       )}
@@ -639,12 +639,12 @@ export default function ShowcasePage() {
                   </div>
 
                   {/* Pricing and Pieces */}
-                  <div className="pt-1 border-t border-white/5 flex items-end justify-between">
+                  <div className="pt-1 border-t border-orange-500/15 flex items-end justify-between">
                     <div>
-                      <p className="text-brq-gold font-bold text-xs font-mono">
-                        {p.price?.toLocaleString('en-US')} <span className="text-[8px] font-sans">د.ع</span>
+                      <p className="text-amber-300 font-bold text-xs font-mono">
+                        {p.price?.toLocaleString('en-US')} <span className="text-[8px] font-sans text-white/70">د.ع</span>
                       </p>
-                      <p className="text-[7px] text-white/40">سعر الجملة</p>
+                      <p className="text-[7px] text-white/50">سعر الجملة</p>
                     </div>
 
                     {p.piecesCount ? (

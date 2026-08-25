@@ -221,7 +221,7 @@ export default function SearchPage() {
              ) : (
                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                  {filteredProducts.map(p => (
-                    <Link to={`/product/${p.id}`} state={{ product: p }} key={p.id} className="glass-card rounded-2xl overflow-hidden flex flex-col border border-white/5 relative group hover:border-brq-gold transition-colors"
+                    <Link to={`/product/${p.id}`} state={{ product: p }} key={p.id} className="rounded-2xl overflow-hidden flex flex-col border-2 border-orange-500/40 relative group hover:border-orange-400 transition-all shadow-lg hover:shadow-[0_8px_30px_rgba(249,115,22,0.25)] bg-gradient-to-b from-[#2E1505] to-[#1A0A02]"
                           onClick={() => {
                             sessionStorage.setItem('return_search', 'true');
                             sessionStorage.setItem('return_search_page', currentPage.toString());
@@ -229,7 +229,7 @@ export default function SearchPage() {
                             sessionStorage.setItem('return_search_query', searchInput);
                             sessionStorage.setItem('return_search_archived', searchArchived.toString());
                           }}>
-                      <div className="w-full aspect-[1/1] bg-black/40 relative flex items-center justify-center p-0 overflow-hidden">
+                      <div className="w-full aspect-[1/1] bg-black/50 relative flex items-center justify-center p-0 overflow-hidden border-b border-orange-500/20">
                          {p.finalImageUrl || p.imageUrl ? (
                            <div className="absolute inset-0">
                              <OptimizedImage src={p.finalImageUrl || p.imageUrl} alt={p.name || ''} size="medium" className="w-full h-full" imgClassName="object-contain w-full h-full" />
@@ -319,14 +319,14 @@ export default function SearchPage() {
                            </button>
                          )}
                       </div>
-                      <div className="p-3 flex flex-col flex-1">
+                      <div className="p-3 flex flex-col flex-1 bg-gradient-to-b from-[#381B08] to-[#200E03]">
                          <div className="flex justify-between items-start mb-1">
                            <h3 className="font-bold text-xs text-white line-clamp-1">{p.name}</h3>
                          </div>
-                         <div className="flex justify-between items-end mt-auto pt-2 border-t border-white/5">
-                           <span className="text-xs sm:text-sm font-mono font-bold text-amber-300 bg-white/10 px-2 py-0.5 rounded border border-amber-400/20">{p.productCode}</span>
+                         <div className="flex justify-between items-end mt-auto pt-2 border-t border-orange-500/15">
+                           <span className="text-xs sm:text-sm font-mono font-bold text-amber-300 bg-amber-400/20 px-2 py-0.5 rounded border border-amber-400/30">{p.productCode}</span>
                            <div className="flex flex-col items-end">
-                             <span className="font-bold text-brq-gold text-sm">{Number(p.price).toLocaleString("en-US")} <span className="text-[10px]">د.ع</span></span>
+                             <span className="font-bold text-amber-300 text-sm font-mono">{Number(p.price).toLocaleString("en-US")} <span className="text-[10px] font-sans text-white/70">د.ع</span></span>
                              {user?.role === 'admin' && p.dozenPriceUsd !== undefined && (
                                <span className="font-bold text-brq-blue text-xs font-mono">${p.dozenPriceUsd}</span>
                              )}

@@ -946,7 +946,7 @@ export default function Products() {
             return (
             <Link to={`/product/${p.id}`} state={{ product: p }}
               key={p.id}
-              className={`rounded-2xl overflow-hidden flex flex-col relative group transition-all shadow-xl bg-[#2C1E16] border border-[#4A3328] hover:border-brq-gold/70 ${
+              className={`rounded-2xl overflow-hidden flex flex-col relative group transition-all shadow-xl bg-gradient-to-b from-[#2E1505] to-[#1A0A02] border-2 border-orange-500/40 hover:border-orange-400 hover:shadow-[0_8px_30px_rgba(249,115,22,0.25)] ${
                 selectedIds.has(p.id!) ? "ring-2 ring-blue-500" : ""
               }`}
               onClick={(e) => {
@@ -1073,14 +1073,14 @@ export default function Products() {
                     e.stopPropagation();
                     setExpandedProducts(prev => ({ ...prev, [p.id!]: !prev[p.id!] }));
                   }}
-                  className="w-full py-2 bg-[#1F140E] hover:bg-[#36251B] text-brq-gold text-xs font-bold flex items-center justify-center gap-1.5 border-b border-[#4A3328] transition-colors"
+                  className="w-full py-2 bg-[#220E03] hover:bg-[#3D1A07] text-orange-400 text-xs font-bold flex items-center justify-center gap-1.5 border-b border-orange-500/30 transition-colors"
                 >
                   <span>{isExpanded ? 'إخفاء تفاصيل الموديل ▴' : 'عرض تفاصيل الموديل ▾'}</span>
                 </button>
               )}
 
               {isExpanded && (
-              <div className="p-3 flex flex-col gap-2 bg-[#2C1E16]">
+              <div className="p-3 flex flex-col gap-2 bg-gradient-to-b from-[#381B08] to-[#200E03] border-t border-orange-500/20">
                 <div className="flex justify-between items-start gap-2">
                   <h3
                     className="font-bold text-white text-xs leading-tight line-clamp-2"
