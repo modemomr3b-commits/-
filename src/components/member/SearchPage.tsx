@@ -101,6 +101,8 @@ export default function SearchPage() {
     let result = products;
     if (searchArchived) {
       result = result.filter(p => p.isArchived);
+    } else {
+      result = result.filter(p => !p.isArchived && !p.isHidden && !p.isLocked);
     }
     
     return filterProductsBySearch(result, query, allCategories);

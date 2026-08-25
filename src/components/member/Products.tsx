@@ -135,13 +135,14 @@ export default function Products() {
       setAllCategories(cats);
       
       const allStore = await api.getProducts();
-      setAllStoreProducts(allStore);
+      const activeStore = allStore.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked);
+      setAllStoreProducts(activeStore);
       
       let allProducts = [];
       if (categoryId) {
         allProducts = await api.getProductsByCategory(categoryId);
       } else {
-        allProducts = allStore;
+        allProducts = activeStore;
       }
       
       let fetchedProducts = allProducts.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked);
@@ -342,9 +343,9 @@ export default function Products() {
   };
 
   const filteredProductsAll = useMemo(() => {
-    // When searching: search across allStoreProducts (includes active, inactive, locked, archived/out of stock)
+    // Only active products (never archived, hidden or locked) in categories
     if (searchTerm && searchTerm.trim()) {
-      const source = allStoreProducts.length > 0 ? allStoreProducts : products;
+      const source = (allStoreProducts.length > 0 ? allStoreProducts : products).filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked);
       let result = filterProductsBySearch(source, searchTerm, allCategories);
       if (activeSub) {
         const subCatObj = allCategories.find(c => c.id === activeSub);
@@ -363,11 +364,11 @@ export default function Products() {
           return false;
         });
       }
-      return result;
+      return result.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked);
     }
 
-    // Normal browsing without search term: show category-filtered and regular active products
-    let result = products;
+    // Normal browsing without search term: show category-filtered and regular active products ONLY
+    let result = products.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked);
     if (activeSub) {
       const subCatObj = allCategories.find(c => c.id === activeSub);
       const subName = subCatObj ? subCatObj.name.toLowerCase().trim() : '';
@@ -385,7 +386,7 @@ export default function Products() {
         return false;
       });
     }
-    return result;
+    return result.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked);
   }, [activeSub, products, allStoreProducts, searchTerm, allCategories]);
   
   // Pagination & infinite loading per page sliced products
