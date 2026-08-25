@@ -133,11 +133,11 @@ export default function ProductManager() {
         return p;
       }));
 
-      alert(`تم بنجاح نشر ${selectedToPublish.length} موديل تلقائياً في معرض شركة الوفاء المتميز (دورة تدوير جديدة بدون تكرار)!`);
       setIsAutoShowcaseOpen(false);
+      setAlertMessage(`تم بنجاح نقل ونشر ${selectedToPublish.length} موديل في معرض شركة الوفاء المتميز!`);
     } catch (e: any) {
       console.error(e);
-      alert("حدث خطأ أثناء النشر التلقائي: " + e.message);
+      setAlertMessage("حدث خطأ أثناء النشر التلقائي: " + e.message);
     } finally {
       setIsSubmitting(false);
     }
@@ -1099,21 +1099,25 @@ export default function ProductManager() {
 
   const handleBulkMoveCategory = async () => {
     if (selectedIds.size === 0 || !moveToCategoryId) return;
+    const targetCatId = moveToCategoryId;
+    const targetSubcatId = moveToSubcategoryId;
+    const ids = Array.from(selectedIds);
+    
+    // Instant optimistic update and close modal immediately
+    setProducts((prev) =>
+      prev.map((prod) =>
+        selectedIds.has(prod.id!) ? { ...prod, categoryId: targetCatId, subcategoryId: targetSubcatId } : prod
+      )
+    );
+    setSelectedIds(new Set());
+    setIsMoveModalOpen(false);
+    setMoveToCategoryId("");
+    setMoveToSubcategoryId("");
+    setAlertMessage(`تم نقل ${ids.length} منتج بنجاح`);
+
     setIsSubmitting(true);
     try {
-      setProducts((prev) =>
-        prev.map((prod) =>
-          selectedIds.has(prod.id!) ? { ...prod, categoryId: moveToCategoryId, subcategoryId: moveToSubcategoryId } : prod
-        )
-      );
-      
-      const ids = Array.from(selectedIds);
-      await api.bulkUpdateProducts(ids, { categoryId: moveToCategoryId, subcategoryId: moveToSubcategoryId });
-      
-      setSelectedIds(new Set());
-      setIsMoveModalOpen(false);
-      setMoveToCategoryId("");
-      setMoveToSubcategoryId("");
+      await api.bulkUpdateProducts(ids, { categoryId: targetCatId, subcategoryId: targetSubcatId });
     } catch (e: any) {
       console.error("Error bulk moving categories:", e);
       const updated = await api.getProducts();
@@ -1147,28 +1151,35 @@ export default function ProductManager() {
 
   const handleSmartAutoMove = async () => {
     if (selectedIds.size === 0) return;
+    const ids = Array.from(selectedIds);
+    const updates: { id: string; categoryId: string }[] = [];
+    
+    const updatedProducts = products.map(prod => {
+      if (selectedIds.has(prod.id!)) {
+        const matchedCatId = smartDetectMainCategoryId(prod);
+        updates.push({ id: prod.id!, categoryId: matchedCatId });
+        return { ...prod, categoryId: matchedCatId, subcategoryId: '' };
+      }
+      return prod;
+    });
+
+    // Instant optimistic update & close modal
+    setProducts(updatedProducts);
+    setSelectedIds(new Set());
+    setIsMoveModalOpen(false);
+    setMoveToCategoryId("");
+    setMoveToSubcategoryId("");
+    setAlertMessage(`تم النقل الذكي التلقائي لـ ${ids.length} منتج إلى أقسامها الرئيسية بنجاح!`);
+
     setIsSubmitting(true);
     try {
-      const updates: Promise<any>[] = [];
-      const updatedProducts = products.map(prod => {
-        if (selectedIds.has(prod.id!)) {
-          const matchedCatId = smartDetectMainCategoryId(prod);
-          updates.push(api.updateProduct(prod.id!, { categoryId: matchedCatId, subcategoryId: '' }));
-          return { ...prod, categoryId: matchedCatId, subcategoryId: '' };
-        }
-        return prod;
-      });
-
-      await Promise.all(updates);
-      setProducts(updatedProducts);
-      setSelectedIds(new Set());
-      setIsMoveModalOpen(false);
-      setMoveToCategoryId("");
-      setMoveToSubcategoryId("");
-      alert("تم النقل الذكي التلقائي لجميع المنتجات المحددة إلى أقسامها الرئيسية (رجالي، نسائي، إلخ) بنجاح!");
+      const promises = updates.map(u => api.updateProduct(u.id, { categoryId: u.categoryId, subcategoryId: '' }));
+      await Promise.all(promises);
     } catch (e: any) {
       console.error(e);
-      alert("حدث خطأ أثناء النقل التلقائي: " + e.message);
+      const updated = await api.getProducts();
+      setProducts(updated);
+      setAlertMessage("حدث خطأ أثناء النقل التلقائي: " + e.message);
     } finally {
       setIsSubmitting(false);
     }

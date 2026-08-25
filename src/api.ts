@@ -394,7 +394,7 @@ export const api = {
     return { ...r, isHidden: r.size?.isHidden || false, isLocked: r.size?.isLocked || false, oldPriceInfo: r.size?.oldPriceInfo || undefined, forceStandardCrush: r.size?.forceStandardCrush ?? true }; 
   },
   bulkUpdateProducts: async (ids: string[], data: any) => {
-    const chunkSize = 15;
+    const chunkSize = 50;
     for (let i = 0; i < ids.length; i += chunkSize) {
       const chunk = ids.slice(i, i + chunkSize);
       await Promise.all(chunk.map(id => api.updateProduct(id, data)));
@@ -402,7 +402,7 @@ export const api = {
     return { success: true };
   },
   bulkDeleteProducts: async (ids: string[], deletedBy?: string) => {
-    const chunkSize = 15;
+    const chunkSize = 50;
     for (let i = 0; i < ids.length; i += chunkSize) {
       const chunk = ids.slice(i, i + chunkSize);
       await Promise.all(chunk.map(id => api.deleteProduct(id, deletedBy)));
