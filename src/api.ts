@@ -535,17 +535,17 @@ export const api = {
     }
     
     if (hasDirectUpdates && !hasSizeUpdates) {
-      // Direct SQL bulk update on Supabase table
-      for (const chunk of chunks) {
+      // Direct SQL bulk update on Supabase table in parallel
+      await Promise.all(chunks.map(async (chunk) => {
         const { error } = await supabase.from('products').update(directUpdates).in('id', chunk);
         if (error) {
           console.error('Bulk direct update error:', error);
           throw error;
         }
-      }
+      }));
     } else {
       // Direct updates and/or size JSON column updates
-      for (const chunk of chunks) {
+      await Promise.all(chunks.map(async (chunk) => {
         const { data: existingRows, error: fetchErr } = await supabase
           .from('products')
           .select('id, size')
@@ -573,7 +573,7 @@ export const api = {
             }
           }
         }
-      }
+      }));
     }
 
     // IMMEDIATELY update local in-memory cache and IndexedDB
@@ -584,6 +584,14 @@ export const api = {
           return {
             ...p,
             ...directUpdates,
+            ...(hasSizeUpdates ? sizeUpdates : {}),
+            isHidden: data.isHidden !== undefined ? Boolean(data.isHidden) : (data.size?.isHidden !== undefined ? Boolean(data.size.isHidden) : p.isHidden),
+            isLocked: data.isLocked !== undefined ? Boolean(data.isLocked) : (data.size?.isLocked !== undefined ? Boolean(data.size.isLocked) : p.isLocked),
+            isArchived: data.isArchived !== undefined ? Boolean(data.isArchived) : (data.size?.isArchived !== undefined ? Boolean(data.size.isArchived) : p.isArchived),
+            isShowcase: data.isShowcase !== undefined ? Boolean(data.isShowcase) : (data.size?.isShowcase !== undefined ? Boolean(data.size.isShowcase) : p.isShowcase),
+            showcaseCategory: data.showcaseCategory !== undefined ? data.showcaseCategory : (data.size?.showcaseCategory || p.showcaseCategory),
+            categoryId: data.categoryId !== undefined ? data.categoryId : p.categoryId,
+            subcategoryId: data.subcategoryId !== undefined ? (data.subcategoryId || undefined) : p.subcategoryId,
             size: {
               ...(p.size || {}),
               ...(hasSizeUpdates ? sizeUpdates : {})

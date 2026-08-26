@@ -766,59 +766,73 @@ export default function ProductManager() {
   };
 
   const proceedUpdate = async (payloadToUpdate: any) => {
-    setIsSubmitting(true);
     setDuplicateConfirm(null);
+    const originalProduct = products.find(p => p.id === payloadToUpdate.id);
+    let finalImg = payloadToUpdate.finalImageUrl || payloadToUpdate.imageUrl;
+
+    const isPriceChanged = originalProduct && (
+      originalProduct.price !== payloadToUpdate.price ||
+      originalProduct.piecePriceIqd !== payloadToUpdate.piecePriceIqd ||
+      originalProduct.dozenPriceUsd !== payloadToUpdate.dozenPriceUsd
+    );
+
+    const oldPriceInfo = (isPriceChanged && originalProduct?.finalImageUrl) ? {
+      price: originalProduct.price,
+      piecePriceIqd: originalProduct.piecePriceIqd,
+      dozenPriceUsd: originalProduct.dozenPriceUsd,
+      finalImageUrl: originalProduct.finalImageUrl,
+      updatedAt: Date.now()
+    } : originalProduct?.oldPriceInfo;
+
+    const fullUpdatedProduct = {
+      ...payloadToUpdate,
+      finalImageUrl: finalImg,
+      oldPriceInfo: oldPriceInfo
+    };
+
+    // 1. INSTANT LOCAL UPDATE & CLOSE MODAL (Zero wait time for the user)
+    setProducts(prev => prev.map(p => p.id === payloadToUpdate.id ? { ...p, ...fullUpdatedProduct } : p));
+    setEditingProduct(null);
+    setIsSubmitting(false);
+    setAlertMessage("تم حفظ التعديل بنجاح ✅");
+
+    // 2. Background burn and persist
     try {
-      const originalProduct = products.find(p => p.id === payloadToUpdate.id);
-      let finalImg = payloadToUpdate.finalImageUrl || payloadToUpdate.imageUrl;
-      if (payloadToUpdate.imageUrl) {
+      if (payloadToUpdate.imageUrl && (
+        originalProduct?.price !== payloadToUpdate.price ||
+        originalProduct?.name !== payloadToUpdate.name ||
+        originalProduct?.piecePriceIqd !== payloadToUpdate.piecePriceIqd ||
+        originalProduct?.dozenPriceUsd !== payloadToUpdate.dozenPriceUsd ||
+        originalProduct?.imageUrl !== payloadToUpdate.imageUrl ||
+        !payloadToUpdate.finalImageUrl
+      )) {
         try {
           finalImg = await burnProductOverlay(
             payloadToUpdate,
             payloadToUpdate.imageUrl,
           );
+          fullUpdatedProduct.finalImageUrl = finalImg;
+          setProducts(prev => prev.map(p => p.id === payloadToUpdate.id ? { ...p, finalImageUrl: finalImg } : p));
         } catch (err) {
           console.error("Failed to generate burned image on update", err);
         }
       }
 
-      const isPriceChanged = originalProduct && (
-        originalProduct.price !== payloadToUpdate.price ||
-        originalProduct.piecePriceIqd !== payloadToUpdate.piecePriceIqd ||
-        originalProduct.dozenPriceUsd !== payloadToUpdate.dozenPriceUsd
-      );
+      await api.updateProduct(payloadToUpdate.id!, fullUpdatedProduct);
 
-      const oldPriceInfo = (isPriceChanged && originalProduct?.finalImageUrl) ? {
-        price: originalProduct.price,
-        piecePriceIqd: originalProduct.piecePriceIqd,
-        dozenPriceUsd: originalProduct.dozenPriceUsd,
-        finalImageUrl: originalProduct.finalImageUrl,
-        updatedAt: Date.now()
-      } : originalProduct?.oldPriceInfo;
-
-      await api.updateProduct(payloadToUpdate.id!, {
-        ...payloadToUpdate,
-        finalImageUrl: finalImg,
-        oldPriceInfo: oldPriceInfo
-      });
-
-      await api.logAction({
+      api.logAction({
         userId: user?.uid || "",
         userName: user?.username || "System",
         action: "تعديل بيانات أو صورة منتج",
         entityType: "product",
         entityId: payloadToUpdate.id,
         details: { name: payloadToUpdate.name },
-      });
-
-      setEditingProduct(null);
+      }).catch(() => {});
+    } catch (error: any) {
+      console.error(error);
+      setAlertMessage("حدث خطأ أثناء حفظ التعديل: " + (error?.message || ""));
       const updated = await api.getProducts();
       setProducts(updated);
-    } catch (error) {
-      console.error(error);
-      setAlertMessage("حدث خطأ أثناء التحديث");
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -1059,76 +1073,73 @@ export default function ProductManager() {
 
   const handleBulkToggleHide = async (hide: boolean) => {
     if (selectedIds.size === 0) return;
-    setIsSubmitting(true);
+    const ids = Array.from(selectedIds);
+    setSelectedIds(new Set());
+
+    // Instant optimistic local update
+    setProducts((prev) =>
+      prev.map((prod) =>
+        selectedIds.has(prod.id!) ? { ...prod, isHidden: hide } : prod
+      )
+    );
+    setAlertMessage(hide ? `تم إخفاء ${ids.length} منتج بنجاح 👁️` : `تم إظهار ${ids.length} منتج بنجاح 👁️`);
+
     try {
-      setProducts((prev) =>
-        prev.map((prod) =>
-          selectedIds.has(prod.id!) ? { ...prod, isHidden: hide } : prod
-        )
-      );
-      
-      const ids = Array.from(selectedIds);
       await api.bulkUpdateProducts(ids, { isHidden: hide });
-      
-      setSelectedIds(new Set());
     } catch (e: any) {
       console.error("Error bulk toggling hide:", e);
       const updated = await api.getProducts();
       setProducts(updated);
       setAlertMessage("فشل التحديث المجمع: " + e.message);
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
   const handleBulkToggleLock = async (lock: boolean) => {
     if (selectedIds.size === 0) return;
-    setIsSubmitting(true);
+    const ids = Array.from(selectedIds);
+    setSelectedIds(new Set());
+
+    // Instant optimistic local update
+    setProducts((prev) =>
+      prev.map((prod) =>
+        selectedIds.has(prod.id!) ? { ...prod, isLocked: lock } : prod
+      )
+    );
+    setAlertMessage(lock ? `تم قفل ${ids.length} منتج بنجاح 🔒` : `تم إلغاء قفل ${ids.length} منتج بنجاح 🔓`);
+
     try {
-      setProducts((prev) =>
-        prev.map((prod) =>
-          selectedIds.has(prod.id!) ? { ...prod, isLocked: lock } : prod
-        )
-      );
-      
-      const ids = Array.from(selectedIds);
       await api.bulkUpdateProducts(ids, { isLocked: lock });
-      
-      setSelectedIds(new Set());
     } catch (e: any) {
       console.error("Error bulk toggling lock:", e);
       const updated = await api.getProducts();
       setProducts(updated);
       setAlertMessage("فشل التحديث المجمع: " + e.message);
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
   const handleBulkToggleArchive = async (archive: boolean) => {
     if (selectedIds.size === 0) return;
-    setIsSubmitting(true);
+    const ids = Array.from(selectedIds);
+    setSelectedIds(new Set());
+
+    // Instant optimistic local update
+    setProducts((prev) =>
+      prev.map((prod) =>
+        selectedIds.has(prod.id!) 
+          ? { ...prod, isArchived: archive, ...(archive ? { isShowcase: false } : {}) } 
+          : prod
+      )
+    );
+    setAlertMessage(archive ? `تم نقل ${ids.length} منتج إلى المواد المنتهية (الأرشيف) 📦` : `تم استعادة ${ids.length} منتج من الأرشيف 📦`);
+
     try {
-      setProducts((prev) =>
-        prev.map((prod) =>
-          selectedIds.has(prod.id!) 
-            ? { ...prod, isArchived: archive, ...(archive ? { isShowcase: false } : {}) } 
-            : prod
-        )
-      );
-      
-      const ids = Array.from(selectedIds);
       const updates = archive ? { isArchived: archive, isShowcase: false } : { isArchived: archive };
       await api.bulkUpdateProducts(ids, updates);
-      
-      setSelectedIds(new Set());
     } catch (e: any) {
       console.error("Error bulk toggling out of stock:", e);
       const updated = await api.getProducts();
       setProducts(updated);
       setAlertMessage("فشل التحديث المجمع: " + e.message);
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -1148,9 +1159,8 @@ export default function ProductManager() {
     setIsMoveModalOpen(false);
     setMoveToCategoryId("");
     setMoveToSubcategoryId("");
-    setAlertMessage(`تم نقل ${ids.length} منتج بنجاح`);
+    setAlertMessage(`تم نقل ${ids.length} منتج بنجاح 🚀`);
 
-    setIsSubmitting(true);
     try {
       await api.bulkUpdateProducts(ids, { categoryId: targetCatId, subcategoryId: targetSubcatId });
     } catch (e: any) {
@@ -1158,8 +1168,6 @@ export default function ProductManager() {
       const updated = await api.getProducts();
       setProducts(updated);
       setAlertMessage("فشل نقل الأقسام: " + e.message);
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
