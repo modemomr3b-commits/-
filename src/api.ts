@@ -319,7 +319,48 @@ export const api = {
         });
       } catch (e) {}
 
-    return { ...r, isHidden: r.size?.isHidden || false, isLocked: r.size?.isLocked || false, oldPriceInfo: r.size?.oldPriceInfo || undefined, forceStandardCrush: r.size?.forceStandardCrush ?? true }; 
+    const finalProduct = {
+      ...r,
+      isHidden: r.size?.isHidden || false,
+      isLocked: r.size?.isLocked || false,
+      isArchived: r.size?.isArchived || false,
+      isDeleted: false,
+      isShowcase: r.size?.isShowcase || false,
+      showcaseCategory: r.size?.showcaseCategory || '',
+      oldPriceInfo: r.size?.oldPriceInfo || undefined,
+      forceStandardCrush: r.size?.forceStandardCrush ?? true,
+      updatedAt: r.size?.updatedAt || r.createdAt
+    };
+
+    // Update in-memory and persistent cache immediately
+    if (memCache['all_products']?.data) {
+      memCache['all_products'].data = [finalProduct, ...memCache['all_products'].data];
+      localCache.set('all_products', memCache['all_products'].data).catch(() => {});
+    }
+
+    // Invalidate category caches
+    Object.keys(memCache).forEach(k => {
+      if (k.startsWith('products_cat_')) delete memCache[k];
+    });
+
+    // Real-time broadcast
+    try {
+      if (typeof window !== 'undefined' && (window as any).BroadcastChannel) {
+        const bc = new (window as any).BroadcastChannel('brq_products_sync');
+        bc.postMessage({ type: 'PRODUCT_CREATED', product: finalProduct, timestamp: Date.now() });
+        bc.close();
+      }
+    } catch {}
+
+    try {
+      await supabase.channel('products_changes').send({
+        type: 'broadcast',
+        event: 'product_created',
+        payload: { product: finalProduct, timestamp: Date.now() }
+      });
+    } catch {}
+
+    return finalProduct;
   },
   updateProduct: async (id: string, data: any) => {
     // Fetch the existing size first to avoid overwriting it
@@ -358,9 +399,48 @@ export const api = {
     const { data: r, error } = await supabase.from('products').update(safeData).match({ id }).select().single(); 
     if (error) throw error;
     
-    console.log("oldProduct:", oldProduct, "safeData.size:", safeData.size);
+    // Update local cache immediately
+    if (memCache['all_products']?.data) {
+      memCache['all_products'].data = memCache['all_products'].data.map((p: any) =>
+        p.id === id
+          ? {
+              ...p,
+              ...r,
+              isHidden: r.size?.isHidden !== undefined ? Boolean(r.size.isHidden) : Boolean(r.isHidden),
+              isLocked: r.size?.isLocked !== undefined ? Boolean(r.size.isLocked) : Boolean(r.isLocked),
+              isArchived: r.size?.isArchived !== undefined ? Boolean(r.size.isArchived) : Boolean(r.isArchived),
+              isShowcase: r.size?.isShowcase !== undefined ? Boolean(r.size.isShowcase) : Boolean(r.isShowcase),
+              showcaseCategory: r.size?.showcaseCategory || r.showcaseCategory || '',
+              updatedAt: serverTime
+            }
+          : p
+      );
+      localCache.set('all_products', memCache['all_products'].data).catch(() => {});
+    }
+
+    // Invalidate category caches
+    Object.keys(memCache).forEach(k => {
+      if (k.startsWith('products_cat_')) delete memCache[k];
+    });
+
+    // Real-time broadcast
+    try {
+      if (typeof window !== 'undefined' && (window as any).BroadcastChannel) {
+        const bc = new (window as any).BroadcastChannel('brq_products_sync');
+        bc.postMessage({ type: 'PRODUCT_UPDATED', id, data, timestamp: Date.now() });
+        bc.close();
+      }
+    } catch {}
+
+    try {
+      await supabase.channel('products_changes').send({
+        type: 'broadcast',
+        event: 'product_changed',
+        payload: { id, data, timestamp: Date.now() }
+      });
+    } catch {}
+
     if (oldProduct && !safeData.size?.isHidden) {
-      console.log("Sending visibility notification!");
       try {
         await supabase.channel('public:announcements').send({
           type: 'broadcast',
@@ -396,19 +476,184 @@ export const api = {
     return { ...r, isHidden: r.size?.isHidden || false, isLocked: r.size?.isLocked || false, oldPriceInfo: r.size?.oldPriceInfo || undefined, forceStandardCrush: r.size?.forceStandardCrush ?? true }; 
   },
   bulkUpdateProducts: async (ids: string[], data: any) => {
-    const chunkSize = 50;
-    for (let i = 0; i < ids.length; i += chunkSize) {
-      const chunk = ids.slice(i, i + chunkSize);
-      await Promise.all(chunk.map(id => api.updateProduct(id, data)));
+    if (!ids || ids.length === 0) return { success: true };
+    const serverTime = await getServerTime();
+    
+    // Separate direct table columns from metadata in 'size'
+    const directKeys = [
+      'categoryId',
+      'subcategoryId',
+      'isArchived',
+      'isDeleted',
+      'dozenPriceUsd',
+      'price',
+      'profitMargin',
+      'originalDozenPriceUsd',
+      'originalPrice',
+      'piecePriceIqd',
+      'notes',
+      'name',
+      'modelNumber',
+      'productCode',
+      'barcode',
+      'imageUrl',
+      'finalImageUrl',
+      'views'
+    ];
+    
+    const sizeKeys = [
+      'isHidden',
+      'isLocked',
+      'isShowcase',
+      'showcaseCategory',
+      'oldPriceInfo',
+      'forceStandardCrush'
+    ];
+    
+    const directUpdates: any = { updatedAt: serverTime };
+    const sizeUpdates: any = {};
+    let hasSizeUpdates = false;
+    let hasDirectUpdates = false;
+    
+    Object.keys(data).forEach(key => {
+      if (directKeys.includes(key)) {
+        directUpdates[key] = data[key];
+        hasDirectUpdates = true;
+      }
+      if (sizeKeys.includes(key)) {
+        sizeUpdates[key] = data[key];
+        hasSizeUpdates = true;
+      }
+    });
+
+    const chunkSize = 1000;
+    
+    if (hasDirectUpdates && !hasSizeUpdates) {
+      // Direct SQL bulk update on Supabase table - blazing fast!
+      const chunks: string[][] = [];
+      for (let i = 0; i < ids.length; i += chunkSize) {
+        chunks.push(ids.slice(i, i + chunkSize));
+      }
+      await Promise.all(chunks.map(chunk => 
+        supabase.from('products').update(directUpdates).in('id', chunk)
+      ));
+    } else {
+      // Direct updates and/or size JSON column updates
+      const chunks: string[][] = [];
+      for (let i = 0; i < ids.length; i += chunkSize) {
+        chunks.push(ids.slice(i, i + chunkSize));
+      }
+      
+      await Promise.all(chunks.map(async (chunk) => {
+        const { data: existingRows } = await supabase
+          .from('products')
+          .select('id, size')
+          .in('id', chunk);
+          
+        if (existingRows && existingRows.length > 0) {
+          const updatePromises = existingRows.map(row => {
+            const mergedSize = {
+              ...(row.size || {}),
+              ...sizeUpdates,
+              updatedAt: serverTime
+            };
+            const itemUpdate = {
+              ...directUpdates,
+              size: mergedSize
+            };
+            return supabase.from('products').update(itemUpdate).eq('id', row.id);
+          });
+          for (let j = 0; j < updatePromises.length; j += 100) {
+            await Promise.all(updatePromises.slice(j, j + 100));
+          }
+        }
+      }));
     }
+
+    // IMMEDIATELY update local in-memory cache and IndexedDB
+    const idSet = new Set(ids);
+    if (memCache['all_products']?.data) {
+      memCache['all_products'].data = memCache['all_products'].data.map((p: any) => {
+        if (idSet.has(p.id)) {
+          return {
+            ...p,
+            ...data,
+            size: {
+              ...(p.size || {}),
+              ...(hasSizeUpdates ? sizeUpdates : {})
+            },
+            updatedAt: serverTime
+          };
+        }
+        return p;
+      });
+      memCache['all_products'].timestamp = Date.now();
+      localCache.set('all_products', memCache['all_products'].data).catch(() => {});
+    }
+
+    // Invalidate all category caches so fresh queries reflect moved products immediately
+    Object.keys(memCache).forEach(k => {
+      if (k.startsWith('products_cat_')) {
+        delete memCache[k];
+      }
+    });
+
+    // Real-time broadcast across all open tabs and all remote clients
+    try {
+      if (typeof window !== 'undefined' && (window as any).BroadcastChannel) {
+        const bc = new (window as any).BroadcastChannel('brq_products_sync');
+        bc.postMessage({ type: 'PRODUCTS_BULK_UPDATED', ids, data, timestamp: Date.now() });
+        bc.close();
+      }
+    } catch {}
+
+    try {
+      await supabase.channel('products_changes').send({
+        type: 'broadcast',
+        event: 'bulk_updated',
+        payload: { ids, data, count: ids.length, timestamp: Date.now() }
+      });
+    } catch {}
+
     return { success: true };
   },
   bulkDeleteProducts: async (ids: string[], deletedBy?: string) => {
-    const chunkSize = 50;
+    if (!ids || ids.length === 0) return { success: true };
+    const chunkSize = 1000;
+    const chunks: string[][] = [];
     for (let i = 0; i < ids.length; i += chunkSize) {
-      const chunk = ids.slice(i, i + chunkSize);
-      await Promise.all(chunk.map(id => api.deleteProduct(id, deletedBy)));
+      chunks.push(ids.slice(i, i + chunkSize));
     }
+    await Promise.all(chunks.map(chunk => 
+      supabase.from('products').delete().in('id', chunk)
+    ));
+    
+    // Invalidate caches
+    const idSet = new Set(ids);
+    if (memCache['all_products']?.data) {
+      memCache['all_products'].data = memCache['all_products'].data.filter((p: any) => !idSet.has(p.id));
+      localCache.set('all_products', memCache['all_products'].data).catch(() => {});
+    }
+    Object.keys(memCache).forEach(k => {
+      if (k.startsWith('products_cat_')) delete memCache[k];
+    });
+
+    try {
+      if (typeof window !== 'undefined' && (window as any).BroadcastChannel) {
+        const bc = new (window as any).BroadcastChannel('brq_products_sync');
+        bc.postMessage({ type: 'PRODUCTS_DELETED', ids, timestamp: Date.now() });
+        bc.close();
+      }
+    } catch {}
+
+    try {
+      await supabase.channel('products_changes').send({
+        type: 'broadcast',
+        event: 'bulk_deleted',
+        payload: { ids, timestamp: Date.now() }
+      });
+    } catch {}
+
     return { success: true };
   },
   deleteProduct: async (id: string, deletedBy?: string) => { 

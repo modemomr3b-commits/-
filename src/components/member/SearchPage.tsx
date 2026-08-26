@@ -3,6 +3,7 @@ import { Search, Lock, SlidersHorizontal, Archive, Download, Loader2, CheckCircl
 import { Link } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
 import { api } from '../../api';
+import { supabase } from '../../supabase';
 import { shuffleProductsForUser } from '../../utils/shuffle';
 import { filterProductsBySearch } from '../../utils/search';
 import { Product } from '../../types';
@@ -56,8 +57,42 @@ export default function SearchPage() {
     };
     fetchProducts();
 
+    // Instant local BroadcastChannel synchronization across tabs
+    let bc: any = null;
+    try {
+      if (typeof window !== 'undefined' && (window as any).BroadcastChannel) {
+        bc = new (window as any).BroadcastChannel('brq_products_sync');
+        bc.onmessage = () => {
+          if (mounted) fetchProducts();
+        };
+      }
+    } catch {}
+
+    const channel = supabase
+      .channel('search_products_sync')
+      .on('broadcast', { event: 'bulk_updated' }, () => {
+        if (mounted) fetchProducts();
+      })
+      .on('broadcast', { event: 'product_changed' }, () => {
+        if (mounted) fetchProducts();
+      })
+      .on('broadcast', { event: 'product_created' }, () => {
+        if (mounted) fetchProducts();
+      })
+      .on('broadcast', { event: 'bulk_deleted' }, () => {
+        if (mounted) fetchProducts();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
+        if (mounted) fetchProducts();
+      })
+      .subscribe();
+
     return () => { 
       mounted = false; 
+      supabase.removeChannel(channel);
+      if (bc) {
+        try { bc.close(); } catch {}
+      }
     };
   }, []);
 

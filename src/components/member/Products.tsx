@@ -216,6 +216,18 @@ export default function Products() {
 
     init();
 
+    // Instant local BroadcastChannel synchronization across tabs
+    let bc: any = null;
+    try {
+      if (typeof window !== 'undefined' && (window as any).BroadcastChannel) {
+        bc = new (window as any).BroadcastChannel('brq_products_sync');
+        bc.onmessage = () => {
+          api.clearCache();
+          if (mounted) fetchProducts();
+        };
+      }
+    } catch {}
+
     const channel = supabase
       .channel('member_products_view')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
@@ -223,14 +235,30 @@ export default function Products() {
         fetchTimeout = setTimeout(() => {
           api.clearCache();
           if (mounted) fetchProducts();
-        }, 1500);
+        }, 300);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'categories' }, () => {
         clearTimeout(fetchTimeout);
         fetchTimeout = setTimeout(() => {
           api.clearCache();
           if (mounted) fetchProducts();
-        }, 1500);
+        }, 300);
+      })
+      .on('broadcast', { event: 'bulk_updated' }, () => {
+        api.clearCache();
+        if (mounted) fetchProducts();
+      })
+      .on('broadcast', { event: 'product_changed' }, () => {
+        api.clearCache();
+        if (mounted) fetchProducts();
+      })
+      .on('broadcast', { event: 'product_created' }, () => {
+        api.clearCache();
+        if (mounted) fetchProducts();
+      })
+      .on('broadcast', { event: 'bulk_deleted' }, () => {
+        api.clearCache();
+        if (mounted) fetchProducts();
       })
       .subscribe();
 
@@ -238,6 +266,9 @@ export default function Products() {
       mounted = false;
       clearTimeout(fetchTimeout);
       supabase.removeChannel(channel);
+      if (bc) {
+        try { bc.close(); } catch {}
+      }
     };
   }, [categoryId]);
 

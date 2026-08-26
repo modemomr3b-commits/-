@@ -179,16 +179,46 @@ export default function ShowcasePage() {
     loadData();
 
     const channel = supabase
-      .channel('showcase_settings')
+      .channel('showcase_realtime')
       .on('broadcast', { event: 'settings_updated' }, ({ payload }) => {
         if (payload) {
           setSettings(payload);
         }
       })
+      .on('broadcast', { event: 'bulk_updated' }, () => {
+        if (mounted) loadData();
+      })
+      .on('broadcast', { event: 'product_changed' }, () => {
+        if (mounted) loadData();
+      })
+      .on('broadcast', { event: 'product_created' }, () => {
+        if (mounted) loadData();
+      })
+      .on('broadcast', { event: 'bulk_deleted' }, () => {
+        if (mounted) loadData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
+        if (mounted) loadData();
+      })
       .subscribe();
 
+    // Instant local BroadcastChannel synchronization across tabs
+    let bc: any = null;
+    try {
+      if (typeof window !== 'undefined' && (window as any).BroadcastChannel) {
+        bc = new (window as any).BroadcastChannel('brq_products_sync');
+        bc.onmessage = () => {
+          if (mounted) loadData();
+        };
+      }
+    } catch {}
+
     return () => {
+      mounted = false;
       supabase.removeChannel(channel);
+      if (bc) {
+        try { bc.close(); } catch {}
+      }
     };
   }, []);
 

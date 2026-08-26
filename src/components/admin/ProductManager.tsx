@@ -465,6 +465,17 @@ export default function ProductManager() {
     };
     initialLoad();
 
+    // Instant local BroadcastChannel synchronization across tabs
+    let bc: any = null;
+    try {
+      if (typeof window !== 'undefined' && (window as any).BroadcastChannel) {
+        bc = new (window as any).BroadcastChannel('brq_products_sync');
+        bc.onmessage = () => {
+          if (mounted) loadData();
+        };
+      }
+    } catch {}
+
     const channel = supabase
       .channel("products_changes")
       .on(
@@ -474,7 +485,7 @@ export default function ProductManager() {
           clearTimeout(fetchTimeout);
           fetchTimeout = setTimeout(() => {
              if (mounted) loadData();
-          }, 1500);
+          }, 300);
         },
       )
       .on(
@@ -484,15 +495,30 @@ export default function ProductManager() {
           clearTimeout(fetchTimeout);
           fetchTimeout = setTimeout(() => {
              if (mounted) loadData();
-          }, 1500);
+          }, 300);
         },
       )
+      .on('broadcast', { event: 'bulk_updated' }, () => {
+        if (mounted) loadData();
+      })
+      .on('broadcast', { event: 'product_changed' }, () => {
+        if (mounted) loadData();
+      })
+      .on('broadcast', { event: 'product_created' }, () => {
+        if (mounted) loadData();
+      })
+      .on('broadcast', { event: 'bulk_deleted' }, () => {
+        if (mounted) loadData();
+      })
       .subscribe();
 
     return () => {
       mounted = false;
       clearTimeout(fetchTimeout);
       supabase.removeChannel(channel);
+      if (bc) {
+        try { bc.close(); } catch {}
+      }
     };
   }, []);
 
@@ -961,13 +987,22 @@ export default function ProductManager() {
         })
       );
       
-      const chunkSize = 15;
-      for (let i = 0; i < productsToUpdate.length; i += chunkSize) {
-        const chunk = productsToUpdate.slice(i, i + chunkSize);
-        await Promise.all(chunk.map(p => {
-           const cat = publish ? detectShowcaseCategory(p, categories) : (p.showcaseCategory || 'رجالي');
-           return api.updateProduct(p.id!, { isShowcase: publish, showcaseCategory: cat });
-        }));
+      if (!publish) {
+        await api.bulkUpdateProducts(productsToUpdate.map(p => p.id!), { isShowcase: false });
+      } else {
+        // Group by category to execute minimal bulk calls
+        const categoryGroups: Record<string, string[]> = {};
+        productsToUpdate.forEach(p => {
+          const cat = detectShowcaseCategory(p, categories);
+          if (!categoryGroups[cat]) categoryGroups[cat] = [];
+          categoryGroups[cat].push(p.id!);
+        });
+
+        await Promise.all(
+          Object.entries(categoryGroups).map(([cat, ids]) =>
+            api.bulkUpdateProducts(ids, { isShowcase: true, showcaseCategory: cat })
+          )
+        );
       }
 
       setSelectedIds(new Set());
