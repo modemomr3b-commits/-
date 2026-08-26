@@ -58,18 +58,28 @@ export default function Products() {
   const [fullscreenIndex, setFullscreenIndex] = useState<number | null>(null);
   const [expandedProducts, setExpandedProducts] = useState<Record<string, boolean>>({});
 
-  // Real-time background sync polling every 6 seconds for multi-user sync
+  // Real-time background sync polling every 10 seconds for current category/view
   useEffect(() => {
     const pollInterval = setInterval(async () => {
       try {
-        const fresh = await api.getProducts();
-        if (fresh && fresh.length > 0) {
-          setProducts(fresh);
+        if (categoryId) {
+          const fresh = await api.getProductsByCategoryDirect(categoryId);
+          if (fresh) {
+            const active = fresh.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted);
+            setProducts(active);
+          }
+        } else {
+          const fresh = await api.getProducts();
+          if (fresh) {
+            const active = fresh.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted);
+            setProducts(active);
+            setAllStoreProducts(active);
+          }
         }
       } catch {}
-    }, 6000);
+    }, 10000);
     return () => clearInterval(pollInterval);
-  }, []);
+  }, [categoryId]);
 
   const [categoryName, setCategoryName] = useState("جميع المنتجات");
   const [downloadProgress, setDownloadProgress] = useState<{ progress: number, total: number } | null>(null);
@@ -135,7 +145,7 @@ export default function Products() {
       setAllCategories(cats);
       
       const allStore = await api.getProducts();
-      const activeStore = allStore.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked);
+      const activeStore = allStore.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted);
       setAllStoreProducts(activeStore);
       
       let allProducts = [];
@@ -145,7 +155,7 @@ export default function Products() {
         allProducts = activeStore;
       }
       
-      let fetchedProducts = allProducts.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked);
+      let fetchedProducts = allProducts.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted);
       fetchedProducts = shuffleProductsForUser(fetchedProducts);
       
       if (categoryId) {
@@ -153,7 +163,7 @@ export default function Products() {
         setCategoryName(cat ? cat.name : `القسم ${categoryId}`);
         const subs = cats
           .filter((c: any) => c.parentId === categoryId && !c.isHidden)
-          .sort((a: any, b: any) => a.order - b.order);
+          .sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
         setSubCategories(subs);
       }
 
@@ -181,12 +191,12 @@ export default function Products() {
           if (cat) setCategoryName(cat.name);
           const subs = cachedCats
             .filter((c: any) => c.parentId === categoryId && !c.isHidden)
-            .sort((a: any, b: any) => a.order - b.order);
+            .sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
           setSubCategories(subs);
         }
       }
       if (cachedProds && cachedProds.length > 0) {
-        let fetchedProducts = cachedProds.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked);
+        let fetchedProducts = cachedProds.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted);
         setProducts(shuffleProductsForUser(fetchedProducts));
         setLoading(false);
         setInitialLoading(false);
@@ -343,50 +353,24 @@ export default function Products() {
   };
 
   const filteredProductsAll = useMemo(() => {
+    const isActive = (p: any) => !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted;
+
     // Only active products (never archived, hidden or locked) in categories
     if (searchTerm && searchTerm.trim()) {
-      const source = (allStoreProducts.length > 0 ? allStoreProducts : products).filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked);
+      const source = (allStoreProducts.length > 0 ? allStoreProducts : products).filter(isActive);
       let result = filterProductsBySearch(source, searchTerm, allCategories);
       if (activeSub) {
-        const subCatObj = allCategories.find(c => c.id === activeSub);
-        const subName = subCatObj ? subCatObj.name.toLowerCase().trim() : '';
-
-        result = result.filter((p) => {
-          if (p.subcategoryId === activeSub || p.categoryId === activeSub) return true;
-          if (subName) {
-            const pName = (p.name || '').toLowerCase();
-            const pCode = (p.productCode || '').toLowerCase();
-            const pModel = (p.modelNumber || '').toLowerCase();
-            if (pName.includes(subName) || pCode.includes(subName) || pModel.includes(subName)) {
-              return true;
-            }
-          }
-          return false;
-        });
+        result = result.filter((p) => p.subcategoryId === activeSub || (p.categoryId === activeSub && !p.subcategoryId));
       }
-      return result.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked);
+      return result.filter(isActive);
     }
 
     // Normal browsing without search term: show category-filtered and regular active products ONLY
-    let result = products.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked);
+    let result = products.filter(isActive);
     if (activeSub) {
-      const subCatObj = allCategories.find(c => c.id === activeSub);
-      const subName = subCatObj ? subCatObj.name.toLowerCase().trim() : '';
-
-      result = result.filter((p) => {
-        if (p.subcategoryId === activeSub || p.categoryId === activeSub) return true;
-        if (subName) {
-          const pName = (p.name || '').toLowerCase();
-          const pCode = (p.productCode || '').toLowerCase();
-          const pModel = (p.modelNumber || '').toLowerCase();
-          if (pName.includes(subName) || pCode.includes(subName) || pModel.includes(subName)) {
-            return true;
-          }
-        }
-        return false;
-      });
+      result = result.filter((p) => p.subcategoryId === activeSub || (p.categoryId === activeSub && !p.subcategoryId));
     }
-    return result.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked);
+    return result.filter(isActive);
   }, [activeSub, products, allStoreProducts, searchTerm, allCategories]);
   
   // Pagination & infinite loading per page sliced products

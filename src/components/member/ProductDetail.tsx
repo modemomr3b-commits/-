@@ -74,14 +74,21 @@ export default function ProductDetail() {
       try {
         const found = await api.getProductById(productId as string);
         if (mounted) {
+          const isStaff = user?.role === 'admin' || user?.role === 'sales';
+          if (found && !isStaff && (found.isHidden || found.isDeleted)) {
+            setProduct(null);
+            setLoading(false);
+            return;
+          }
+
           setProduct(found || null);
           if (found && found.categoryId) {
             const catProducts = await api.getProductsByCategory(found.categoryId);
-            const active = catProducts.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked);
+            const active = catProducts.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted);
             if (mounted) setSiblingProducts(active);
           } else {
             const allProducts = await api.getProducts();
-            const active = allProducts.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked);
+            const active = allProducts.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted);
             if (mounted) setSiblingProducts(active);
           }
           setLoading(false);

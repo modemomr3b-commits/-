@@ -135,21 +135,30 @@ export const api = {
     const cacheKey = `products_cat_${categoryId}`;
     const categories = await api.getCategories();
     const currentCat = categories.find((c: any) => c.id === categoryId);
-    const currentCatName = currentCat ? currentCat.name.toLowerCase().trim() : '';
 
-    const subCats = categories.filter((c: any) => c.parentId === categoryId || c.id === categoryId);
-    const targetCategoryIds = new Set<string>([categoryId, ...subCats.map((c: any) => c.id)]);
-    if (currentCat?.parentId) {
-      targetCategoryIds.add(currentCat.parentId);
-    }
-
+    const isMainCat = !currentCat?.parentId;
     const allProducts = await api.getProducts();
-    const res = allProducts.filter((p: any) => {
-      if (p.categoryId && targetCategoryIds.has(p.categoryId)) return true;
-      if (p.subcategoryId && targetCategoryIds.has(p.subcategoryId)) return true;
-      if (currentCatName && p.name && p.name.toLowerCase().includes(currentCatName)) return true;
-      return false;
-    });
+
+    let res: any[] = [];
+    if (isMainCat) {
+      // Find direct child subcategories for this main category
+      const subCats = categories.filter((c: any) => c.parentId === categoryId);
+      const childSubCatIds = new Set<string>(subCats.map((c: any) => c.id));
+
+      res = allProducts.filter((p: any) => {
+        // Product belongs directly to this category or to one of its subcategories
+        if (p.categoryId === categoryId) return true;
+        if (p.subcategoryId && childSubCatIds.has(p.subcategoryId)) return true;
+        return false;
+      });
+    } else {
+      // Subcategory: strictly match products assigned to this subcategory
+      res = allProducts.filter((p: any) => {
+        if (p.subcategoryId === categoryId) return true;
+        if (p.categoryId === categoryId && !p.subcategoryId) return true;
+        return false;
+      });
+    }
 
     memCache[cacheKey] = { data: res, timestamp: Date.now() };
     localCache.set(cacheKey, res).catch(() => {});
@@ -161,10 +170,11 @@ export const api = {
     if (error || !data) return null;
     return {
       ...data,
-      isHidden: data.size?.isHidden !== undefined ? data.size.isHidden : (data.isHidden ?? false),
-      isLocked: data.size?.isLocked !== undefined ? data.size.isLocked : (data.isLocked ?? false),
-      isArchived: data.size?.isArchived !== undefined ? data.size.isArchived : (data.isArchived ?? false),
-      isShowcase: data.size?.isShowcase !== undefined ? data.size.isShowcase : (data.isShowcase ?? false),
+      isHidden: data.size?.isHidden !== undefined ? Boolean(data.size.isHidden) : Boolean(data.isHidden),
+      isLocked: data.size?.isLocked !== undefined ? Boolean(data.size.isLocked) : Boolean(data.isLocked),
+      isArchived: data.size?.isArchived !== undefined ? Boolean(data.size.isArchived) : Boolean(data.isArchived),
+      isDeleted: Boolean(data.isDeleted),
+      isShowcase: data.size?.isShowcase !== undefined ? Boolean(data.size.isShowcase) : Boolean(data.isShowcase),
       showcaseCategory: data.size?.showcaseCategory || data.showcaseCategory || '',
       oldPriceInfo: data.size?.oldPriceInfo || undefined,
       forceStandardCrush: data.size?.forceStandardCrush ?? true
@@ -177,47 +187,39 @@ export const api = {
       return memCache[cacheKey].data;
     }
 
+    const mapProduct = (p: any) => ({
+      ...p,
+      isHidden: p.size?.isHidden !== undefined ? Boolean(p.size.isHidden) : Boolean(p.isHidden),
+      isLocked: p.size?.isLocked !== undefined ? Boolean(p.size.isLocked) : Boolean(p.isLocked),
+      isArchived: p.size?.isArchived !== undefined ? Boolean(p.size.isArchived) : Boolean(p.isArchived),
+      isDeleted: Boolean(p.isDeleted),
+      isShowcase: p.size?.isShowcase !== undefined ? Boolean(p.size.isShowcase) : Boolean(p.isShowcase),
+      showcaseCategory: p.size?.showcaseCategory || p.showcaseCategory || '',
+      oldPriceInfo: p.size?.oldPriceInfo || undefined,
+      forceStandardCrush: p.size?.forceStandardCrush ?? true,
+      updatedAt: p.size?.updatedAt || p.createdAt
+    });
+
     // Check fast local cache
     const localData = await localCache.get<any[]>(cacheKey, 1000 * 60 * 10);
     if (localData && localData.length > 0) {
-      memCache[cacheKey] = { data: localData, timestamp: Date.now() };
+      memCache[cacheKey] = { data: localData.map(mapProduct), timestamp: Date.now() };
       // Background revalidation
       setTimeout(async () => {
         try {
           const freshData = await getData('products');
           if (freshData && freshData.length > 0) {
-            const res = freshData.map((p: any) => ({
-              ...p,
-              isHidden: p.size?.isHidden !== undefined ? p.size.isHidden : (p.isHidden ?? false),
-              isLocked: p.size?.isLocked !== undefined ? p.size.isLocked : (p.isLocked ?? false),
-              isArchived: p.size?.isArchived !== undefined ? p.size.isArchived : (p.isArchived ?? false),
-              isShowcase: p.size?.isShowcase !== undefined ? p.size.isShowcase : (p.isShowcase ?? false),
-              showcaseCategory: p.size?.showcaseCategory || p.showcaseCategory || '',
-              oldPriceInfo: p.size?.oldPriceInfo || undefined,
-              forceStandardCrush: p.size?.forceStandardCrush ?? true,
-              updatedAt: p.size?.updatedAt || p.createdAt
-            })).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-
+            const res = freshData.map(mapProduct).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
             memCache[cacheKey] = { data: res, timestamp: Date.now() };
             localCache.set(cacheKey, res).catch(() => {});
           }
         } catch {}
       }, 50);
-      return localData;
+      return localData.map(mapProduct);
     }
 
     const data = await getData('products');
-    const res = data.map((p: any) => ({
-      ...p,
-      isHidden: p.size?.isHidden !== undefined ? p.size.isHidden : (p.isHidden ?? false),
-      isLocked: p.size?.isLocked !== undefined ? p.size.isLocked : (p.isLocked ?? false),
-      isArchived: p.size?.isArchived !== undefined ? p.size.isArchived : (p.isArchived ?? false),
-      isShowcase: p.size?.isShowcase !== undefined ? p.size.isShowcase : (p.isShowcase ?? false),
-      showcaseCategory: p.size?.showcaseCategory || p.showcaseCategory || '',
-      oldPriceInfo: p.size?.oldPriceInfo || undefined,
-      forceStandardCrush: p.size?.forceStandardCrush ?? true,
-      updatedAt: p.size?.updatedAt || p.createdAt
-    })).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    const res = data.map(mapProduct).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
     memCache[cacheKey] = { data: res, timestamp: Date.now() };
     localCache.set(cacheKey, res).catch(() => {});

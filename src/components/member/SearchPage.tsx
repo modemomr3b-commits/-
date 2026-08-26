@@ -44,7 +44,9 @@ export default function SearchPage() {
          const allProducts = await api.getProducts();
          if (mounted) {
             setAllCategories(cats);
-            setProducts(shuffleProductsForUser(allProducts));
+            const isStaff = user?.role === 'admin' || user?.role === 'sales';
+            const visibleProducts = isStaff ? allProducts : allProducts.filter(p => !p.isHidden && !p.isDeleted);
+            setProducts(shuffleProductsForUser(visibleProducts));
          }
       } catch (e) {
          console.error(e);
