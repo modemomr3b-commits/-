@@ -35,7 +35,7 @@ import { api } from "../../api";
 import { supabase } from "../../supabase";
 import { filterProductsBySearch } from '../../utils/search';
 import { Product, Category } from "../../types";
-import { detectShowcaseCategory, VALID_SHOWCASE_CATEGORIES } from "../../utils/showcaseClassifier";
+import { detectShowcaseCategory, VALID_SHOWCASE_CATEGORIES, SHOWCASE_CATEGORIES_METADATA } from "../../utils/showcaseClassifier";
 import { burnProductOverlay } from "../../utils/burnImage";
 import { BatchProductUpload } from "./BatchProductUpload";
 import { useStore } from "../../store";
@@ -72,72 +72,118 @@ export default function ProductManager() {
     return () => clearInterval(pollInterval);
   }, []);
 
-  const [autoShowcaseMainCategory, setAutoShowcaseMainCategory] = useState<string>("الكل");
-  const [autoShowcaseCollection, setAutoShowcaseCollection] = useState<string>("الكل");
+  // Multi-Category Showcase Publishing State
+  const [autoShowcaseTab, setAutoShowcaseTab] = useState<'collections' | 'categories'>('collections');
+  const [selectedShowcaseCollections, setSelectedShowcaseCollections] = useState<string[]>([
+    'رجالي', 'نسائي', 'شبابي', 'ولادي', 'بناتي', 'طفل', 'طفلة', 'بيبي', 'مواليد', 'الحقائب'
+  ]);
+  const [selectedMainCategoryIds, setSelectedMainCategoryIds] = useState<string[]>([]);
   const [autoShowcaseCount, setAutoShowcaseCount] = useState<number>(100);
+  const [autoShowcaseAllAvailable, setAutoShowcaseAllAvailable] = useState<boolean>(false);
+  const [autoShowcaseDistribution, setAutoShowcaseDistribution] = useState<'total' | 'perCategory'>('total');
 
-  const handleAutoPublishShowcase = async () => {
+  const handleAutoPublishShowcase = async (overrideAll?: boolean) => {
     setIsSubmitting(true);
     try {
-      let available = products.filter(p => !p.isHidden && !p.isArchived && !p.isLocked && !p.isShowcase);
-      
-      if (autoShowcaseMainCategory !== "الكل") {
-        available = available.filter(p => p.categoryId === autoShowcaseMainCategory);
-      }
+      // 1. Get all eligible active products that are not yet in the showcase
+      const allAvailable = products.filter(p => !p.isHidden && !p.isArchived && !p.isLocked && !p.isShowcase);
 
-      if (autoShowcaseCollection !== "الكل") {
-        available = available.filter(p => {
-          const cat = p.showcaseCategory || detectShowcaseCategory(p, categories);
-          return cat === autoShowcaseCollection;
-        });
-      }
-
-      if (available.length === 0) {
-        alert("لا توجد منتجات متاحة للنشر في المعرض ضمن هذا الصنف أو القسم. ربما تم نشر جميع المنتجات بالفعل.");
+      if (allAvailable.length === 0) {
+        setAlertMessage("لا توجد منتجات فعالة متاحة للنشر في المعرض حالياً (قد تكون جميع المواد منشورة بالفعل أو غير فعالة/مقيدة).");
         setIsSubmitting(false);
         return;
       }
 
-      const historyKey = 'alwafaa_showcase_rotation_ids';
-      let publishedHistory: string[] = [];
-      try {
-        publishedHistory = JSON.parse(localStorage.getItem(historyKey) || '[]');
-      } catch {}
+      let targetProducts: Product[] = [];
+      const publishAll = overrideAll || autoShowcaseAllAvailable;
 
-      let unPublished = available.filter(p => !publishedHistory.includes(p.id!));
+      if (autoShowcaseTab === 'collections') {
+        if (selectedShowcaseCollections.length === 0) {
+          setAlertMessage("يرجى تحديد قسم واحد على الأقل من تشكيلات المعرض للنشر.");
+          setIsSubmitting(false);
+          return;
+        }
 
-      if (unPublished.length === 0) {
-        publishedHistory = [];
-        localStorage.setItem(historyKey, JSON.stringify([]));
-        unPublished = available;
+        if (autoShowcaseDistribution === 'perCategory' && !publishAll) {
+          // Slice per category evenly
+          selectedShowcaseCollections.forEach(colName => {
+            const colProds = allAvailable.filter(p => {
+              const cat = p.showcaseCategory || detectShowcaseCategory(p, categories);
+              return cat === colName;
+            });
+            targetProducts.push(...colProds.slice(0, autoShowcaseCount));
+          });
+        } else {
+          // Total from selected collections
+          const filtered = allAvailable.filter(p => {
+            const cat = p.showcaseCategory || detectShowcaseCategory(p, categories);
+            return selectedShowcaseCollections.includes(cat);
+          });
+          targetProducts = publishAll ? filtered : filtered.slice(0, autoShowcaseCount);
+        }
+      } else {
+        // Main categories mode
+        const targetCatIds = selectedMainCategoryIds.length > 0 
+          ? selectedMainCategoryIds 
+          : categories.filter(c => !c.parentId).map(c => c.id);
+
+        if (targetCatIds.length === 0) {
+          setAlertMessage("يرجى تحديد قسم رئيسي واحد على الأقل للنشر.");
+          setIsSubmitting(false);
+          return;
+        }
+
+        if (autoShowcaseDistribution === 'perCategory' && !publishAll) {
+          targetCatIds.forEach(catId => {
+            const catProds = allAvailable.filter(p => p.categoryId === catId);
+            targetProducts.push(...catProds.slice(0, autoShowcaseCount));
+          });
+        } else {
+          const filtered = allAvailable.filter(p => targetCatIds.includes(p.categoryId || ''));
+          targetProducts = publishAll ? filtered : filtered.slice(0, autoShowcaseCount);
+        }
       }
 
-      const selectedToPublish = unPublished.slice(0, autoShowcaseCount);
-      const selectedIds = selectedToPublish.map(p => p.id!);
+      if (targetProducts.length === 0) {
+        setAlertMessage("لم يتم العثور على منتجات مطابقة في الأقسام المحددة للنشر.");
+        setIsSubmitting(false);
+        return;
+      }
 
-      const updates = selectedToPublish.map(p => {
-        const cat = p.showcaseCategory || detectShowcaseCategory(p, categories) || (autoShowcaseCollection !== "الكل" ? autoShowcaseCollection : 'رجالي');
-        return api.updateProduct(p.id!, { isShowcase: true, showcaseCategory: cat });
-      });
+      const targetIds = targetProducts.map(p => p.id!).filter(Boolean);
+      const targetIdSet = new Set(targetIds);
 
-      await Promise.all(updates);
-
-      const newHistory = [...publishedHistory, ...selectedIds];
-      localStorage.setItem(historyKey, JSON.stringify(newHistory));
-
+      // 2. ULTRA-FAST INSTANT OPTIMISTIC UPDATE (0ms delay for the user)
       setProducts(prev => prev.map(p => {
-        if (selectedIds.includes(p.id!)) {
-          const cat = p.showcaseCategory || detectShowcaseCategory(p, categories) || (autoShowcaseCollection !== "الكل" ? autoShowcaseCollection : 'رجالي');
+        if (targetIdSet.has(p.id!)) {
+          const cat = p.showcaseCategory || detectShowcaseCategory(p, categories) || 'رجالي';
           return { ...p, isShowcase: true, showcaseCategory: cat };
         }
         return p;
       }));
 
+      // Close modal and alert immediately
       setIsAutoShowcaseOpen(false);
-      setAlertMessage(`تم بنجاح نقل ونشر ${selectedToPublish.length} موديل في معرض شركة الوفاء المتميز!`);
+      setAlertMessage(`⚡ تم بنجاح نشر ${targetProducts.length} منتج في المعرض بأسرع وقت!`);
+
+      // 3. BACKGROUND PARALLEL BATCH PERSISTENCE
+      const categoryGroups: Record<string, string[]> = {};
+      targetProducts.forEach(p => {
+        const cat = p.showcaseCategory || detectShowcaseCategory(p, categories) || 'رجالي';
+        if (!categoryGroups[cat]) categoryGroups[cat] = [];
+        categoryGroups[cat].push(p.id!);
+      });
+
+      await Promise.all(
+        Object.entries(categoryGroups).map(([cat, ids]) =>
+          api.bulkUpdateProducts(ids, { isShowcase: true, showcaseCategory: cat })
+        )
+      );
     } catch (e: any) {
-      console.error(e);
-      setAlertMessage("حدث خطأ أثناء النشر التلقائي: " + e.message);
+      console.error("Auto publish showcase error:", e);
+      setAlertMessage("حدث خطأ أثناء النشر: " + (e?.message || ""));
+      const fresh = await api.getProducts();
+      setProducts(fresh);
     } finally {
       setIsSubmitting(false);
     }
@@ -784,8 +830,15 @@ export default function ProductManager() {
       updatedAt: Date.now()
     } : originalProduct?.oldPriceInfo;
 
+    const wasInactive = originalProduct && (originalProduct.isHidden || originalProduct.isArchived || originalProduct.isLocked);
+    const isNowActive = !payloadToUpdate.isHidden && !payloadToUpdate.isArchived && !payloadToUpdate.isLocked;
+    const autoShowcaseCat = (wasInactive && isNowActive)
+      ? (payloadToUpdate.showcaseCategory || detectShowcaseCategory(payloadToUpdate, categories) || 'عام')
+      : payloadToUpdate.showcaseCategory;
+
     const fullUpdatedProduct = {
       ...payloadToUpdate,
+      ...(wasInactive && isNowActive ? { isShowcase: true, showcaseCategory: autoShowcaseCat } : {}),
       finalImageUrl: finalImg,
       oldPriceInfo: oldPriceInfo
     };
@@ -910,17 +963,24 @@ export default function ProductManager() {
 
   const handleToggleArchive = async (p: Product) => {
     const nextArchived = !p.isArchived;
+    const cat = p.showcaseCategory || detectShowcaseCategory(p, categories) || 'عام';
+    const updates: any = nextArchived 
+      ? { isArchived: true, isShowcase: false } 
+      : { isArchived: false, isShowcase: true, showcaseCategory: cat };
+
     // Optimistic update
     setProducts((prev) =>
       prev.map((prod) =>
         prod.id === p.id 
-          ? { ...prod, isArchived: nextArchived, ...(nextArchived ? { isShowcase: false } : {}) } 
+          ? { ...prod, ...updates } 
           : prod
       )
     );
     try {
-      const updates = nextArchived ? { isArchived: nextArchived, isShowcase: false } : { isArchived: nextArchived };
       await api.updateProduct(p.id!, updates);
+      if (!nextArchived) {
+        setAlertMessage(`تم استعادة المنتج وتفعيله ونشره تلقائياً في المعرض قسم (${cat}) ✨`);
+      }
     } catch (e) {
       console.error(e);
       // Revert optimistic update
@@ -931,14 +991,26 @@ export default function ProductManager() {
   };
 
   const handleToggleLock = async (p: Product) => {
+    const nextLocked = !p.isLocked;
+    const cat = p.showcaseCategory || detectShowcaseCategory(p, categories) || 'عام';
+    const updates: any = { isLocked: nextLocked };
+    if (!nextLocked) {
+      // Activating product -> auto-publish to showcase!
+      updates.isShowcase = true;
+      updates.showcaseCategory = cat;
+    }
+
     // Optimistic update
     setProducts((prev) =>
       prev.map((prod) =>
-        prod.id === p.id ? { ...prod, isLocked: !prod.isLocked } : prod
+        prod.id === p.id ? { ...prod, isLocked: nextLocked, ...(!nextLocked ? { isShowcase: true, showcaseCategory: cat } : {}) } : prod
       )
     );
     try {
-      await api.updateProduct(p.id!, { isLocked: !p.isLocked });
+      await api.updateProduct(p.id!, updates);
+      if (!nextLocked) {
+        setAlertMessage(`تم إلغاء القفل ونشر المنتج تلقائياً في المعرض قسم (${cat}) 🔓✨`);
+      }
     } catch (e) {
       console.error(e);
       // Revert optimistic update
@@ -949,14 +1021,26 @@ export default function ProductManager() {
   };
 
   const handleToggleHide = async (p: Product) => {
+    const nextHidden = !p.isHidden;
+    const cat = p.showcaseCategory || detectShowcaseCategory(p, categories) || 'عام';
+    const updates: any = { isHidden: nextHidden };
+    if (!nextHidden) {
+      // Activating product -> auto-publish to showcase!
+      updates.isShowcase = true;
+      updates.showcaseCategory = cat;
+    }
+
     // Optimistic update
     setProducts((prev) =>
       prev.map((prod) =>
-        prod.id === p.id ? { ...prod, isHidden: !prod.isHidden } : prod
+        prod.id === p.id ? { ...prod, isHidden: nextHidden, ...(!nextHidden ? { isShowcase: true, showcaseCategory: cat } : {}) } : prod
       )
     );
     try {
-      await api.updateProduct(p.id!, { isHidden: !p.isHidden });
+      await api.updateProduct(p.id!, updates);
+      if (!nextHidden) {
+        setAlertMessage(`تم تفعيل المنتج ونشره تلقائياً في المعرض قسم (${cat}) 👁️✨`);
+      }
     } catch (e) {
       console.error(e);
       // Revert optimistic update
@@ -1074,72 +1158,176 @@ export default function ProductManager() {
   const handleBulkToggleHide = async (hide: boolean) => {
     if (selectedIds.size === 0) return;
     const ids = Array.from(selectedIds);
+    const productsToUpdate = products.filter(p => selectedIds.has(p.id!));
     setSelectedIds(new Set());
 
-    // Instant optimistic local update
-    setProducts((prev) =>
-      prev.map((prod) =>
-        selectedIds.has(prod.id!) ? { ...prod, isHidden: hide } : prod
-      )
-    );
-    setAlertMessage(hide ? `تم إخفاء ${ids.length} منتج بنجاح 👁️` : `تم إظهار ${ids.length} منتج بنجاح 👁️`);
+    if (!hide) {
+      // Activating products -> Auto publish to showcase!
+      setProducts((prev) =>
+        prev.map((prod) => {
+          if (selectedIds.has(prod.id!)) {
+            const cat = prod.showcaseCategory || detectShowcaseCategory(prod, categories) || 'عام';
+            return { ...prod, isHidden: false, isShowcase: true, showcaseCategory: cat };
+          }
+          return prod;
+        })
+      );
+      setAlertMessage(`تم تفعيل ونشر ${ids.length} منتج في المعرض تلقائياً بنجاح 👁️✨`);
 
-    try {
-      await api.bulkUpdateProducts(ids, { isHidden: hide });
-    } catch (e: any) {
-      console.error("Error bulk toggling hide:", e);
-      const updated = await api.getProducts();
-      setProducts(updated);
-      setAlertMessage("فشل التحديث المجمع: " + e.message);
+      try {
+        const categoryGroups: Record<string, string[]> = {};
+        productsToUpdate.forEach(p => {
+          const cat = p.showcaseCategory || detectShowcaseCategory(p, categories) || 'عام';
+          if (!categoryGroups[cat]) categoryGroups[cat] = [];
+          categoryGroups[cat].push(p.id!);
+        });
+
+        await Promise.all(
+          Object.entries(categoryGroups).map(([cat, groupIds]) =>
+            api.bulkUpdateProducts(groupIds, { isHidden: false, isShowcase: true, showcaseCategory: cat })
+          )
+        );
+      } catch (e: any) {
+        console.error("Error bulk toggling hide:", e);
+        const updated = await api.getProducts();
+        setProducts(updated);
+        setAlertMessage("فشل التحديث المجمع: " + e.message);
+      }
+    } else {
+      // Instant optimistic local update
+      setProducts((prev) =>
+        prev.map((prod) =>
+          selectedIds.has(prod.id!) ? { ...prod, isHidden: true } : prod
+        )
+      );
+      setAlertMessage(`تم إخفاء ${ids.length} منتج بنجاح 👁️`);
+
+      try {
+        await api.bulkUpdateProducts(ids, { isHidden: true });
+      } catch (e: any) {
+        console.error("Error bulk toggling hide:", e);
+        const updated = await api.getProducts();
+        setProducts(updated);
+        setAlertMessage("فشل التحديث المجمع: " + e.message);
+      }
     }
   };
 
   const handleBulkToggleLock = async (lock: boolean) => {
     if (selectedIds.size === 0) return;
     const ids = Array.from(selectedIds);
+    const productsToUpdate = products.filter(p => selectedIds.has(p.id!));
     setSelectedIds(new Set());
 
-    // Instant optimistic local update
-    setProducts((prev) =>
-      prev.map((prod) =>
-        selectedIds.has(prod.id!) ? { ...prod, isLocked: lock } : prod
-      )
-    );
-    setAlertMessage(lock ? `تم قفل ${ids.length} منتج بنجاح 🔒` : `تم إلغاء قفل ${ids.length} منتج بنجاح 🔓`);
+    if (!lock) {
+      // Unlocking -> Activating -> Auto publish to showcase!
+      setProducts((prev) =>
+        prev.map((prod) => {
+          if (selectedIds.has(prod.id!)) {
+            const cat = prod.showcaseCategory || detectShowcaseCategory(prod, categories) || 'عام';
+            return { ...prod, isLocked: false, isShowcase: true, showcaseCategory: cat };
+          }
+          return prod;
+        })
+      );
+      setAlertMessage(`تم إلغاء قفل ونشر ${ids.length} منتج في المعرض تلقائياً بنجاح 🔓✨`);
 
-    try {
-      await api.bulkUpdateProducts(ids, { isLocked: lock });
-    } catch (e: any) {
-      console.error("Error bulk toggling lock:", e);
-      const updated = await api.getProducts();
-      setProducts(updated);
-      setAlertMessage("فشل التحديث المجمع: " + e.message);
+      try {
+        const categoryGroups: Record<string, string[]> = {};
+        productsToUpdate.forEach(p => {
+          const cat = p.showcaseCategory || detectShowcaseCategory(p, categories) || 'عام';
+          if (!categoryGroups[cat]) categoryGroups[cat] = [];
+          categoryGroups[cat].push(p.id!);
+        });
+
+        await Promise.all(
+          Object.entries(categoryGroups).map(([cat, groupIds]) =>
+            api.bulkUpdateProducts(groupIds, { isLocked: false, isShowcase: true, showcaseCategory: cat })
+          )
+        );
+      } catch (e: any) {
+        console.error("Error bulk toggling lock:", e);
+        const updated = await api.getProducts();
+        setProducts(updated);
+        setAlertMessage("فشل التحديث المجمع: " + e.message);
+      }
+    } else {
+      // Instant optimistic local update
+      setProducts((prev) =>
+        prev.map((prod) =>
+          selectedIds.has(prod.id!) ? { ...prod, isLocked: true } : prod
+        )
+      );
+      setAlertMessage(`تم قفل ${ids.length} منتج بنجاح 🔒`);
+
+      try {
+        await api.bulkUpdateProducts(ids, { isLocked: true });
+      } catch (e: any) {
+        console.error("Error bulk toggling lock:", e);
+        const updated = await api.getProducts();
+        setProducts(updated);
+        setAlertMessage("فشل التحديث المجمع: " + e.message);
+      }
     }
   };
 
   const handleBulkToggleArchive = async (archive: boolean) => {
     if (selectedIds.size === 0) return;
     const ids = Array.from(selectedIds);
+    const productsToUpdate = products.filter(p => selectedIds.has(p.id!));
     setSelectedIds(new Set());
 
-    // Instant optimistic local update
-    setProducts((prev) =>
-      prev.map((prod) =>
-        selectedIds.has(prod.id!) 
-          ? { ...prod, isArchived: archive, ...(archive ? { isShowcase: false } : {}) } 
-          : prod
-      )
-    );
-    setAlertMessage(archive ? `تم نقل ${ids.length} منتج إلى المواد المنتهية (الأرشيف) 📦` : `تم استعادة ${ids.length} منتج من الأرشيف 📦`);
+    if (!archive) {
+      // Unarchiving -> Activating -> Auto publish to showcase!
+      setProducts((prev) =>
+        prev.map((prod) => {
+          if (selectedIds.has(prod.id!)) {
+            const cat = prod.showcaseCategory || detectShowcaseCategory(prod, categories) || 'عام';
+            return { ...prod, isArchived: false, isShowcase: true, showcaseCategory: cat };
+          }
+          return prod;
+        })
+      );
+      setAlertMessage(`تم استعادة ونشر ${ids.length} منتج في المعرض تلقائياً بنجاح 📦✨`);
 
-    try {
-      const updates = archive ? { isArchived: archive, isShowcase: false } : { isArchived: archive };
-      await api.bulkUpdateProducts(ids, updates);
-    } catch (e: any) {
-      console.error("Error bulk toggling out of stock:", e);
-      const updated = await api.getProducts();
-      setProducts(updated);
-      setAlertMessage("فشل التحديث المجمع: " + e.message);
+      try {
+        const categoryGroups: Record<string, string[]> = {};
+        productsToUpdate.forEach(p => {
+          const cat = p.showcaseCategory || detectShowcaseCategory(p, categories) || 'عام';
+          if (!categoryGroups[cat]) categoryGroups[cat] = [];
+          categoryGroups[cat].push(p.id!);
+        });
+
+        await Promise.all(
+          Object.entries(categoryGroups).map(([cat, groupIds]) =>
+            api.bulkUpdateProducts(groupIds, { isArchived: false, isShowcase: true, showcaseCategory: cat })
+          )
+        );
+      } catch (e: any) {
+        console.error("Error bulk toggling out of stock:", e);
+        const updated = await api.getProducts();
+        setProducts(updated);
+        setAlertMessage("فشل التحديث المجمع: " + e.message);
+      }
+    } else {
+      // Instant optimistic local update
+      setProducts((prev) =>
+        prev.map((prod) =>
+          selectedIds.has(prod.id!) 
+            ? { ...prod, isArchived: true, isShowcase: false } 
+            : prod
+        )
+      );
+      setAlertMessage(`تم نقل ${ids.length} منتج إلى المواد المنتهية (الأرشيف) 📦`);
+
+      try {
+        await api.bulkUpdateProducts(ids, { isArchived: true, isShowcase: false });
+      } catch (e: any) {
+        console.error("Error bulk toggling out of stock:", e);
+        const updated = await api.getProducts();
+        setProducts(updated);
+        setAlertMessage("فشل التحديث المجمع: " + e.message);
+      }
     }
   };
 
@@ -3241,84 +3429,285 @@ export default function ProductManager() {
       )}
 
       {isAutoShowcaseOpen && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[250] backdrop-blur-md">
-          <div className="bg-brq-card border border-brq-gold/40 rounded-2xl p-6 max-w-lg w-full relative space-y-5 shadow-2xl" dir="rtl">
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-3 sm:p-4 z-[250] backdrop-blur-md overflow-y-auto">
+          <div className="bg-brq-card border border-brq-gold/50 rounded-2xl p-4 sm:p-6 max-w-2xl w-full relative space-y-4 shadow-2xl my-auto text-right" dir="rtl">
+            {/* Header */}
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
               <div className="flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-brq-gold" />
-                <h3 className="text-xl font-bold text-white">النشر التلقائي في معرض شركة الوفاء المتميز 🪄</h3>
+                <div className="p-2 bg-brq-gold/20 rounded-xl border border-brq-gold/40 text-brq-gold">
+                  <Sparkles className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2">
+                    النشر السريع والتلقائي في المعرض ⚡
+                  </h3>
+                  <p className="text-xs text-brq-gold/80 font-medium">حدد الأقسام والكمية لنشر مئات أو آلاف المنتجات بلمح البصر</p>
+                </div>
               </div>
-              <button onClick={() => setIsAutoShowcaseOpen(false)} className="text-white/60 hover:text-white">
+              <button 
+                onClick={() => setIsAutoShowcaseOpen(false)} 
+                className="p-1.5 text-white/60 hover:text-white rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
+              >
                 <X size={20} />
               </button>
             </div>
 
-            <div className="space-y-4 text-sm">
-              <p className="text-white/70 text-xs leading-relaxed">
-                حدد القسم الرئيسي والصنف والعدد المطلوب. سيقوم النظام تلقائياً باختيار الموديلات الجديدة غير المكررة (مع نظام تدوير دوري يمنع تكرار الموديلات المنشورة حتى اكتمال الدورة الكاملة).
-              </p>
-
-              <div>
-                <label className="block text-xs font-bold text-white mb-1">القسم الرئيسي للموقع:</label>
-                <select
-                  value={autoShowcaseMainCategory}
-                  onChange={(e) => setAutoShowcaseMainCategory(e.target.value)}
-                  className="w-full bg-white border-2 border-brq-gold rounded-xl px-3 py-2.5 text-base font-bold text-black shadow-md"
+            {/* Target Category Type Selector Tabs */}
+            <div className="space-y-3">
+              <div className="flex bg-black/40 p-1 rounded-xl border border-white/10 gap-1">
+                <button
+                  type="button"
+                  onClick={() => setAutoShowcaseTab('collections')}
+                  className={`flex-1 py-2 px-3 rounded-lg text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                    autoShowcaseTab === 'collections'
+                      ? 'bg-brq-gold text-black shadow-md'
+                      : 'text-white/70 hover:text-white hover:bg-white/5'
+                  }`}
                 >
-                  <option value="الكل">جميع الأقسام الرئيسية</option>
-                  {categories.filter(c => !c.parentId).map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
+                  <Sparkles size={16} />
+                  تشكيلات وتصنيفات المعرض ({VALID_SHOWCASE_CATEGORIES.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAutoShowcaseTab('categories')}
+                  className={`flex-1 py-2 px-3 rounded-lg text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                    autoShowcaseTab === 'categories'
+                      ? 'bg-brq-gold text-black shadow-md'
+                      : 'text-white/70 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  <Layers size={16} />
+                  أقسام الموقع الرئيسية ({categories.filter(c => !c.parentId).length})
+                </button>
+              </div>
+
+              {/* Collections View */}
+              {autoShowcaseTab === 'collections' && (
+                <div className="bg-black/30 p-3 sm:p-4 rounded-xl border border-white/10 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-white/90">اختر تشكيلات المعرض المطلوب النشر إليها:</span>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedShowcaseCollections([...VALID_SHOWCASE_CATEGORIES])}
+                        className="text-xs text-brq-gold hover:underline font-bold cursor-pointer"
+                      >
+                        تحديد الكل
+                      </button>
+                      <span className="text-white/30">|</span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedShowcaseCollections([])}
+                        className="text-xs text-red-400 hover:underline font-bold cursor-pointer"
+                      >
+                        إلغاء التحديد
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+                    {SHOWCASE_CATEGORIES_METADATA.map(item => {
+                      const isSelected = selectedShowcaseCollections.includes(item.name);
+                      const countAvailable = products.filter(p => 
+                        !p.isHidden && !p.isArchived && !p.isLocked && !p.isShowcase &&
+                        (p.showcaseCategory || detectShowcaseCategory(p, categories)) === item.name
+                      ).length;
+
+                      return (
+                        <button
+                          key={item.name}
+                          type="button"
+                          onClick={() => {
+                            setSelectedShowcaseCollections(prev => 
+                              isSelected ? prev.filter(c => c !== item.name) : [...prev, item.name]
+                            );
+                          }}
+                          className={`p-2 rounded-xl text-center transition-all border flex flex-col items-center justify-center gap-1 cursor-pointer ${
+                            isSelected
+                              ? 'bg-brq-gold/20 border-brq-gold text-white font-bold ring-1 ring-brq-gold shadow-md'
+                              : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10'
+                          }`}
+                        >
+                          <div className="flex items-center gap-1">
+                            <span className="text-base">{item.icon}</span>
+                            <span className="text-xs font-bold">{item.name}</span>
+                          </div>
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono ${isSelected ? 'bg-brq-gold text-black font-bold' : 'bg-white/10 text-white/50'}`}>
+                            {countAvailable} متاح
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Main Categories View */}
+              {autoShowcaseTab === 'categories' && (
+                <div className="bg-black/30 p-3 sm:p-4 rounded-xl border border-white/10 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-white/90">اختر أقسام الموقع المطلوب استيراد منتجاتها ونشرها:</span>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedMainCategoryIds(categories.filter(c => !c.parentId).map(c => c.id))}
+                        className="text-xs text-brq-gold hover:underline font-bold cursor-pointer"
+                      >
+                        تحديد الكل
+                      </button>
+                      <span className="text-white/30">|</span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedMainCategoryIds([])}
+                        className="text-xs text-red-400 hover:underline font-bold cursor-pointer"
+                      >
+                        إلغاء التحديد
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-48 overflow-y-auto pr-1">
+                    {categories.filter(c => !c.parentId).map(cat => {
+                      const isSelected = selectedMainCategoryIds.includes(cat.id);
+                      const countAvailable = products.filter(p => 
+                        !p.isHidden && !p.isArchived && !p.isLocked && !p.isShowcase &&
+                        p.categoryId === cat.id
+                      ).length;
+
+                      return (
+                        <button
+                          key={cat.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedMainCategoryIds(prev => 
+                              isSelected ? prev.filter(id => id !== cat.id) : [...prev, cat.id]
+                            );
+                          }}
+                          className={`p-2.5 rounded-xl text-right transition-all border flex items-center justify-between cursor-pointer ${
+                            isSelected
+                              ? 'bg-brq-gold/20 border-brq-gold text-white font-bold ring-1 ring-brq-gold shadow-md'
+                              : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10'
+                          }`}
+                        >
+                          <span className="text-xs font-bold truncate">{cat.name}</span>
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono shrink-0 ${isSelected ? 'bg-brq-gold text-black font-bold' : 'bg-white/10 text-white/50'}`}>
+                            {countAvailable}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Publishing Mode & Distribution */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                <button
+                  type="button"
+                  onClick={() => { setAutoShowcaseDistribution('total'); setAutoShowcaseAllAvailable(false); }}
+                  className={`p-2.5 rounded-xl border text-right transition-all cursor-pointer ${
+                    autoShowcaseDistribution === 'total' && !autoShowcaseAllAvailable
+                      ? 'bg-brq-gold/20 border-brq-gold text-white font-bold'
+                      : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10'
+                  }`}
+                >
+                  <div className="font-bold text-brq-gold mb-0.5">📦 نشر إجمالي محدد</div>
+                  <div className="text-[11px] text-white/60">نشر عدد إجمالي من المنتجات من مجموع الأقسام المختارة</div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => { setAutoShowcaseDistribution('perCategory'); setAutoShowcaseAllAvailable(false); }}
+                  className={`p-2.5 rounded-xl border text-right transition-all cursor-pointer ${
+                    autoShowcaseDistribution === 'perCategory' && !autoShowcaseAllAvailable
+                      ? 'bg-brq-gold/20 border-brq-gold text-white font-bold'
+                      : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10'
+                  }`}
+                >
+                  <div className="font-bold text-brq-gold mb-0.5">⚖️ توزيع متساوي لكل قسم</div>
+                  <div className="text-[11px] text-white/60">نشر العدد المحدد من كل قسم تم اختياره بالتساوي</div>
+                </button>
+              </div>
+
+              {/* Quantity Controls & Quick Presets */}
+              <div className="bg-black/30 p-3 sm:p-4 rounded-xl border border-white/10 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-white">عدد المنتجات المطلوب نشرها:</label>
+                  <button
+                    type="button"
+                    onClick={() => { setAutoShowcaseAllAvailable(true); setAutoShowcaseCount(5000); }}
+                    className={`text-xs px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                      autoShowcaseAllAvailable
+                        ? 'bg-emerald-500 text-black shadow-md'
+                        : 'bg-white/10 text-emerald-300 hover:bg-white/20'
+                    }`}
+                  >
+                    ⚡ نشر كل المتاح بدون حد
+                  </button>
+                </div>
+
+                <div className="flex gap-1.5 flex-wrap">
+                  {[50, 100, 200, 500, 1000].map(val => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => { setAutoShowcaseCount(val); setAutoShowcaseAllAvailable(false); }}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all font-mono cursor-pointer ${
+                        autoShowcaseCount === val && !autoShowcaseAllAvailable
+                          ? 'bg-brq-gold text-black shadow-md'
+                          : 'bg-white/5 text-white/70 border border-white/10 hover:bg-white/10'
+                      }`}
+                    >
+                      {val} منتج
+                    </button>
                   ))}
-                </select>
-              </div>
+                </div>
 
-              <div>
-                <label className="block text-xs font-bold text-white mb-1">تشكيلة الصنف (التصنيف):</label>
-                <select
-                  value={autoShowcaseCollection}
-                  onChange={(e) => setAutoShowcaseCollection(e.target.value)}
-                  className="w-full bg-white border-2 border-brq-gold rounded-xl px-3 py-2.5 text-base font-bold text-black shadow-md"
-                >
-                  <option value="الكل">الكل (تلقائي)</option>
-                  <option value="رجالي">👞 رجالي</option>
-                  <option value="نسائي">👠 نسائي</option>
-                  <option value="شبابي">👟 شبابي</option>
-                  <option value="ولادي">👦 ولادي</option>
-                  <option value="بناتي">👧 بناتي</option>
-                  <option value="طفل">🧒 طفل</option>
-                  <option value="طفلة">🎀 طفلة</option>
-                  <option value="بيبي">🍼 بيبي</option>
-                  <option value="مواليد">👶 مواليد</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-white mb-1">عدد الصور/الموديلات المطلوب نشرها:</label>
-                <input
-                  type="number"
-                  min={1}
-                  max={500}
-                  value={autoShowcaseCount}
-                  onChange={(e) => setAutoShowcaseCount(parseInt(e.target.value) || 100)}
-                  className="w-full bg-white border-2 border-brq-gold rounded-xl px-3 py-2.5 text-base font-bold text-black shadow-md font-mono"
-                />
+                {!autoShowcaseAllAvailable && (
+                  <div className="pt-1">
+                    <input
+                      type="number"
+                      min={1}
+                      max={10000}
+                      value={autoShowcaseCount}
+                      onChange={(e) => {
+                        setAutoShowcaseCount(parseInt(e.target.value) || 100);
+                        setAutoShowcaseAllAvailable(false);
+                      }}
+                      placeholder="أو اكتب أي عدد تريده..."
+                      className="w-full bg-white border-2 border-brq-gold rounded-xl px-3 py-2 text-base font-bold text-black shadow-md font-mono"
+                    />
+                  </div>
+                )}
               </div>
             </div>
 
+            {/* Modal Actions */}
             <div className="flex gap-2 justify-end pt-3 border-t border-white/10">
               <button
+                type="button"
                 onClick={() => setIsAutoShowcaseOpen(false)}
-                className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-lg text-sm"
+                className="px-4 py-2.5 bg-white/5 hover:bg-white/10 text-white rounded-xl text-sm cursor-pointer transition-colors"
               >
                 إلغاء
               </button>
               <button
-                onClick={handleAutoPublishShowcase}
+                type="button"
+                onClick={() => handleAutoPublishShowcase()}
                 disabled={isSubmitting}
-                className="px-6 py-2 bg-brq-gold hover:bg-yellow-400 text-black font-bold rounded-lg text-sm flex items-center gap-2 shadow-lg disabled:opacity-50"
+                className="flex-1 sm:flex-none px-6 py-2.5 bg-gradient-to-r from-brq-gold to-yellow-400 hover:from-yellow-400 hover:to-brq-gold text-black font-extrabold rounded-xl text-sm flex items-center justify-center gap-2 shadow-lg shadow-yellow-500/20 disabled:opacity-50 cursor-pointer transition-all active:scale-95"
               >
-                {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-                بدء النشر التلقائي الذكي
+                {isSubmitting ? (
+                  <>
+                    <Loader2 size={18} className="animate-spin text-black" />
+                    جاري النشر السريع الفائق...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={18} />
+                    ⚡ بدء النشر السريع للمعرض الآن
+                  </>
+                )}
               </button>
             </div>
           </div>

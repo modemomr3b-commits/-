@@ -566,8 +566,8 @@ export const api = {
             };
             return supabase.from('products').update(itemUpdate).eq('id', row.id);
           });
-          for (let j = 0; j < updatePromises.length; j += 50) {
-            const batchRes = await Promise.all(updatePromises.slice(j, j + 50));
+          for (let j = 0; j < updatePromises.length; j += 100) {
+            const batchRes = await Promise.all(updatePromises.slice(j, j + 100));
             for (const r of batchRes) {
               if (r.error) throw r.error;
             }
