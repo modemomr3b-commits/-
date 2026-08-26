@@ -48,6 +48,17 @@ export default function CategoryManager() {
     };
     initialFetch();
 
+    // Instant local BroadcastChannel synchronization across tabs
+    let bc: any = null;
+    try {
+      if (typeof window !== 'undefined' && (window as any).BroadcastChannel) {
+        bc = new (window as any).BroadcastChannel('brq_products_sync');
+        bc.onmessage = () => {
+          if (mounted) fetchCats();
+        };
+      }
+    } catch {}
+
     // Set up Realtime Sync
     const channel = supabase
       .channel("categories_changes")
@@ -58,15 +69,27 @@ export default function CategoryManager() {
           clearTimeout(fetchTimeout);
           fetchTimeout = setTimeout(() => {
              if (mounted) fetchCats();
-          }, 1500);
+          }, 300);
         },
       )
+      .on('broadcast', { event: 'category_created' }, () => {
+        if (mounted) fetchCats();
+      })
+      .on('broadcast', { event: 'category_updated' }, () => {
+        if (mounted) fetchCats();
+      })
+      .on('broadcast', { event: 'category_deleted' }, () => {
+        if (mounted) fetchCats();
+      })
       .subscribe();
 
     return () => {
       mounted = false;
       clearTimeout(fetchTimeout);
       supabase.removeChannel(channel);
+      if (bc) {
+        try { bc.close(); } catch {}
+      }
     };
   }, []);
 

@@ -1135,13 +1135,13 @@ export default function ProductManager() {
   const handleBulkMoveCategory = async () => {
     if (selectedIds.size === 0 || !moveToCategoryId) return;
     const targetCatId = moveToCategoryId;
-    const targetSubcatId = moveToSubcategoryId;
+    const targetSubcatId = moveToSubcategoryId || null;
     const ids = Array.from(selectedIds);
     
     // Instant optimistic update and close modal immediately
     setProducts((prev) =>
       prev.map((prod) =>
-        selectedIds.has(prod.id!) ? { ...prod, categoryId: targetCatId, subcategoryId: targetSubcatId } : prod
+        selectedIds.has(prod.id!) ? { ...prod, categoryId: targetCatId, subcategoryId: targetSubcatId || undefined } : prod
       )
     );
     setSelectedIds(new Set());
