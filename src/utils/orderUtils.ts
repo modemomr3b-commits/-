@@ -127,7 +127,6 @@ export function parseOrderDetails(order?: Partial<Order> & { agentName?: string;
  */
 export function isOrderBelongsToAgent(order: any, user: any): boolean {
   if (!order || !user) return false;
-  if (user.role === 'admin') return true;
 
   const uId = (user.id || user.uid || '').toString().toLowerCase().trim();
   const uName = (user.username || '').toLowerCase().trim();
