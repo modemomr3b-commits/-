@@ -78,13 +78,15 @@ export default function ProductManager() {
     'رجالي', 'نسائي', 'شبابي', 'ولادي', 'بناتي', 'طفل', 'طفلة', 'بيبي', 'مواليد', 'الحقائب'
   ]);
   const [selectedMainCategoryIds, setSelectedMainCategoryIds] = useState<string[]>([]);
-  const [autoShowcaseCount, setAutoShowcaseCount] = useState<number>(100);
+  const [autoShowcaseCount, setAutoShowcaseCount] = useState<string | number>(100);
   const [autoShowcaseAllAvailable, setAutoShowcaseAllAvailable] = useState<boolean>(false);
   const [autoShowcaseDistribution, setAutoShowcaseDistribution] = useState<'total' | 'perCategory'>('total');
 
   const handleAutoPublishShowcase = async (overrideAll?: boolean) => {
     setIsSubmitting(true);
     try {
+      const numericCount = typeof autoShowcaseCount === 'number' ? autoShowcaseCount : (parseInt(autoShowcaseCount, 10) || 100);
+
       // 1. Get all eligible active products that are not yet in the showcase
       const allAvailable = products.filter(p => !p.isHidden && !p.isArchived && !p.isLocked && !p.isShowcase);
 
@@ -111,7 +113,7 @@ export default function ProductManager() {
               const cat = p.showcaseCategory || detectShowcaseCategory(p, categories);
               return cat === colName;
             });
-            targetProducts.push(...colProds.slice(0, autoShowcaseCount));
+            targetProducts.push(...colProds.slice(0, numericCount));
           });
         } else {
           // Total from selected collections
@@ -119,7 +121,7 @@ export default function ProductManager() {
             const cat = p.showcaseCategory || detectShowcaseCategory(p, categories);
             return selectedShowcaseCollections.includes(cat);
           });
-          targetProducts = publishAll ? filtered : filtered.slice(0, autoShowcaseCount);
+          targetProducts = publishAll ? filtered : filtered.slice(0, numericCount);
         }
       } else {
         // Main categories mode
@@ -136,11 +138,11 @@ export default function ProductManager() {
         if (autoShowcaseDistribution === 'perCategory' && !publishAll) {
           targetCatIds.forEach(catId => {
             const catProds = allAvailable.filter(p => p.categoryId === catId);
-            targetProducts.push(...catProds.slice(0, autoShowcaseCount));
+            targetProducts.push(...catProds.slice(0, numericCount));
           });
         } else {
           const filtered = allAvailable.filter(p => targetCatIds.includes(p.categoryId || ''));
-          targetProducts = publishAll ? filtered : filtered.slice(0, autoShowcaseCount);
+          targetProducts = publishAll ? filtered : filtered.slice(0, numericCount);
         }
       }
 
@@ -3629,54 +3631,85 @@ export default function ProductManager() {
                 </button>
               </div>
 
-              {/* Quantity Controls & Quick Presets */}
-              <div className="bg-black/30 p-3 sm:p-4 rounded-xl border border-white/10 space-y-2.5">
+              {/* Quantity Controls & Direct Typing Input */}
+              <div className="bg-black/30 p-3 sm:p-4 rounded-xl border border-white/10 space-y-3">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-white">عدد المنتجات المطلوب نشرها:</label>
+                  <label className="text-sm font-extrabold text-white flex items-center gap-1.5">
+                    <span>عدد المنتجات المطلوب نشرها:</span>
+                    <span className="text-xs font-normal text-white/50">(اكتب أي رقم تريده)</span>
+                  </label>
                   <button
                     type="button"
-                    onClick={() => { setAutoShowcaseAllAvailable(true); setAutoShowcaseCount(5000); }}
-                    className={`text-xs px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                    onClick={() => {
+                      if (autoShowcaseAllAvailable) {
+                        setAutoShowcaseAllAvailable(false);
+                        setAutoShowcaseCount(100);
+                      } else {
+                        setAutoShowcaseAllAvailable(true);
+                      }
+                    }}
+                    className={`text-xs px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
                       autoShowcaseAllAvailable
                         ? 'bg-emerald-500 text-black shadow-md'
                         : 'bg-white/10 text-emerald-300 hover:bg-white/20'
                     }`}
                   >
-                    ⚡ نشر كل المتاح بدون حد
+                    {autoShowcaseAllAvailable ? '✓ تم تفعيل نشر كل المتاح' : '⚡ نشر كل المتاح بدون حد'}
                   </button>
                 </div>
 
-                <div className="flex gap-1.5 flex-wrap">
-                  {[50, 100, 200, 500, 1000].map(val => (
-                    <button
-                      key={val}
-                      type="button"
-                      onClick={() => { setAutoShowcaseCount(val); setAutoShowcaseAllAvailable(false); }}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all font-mono cursor-pointer ${
-                        autoShowcaseCount === val && !autoShowcaseAllAvailable
-                          ? 'bg-brq-gold text-black shadow-md'
-                          : 'bg-white/5 text-white/70 border border-white/10 hover:bg-white/10'
-                      }`}
-                    >
-                      {val} منتج
-                    </button>
-                  ))}
-                </div>
+                {!autoShowcaseAllAvailable ? (
+                  <div className="space-y-2">
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min="1"
+                        max="50000"
+                        value={autoShowcaseCount}
+                        onChange={(e) => {
+                          setAutoShowcaseCount(e.target.value);
+                          setAutoShowcaseAllAvailable(false);
+                        }}
+                        placeholder="اكتب العدد هنا (مثلاً: 50، 120، 500، 1000...)"
+                        className="w-full bg-white border-2 border-brq-gold focus:border-yellow-400 rounded-xl px-4 py-3 text-lg font-black text-black shadow-lg font-mono placeholder:text-gray-400 placeholder:text-sm placeholder:font-normal outline-none text-center"
+                      />
+                      {autoShowcaseCount && (
+                        <button
+                          type="button"
+                          onClick={() => setAutoShowcaseCount('')}
+                          className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-black text-xs font-bold bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded-lg cursor-pointer transition-colors"
+                          title="مسح الحقل"
+                        >
+                          مسح
+                        </button>
+                      )}
+                    </div>
 
-                {!autoShowcaseAllAvailable && (
-                  <div className="pt-1">
-                    <input
-                      type="number"
-                      min={1}
-                      max={10000}
-                      value={autoShowcaseCount}
-                      onChange={(e) => {
-                        setAutoShowcaseCount(parseInt(e.target.value) || 100);
-                        setAutoShowcaseAllAvailable(false);
-                      }}
-                      placeholder="أو اكتب أي عدد تريده..."
-                      className="w-full bg-white border-2 border-brq-gold rounded-xl px-3 py-2 text-base font-bold text-black shadow-md font-mono"
-                    />
+                    {/* Quick Preset Buttons */}
+                    <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                      <span className="text-[11px] text-white/50 font-medium">أرقام سريعة:</span>
+                      {[25, 50, 100, 200, 500, 1000, 2000].map(val => (
+                        <button
+                          key={val}
+                          type="button"
+                          onClick={() => {
+                            setAutoShowcaseCount(val);
+                            setAutoShowcaseAllAvailable(false);
+                          }}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all font-mono cursor-pointer ${
+                            String(autoShowcaseCount) === String(val) && !autoShowcaseAllAvailable
+                              ? 'bg-brq-gold text-black shadow-md font-black'
+                              : 'bg-white/5 text-white/70 border border-white/10 hover:bg-white/10'
+                          }`}
+                        >
+                          {val}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-center text-emerald-300 text-xs font-bold">
+                    ⚡ سيتم نشر جميع المواد المتاحة غير المنشورة في الأقسام المحددة بالكامل
                   </div>
                 )}
               </div>
