@@ -33,22 +33,29 @@ export default function ShowcaseCartModal({ cart, setCart, onClose, authData, sh
     setIsSubmitting(true);
     try {
       const orderNumber = `BRQ-${Math.floor(1000 + Math.random() * 9000)}`;
+      const agentId = (authData.agent?.id || 'agent').toString().trim();
+      const agentName = (authData.agent?.fullName || 'الوكيل المعتمد').toString().trim();
+      const visitorName = (authData.visitorName || 'زبون المعرض').toString().trim();
+
       const noteParts: string[] = [];
+      noteParts.push(`الوكيل: ${agentName}`);
+      noteParts.push(`معرف الوكيل: ${agentId}`);
+      noteParts.push(`اسم الزبون: زائر المعرض: ${visitorName}`);
       if (visitorPhone.trim()) {
         noteParts.push(`هاتف الزبون: ${visitorPhone.trim()}`);
       }
       if (visitorNotes.trim()) {
-        noteParts.push(visitorNotes.trim());
+        noteParts.push(`ملاحظات الزبون: ${visitorNotes.trim()}`);
       }
 
       await api.createOrder({
-        userId: authData.agent.id,
-        agentId: authData.agent.id,
-        username: authData.agent.fullName,
-        agentName: authData.agent.fullName,
-        fullName: authData.visitorName,
-        visitorName: authData.visitorName,
-        customerName: `زائر المعرض: ${authData.visitorName}`,
+        userId: agentId,
+        agentId: agentId,
+        username: agentName,
+        agentName: agentName,
+        fullName: visitorName,
+        visitorName: visitorName,
+        customerName: `زائر المعرض: ${visitorName}`,
         customerPhone: visitorPhone.trim() || undefined,
         orderNumber,
         status: 'pending_agent',

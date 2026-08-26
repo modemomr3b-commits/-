@@ -350,14 +350,13 @@ Photorealistic studio shot, 8k resolution, crisp focus, commercial catalog quali
   app.post('/api/showcase/create-invite', express.json(), async (req, res) => {
     try {
       const { agentId, agentName } = req.body;
-      if (!agentId) {
-        return res.status(400).json({ error: 'معرف الوكيل مطلوب' });
-      }
+      const cleanAgentId = (agentId || 'agent').toString().trim();
+      const cleanAgentName = (agentName || 'الوكيل المعتمد').toString().trim();
 
       // Generate a reusable invite token
-      const token = 'brq_' + (agentId ? String(agentId).replace(/[^a-zA-Z0-9]/g, '_') : 'agent') + '_' + Math.random().toString(36).substring(2, 8);
+      const token = 'brq_' + cleanAgentId.replace(/[^a-zA-Z0-9]/g, '_') + '_' + Math.random().toString(36).substring(2, 8);
 
-      const { data: invitesData } = await supabaseAdmin.from('settings').select('*').match({ id: 'showcase_invites' }).single();
+      const { data: invitesData } = await supabaseAdmin.from('settings').select('*').match({ id: 'showcase_invites' }).maybeSingle();
       let invites = [];
       if (invitesData && invitesData.data && Array.isArray(invitesData.data)) {
         invites = invitesData.data;
@@ -366,8 +365,8 @@ Photorealistic studio shot, 8k resolution, crisp focus, commercial catalog quali
       const newInvite = {
         id: token,
         token,
-        agentId,
-        agentName: agentName || 'الوكيل المعتمد',
+        agentId: cleanAgentId,
+        agentName: cleanAgentName,
         createdAt: Date.now()
       };
 
@@ -382,7 +381,7 @@ Photorealistic studio shot, 8k resolution, crisp focus, commercial catalog quali
       res.json({
         success: true,
         token,
-        inviteUrl: `/showcase?agent=${encodeURIComponent(agentId)}&invite=${token}`,
+        inviteUrl: `/showcase?agent=${encodeURIComponent(cleanAgentId)}&agentName=${encodeURIComponent(cleanAgentName)}&invite=${token}`,
         agentName: newInvite.agentName
       });
     } catch (e: any) {
@@ -393,50 +392,75 @@ Photorealistic studio shot, 8k resolution, crisp focus, commercial catalog quali
 
   app.get('/api/showcase/verify-invite', async (req, res) => {
     try {
-      const token = (req.query.token || req.query.invite || req.query.agent) as string;
-      if (!token) {
-        return res.status(400).json({ valid: false, error: 'رمز الدعوة مفقود' });
+      const token = (req.query.token || req.query.invite) as string;
+      const agentParam = (req.query.agent || req.query.agentId) as string;
+      const agentNameParam = (req.query.agentName || req.query.name) as string;
+
+      if (!token && !agentParam) {
+        return res.status(400).json({ valid: false, error: 'رمز الدعوة أو معرف الوكيل مفقود' });
       }
 
-      const { data: invitesData } = await supabaseAdmin.from('settings').select('*').match({ id: 'showcase_invites' }).single();
-      let invites = [];
-      if (invitesData && invitesData.data && Array.isArray(invitesData.data)) {
-        invites = invitesData.data;
-      }
+      // 1. Check invite list first if token exists
+      if (token) {
+        const { data: invitesData } = await supabaseAdmin.from('settings').select('*').match({ id: 'showcase_invites' }).maybeSingle();
+        let invites = [];
+        if (invitesData && invitesData.data && Array.isArray(invitesData.data)) {
+          invites = invitesData.data;
+        }
 
-      const invite = invites.find((inv: any) => inv.token === token || inv.id === token);
+        const invite = invites.find((inv: any) => inv.token === token || inv.id === token);
 
-      if (invite) {
-        return res.json({
-          valid: true,
-          token: invite.token,
-          agent: {
-            id: invite.agentId,
-            fullName: invite.agentName
-          }
-        });
-      }
-
-      // Check if matching a registered user
-      const { data: users } = await supabaseAdmin.from('users').select('*');
-      if (users && users.length > 0) {
-        const matched = users.find((u: any) => u.id === token || u.username === token || token.includes(u.username));
-        if (matched) {
+        if (invite && invite.agentId) {
           return res.json({
             valid: true,
-            token,
+            token: invite.token,
             agent: {
-              id: matched.id || matched.uid || matched.username,
-              fullName: matched.fullName || matched.username
+              id: invite.agentId,
+              fullName: invite.agentName || agentNameParam || 'الوكيل المعتمد'
             }
           });
         }
       }
 
+      // 2. Check if matching a registered user by exact ID / username
+      const targetLookup = agentParam || token;
+      if (targetLookup) {
+        const { data: users } = await supabaseAdmin.from('users').select('*');
+        if (users && users.length > 0) {
+          const matched = users.find((u: any) => 
+            (u.id && String(u.id).toLowerCase() === targetLookup.toLowerCase()) || 
+            (u.uid && String(u.uid).toLowerCase() === targetLookup.toLowerCase()) || 
+            (u.username && String(u.username).toLowerCase() === targetLookup.toLowerCase())
+          );
+          if (matched) {
+            return res.json({
+              valid: true,
+              token: token || targetLookup,
+              agent: {
+                id: matched.id || matched.uid || matched.username,
+                fullName: matched.fullName || matched.username
+              }
+            });
+          }
+        }
+      }
+
+      // 3. If agent param was supplied in URL, use it directly
+      if (agentParam) {
+        return res.json({
+          valid: true,
+          token: token || agentParam,
+          agent: {
+            id: agentParam,
+            fullName: agentNameParam || 'الوكيل المعتمد'
+          }
+        });
+      }
+
       // Open showcase default
       return res.json({
         valid: true,
-        token,
+        token: token || 'default',
         agent: {
           id: 'agent_showcase',
           fullName: 'معرض شركة الوفاء'
@@ -459,25 +483,30 @@ Photorealistic studio shot, 8k resolution, crisp focus, commercial catalog quali
 
       let udoc: any = {
         id: agentId || 'agent_1',
-        fullName: agentName || 'معرض شركة الوفاء'
+        fullName: agentName || 'الوكيل المعتمد'
       };
 
       // Scenario 1: Logging in via reusable Invite Token or Agent reference
       if (inviteToken) {
-        const { data: invitesData } = await supabaseAdmin.from('settings').select('*').match({ id: 'showcase_invites' }).single();
+        const { data: invitesData } = await supabaseAdmin.from('settings').select('*').match({ id: 'showcase_invites' }).maybeSingle();
         let invites = [];
         if (invitesData && invitesData.data && Array.isArray(invitesData.data)) {
           invites = invitesData.data;
         }
 
         const currentInvite = invites.find((inv: any) => inv.token === inviteToken || inv.id === inviteToken);
-        if (currentInvite) {
+        if (currentInvite && currentInvite.agentId) {
           udoc = {
             id: currentInvite.agentId,
-            fullName: currentInvite.agentName,
+            fullName: currentInvite.agentName || agentName || 'الوكيل المعتمد',
             username: currentInvite.agentName
           };
         }
+      } else if (agentId) {
+        udoc = {
+          id: agentId,
+          fullName: agentName || 'الوكيل المعتمد'
+        };
       } else if (username && password) {
         // Scenario 2: Manual credentials login
         if (username === '1' && password === '100') {
@@ -509,7 +538,7 @@ Photorealistic studio shot, 8k resolution, crisp focus, commercial catalog quali
         }
       }
 
-      const { data: visitsData } = await supabaseAdmin.from('settings').select('*').match({ id: 'showcase_visits' }).single();
+      const { data: visitsData } = await supabaseAdmin.from('settings').select('*').match({ id: 'showcase_visits' }).maybeSingle();
       let visits = [];
       if (visitsData && visitsData.data && Array.isArray(visitsData.data)) {
         visits = visitsData.data;

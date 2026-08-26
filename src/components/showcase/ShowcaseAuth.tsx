@@ -16,21 +16,30 @@ export default function ShowcaseAuth({ onSuccess }: ShowcaseAuthProps) {
   // Invite & Agent detection
   const [inviteToken, setInviteToken] = useState<string | null>(null);
   const [agentParam, setAgentParam] = useState<string | null>(null);
+  const [agentNameParam, setAgentNameParam] = useState<string | null>(null);
   const [agentInfo, setAgentInfo] = useState<{ id: string; fullName: string } | null>(null);
 
   useEffect(() => {
     try {
       const urlParams = new URLSearchParams(window.location.search);
-      const token = urlParams.get('invite') || urlParams.get('token');
-      const agent = urlParams.get('agent');
+      const token = urlParams.get('invite') || urlParams.get('token') || '';
+      const agent = urlParams.get('agent') || urlParams.get('agentId') || '';
+      const name = urlParams.get('agentName') || urlParams.get('name') || '';
       
       if (token) setInviteToken(token);
       if (agent) setAgentParam(agent);
+      if (name) setAgentNameParam(name);
 
-      const targetLookup = token || agent;
-      if (targetLookup) {
-        verifyShowcaseInvite(targetLookup).then((res) => {
-          if (res && res.agent) {
+      if (agent) {
+        setAgentInfo({
+          id: agent,
+          fullName: name || 'الوكيل المعتمد'
+        });
+      }
+
+      if (token || agent) {
+        verifyShowcaseInvite(token, agent, name).then((res) => {
+          if (res && res.agent && res.agent.id) {
             setAgentInfo(res.agent);
           }
         }).catch(() => {});
@@ -54,17 +63,25 @@ export default function ShowcaseAuth({ onSuccess }: ShowcaseAuthProps) {
       return;
     }
 
+    const resolvedAgentId = agentInfo?.id || agentParam || undefined;
+    const resolvedAgentName = agentInfo?.fullName || agentNameParam || undefined;
+
     setLoading(true);
     try {
       const res = await loginShowcase({
         visitorName: visitorName.trim(),
         visitorPhone: visitorPhone.trim(),
         inviteToken: inviteToken || undefined,
-        agentId: agentInfo?.id || agentParam || undefined,
-        agentName: agentInfo?.fullName || undefined
+        agentId: resolvedAgentId,
+        agentName: resolvedAgentName
       });
 
-      onSuccess(res.agent, res.visitorName, res.visitorPhone);
+      const finalAgent = (res && res.agent && res.agent.id) ? res.agent : {
+        id: resolvedAgentId || 'agent_1',
+        fullName: resolvedAgentName || 'الوكيل المعتمد'
+      };
+
+      onSuccess(finalAgent, res.visitorName || visitorName.trim(), res.visitorPhone || visitorPhone.trim());
     } catch (err: any) {
       setError(err.message || 'حدث خطأ أثناء الدخول');
     } finally {

@@ -47,6 +47,8 @@ export default function ShowcasePage() {
     try {
       const urlParams = new URLSearchParams(window.location.search);
       const hasInvite = urlParams.get('invite') || urlParams.get('token');
+      const agentParam = urlParams.get('agent') || urlParams.get('agentId');
+      const agentNameParam = urlParams.get('agentName') || urlParams.get('name');
 
       // 1. If currently logged in as agent/member/admin and not visiting via someone else's invite link, bypass auth immediately
       const storedAuth = localStorage.getItem('brq-storage');
@@ -57,7 +59,7 @@ export default function ShowcasePage() {
         } catch {}
       }
 
-      if (loggedUser && !hasInvite) {
+      if (loggedUser && !hasInvite && (!agentParam || agentParam === loggedUser.id || agentParam === loggedUser.username)) {
         return {
           agent: {
             id: loggedUser.id || loggedUser.uid || loggedUser.username || 'agent_1',
@@ -67,9 +69,23 @@ export default function ShowcasePage() {
         };
       }
 
-      // 2. Otherwise load saved guest session
+      // 2. If visiting with a specific invite or agent parameter, check if saved auth matches that exact agent
       const saved = localStorage.getItem('brq_showcase_auth') || sessionStorage.getItem('brq_showcase_auth');
-      return saved ? JSON.parse(saved) : null;
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed && parsed.agent && parsed.agent.id) {
+            // If URL has specific agent and it does not match saved session, force re-auth
+            if (agentParam && parsed.agent.id !== agentParam && parsed.agent.id !== `agent_${agentParam}`) {
+              return null;
+            }
+            // If URL has invite token, let user authenticate or proceed
+            return parsed;
+          }
+        } catch {}
+      }
+
+      return null;
     } catch {
       return null;
     }
@@ -79,7 +95,8 @@ export default function ShowcasePage() {
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const hasInvite = urlParams.get('invite') || urlParams.get('token');
-    if (user && !hasInvite && !authData) {
+    const agentParam = urlParams.get('agent') || urlParams.get('agentId');
+    if (user && !hasInvite && !agentParam && !authData) {
       const agentAuth = {
         agent: {
           id: user.id || user.uid || user.username || 'agent_1',

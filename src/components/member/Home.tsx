@@ -285,7 +285,7 @@ export default function Home() {
                   onClick={async () => {
                     try {
                       showToast('جاري تحويلك إلى واتساب...');
-                      const agentId = user?.id || user?.username || 'agent_1';
+                      const agentId = user?.id || user?.uid || user?.username || 'agent_1';
                       const agentDisplayName = user?.fullName || user?.username || 'الوكيل المعتمد';
                       
                       const inviteRes = await createShowcaseInvite(agentId, agentDisplayName);

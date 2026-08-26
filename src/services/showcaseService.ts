@@ -35,14 +35,17 @@ export interface ShowcaseVisitRecord {
  * The link is open and can be shared with unlimited users/visitors.
  */
 export async function createShowcaseInvite(agentId: string, agentName: string): Promise<{ token: string; inviteUrl: string }> {
-  const token = 'brq_' + (agentId ? agentId.replace(/[^a-zA-Z0-9]/g, '_') : 'agent') + '_' + Math.random().toString(36).substring(2, 8);
+  const cleanAgentId = (agentId || 'agent').toString().trim();
+  const cleanAgentName = (agentName || 'الوكيل المعتمد').toString().trim();
+  const token = 'brq_' + cleanAgentId.replace(/[^a-zA-Z0-9]/g, '_') + '_' + Math.random().toString(36).substring(2, 8);
+  const targetInviteUrl = `/showcase?agent=${encodeURIComponent(cleanAgentId)}&agentName=${encodeURIComponent(cleanAgentName)}&invite=${token}`;
   
   // 1. Try server API first
   try {
     const res = await fetch('/api/showcase/create-invite', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ agentId, agentName, token })
+      body: JSON.stringify({ agentId: cleanAgentId, agentName: cleanAgentName, token })
     });
 
     if (res.ok) {
@@ -52,7 +55,7 @@ export async function createShowcaseInvite(agentId: string, agentName: string): 
         if (data.token) {
           return {
             token: data.token,
-            inviteUrl: `/showcase?agent=${encodeURIComponent(agentId)}&invite=${data.token}`
+            inviteUrl: data.inviteUrl || targetInviteUrl
           };
         }
       } catch {
@@ -79,8 +82,8 @@ export async function createShowcaseInvite(agentId: string, agentName: string): 
     const newInvite: ShowcaseInvite = {
       id: token,
       token,
-      agentId: agentId || 'agent_1',
-      agentName: agentName || 'الوكيل المعتمد',
+      agentId: cleanAgentId,
+      agentName: cleanAgentName,
       createdAt: Date.now()
     };
 
@@ -96,33 +99,36 @@ export async function createShowcaseInvite(agentId: string, agentName: string): 
 
   return {
     token,
-    inviteUrl: `/showcase?agent=${encodeURIComponent(agentId || 'agent')}&invite=${token}`
+    inviteUrl: targetInviteUrl
   };
 }
 
 /**
  * Verifies if an invite token / agent parameter is valid.
  */
-export async function verifyShowcaseInvite(token: string): Promise<{
+export async function verifyShowcaseInvite(token?: string, fallbackAgentId?: string, fallbackAgentName?: string): Promise<{
   valid: boolean;
   agent?: ShowcaseAgent;
   error?: string;
   reason?: string;
 }> {
-  if (!token || !token.trim()) {
-    return { valid: false, error: 'رمز الدعوة مفقود' };
-  }
-
-  const cleanToken = token.trim();
+  const cleanToken = (token || '').trim();
+  const cleanFallbackId = (fallbackAgentId || '').trim();
+  const cleanFallbackName = (fallbackAgentName || '').trim();
 
   // 1. Try server API first
   try {
-    const res = await fetch(`/api/showcase/verify-invite?token=${encodeURIComponent(cleanToken)}`);
+    const queryParams = new URLSearchParams();
+    if (cleanToken) queryParams.set('token', cleanToken);
+    if (cleanFallbackId) queryParams.set('agent', cleanFallbackId);
+    if (cleanFallbackName) queryParams.set('agentName', cleanFallbackName);
+
+    const res = await fetch(`/api/showcase/verify-invite?${queryParams.toString()}`);
     if (res.ok) {
       const text = await res.text();
       try {
         const data = JSON.parse(text);
-        if (data && typeof data.valid === 'boolean') {
+        if (data && typeof data.valid === 'boolean' && data.agent && data.agent.id) {
           return data;
         }
       } catch {
@@ -135,51 +141,65 @@ export async function verifyShowcaseInvite(token: string): Promise<{
 
   // 2. Direct Supabase Fallback
   try {
-    const { data: invitesData } = await supabase
-      .from('settings')
-      .select('*')
-      .match({ id: 'showcase_invites' })
-      .maybeSingle();
+    if (cleanToken) {
+      const { data: invitesData } = await supabase
+        .from('settings')
+        .select('*')
+        .match({ id: 'showcase_invites' })
+        .maybeSingle();
 
-    let invites: ShowcaseInvite[] = [];
-    if (invitesData && invitesData.data && Array.isArray(invitesData.data)) {
-      invites = invitesData.data;
-    }
+      let invites: ShowcaseInvite[] = [];
+      if (invitesData && invitesData.data && Array.isArray(invitesData.data)) {
+        invites = invitesData.data;
+      }
 
-    const invite = invites.find((inv) => inv.token === cleanToken || inv.id === cleanToken);
+      const invite = invites.find((inv) => inv.token === cleanToken || inv.id === cleanToken);
 
-    if (invite) {
-      return {
-        valid: true,
-        agent: {
-          id: invite.agentId,
-          fullName: invite.agentName
-        }
-      };
-    }
-
-    // Check if token or agent parameter matches a real user
-    const { data: users } = await supabase
-      .from('users')
-      .select('*');
-    
-    if (users && users.length > 0) {
-      const matchedUser = users.find(u => 
-        u.id === cleanToken || 
-        u.uid === cleanToken || 
-        u.username === cleanToken || 
-        cleanToken.includes(u.username || '') ||
-        cleanToken.includes(u.id || '')
-      );
-      if (matchedUser) {
+      if (invite && invite.agentId) {
         return {
           valid: true,
           agent: {
-            id: matchedUser.id || matchedUser.uid || matchedUser.username,
-            fullName: matchedUser.fullName || matchedUser.username
+            id: invite.agentId,
+            fullName: invite.agentName || cleanFallbackName || 'الوكيل المعتمد'
           }
         };
       }
+    }
+
+    // Check if token or fallbackAgentId matches a registered user in users table
+    const targetLookup = cleanFallbackId || cleanToken;
+    if (targetLookup) {
+      const { data: users } = await supabase
+        .from('users')
+        .select('*');
+      
+      if (users && users.length > 0) {
+        const matchedUser = users.find(u => 
+          (u.id && String(u.id).toLowerCase() === targetLookup.toLowerCase()) || 
+          (u.uid && String(u.uid).toLowerCase() === targetLookup.toLowerCase()) || 
+          (u.username && String(u.username).toLowerCase() === targetLookup.toLowerCase())
+        );
+        if (matchedUser) {
+          return {
+            valid: true,
+            agent: {
+              id: matchedUser.id || matchedUser.uid || matchedUser.username,
+              fullName: matchedUser.fullName || matchedUser.username
+            }
+          };
+        }
+      }
+    }
+
+    // If fallback agent parameters were provided in URL, use them directly
+    if (cleanFallbackId) {
+      return {
+        valid: true,
+        agent: {
+          id: cleanFallbackId,
+          fullName: cleanFallbackName || 'الوكيل المعتمد'
+        }
+      };
     }
 
     return {
@@ -190,6 +210,15 @@ export async function verifyShowcaseInvite(token: string): Promise<{
       }
     };
   } catch (e: any) {
+    if (cleanFallbackId) {
+      return {
+        valid: true,
+        agent: {
+          id: cleanFallbackId,
+          fullName: cleanFallbackName || 'الوكيل المعتمد'
+        }
+      };
+    }
     return {
       valid: true,
       agent: {
