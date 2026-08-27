@@ -30,6 +30,7 @@ import { SHOWCASE_CATEGORIES_METADATA } from "../../utils/showcaseClassifier";
 import { createShowcaseInvite } from "../../services/showcaseService";
 import CategoryIcon from "../ui/CategoryIcon";
 import { localCache } from "../../utils/localCache";
+import QuickContactWidget from "../common/QuickContactWidget";
 
 const DEFAULT_ICONS = ["✨", "👟", "🇹🇷", "⭐", "🎒", "☀️", "🔥"];
 
@@ -158,6 +159,20 @@ export default function Home() {
             K
           </div>
         </div>
+      </motion.div>
+
+      {/* Animated Moving Contact Widget Bar */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.98 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ delay: 0.1 }}
+        className="max-w-4xl mx-auto"
+      >
+        <QuickContactWidget
+          variant="marquee"
+          settings={showcaseSettings}
+          customMessage="السلام عليكم شركة الوفاء المتميز، أود الاستفسار والطلب من المنتجات المعروضة بالموقع."
+        />
       </motion.div>
 
       {/* 3D Animated Hero Logo Section */}

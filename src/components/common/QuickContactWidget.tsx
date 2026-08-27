@@ -12,7 +12,7 @@ export interface ContactSettings {
 interface QuickContactWidgetProps {
   settings?: ContactSettings | null;
   customMessage?: string;
-  variant?: 'floating' | 'inline' | 'compact';
+  variant?: 'floating' | 'inline' | 'compact' | 'marquee';
   className?: string;
 }
 
@@ -79,6 +79,119 @@ export default function QuickContactWidget({
   const telUrl2 = phone2 ? formatTelUrl(phone2) : '';
   const tgUrl1 = formatTelegramUrl(tg1, phone1);
   const tgUrl2 = phone2 ? formatTelegramUrl(tg2, phone2) : '';
+
+  if (variant === 'marquee') {
+    return (
+      <div className={`relative overflow-hidden rounded-2xl bg-gradient-to-r from-yellow-500/15 via-black/85 to-yellow-500/15 border border-yellow-500/40 shadow-2xl backdrop-blur-md ${className}`} dir="rtl">
+        {/* Glow overlay */}
+        <div className="absolute -inset-0.5 bg-gradient-to-r from-yellow-500/20 via-amber-500/30 to-yellow-500/20 rounded-2xl blur opacity-60 animate-pulse pointer-events-none"></div>
+
+        <div className="relative p-3 sm:p-4 flex flex-col lg:flex-row items-center justify-between gap-3 sm:gap-4">
+          {/* Header text with animated badge */}
+          <div className="flex items-center gap-3 text-right">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-yellow-400 to-amber-600 flex items-center justify-center text-black shadow-lg shadow-yellow-500/30 shrink-0">
+              <Sparkles size={20} className="animate-spin" style={{ animationDuration: '8s' }} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-black text-sm sm:text-base text-yellow-300">
+                  لرؤية المزيد من المنتجات والطلبات المباشرة
+                </h3>
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 animate-pulse">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                  خدمة فورية
+                </span>
+              </div>
+              <p className="text-xs text-white/70 mt-0.5">
+                تواصل معنا مباشرة عبر الأرقام الرسمية لطلب أي موديل أو الاستفسار:
+              </p>
+            </div>
+          </div>
+
+          {/* Action Cards for Both Numbers with Direct Click Buttons */}
+          <div className="flex flex-wrap items-center justify-center gap-2.5 w-full lg:w-auto">
+            {/* Phone 1 Badge & Actions */}
+            <div className="flex items-center gap-2 bg-black/70 border border-yellow-500/40 rounded-2xl p-1.5 sm:p-2 shadow-lg">
+              <div className="text-right px-1">
+                <span className="block text-[10px] text-yellow-400/80 font-bold">الرئيسي</span>
+                <span className="font-mono text-yellow-300 text-xs sm:text-sm font-black" dir="ltr">{phone1}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <a
+                  href={waUrl1}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-2.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white transition-all shadow active:scale-95 flex items-center gap-1 text-xs font-bold"
+                  title="مراسلة واتساب"
+                >
+                  <MessageCircle size={14} />
+                  <span>واتساب</span>
+                </a>
+                <a
+                  href={tgUrl1}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-2.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white transition-all shadow active:scale-95 flex items-center gap-1 text-xs font-bold"
+                  title="مراسلة تيليجرام"
+                >
+                  <Send size={14} />
+                  <span>تيليجرام</span>
+                </a>
+                <a
+                  href={telUrl1}
+                  className="px-2.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black transition-all shadow active:scale-95 flex items-center gap-1 text-xs font-bold"
+                  title="اتصال مباشر"
+                >
+                  <Phone size={14} />
+                  <span>اتصال</span>
+                </a>
+              </div>
+            </div>
+
+            {/* Phone 2 Badge & Actions */}
+            {phone2 && (
+              <div className="flex items-center gap-2 bg-black/70 border border-blue-500/40 rounded-2xl p-1.5 sm:p-2 shadow-lg">
+                <div className="text-right px-1">
+                  <span className="block text-[10px] text-blue-400/80 font-bold">الإضافي</span>
+                  <span className="font-mono text-blue-300 text-xs sm:text-sm font-black" dir="ltr">{phone2}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <a
+                    href={waUrl2}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-2.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white transition-all shadow active:scale-95 flex items-center gap-1 text-xs font-bold"
+                    title="مراسلة واتساب"
+                  >
+                    <MessageCircle size={14} />
+                    <span>واتساب</span>
+                  </a>
+                  <a
+                    href={tgUrl2}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-2.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white transition-all shadow active:scale-95 flex items-center gap-1 text-xs font-bold"
+                    title="مراسلة تيليجرام"
+                  >
+                    <Send size={14} />
+                    <span>تيليجرام</span>
+                  </a>
+                  <a
+                    href={telUrl2}
+                    className="px-2.5 py-1.5 rounded-xl bg-blue-500 hover:bg-blue-400 text-white transition-all shadow active:scale-95 flex items-center gap-1 text-xs font-bold"
+                    title="اتصال مباشر"
+                  >
+                    <Phone size={14} />
+                    <span>اتصال</span>
+                  </a>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (variant === 'inline') {
     return (

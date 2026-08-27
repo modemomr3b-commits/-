@@ -716,29 +716,8 @@ export default function ShowcasePage() {
       {/* Main Content Area */}
       <main className="max-w-7xl mx-auto px-3 sm:px-6 py-6">
 
-        {/* Beautiful More Products Banner */}
-        <div className="mb-6 p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-yellow-500/10 via-black/40 to-yellow-500/10 border border-yellow-500/30 text-white shadow-xl relative overflow-hidden" dir="rtl">
-          <div className="flex flex-col lg:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-3 text-right">
-              <div className="w-11 h-11 rounded-2xl bg-yellow-500/20 border border-yellow-500/40 flex items-center justify-center text-yellow-300 shrink-0 shadow-inner">
-                <Sparkles size={22} className="animate-pulse" />
-              </div>
-              <div>
-                <h4 className="font-black text-sm sm:text-base text-yellow-300 flex items-center gap-2">
-                  <span>لرؤية المزيد من المنتجات والتشكيلات الحصرية</span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-400/20 text-yellow-300 border border-yellow-400/30">كتالوجات متجددة</span>
-                </h4>
-                <p className="text-xs text-white/70 mt-0.5">
-                  يرجى مراسلة أو الاتصال بالأرقام المباشرة لتزويدكم بأحدث الموديلات والأسعار الخاصة:
-                </p>
-              </div>
-            </div>
-            
-            <div className="w-full lg:w-auto">
-              <QuickContactWidget settings={settings} variant="inline" className="w-full" />
-            </div>
-          </div>
-        </div>
+        {/* Animated Moving Contact Bar / Ticker */}
+        <QuickContactWidget settings={settings} variant="marquee" className="mb-6" />
 
         {loading ? (
           <div className="flex flex-col items-center justify-center h-64 gap-4">

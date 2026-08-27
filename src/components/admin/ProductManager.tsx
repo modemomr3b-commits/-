@@ -434,7 +434,7 @@ export default function ProductManager() {
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
   const [moveToCategoryId, setMoveToCategoryId] = useState("");
   const [moveToSubcategoryId, setMoveToSubcategoryId] = useState("");
-  const itemsPerPage = 30;
+  const [itemsPerPage, setItemsPerPage] = useState<number>(100);
 
   // Debounce search input
   useEffect(() => {
@@ -963,10 +963,9 @@ export default function ProductManager() {
 
   const handleToggleArchive = async (p: Product) => {
     const nextArchived = !p.isArchived;
-    const cat = p.showcaseCategory || detectShowcaseCategory(p, categories) || 'عام';
     const updates: any = nextArchived 
       ? { isArchived: true, isShowcase: false } 
-      : { isArchived: false, isShowcase: true, showcaseCategory: cat };
+      : { isArchived: false };
 
     // Optimistic update
     setProducts((prev) =>
@@ -989,18 +988,12 @@ export default function ProductManager() {
 
   const handleToggleLock = async (p: Product) => {
     const nextLocked = !p.isLocked;
-    const cat = p.showcaseCategory || detectShowcaseCategory(p, categories) || 'عام';
     const updates: any = { isLocked: nextLocked };
-    if (!nextLocked) {
-      // Activating product -> auto-publish to showcase!
-      updates.isShowcase = true;
-      updates.showcaseCategory = cat;
-    }
 
     // Optimistic update
     setProducts((prev) =>
       prev.map((prod) =>
-        prod.id === p.id ? { ...prod, isLocked: nextLocked, ...(!nextLocked ? { isShowcase: true, showcaseCategory: cat } : {}) } : prod
+        prod.id === p.id ? { ...prod, isLocked: nextLocked } : prod
       )
     );
     try {
@@ -1207,30 +1200,18 @@ export default function ProductManager() {
     setSelectedIds(new Set());
 
     if (!lock) {
-      // Unlocking -> Activating -> Auto publish to showcase!
+      // Instant optimistic local update
       setProducts((prev) =>
         prev.map((prod) => {
           if (selectedIds.has(prod.id!)) {
-            const cat = prod.showcaseCategory || detectShowcaseCategory(prod, categories) || 'عام';
-            return { ...prod, isLocked: false, isShowcase: true, showcaseCategory: cat };
+            return { ...prod, isLocked: false };
           }
           return prod;
         })
       );
 
       try {
-        const categoryGroups: Record<string, string[]> = {};
-        productsToUpdate.forEach(p => {
-          const cat = p.showcaseCategory || detectShowcaseCategory(p, categories) || 'عام';
-          if (!categoryGroups[cat]) categoryGroups[cat] = [];
-          categoryGroups[cat].push(p.id!);
-        });
-
-        await Promise.all(
-          Object.entries(categoryGroups).map(([cat, groupIds]) =>
-            api.bulkUpdateProducts(groupIds, { isLocked: false, isShowcase: true, showcaseCategory: cat })
-          )
-        );
+        await api.bulkUpdateProducts(ids, { isLocked: false });
       } catch (e: any) {
         console.error("Error bulk toggling lock:", e);
         const updated = await api.getProducts();
@@ -1263,30 +1244,18 @@ export default function ProductManager() {
     setSelectedIds(new Set());
 
     if (!archive) {
-      // Unarchiving -> Activating -> Auto publish to showcase!
+      // Instant optimistic local update
       setProducts((prev) =>
         prev.map((prod) => {
           if (selectedIds.has(prod.id!)) {
-            const cat = prod.showcaseCategory || detectShowcaseCategory(prod, categories) || 'عام';
-            return { ...prod, isArchived: false, isShowcase: true, showcaseCategory: cat };
+            return { ...prod, isArchived: false };
           }
           return prod;
         })
       );
 
       try {
-        const categoryGroups: Record<string, string[]> = {};
-        productsToUpdate.forEach(p => {
-          const cat = p.showcaseCategory || detectShowcaseCategory(p, categories) || 'عام';
-          if (!categoryGroups[cat]) categoryGroups[cat] = [];
-          categoryGroups[cat].push(p.id!);
-        });
-
-        await Promise.all(
-          Object.entries(categoryGroups).map(([cat, groupIds]) =>
-            api.bulkUpdateProducts(groupIds, { isArchived: false, isShowcase: true, showcaseCategory: cat })
-          )
-        );
+        await api.bulkUpdateProducts(ids, { isArchived: false });
       } catch (e: any) {
         console.error("Error bulk toggling out of stock:", e);
         const updated = await api.getProducts();
@@ -2611,31 +2580,57 @@ export default function ProductManager() {
               )}
             </div>
             
-            {/* Pagination Controls */}
-            {totalPages > 1 && filterStatus !== null && (
-              <div className="flex items-center justify-between px-6 py-4 border-t border-white/10 bg-black/20">
-                <p className="text-sm text-white/50">
-                  عرض {startIndex + 1} إلى {Math.min(startIndex + itemsPerPage, filteredProducts.length)} من أصل {filteredProducts.length} منتج
-                </p>
-                <div className="flex items-center gap-2">
-                  <button
-                    disabled={currentPage === 1}
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                    className="p-2 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-white"
-                  >
-                    <ChevronRight size={16} />
-                  </button>
-                  <span className="text-sm text-white font-medium px-2">
-                    {currentPage} / {totalPages}
+            {/* Pagination Controls & Page Size Selector */}
+            {filteredProducts.length > 0 && filterStatus !== null && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-4 border-t border-white/10 bg-black/30">
+                <div className="flex items-center gap-4 text-xs sm:text-sm text-white/60">
+                  <span>
+                    عرض <strong className="text-brq-gold">{startIndex + 1}</strong> إلى <strong className="text-brq-gold">{Math.min(startIndex + itemsPerPage, filteredProducts.length)}</strong> من أصل <strong className="text-white">{filteredProducts.length}</strong> منتج
                   </span>
-                  <button
-                    disabled={currentPage === totalPages}
-                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                    className="p-2 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-white"
-                  >
-                    <ChevronLeft size={16} />
-                  </button>
+                  
+                  {/* Page Size Selector */}
+                  <div className="flex items-center gap-1.5 bg-white/5 border border-white/10 px-2 py-1 rounded-lg">
+                    <span className="text-white/40 text-xs">عرض:</span>
+                    <select
+                      value={itemsPerPage}
+                      onChange={(e) => {
+                        setItemsPerPage(Number(e.target.value));
+                        setCurrentPage(1);
+                      }}
+                      className="bg-transparent text-brq-gold font-bold text-xs focus:outline-none cursor-pointer"
+                    >
+                      <option value={50} className="bg-neutral-900 text-white">50 منتج</option>
+                      <option value={100} className="bg-neutral-900 text-white">100 منتج (الافتراضي)</option>
+                      <option value={200} className="bg-neutral-900 text-white">200 منتج</option>
+                      <option value={500} className="bg-neutral-900 text-white">500 منتج</option>
+                      <option value={1000} className="bg-neutral-900 text-white">1000 منتج (أقصى عرض)</option>
+                    </select>
+                  </div>
                 </div>
+
+                {totalPages > 1 && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      disabled={currentPage === 1}
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      className="p-2 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-white"
+                      title="الصفحة السابقة"
+                    >
+                      <ChevronRight size={16} />
+                    </button>
+                    <span className="text-xs sm:text-sm text-white font-medium px-2">
+                      صفحة <span className="text-brq-gold font-bold">{currentPage}</span> من <span className="text-white font-bold">{totalPages}</span>
+                    </span>
+                    <button
+                      disabled={currentPage === totalPages}
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      className="p-2 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-white"
+                      title="الصفحة التالية"
+                    >
+                      <ChevronLeft size={16} />
+                    </button>
+                  </div>
+                )}
               </div>
             )}
             
