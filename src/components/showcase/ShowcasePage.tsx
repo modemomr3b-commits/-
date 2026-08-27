@@ -22,13 +22,14 @@ import {
   Plus,
   ZoomIn,
   ZoomOut,
-  Grid
+  Grid,
+  ShieldAlert
 } from 'lucide-react';
 import { api } from '../../api';
 import { supabase } from '../../supabase';
 import { Product, Category } from '../../types';
 import { detectShowcaseCategory, VALID_SHOWCASE_CATEGORIES, SHOWCASE_CATEGORIES_METADATA, allCategoriesImg } from '../../utils/showcaseClassifier';
-import { createShowcaseInvite } from '../../services/showcaseService';
+import { createShowcaseInvite, checkIsVisitorBlocked, isVisitorInBlockedList, getBlockedVisitors, BlockedVisitor } from '../../services/showcaseService';
 import { useStore } from '../../store';
 import OptimizedImage from '../OptimizedImage';
 import ImageViewer from '../ImageViewer';
@@ -113,6 +114,52 @@ export default function ShowcasePage() {
       localStorage.setItem('brq_showcase_auth', JSON.stringify(agentAuth));
     }
   }, [user, authData]);
+
+  const [isVisitorBlocked, setIsVisitorBlocked] = useState(false);
+  const [blockedVisitorsList, setBlockedVisitorsList] = useState<BlockedVisitor[]>([]);
+
+  // Verification against blocked visitors
+  useEffect(() => {
+    let isMounted = true;
+
+    const checkBlocked = async () => {
+      try {
+        const list = await getBlockedVisitors();
+        if (!isMounted) return;
+        setBlockedVisitorsList(list);
+
+        if (authData) {
+          const vPhone = (authData as any).visitorPhone;
+          const vName = authData.visitorName;
+          if (isVisitorInBlockedList(vPhone, vName, list)) {
+            setIsVisitorBlocked(true);
+            localStorage.removeItem('brq_showcase_auth');
+            sessionStorage.removeItem('brq_showcase_auth');
+          } else {
+            setIsVisitorBlocked(false);
+          }
+        }
+      } catch (err) {
+        console.error("Error verifying blocked status:", err);
+      }
+    };
+
+    checkBlocked();
+    const interval = setInterval(checkBlocked, 5000);
+
+    const channel = supabase
+      .channel('public:showcase_blocked_sub')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'settings' }, () => {
+        checkBlocked();
+      })
+      .subscribe();
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+      supabase.removeChannel(channel);
+    };
+  }, [authData]);
 
   // Clean URL if already authenticated
   useEffect(() => {
@@ -393,6 +440,48 @@ export default function ShowcasePage() {
               الاتصال بنا: {settings.phone}
             </a>
           )}
+        </div>
+      </div>
+    );
+  }
+
+  if (isVisitorBlocked) {
+    return (
+      <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center p-4 selection:bg-red-500 selection:text-white" dir="rtl">
+        <div className="w-full max-w-md bg-[#111] border border-red-500/40 rounded-3xl p-6 sm:p-8 shadow-[0_0_60px_rgba(239,68,68,0.2)] text-center relative overflow-hidden">
+          <div className="w-20 h-20 bg-red-500/10 border border-red-500/30 rounded-2xl flex items-center justify-center text-red-500 mx-auto mb-4 animate-pulse">
+            <ShieldAlert size={40} />
+          </div>
+          <h2 className="text-2xl font-black text-white mb-2">تم إيقاف الحساب</h2>
+          <p className="text-sm text-white/70 leading-relaxed mb-6">
+            عذراً، لقد تم إيقاف إمكانية وصول هذا الحساب إلى معرض المنتجات من قبل الإدارة.
+          </p>
+          <div className="p-4 bg-red-950/30 border border-red-500/20 rounded-2xl mb-6 text-xs text-red-300/90 text-right space-y-1.5">
+            <p>• تم تعليق صلاحية تصفح الموديلات والأسعار.</p>
+            <p>• إذا كنت تعتقد أن هناك خطأ، يرجى التواصل مع إدارة المعرض لتفعيل حسابك.</p>
+          </div>
+          {settings?.phone && (
+            <a
+              href={`https://wa.me/${settings.phone.replace(/[^0-9]/g, '')}`}
+              target="_blank"
+              rel="noreferrer"
+              className="w-full mb-3 py-3.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-lg"
+            >
+              <Phone size={18} />
+              <span>تواصل مع الإدارة عبر واتساب</span>
+            </a>
+          )}
+          <button
+            onClick={() => {
+              localStorage.removeItem('brq_showcase_auth');
+              sessionStorage.removeItem('brq_showcase_auth');
+              setIsVisitorBlocked(false);
+              setAuthData(null);
+            }}
+            className="w-full py-3 px-4 bg-white/10 hover:bg-white/15 text-white/80 rounded-2xl font-bold text-xs transition-colors"
+          >
+            تسجيل خروج / الدخول بحساب آخر
+          </button>
         </div>
       </div>
     );

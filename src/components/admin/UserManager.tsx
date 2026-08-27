@@ -1,12 +1,20 @@
 import { formatDateTime, formatDate } from '../../utils/time';
-import { Users, Eye, EyeOff, Plus, Search, Filter, Edit, ShieldX, CheckCircle, KeyRound, MoreVertical, Loader2, X, Trash2, Smartphone, Monitor, Globe, Sparkles, Calendar, Clock, ExternalLink, Phone } from 'lucide-react';
+import { 
+  Users, Eye, EyeOff, Plus, Search, Filter, Edit, ShieldX, CheckCircle, 
+  KeyRound, MoreVertical, Loader2, X, Trash2, Smartphone, Monitor, Globe, 
+  Sparkles, Calendar, Clock, ExternalLink, Phone, ShieldAlert, UserX, UserCheck, 
+  Ban, AlertTriangle, ShieldCheck
+} from 'lucide-react';
 import { useState, useEffect } from 'react';
 import bcryptjs from 'bcryptjs';
 import { api } from '../../api';
 import { supabase } from '../../supabase';
 import { User, UserRole, DeviceAccess, UserStatus } from '../../types';
 import { useStore } from '../../store';
-import { getShowcaseVisits, ShowcaseVisitRecord } from '../../services/showcaseService';
+import { 
+  getShowcaseVisits, ShowcaseVisitRecord, getBlockedVisitors, blockVisitor, 
+  unblockVisitor, isVisitorInBlockedList, BlockedVisitor 
+} from '../../services/showcaseService';
 
 import { UserManagerErrorBoundary } from "./UserManagerErrorBoundary";
 
@@ -25,18 +33,27 @@ function UserManagerContent() {
   const [searchQuery, setSearchQuery] = useState('');
   const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set());
   const [showcaseVisits, setShowcaseVisits] = useState<ShowcaseVisitRecord[]>([]);
+  const [blockedVisitors, setBlockedVisitors] = useState<BlockedVisitor[]>([]);
   const [allVisitsModalOpen, setAllVisitsModalOpen] = useState(false);
+  const [blockedVisitorsModalOpen, setBlockedVisitorsModalOpen] = useState(false);
   const [selectedAgentVisits, setSelectedAgentVisits] = useState<{ user: User; visits: ShowcaseVisitRecord[] } | null>(null);
   const [modalSearch, setModalSearch] = useState('');
   const [modalAgentFilter, setModalAgentFilter] = useState('all');
+
+  // Manual block form state
+  const [manualBlockPhone, setManualBlockPhone] = useState('');
+  const [manualBlockName, setManualBlockName] = useState('');
+  const [manualBlockReason, setManualBlockReason] = useState('');
+  const [isBlockingLoading, setIsBlockingLoading] = useState(false);
 
   useEffect(() => {
     let mounted = true;
     const fetchUsers = async () => {
       try {
-        const [dbUsers, visitsData] = await Promise.all([
+        const [dbUsers, visitsData, blockedData] = await Promise.all([
           api.getUsers().catch(err => { console.error('api.getUsers error:', err); return []; }),
-          getShowcaseVisits().catch(err => { console.error('getShowcaseVisits error:', err); return []; })
+          getShowcaseVisits().catch(err => { console.error('getShowcaseVisits error:', err); return []; }),
+          getBlockedVisitors().catch(err => { console.error('getBlockedVisitors error:', err); return []; })
         ]);
 
         if (mounted) {
@@ -47,6 +64,9 @@ function UserManagerContent() {
           }
           if (Array.isArray(visitsData)) { 
             setShowcaseVisits(visitsData); 
+          }
+          if (Array.isArray(blockedData)) {
+            setBlockedVisitors(blockedData);
           }
           setLoading(false);
         }
@@ -63,6 +83,9 @@ function UserManagerContent() {
     const channel = supabase
       .channel('public:users_manager_changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => {
+        fetchUsers();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'settings' }, () => {
         fetchUsers();
       })
       .subscribe();
@@ -279,6 +302,73 @@ function UserManagerContent() {
     );
   }
 
+  const handleToggleBlockVisitor = async (visit: { visitorPhone?: string | null; visitorName: string; agentId?: string; agentName?: string }) => {
+    const isCurrentlyBlocked = isVisitorInBlockedList(visit.visitorPhone, visit.visitorName, blockedVisitors);
+    setIsBlockingLoading(true);
+    try {
+      if (isCurrentlyBlocked) {
+        const identifier = visit.visitorPhone || visit.visitorName;
+        const updated = await unblockVisitor(identifier);
+        setBlockedVisitors(updated);
+        showToast(`تم تفعيل حساب الزائر (${visit.visitorName}) بنجاح`);
+      } else {
+        const updated = await blockVisitor({
+          phone: visit.visitorPhone,
+          visitorName: visit.visitorName,
+          agentId: visit.agentId,
+          agentName: visit.agentName,
+          blockedBy: currentUser?.fullName || currentUser?.username || 'الإدارة',
+          reason: 'تم إيقاف الحساب من قبل الإدارة'
+        });
+        setBlockedVisitors(updated);
+        showToast(`تم إيقاف حساب الزائر (${visit.visitorName}) ومنعه من دخول المعرض`);
+      }
+    } catch (err: any) {
+      showToast(err.message || 'حدث خطأ أثناء تعديل حالة الزائر');
+    } finally {
+      setIsBlockingLoading(false);
+    }
+  };
+
+  const handleManualBlock = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!manualBlockPhone.trim() && !manualBlockName.trim()) {
+      showToast('يرجى كتابة رقم الهاتف أو اسم الزائر');
+      return;
+    }
+    setIsBlockingLoading(true);
+    try {
+      const updated = await blockVisitor({
+        phone: manualBlockPhone.trim() || undefined,
+        visitorName: manualBlockName.trim() || undefined,
+        reason: manualBlockReason.trim() || 'تم إيقاف الحساب يدوياً من لوحة التحكم',
+        blockedBy: currentUser?.fullName || currentUser?.username || 'الإدارة'
+      });
+      setBlockedVisitors(updated);
+      setManualBlockPhone('');
+      setManualBlockName('');
+      setManualBlockReason('');
+      showToast('تمت إضافة الزائر إلى قائمة المحظورين بنجاح');
+    } catch (err: any) {
+      showToast(err.message || 'فشل إيقاف الحساب');
+    } finally {
+      setIsBlockingLoading(false);
+    }
+  };
+
+  const handleDirectUnblock = async (identifier: string, name?: string | null) => {
+    setIsBlockingLoading(true);
+    try {
+      const updated = await unblockVisitor(identifier);
+      setBlockedVisitors(updated);
+      showToast(`تم إلغاء الحظر وتفعيل الحساب ${name ? `(${name})` : ''} بنجاح`);
+    } catch (err: any) {
+      showToast(err.message || 'فشل تفعيل الحساب');
+    } finally {
+      setIsBlockingLoading(false);
+    }
+  };
+
   const filteredUsers = users.filter(u => {
     if (!searchQuery) return true;
     const sq = searchQuery.toLowerCase();
@@ -321,6 +411,17 @@ function UserManagerContent() {
             >
                <Eye size={18} />
                <span>سجل زوار المعرض ({showcaseVisits.length} زائر)</span>
+            </button>
+            <button 
+              onClick={() => setBlockedVisitorsModalOpen(true)}
+              className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl transition-all text-sm font-bold border active:scale-95 ${
+                blockedVisitors.length > 0 
+                  ? 'bg-red-500/20 hover:bg-red-500/30 text-red-300 border-red-500/40 shadow-[0_4px_15px_rgba(239,68,68,0.2)]' 
+                  : 'bg-white/5 hover:bg-white/10 text-white/70 border-white/10'
+              }`}
+            >
+               <ShieldAlert size={18} className={blockedVisitors.length > 0 ? "text-red-400 animate-pulse" : "text-white/50"} />
+               <span>الزوار الموقوفين ({blockedVisitors.length})</span>
             </button>
             <button onClick={() => {
                if (!isAdding) {
@@ -646,7 +747,7 @@ function UserManagerContent() {
       {/* Modal 1: Selected Agent Visitors Modal */}
       {selectedAgentVisits && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="glass-panel w-full max-w-lg rounded-2xl border border-amber-500/30 bg-slate-950 p-6 relative shadow-2xl flex flex-col max-h-[85vh]">
+          <div className="glass-panel w-full max-w-xl rounded-2xl border border-amber-500/30 bg-slate-950 p-6 relative shadow-2xl flex flex-col max-h-[85vh]">
             <button 
               onClick={() => setSelectedAgentVisits(null)}
               className="absolute top-4 left-4 p-2 text-white/50 hover:text-white bg-white/5 hover:bg-white/10 rounded-full transition-colors"
@@ -671,48 +772,88 @@ function UserManagerContent() {
               <span className="text-amber-400 font-bold text-sm font-mono">{selectedAgentVisits.visits.length} زائر</span>
             </div>
 
-            <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+            <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 custom-scrollbar">
               {selectedAgentVisits.visits.length === 0 ? (
                 <div className="text-center py-10 text-white/40 text-xs">
                   لم يقم أي زائر بالدخول عبر رابط هذا الوكيل حتى الآن.
                 </div>
               ) : (
-                selectedAgentVisits.visits.map((visit, idx) => (
-                  <div key={idx} className="p-3.5 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between hover:bg-white/10 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-300 font-bold text-xs shrink-0">
-                        {idx + 1}
+                selectedAgentVisits.visits.map((visit, idx) => {
+                  const isBlocked = isVisitorInBlockedList(visit.visitorPhone, visit.visitorName, blockedVisitors);
+                  return (
+                    <div key={idx} className={`p-3.5 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                      isBlocked ? 'bg-red-950/20 border-red-500/30' : 'bg-white/5 border-white/10 hover:bg-white/10'
+                    }`}>
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-lg border flex items-center justify-center font-bold text-xs shrink-0 ${
+                          isBlocked ? 'bg-red-500/20 border-red-500/30 text-red-300' : 'bg-amber-500/10 border-amber-500/20 text-amber-300'
+                        }`}>
+                          {idx + 1}
+                        </div>
+                        <div>
+                          <div className="text-sm font-bold text-white flex flex-wrap items-center gap-2">
+                            <span>{visit.visitorName}</span>
+                            {visit.visitorPhone && (
+                              <a
+                                href={`https://wa.me/${visit.visitorPhone.replace(/[^0-9]/g, '')}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 border border-emerald-500/30 flex items-center gap-1 font-mono transition-colors"
+                                title="تواصل عبر واتساب"
+                              >
+                                <Phone size={11} />
+                                <span dir="ltr">{visit.visitorPhone}</span>
+                              </a>
+                            )}
+                            {isBlocked ? (
+                              <span className="px-2 py-0.5 text-[10px] rounded-full bg-red-500/20 text-red-300 border border-red-500/30 font-bold flex items-center gap-1">
+                                <ShieldAlert size={10} />
+                                موقوف
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 text-[10px] rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 font-bold flex items-center gap-1">
+                                <CheckCircle size={10} />
+                                نشط
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-white/40 flex items-center gap-1.5 mt-0.5">
+                            <Clock size={11} />
+                            <span>{formatDateTime(visit.timestamp)}</span>
+                            <span className="text-amber-300/80 font-mono">({formatTimeAgo(visit.timestamp)})</span>
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <div className="text-sm font-bold text-white flex items-center gap-2">
-                          <span>{visit.visitorName}</span>
-                          {visit.visitorPhone && (
-                            <a
-                              href={`https://wa.me/${visit.visitorPhone.replace(/[^0-9]/g, '')}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 border border-emerald-500/30 flex items-center gap-1 font-mono transition-colors"
-                              title="تواصل عبر واتساب"
-                            >
-                              <Phone size={11} />
-                              <span dir="ltr">{visit.visitorPhone}</span>
-                            </a>
+                      <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                        <span className="px-2 py-1 text-[10px] rounded bg-white/5 text-white/60 border border-white/10 font-bold">
+                          {visit.inviteToken ? 'رابط دعوة' : 'دخول مباشر'}
+                        </span>
+                        <button
+                          onClick={() => handleToggleBlockVisitor(visit)}
+                          disabled={isBlockingLoading}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50 ${
+                            isBlocked
+                              ? 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40'
+                              : 'bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/40'
+                          }`}
+                          title={isBlocked ? "تفعيل حساب الزائر" : "إيقاف حساب الزائر"}
+                        >
+                          {isBlocked ? (
+                            <>
+                              <UserCheck size={13} />
+                              <span>تفعيل</span>
+                            </>
+                          ) : (
+                            <>
+                              <UserX size={13} />
+                              <span>إيقاف</span>
+                            </>
                           )}
-                        </div>
-                        <div className="text-[11px] text-white/40 flex items-center gap-1.5 mt-0.5">
-                          <Clock size={11} />
-                          <span>{formatDateTime(visit.timestamp)}</span>
-                          <span className="text-amber-300/80 font-mono">({formatTimeAgo(visit.timestamp)})</span>
-                        </div>
+                        </button>
                       </div>
                     </div>
-                    <div className="text-left">
-                      <span className="px-2 py-0.5 text-[10px] rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">
-                        {visit.inviteToken ? 'رابط دعوة' : 'دخول مباشر'}
-                      </span>
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
 
@@ -731,7 +872,7 @@ function UserManagerContent() {
       {/* Modal 2: All Showcase Visitors Modal */}
       {allVisitsModalOpen && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="glass-panel w-full max-w-3xl rounded-2xl border border-amber-500/30 bg-slate-950 p-6 relative shadow-2xl flex flex-col max-h-[90vh]">
+          <div className="glass-panel w-full max-w-4xl rounded-2xl border border-amber-500/30 bg-slate-950 p-6 relative shadow-2xl flex flex-col max-h-[90vh]">
             <button 
               onClick={() => setAllVisitsModalOpen(false)}
               className="absolute top-4 left-4 p-2 text-white/50 hover:text-white bg-white/5 hover:bg-white/10 rounded-full transition-colors"
@@ -746,7 +887,7 @@ function UserManagerContent() {
               <div>
                 <h3 className="text-xl font-bold text-white">سجل جميع زوار المعرض</h3>
                 <p className="text-xs text-white/50">
-                  متابعة حية وشاملة لجميع الزوار الذين دخلوا عبر روابط وكلاء المعرض
+                  متابعة حية وشاملة لجميع الزوار مع إمكانية إيقاف أو تفعيل أي حساب مباشرة
                 </p>
               </div>
             </div>
@@ -760,7 +901,7 @@ function UserManagerContent() {
                   value={modalSearch}
                   onChange={(e) => setModalSearch(e.target.value)}
                   className="w-full bg-black/40 border border-white/10 rounded-lg pr-10 pl-4 py-2 text-xs focus:outline-none focus:border-amber-500/50 text-white"
-                  placeholder="بحث باسم الزائر أو الوكيل..."
+                  placeholder="بحث باسم الزائر أو رقم الهاتف أو الوكيل..."
                 />
               </div>
               <select 
@@ -781,51 +922,91 @@ function UserManagerContent() {
             </div>
 
             {/* Visits List */}
-            <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+            <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 custom-scrollbar">
               {filteredShowcaseVisits.length === 0 ? (
                 <div className="text-center py-12 text-white/40 text-sm">
                   لا توجد زيارات مسجلة تطابق خيارات البحث.
                 </div>
               ) : (
-                filteredShowcaseVisits.map((visit, idx) => (
-                  <div key={idx} className="p-3.5 rounded-xl bg-white/5 border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:bg-white/10 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-300 font-bold text-xs shrink-0">
-                        {idx + 1}
+                filteredShowcaseVisits.map((visit, idx) => {
+                  const isBlocked = isVisitorInBlockedList(visit.visitorPhone, visit.visitorName, blockedVisitors);
+                  return (
+                    <div key={idx} className={`p-3.5 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                      isBlocked ? 'bg-red-950/20 border-red-500/30' : 'bg-white/5 border-white/10 hover:bg-white/10'
+                    }`}>
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-lg border flex items-center justify-center font-bold text-xs shrink-0 ${
+                          isBlocked ? 'bg-red-500/20 border-red-500/30 text-red-300' : 'bg-amber-500/15 border-amber-500/30 text-amber-300'
+                        }`}>
+                          {idx + 1}
+                        </div>
+                        <div>
+                          <div className="text-sm font-bold text-white flex flex-wrap items-center gap-2">
+                            <span>{visit.visitorName}</span>
+                            {visit.visitorPhone && (
+                              <a
+                                href={`https://wa.me/${visit.visitorPhone.replace(/[^0-9]/g, '')}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 border border-emerald-500/30 flex items-center gap-1 font-mono transition-colors"
+                                title="تواصل عبر واتساب"
+                              >
+                                <Phone size={11} />
+                                <span dir="ltr">{visit.visitorPhone}</span>
+                              </a>
+                            )}
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/20 font-medium">
+                              الوكيل: {visit.agentName}
+                            </span>
+                            {isBlocked ? (
+                              <span className="px-2 py-0.5 text-[10px] rounded-full bg-red-500/20 text-red-300 border border-red-500/30 font-bold flex items-center gap-1">
+                                <ShieldAlert size={10} />
+                                موقوف
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 text-[10px] rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 font-bold flex items-center gap-1">
+                                <CheckCircle size={10} />
+                                نشط
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-white/40 flex items-center gap-2 mt-1">
+                            <Clock size={11} />
+                            <span>{formatDateTime(visit.timestamp)}</span>
+                            <span className="text-amber-300/80 font-mono">({formatTimeAgo(visit.timestamp)})</span>
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <div className="text-sm font-bold text-white flex flex-wrap items-center gap-2">
-                          <span>{visit.visitorName}</span>
-                          {visit.visitorPhone && (
-                            <a
-                              href={`https://wa.me/${visit.visitorPhone.replace(/[^0-9]/g, '')}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 border border-emerald-500/30 flex items-center gap-1 font-mono transition-colors"
-                              title="تواصل عبر واتساب"
-                            >
-                              <Phone size={11} />
-                              <span dir="ltr">{visit.visitorPhone}</span>
-                            </a>
+                      <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                        <span className="px-2.5 py-1 text-[11px] rounded-lg bg-white/5 text-white/60 border border-white/10 font-bold">
+                          {visit.inviteToken ? 'رابط دعوة' : 'دخول مباشر'}
+                        </span>
+                        <button
+                          onClick={() => handleToggleBlockVisitor(visit)}
+                          disabled={isBlockingLoading}
+                          className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50 ${
+                            isBlocked
+                              ? 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 shadow-sm'
+                              : 'bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/40 shadow-sm'
+                          }`}
+                          title={isBlocked ? "تفعيل حساب الزائر والسماح له بالدخول" : "إيقاف حساب الزائر ومنعه من دخول المعرض"}
+                        >
+                          {isBlocked ? (
+                            <>
+                              <UserCheck size={14} />
+                              <span>تفعيل الحساب</span>
+                            </>
+                          ) : (
+                            <>
+                              <UserX size={14} />
+                              <span>إيقاف الحساب</span>
+                            </>
                           )}
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/20 font-medium">
-                            الوكيل: {visit.agentName}
-                          </span>
-                        </div>
-                        <div className="text-[11px] text-white/40 flex items-center gap-2 mt-1">
-                          <Clock size={11} />
-                          <span>{formatDateTime(visit.timestamp)}</span>
-                          <span className="text-amber-300/80 font-mono">({formatTimeAgo(visit.timestamp)})</span>
-                        </div>
+                        </button>
                       </div>
                     </div>
-                    <div className="text-left flex items-center gap-2 self-end sm:self-auto">
-                      <span className="px-2.5 py-1 text-[11px] rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">
-                        {visit.inviteToken ? 'رابط دعوة' : 'دخول مباشر'}
-                      </span>
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
 
@@ -833,6 +1014,132 @@ function UserManagerContent() {
               <span>المعروض: {filteredShowcaseVisits.length} من إجمالي {showcaseVisits.length} زائر</span>
               <button 
                 onClick={() => setAllVisitsModalOpen(false)}
+                className="px-5 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-colors"
+              >
+                إغلاق
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal 3: Blocked Visitors Management Modal */}
+      {blockedVisitorsModalOpen && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="glass-panel w-full max-w-3xl rounded-2xl border border-red-500/40 bg-slate-950 p-6 relative shadow-[0_0_50px_rgba(239,68,68,0.15)] flex flex-col max-h-[90vh]">
+            <button 
+              onClick={() => setBlockedVisitorsModalOpen(false)}
+              className="absolute top-4 left-4 p-2 text-white/50 hover:text-white bg-white/5 hover:bg-white/10 rounded-full transition-colors"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="flex items-center gap-3 mb-4 pb-4 border-b border-white/10">
+              <div className="w-12 h-12 rounded-xl bg-red-500/20 border border-red-500/30 flex items-center justify-center text-red-400 shrink-0">
+                <ShieldAlert size={24} />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-white">إدارة الحسابات والزوار الموقوفين</h3>
+                <p className="text-xs text-white/50">
+                  إيقاف أو حظر أرقام هواتف وزوار روابط المعرض لمنعهم من تصفح الموديلات والأسعار
+                </p>
+              </div>
+            </div>
+
+            {/* Quick manual block form */}
+            <form onSubmit={handleManualBlock} className="p-4 bg-red-950/20 border border-red-500/25 rounded-2xl mb-4">
+              <h4 className="text-xs font-bold text-red-300 mb-2 flex items-center gap-1.5">
+                <Ban size={14} />
+                <span>إيقاف حساب زائر يدوياً</span>
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <div>
+                  <label className="text-[11px] text-white/60 block mb-1">رقم الهاتف (أساسي)</label>
+                  <input
+                    type="text"
+                    value={manualBlockPhone}
+                    onChange={(e) => setManualBlockPhone(e.target.value)}
+                    placeholder="مثلاً: 07801234567"
+                    className="w-full bg-black/60 border border-white/10 rounded-xl px-3 py-2 text-xs focus:border-red-500 outline-none text-white font-mono"
+                    dir="ltr"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] text-white/60 block mb-1">اسم الزائر (اختياري)</label>
+                  <input
+                    type="text"
+                    value={manualBlockName}
+                    onChange={(e) => setManualBlockName(e.target.value)}
+                    placeholder="اسم الزائر للتأكيد"
+                    className="w-full bg-black/60 border border-white/10 rounded-xl px-3 py-2 text-xs focus:border-red-500 outline-none text-white"
+                  />
+                </div>
+                <div className="sm:self-end">
+                  <button
+                    type="submit"
+                    disabled={isBlockingLoading || (!manualBlockPhone.trim() && !manualBlockName.trim())}
+                    className="w-full py-2 px-4 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                  >
+                    {isBlockingLoading ? <Loader2 size={14} className="animate-spin" /> : <Ban size={14} />}
+                    <span>إيقاف الحساب فوراً</span>
+                  </button>
+                </div>
+              </div>
+            </form>
+
+            {/* Blocked List */}
+            <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 custom-scrollbar">
+              {blockedVisitors.length === 0 ? (
+                <div className="text-center py-12 text-white/40 text-xs flex flex-col items-center gap-2">
+                  <ShieldCheck size={32} className="text-emerald-400/60" />
+                  <p>لا يوجد أي زائر موقوف حالياً. جميع الزوار يمتلكون صلاحية الدخول وتصفح المعرض.</p>
+                </div>
+              ) : (
+                blockedVisitors.map((b, idx) => (
+                  <div key={b.id || idx} className="p-3.5 rounded-xl bg-red-950/20 border border-red-500/25 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-red-950/30 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-red-500/20 border border-red-500/30 flex items-center justify-center text-red-300 font-bold text-xs shrink-0">
+                        {idx + 1}
+                      </div>
+                      <div>
+                        <div className="text-sm font-bold text-white flex flex-wrap items-center gap-2">
+                          <span>{b.visitorName || 'زائر غير محدد'}</span>
+                          {b.phone && (
+                            <span className="text-xs px-2.5 py-0.5 rounded-full bg-red-500/20 text-red-300 border border-red-500/30 font-mono" dir="ltr">
+                              {b.phone}
+                            </span>
+                          )}
+                          <span className="text-[10px] px-2 py-0.5 rounded bg-red-500/30 text-red-200 border border-red-500/40 font-bold">
+                            موقوف عن الدخول
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-white/40 flex items-center gap-2 mt-1">
+                          <Clock size={11} />
+                          <span>تاريخ الإيقاف: {formatDateTime(b.blockedAt)}</span>
+                          {b.blockedBy && <span>• بواسطة: {b.blockedBy}</span>}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                      <button
+                        onClick={() => handleDirectUnblock(b.id || b.phone || b.visitorName || '', b.visitorName)}
+                        disabled={isBlockingLoading}
+                        className="px-3.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50"
+                        title="إلغاء الحظر وتفعيل الحساب فوراً"
+                      >
+                        <UserCheck size={14} />
+                        <span>تفعيل الحساب</span>
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="mt-4 pt-3 border-t border-white/10 flex items-center justify-between text-xs text-white/50">
+              <span>إجمالي المحظورين: {blockedVisitors.length} زائر</span>
+              <button 
+                onClick={() => setBlockedVisitorsModalOpen(false)}
                 className="px-5 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-colors"
               >
                 إغلاق

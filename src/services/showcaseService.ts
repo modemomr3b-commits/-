@@ -30,6 +30,63 @@ export interface ShowcaseVisitRecord {
   method: 'invite' | 'credentials' | 'public';
 }
 
+export interface BlockedVisitor {
+  id: string;
+  phone?: string | null;
+  visitorName?: string | null;
+  agentId?: string | null;
+  agentName?: string | null;
+  blockedAt: number;
+  blockedBy?: string | null;
+  reason?: string | null;
+}
+
+/**
+ * Normalizes phone numbers to compare them accurately
+ */
+export function isPhoneMatch(p1?: string | null, p2?: string | null): boolean {
+  if (!p1 || !p2) return false;
+  const d1 = p1.replace(/[^0-9]/g, '');
+  const d2 = p2.replace(/[^0-9]/g, '');
+  if (!d1 || !d2) return false;
+  if (d1 === d2) return true;
+  if (d1.length >= 7 && d2.length >= 7) {
+    if (d1.endsWith(d2) || d2.endsWith(d1)) return true;
+    const s1 = d1.slice(-9);
+    const s2 = d2.slice(-9);
+    if (s1.length >= 7 && s2.length >= 7 && (s1 === s2 || s1.endsWith(s2) || s2.endsWith(s1))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Checks if a visitor is in the blocked list by phone or exact name
+ */
+export function isVisitorInBlockedList(
+  phone?: string | null,
+  visitorName?: string | null,
+  blockedList: BlockedVisitor[] = []
+): boolean {
+  if (!Array.isArray(blockedList) || blockedList.length === 0) return false;
+  
+  const cleanName = (visitorName || '').trim().toLowerCase();
+  
+  for (const b of blockedList) {
+    // 1. Phone match
+    if (phone && b.phone && isPhoneMatch(phone, b.phone)) {
+      return true;
+    }
+    // 2. Name match if provided
+    if (cleanName && b.visitorName && b.visitorName.trim().toLowerCase() === cleanName) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
 /**
  * Creates a sharable showcase link for an agent.
  * The link is open and can be shared with unlimited users/visitors.
@@ -294,6 +351,24 @@ export async function loginShowcase(params: {
   }
 
   // 2. Direct Supabase Fallback
+  // Check if visitor is in blocked list
+  try {
+    const { data: blockedData } = await supabase
+      .from('settings')
+      .select('*')
+      .match({ id: 'showcase_blocked_visitors' })
+      .maybeSingle();
+
+    if (blockedData && blockedData.data && Array.isArray(blockedData.data)) {
+      if (isVisitorInBlockedList(cleanPhone, cleanVisitor, blockedData.data)) {
+        throw new Error('عذراً، تم إيقاف هذا الحساب عن دخول المعرض. يرجى مراجعة إدارة المعرض.');
+      }
+    }
+  } catch (err: any) {
+    if (err.message && err.message.includes('تم إيقاف هذا الحساب')) {
+      throw err;
+    }
+  }
 
   // Case A: Link with inviteToken or agent
   let targetAgentId = agentId || 'agent_1';
@@ -459,5 +534,130 @@ export async function getShowcaseVisits(): Promise<ShowcaseVisitRecord[]> {
   } catch (e) {
     console.error("Error fetching showcase visits:", e);
     return [];
+  }
+}
+
+/**
+ * Retrieves all blocked visitors from Supabase settings
+ */
+export async function getBlockedVisitors(): Promise<BlockedVisitor[]> {
+  try {
+    const { data } = await supabase
+      .from('settings')
+      .select('*')
+      .match({ id: 'showcase_blocked_visitors' })
+      .maybeSingle();
+
+    if (data && data.data && Array.isArray(data.data)) {
+      return data.data;
+    }
+    return [];
+  } catch (e) {
+    console.error("Error fetching blocked visitors:", e);
+    return [];
+  }
+}
+
+/**
+ * Blocks / suspends a visitor account so they can no longer access the showcase
+ */
+export async function blockVisitor(params: {
+  phone?: string | null;
+  visitorName?: string | null;
+  agentId?: string | null;
+  agentName?: string | null;
+  blockedBy?: string | null;
+  reason?: string | null;
+}): Promise<BlockedVisitor[]> {
+  try {
+    const currentBlocked = await getBlockedVisitors();
+    const cleanPhone = params.phone ? params.phone.trim() : null;
+    const cleanName = params.visitorName ? params.visitorName.trim() : null;
+
+    if (!cleanPhone && !cleanName) {
+      throw new Error('يجب تحديد رقم الهاتف أو اسم الزائر لإيقاف الحساب');
+    }
+
+    // Check if already blocked
+    const alreadyBlocked = currentBlocked.some(b => 
+      (cleanPhone && b.phone && isPhoneMatch(cleanPhone, b.phone)) ||
+      (cleanName && !cleanPhone && b.visitorName && b.visitorName.toLowerCase() === cleanName.toLowerCase())
+    );
+
+    if (alreadyBlocked) {
+      return currentBlocked;
+    }
+
+    const newBlockedItem: BlockedVisitor = {
+      id: 'block_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6),
+      phone: cleanPhone,
+      visitorName: cleanName,
+      agentId: params.agentId || null,
+      agentName: params.agentName || null,
+      blockedAt: Date.now(),
+      blockedBy: params.blockedBy || 'الإدارة',
+      reason: params.reason || 'تم إيقاف الحساب من قبل الإدارة'
+    };
+
+    const updated = [newBlockedItem, ...currentBlocked];
+    await supabase.from('settings').upsert({ id: 'showcase_blocked_visitors', data: updated });
+
+    // Also trigger server sync if available
+    try {
+      await fetch('/api/showcase/block-visitor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newBlockedItem)
+      });
+    } catch {}
+
+    return updated;
+  } catch (e: any) {
+    console.error("Error blocking visitor:", e);
+    throw e;
+  }
+}
+
+/**
+ * Unblocks / reactivates a suspended visitor account
+ */
+export async function unblockVisitor(identifier: string): Promise<BlockedVisitor[]> {
+  try {
+    const currentBlocked = await getBlockedVisitors();
+    const cleanId = (identifier || '').trim();
+
+    const updated = currentBlocked.filter(b => {
+      if (b.id === cleanId) return false;
+      if (b.phone && isPhoneMatch(cleanId, b.phone)) return false;
+      if (b.visitorName && b.visitorName.toLowerCase() === cleanId.toLowerCase()) return false;
+      return true;
+    });
+
+    await supabase.from('settings').upsert({ id: 'showcase_blocked_visitors', data: updated });
+
+    try {
+      await fetch('/api/showcase/unblock-visitor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier: cleanId })
+      });
+    } catch {}
+
+    return updated;
+  } catch (e: any) {
+    console.error("Error unblocking visitor:", e);
+    throw e;
+  }
+}
+
+/**
+ * Fast check to verify if a visitor is currently blocked
+ */
+export async function checkIsVisitorBlocked(phone?: string | null, visitorName?: string | null): Promise<boolean> {
+  try {
+    const blockedList = await getBlockedVisitors();
+    return isVisitorInBlockedList(phone, visitorName, blockedList);
+  } catch {
+    return false;
   }
 }

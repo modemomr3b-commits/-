@@ -481,6 +481,32 @@ Photorealistic studio shot, 8k resolution, crisp focus, commercial catalog quali
         return res.status(400).json({ error: 'يرجى إدخال رقم هاتفك للتواصل' });
       }
 
+      const cleanVisitorName = visitorName.trim();
+      const cleanVisitorPhone = visitorPhone.trim();
+      const cleanPhoneDigits = cleanVisitorPhone.replace(/[^0-9]/g, '');
+
+      // Check if visitor is blocked
+      const { data: blockedData } = await supabaseAdmin.from('settings').select('*').match({ id: 'showcase_blocked_visitors' }).maybeSingle();
+      if (blockedData && blockedData.data && Array.isArray(blockedData.data)) {
+        const isBlocked = blockedData.data.some((b: any) => {
+          if (b.phone && cleanPhoneDigits) {
+            const bDigits = String(b.phone).replace(/[^0-9]/g, '');
+            if (bDigits === cleanPhoneDigits) return true;
+            if (bDigits.length >= 7 && cleanPhoneDigits.length >= 7) {
+              if (bDigits.endsWith(cleanPhoneDigits) || cleanPhoneDigits.endsWith(bDigits)) return true;
+            }
+          }
+          if (b.visitorName && cleanVisitorName) {
+            if (String(b.visitorName).trim().toLowerCase() === cleanVisitorName.toLowerCase()) return true;
+          }
+          return false;
+        });
+
+        if (isBlocked) {
+          return res.status(403).json({ error: 'عذراً، تم إيقاف هذا الحساب عن دخول المعرض. يرجى مراجعة إدارة المعرض.' });
+        }
+      }
+
       let udoc: any = {
         id: agentId || 'agent_1',
         fullName: agentName || 'الوكيل المعتمد'
@@ -624,6 +650,73 @@ Photorealistic studio shot, 8k resolution, crisp focus, commercial catalog quali
       res.json(visitsList.sort((a, b) => b.timestamp - a.timestamp));
     } catch (e) {
       res.json([]);
+    }
+  });
+
+  app.get('/api/showcase/blocked-visitors', async (req, res) => {
+    try {
+      const { data } = await supabaseAdmin.from('settings').select('*').match({ id: 'showcase_blocked_visitors' }).maybeSingle();
+      res.json(data?.data || []);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/showcase/block-visitor', express.json(), async (req, res) => {
+    try {
+      const { phone, visitorName, agentId, agentName, blockedBy, reason } = req.body;
+      const { data: existingData } = await supabaseAdmin.from('settings').select('*').match({ id: 'showcase_blocked_visitors' }).maybeSingle();
+      let blockedList = existingData?.data || [];
+
+      const cleanPhone = phone ? String(phone).trim() : null;
+      const cleanName = visitorName ? String(visitorName).trim() : null;
+
+      const newEntry = {
+        id: 'block_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6),
+        phone: cleanPhone,
+        visitorName: cleanName,
+        agentId: agentId || null,
+        agentName: agentName || null,
+        blockedAt: Date.now(),
+        blockedBy: blockedBy || 'الإدارة',
+        reason: reason || 'تم إيقاف الحساب من قبل الإدارة'
+      };
+
+      blockedList = [newEntry, ...blockedList.filter((b: any) => {
+        if (cleanPhone && b.phone && String(b.phone).replace(/[^0-9]/g, '') === cleanPhone.replace(/[^0-9]/g, '')) return false;
+        if (cleanName && !cleanPhone && b.visitorName && String(b.visitorName).trim().toLowerCase() === cleanName.toLowerCase()) return false;
+        return true;
+      })];
+
+      await supabaseAdmin.from('settings').upsert({ id: 'showcase_blocked_visitors', data: blockedList });
+      res.json({ success: true, blockedList });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/showcase/unblock-visitor', express.json(), async (req, res) => {
+    try {
+      const { identifier } = req.body;
+      const { data: existingData } = await supabaseAdmin.from('settings').select('*').match({ id: 'showcase_blocked_visitors' }).maybeSingle();
+      let blockedList = existingData?.data || [];
+      const cleanId = String(identifier || '').trim();
+      const cleanDigits = cleanId.replace(/[^0-9]/g, '');
+
+      blockedList = blockedList.filter((b: any) => {
+        if (b.id === cleanId) return false;
+        if (cleanDigits && b.phone) {
+          const bDigits = String(b.phone).replace(/[^0-9]/g, '');
+          if (bDigits === cleanDigits) return false;
+        }
+        if (b.visitorName && String(b.visitorName).trim().toLowerCase() === cleanId.toLowerCase()) return false;
+        return true;
+      });
+
+      await supabaseAdmin.from('settings').upsert({ id: 'showcase_blocked_visitors', data: blockedList });
+      res.json({ success: true, blockedList });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
     }
   });
 
