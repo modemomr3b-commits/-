@@ -30,7 +30,6 @@ import { SHOWCASE_CATEGORIES_METADATA } from "../../utils/showcaseClassifier";
 import { createShowcaseInvite } from "../../services/showcaseService";
 import CategoryIcon from "../ui/CategoryIcon";
 import { localCache } from "../../utils/localCache";
-import QuickContactWidget from "../common/QuickContactWidget";
 
 const DEFAULT_ICONS = ["✨", "👟", "🇹🇷", "⭐", "🎒", "☀️", "🔥"];
 
@@ -170,20 +169,6 @@ export default function Home() {
           <Animated3DLogo isHovered={true} scale={1.3} />
         </div>
       </div>
-
-      {/* Luxury Animated Moving Contact Widget Bar - Positioned right above the Bento Banner */}
-      <motion.div
-        initial={{ opacity: 0, y: 15 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.15, duration: 0.5 }}
-        className="w-full mb-8"
-      >
-        <QuickContactWidget
-          variant="marquee"
-          settings={showcaseSettings}
-          customMessage="السلام عليكم شركة الوفاء المتميز، أود الاستفسار والطلب من المنتجات المعروضة بالموقع."
-        />
-      </motion.div>
 
       {/* Bento Grid Layout for Desktop */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
