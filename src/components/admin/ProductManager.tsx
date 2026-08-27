@@ -920,44 +920,51 @@ export default function ProductManager() {
   };
 
   const executeDelete = async () => {
-    if (!deleteConfirm || !deleteConfirm.ids) return;
-    setIsSubmitting(true);
+    if (!deleteConfirm || !deleteConfirm.ids || deleteConfirm.ids.length === 0) return;
+    
+    const targetIds = [...deleteConfirm.ids];
+    const isBulk = deleteConfirm.isBulk;
+    const targetName = deleteConfirm.name;
+
+    // 1. Immediately close the confirmation modal & clear selection with zero lag
+    setDeleteConfirm(null);
+    if (isBulk) {
+      setSelectedIds(new Set());
+    }
+
+    // 2. Instantly remove products from local UI state (optimistic instant update)
+    const targetIdSet = new Set(targetIds);
+    setProducts((prev) => prev.filter((prod) => !targetIdSet.has(prod.id!)));
+
+    // 3. Perform the database deletion swiftly in the background without blocking the UI
     try {
-      if (deleteConfirm.isBulk) {
-        setProducts((prev) => prev.filter((prod) => !deleteConfirm.ids!.includes(prod.id!)));
-        await api.bulkDeleteProducts(deleteConfirm.ids, user?.username);
-        await api.logAction({
+      if (isBulk) {
+        await api.bulkDeleteProducts(targetIds, user?.username);
+        api.logAction({
           userId: user?.uid || "",
           userName: user?.username || "System",
           action: "حذف مجموعة منتجات",
           entityType: "product",
-          details: { count: deleteConfirm.ids.length, ids: deleteConfirm.ids },
-        });
-        setSelectedIds(new Set());
+          details: { count: targetIds.length, ids: targetIds },
+        }).catch(() => {});
       } else {
-        const id = deleteConfirm.ids[0];
-        setProducts((prev) => prev.filter((prod) => prod.id !== id));
-        await api.deleteProduct(id, user?.username);
-        await api.logAction({
+        const id = targetIds[0];
+        await api.bulkDeleteProducts([id], user?.username);
+        api.logAction({
           userId: user?.uid || "",
           userName: user?.username || "System",
           action: "حذف منتج",
           entityType: "product",
           entityId: id,
-          details: { name: deleteConfirm.name },
-        });
+          details: { name: targetName },
+        }).catch(() => {});
       }
-      const updated = await api.getProducts();
-      setProducts(updated);
-      setDeleteConfirm(null);
     } catch (e: any) {
-      console.error("Error deleting:", e);
+      console.error("Error deleting product(s):", e);
+      // If server error occurs, re-sync from server
       const updated = await api.getProducts();
       setProducts(updated);
-      setAlertMessage("فشل الحذف: " + e.message);
-    } finally {
-      setIsSubmitting(false);
-      setDeleteConfirm(null);
+      setAlertMessage("فشل الحذف من الخادم: " + e.message);
     }
   };
 

@@ -671,8 +671,7 @@ export const api = {
     return { success: true };
   },
   deleteProduct: async (id: string, deletedBy?: string) => { 
-    const { error } = await supabase.from('products').delete().match({ id }); 
-    if (error) throw error; return { success: true }; 
+    return await api.bulkDeleteProducts([id], deletedBy);
   },
   hardDeleteProduct: async (id: string) => { 
     const { error } = await supabase.from('products').delete().match({ id }); 
