@@ -1077,10 +1077,18 @@ export const api = {
       const { data, error } = await supabase.from('settings').select('*').match({ id: 'global' }).maybeSingle(); 
       if (data && !error) {
         const parsed = data.data ? { id: data.id, ...data.data } : data;
+        const complete = {
+          companyName: 'شركة الوفاء المتميز',
+          phone: '07801359735',
+          phone2: '07817982888',
+          telegram1: '07801359735',
+          telegram2: '07817982888',
+          ...parsed,
+        };
         try {
-          localStorage.setItem('alwafaa_settings_cache', JSON.stringify(parsed));
+          localStorage.setItem('alwafaa_settings_cache', JSON.stringify(complete));
         } catch (e) {}
-        return parsed;
+        return complete;
       }
     } catch (e) {
       console.warn("Could not fetch settings from supabase:", e);
@@ -1091,7 +1099,15 @@ export const api = {
       if (cached) return JSON.parse(cached);
     } catch (e) {}
     
-    return { id: 'global', showcaseEnabled: true, companyName: 'شركة الوفاء المتميز' };
+    return {
+      id: 'global',
+      showcaseEnabled: true,
+      companyName: 'شركة الوفاء المتميز',
+      phone: '07801359735',
+      phone2: '07817982888',
+      telegram1: '07801359735',
+      telegram2: '07817982888',
+    };
   },
   updateSettings: async (data: any) => { 
     const { id, ...dataJson } = data;

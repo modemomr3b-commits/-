@@ -1,4 +1,4 @@
-import { Save, Building2, Monitor, Bell, Shield, Globe, HardDrive, Loader2, DollarSign } from 'lucide-react';
+import { Save, Building2, Monitor, Bell, Shield, Globe, HardDrive, Loader2, DollarSign, Phone, Send, MessageCircle, Sparkles } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { api } from '../../api.ts';
 import { burnProductOverlay } from '../../utils/burnImage';
@@ -9,7 +9,11 @@ export default function SettingsManager() {
   const [updateProgress, setUpdateProgress] = useState<{current: number, total: number} | null>(null);
   const [settings, setSettings] = useState({
     companyName: 'شركة الوفاء المتميز',
-    phone: '',
+    phone: '07801359735',
+    phone2: '07817982888',
+    telegram1: '07801359735',
+    telegram2: '07817982888',
+    showcasePromptEnabled: true,
     maintenanceMode: false,
     openRegistration: true,
     usdExchangeRate: 1500, // Default value
@@ -154,29 +158,111 @@ export default function SettingsManager() {
           </div>
         </div>
 
-        <div className="glass-panel p-6 rounded-2xl border border-white/5 space-y-4">
+        <div className="glass-panel p-6 rounded-2xl border border-white/5 space-y-4 md:col-span-2">
           <div className="flex items-center gap-3 border-b border-white/5 pb-4">
             <Building2 className="text-brq-gold" size={24} />
-            <h3 className="font-bold text-lg">معلومات الشركة</h3>
+            <div>
+              <h3 className="font-bold text-lg">بيانات الشركة وأرقام التواصل (المعرض والمتجر)</h3>
+              <p className="text-[11px] text-white/50">تظهر هذه الأرقام في المعرض والموقع الأساسي للتواصل عبر واتساب وتيليجرام والاتصال الهاتفي</p>
+            </div>
           </div>
-          <div className="space-y-3">
+          <div className="space-y-4">
              <div>
-               <label className="text-xs text-white/50 mb-1 block">اسم الشركة</label>
+               <label className="text-xs text-white/70 mb-1 block font-bold">اسم الشركة أو المتجر</label>
                <input 
                   type="text" 
                   value={settings.companyName} 
                   onChange={e => setSettings({...settings, companyName: e.target.value})}
-                  className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black placeholder:text-gray-500" 
+                  className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black placeholder:text-gray-500 font-bold" 
                />
              </div>
-             <div>
-               <label className="text-xs text-white/50 mb-1 block">رقم الهاتف</label>
-               <input 
-                  type="text" 
-                  value={settings.phone} 
-                  onChange={e => setSettings({...settings, phone: e.target.value})}
-                  className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black placeholder:text-gray-500" 
-               />
+
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-white/10">
+               {/* Contact 1 */}
+               <div className="p-4 rounded-xl bg-yellow-500/5 border border-yellow-500/20 space-y-3">
+                 <div className="flex items-center gap-2 text-yellow-300 font-bold text-xs">
+                   <Phone size={14} />
+                   <span>جهة الاتصال الأولى (الرقم الأساسي)</span>
+                 </div>
+                 <div>
+                   <label className="text-[11px] text-white/70 mb-1 block">رقم الهاتف (واتساب + اتصال)</label>
+                   <input 
+                      type="text" 
+                      value={settings.phone} 
+                      placeholder="مثال: 07801234567"
+                      onChange={e => setSettings({...settings, phone: e.target.value})}
+                      className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black font-mono font-bold placeholder:text-gray-400" 
+                      dir="ltr"
+                   />
+                 </div>
+                 <div>
+                   <label className="text-[11px] text-white/70 mb-1 block flex items-center gap-1">
+                     <Send size={12} className="text-sky-400" />
+                     <span>حساب تيليجرام (معرف أو رابط)</span>
+                   </label>
+                   <input 
+                      type="text" 
+                      value={settings.telegram1 || ''} 
+                      placeholder="مثال: @username أو الرابط"
+                      onChange={e => setSettings({...settings, telegram1: e.target.value})}
+                      className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-400" 
+                      dir="ltr"
+                   />
+                 </div>
+               </div>
+
+               {/* Contact 2 */}
+               <div className="p-4 rounded-xl bg-blue-500/5 border border-blue-500/20 space-y-3">
+                 <div className="flex items-center gap-2 text-blue-300 font-bold text-xs">
+                   <Phone size={14} />
+                   <span>جهة الاتصال الثانية (الرقم الإضافي)</span>
+                 </div>
+                 <div>
+                   <label className="text-[11px] text-white/70 mb-1 block">رقم الهاتف (واتساب + اتصال)</label>
+                   <input 
+                      type="text" 
+                      value={settings.phone2 || ''} 
+                      placeholder="مثال: 07701234567"
+                      onChange={e => setSettings({...settings, phone2: e.target.value})}
+                      className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black font-mono font-bold placeholder:text-gray-400" 
+                      dir="ltr"
+                   />
+                 </div>
+                 <div>
+                   <label className="text-[11px] text-white/70 mb-1 block flex items-center gap-1">
+                     <Send size={12} className="text-sky-400" />
+                     <span>حساب تيليجرام (معرف أو رابط)</span>
+                   </label>
+                   <input 
+                      type="text" 
+                      value={settings.telegram2 || ''} 
+                      placeholder="مثال: @support_user أو الرابط"
+                      onChange={e => setSettings({...settings, telegram2: e.target.value})}
+                      className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-400" 
+                      dir="ltr"
+                   />
+                 </div>
+               </div>
+             </div>
+
+             {/* Showcase prompt notification option */}
+             <div className="pt-3 border-t border-white/10 flex items-center justify-between">
+               <div>
+                 <span className="text-xs font-bold text-white block flex items-center gap-1.5">
+                   <Sparkles size={14} className="text-yellow-400" />
+                   <span>إظهار رسالة "لرؤية المزيد من المنتجات مراسلة الأرقام" بالمعرض</span>
+                 </span>
+                 <span className="text-[10px] text-white/50 block">تظهر للزائر عند التنقل بين أقسام وصفحات المعرض</span>
+               </div>
+               <label className="relative inline-flex items-center cursor-pointer">
+                 <input 
+                    type="checkbox" 
+                    className="sr-only peer" 
+                    checked={settings.showcasePromptEnabled !== false}
+                    onChange={e => setSettings({...settings, showcasePromptEnabled: e.target.checked})}
+                 />
+                 <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brq-gold"></div>
+               </label>
              </div>
           </div>
         </div>

@@ -8,6 +8,7 @@ import { usePWAInstall } from '../hooks/usePWAInstall';
 import { useState, useEffect } from 'react';
 import Animated3DLogo from './ui/Animated3DLogo';
 import { isOrderBelongsToAgent } from '../utils/orderUtils';
+import QuickContactWidget from './common/QuickContactWidget';
 
 export default function MemberLayout() {
   const { cart, user } = useStore();
@@ -15,8 +16,15 @@ export default function MemberLayout() {
   const { deferredPrompt, isIOS, showInstallPrompt, setShowInstallPrompt, handleInstallClick } = usePWAInstall();
   const [isLogoHovered, setIsLogoHovered] = useState(false);
   const [pendingCustomerOrdersCount, setPendingCustomerOrdersCount] = useState(0);
+  const [settings, setSettings] = useState<any>(null);
 
   const isBannerVisible = showInstallPrompt;
+
+  useEffect(() => {
+    api.getSettings().then(data => {
+      if (data) setSettings(data);
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -240,6 +248,11 @@ export default function MemberLayout() {
         <main className="flex-1 overflow-x-hidden md:p-6 p-4">
           <Outlet />
         </main>
+
+        {/* Quick Contact Widget for Main App */}
+        <div className="hidden sm:block">
+          <QuickContactWidget settings={settings} variant="floating" />
+        </div>
 
         {/* Mobile Bottom Navigation */}
         <nav className="fixed bottom-0 left-0 right-0 glass-panel border-t border-brq-gold/20 pb-safe md:hidden z-50 rounded-t-2xl">

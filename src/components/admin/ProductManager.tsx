@@ -164,9 +164,8 @@ export default function ProductManager() {
         return p;
       }));
 
-      // Close modal and alert immediately
+      // Close modal immediately
       setIsAutoShowcaseOpen(false);
-      setAlertMessage(`⚡ تم بنجاح نشر ${targetProducts.length} منتج في المعرض بأسرع وقت!`);
 
       // 3. BACKGROUND PARALLEL BATCH PERSISTENCE
       const categoryGroups: Record<string, string[]> = {};
@@ -849,7 +848,6 @@ export default function ProductManager() {
     setProducts(prev => prev.map(p => p.id === payloadToUpdate.id ? { ...p, ...fullUpdatedProduct } : p));
     setEditingProduct(null);
     setIsSubmitting(false);
-    setAlertMessage("تم حفظ التعديل بنجاح ✅");
 
     // 2. Background burn and persist
     try {
@@ -980,9 +978,6 @@ export default function ProductManager() {
     );
     try {
       await api.updateProduct(p.id!, updates);
-      if (!nextArchived) {
-        setAlertMessage(`تم استعادة المنتج وتفعيله ونشره تلقائياً في المعرض قسم (${cat}) ✨`);
-      }
     } catch (e) {
       console.error(e);
       // Revert optimistic update
@@ -1010,9 +1005,6 @@ export default function ProductManager() {
     );
     try {
       await api.updateProduct(p.id!, updates);
-      if (!nextLocked) {
-        setAlertMessage(`تم إلغاء القفل ونشر المنتج تلقائياً في المعرض قسم (${cat}) 🔓✨`);
-      }
     } catch (e) {
       console.error(e);
       // Revert optimistic update
@@ -1040,9 +1032,6 @@ export default function ProductManager() {
     );
     try {
       await api.updateProduct(p.id!, updates);
-      if (!nextHidden) {
-        setAlertMessage(`تم تفعيل المنتج ونشره تلقائياً في المعرض قسم (${cat}) 👁️✨`);
-      }
     } catch (e) {
       console.error(e);
       // Revert optimistic update
@@ -1062,7 +1051,6 @@ export default function ProductManager() {
     );
     try {
       await api.updateProduct(p.id!, { isShowcase: nextShowcase, showcaseCategory: cat });
-      setAlertMessage(nextShowcase ? `تم نشر المنتج في المعرض قسم (${cat}) بنجاح` : "تم إلغاء نشر المنتج من المعرض");
     } catch (e) {
       console.error(e);
       const updated = await api.getProducts();
@@ -1106,7 +1094,6 @@ export default function ProductManager() {
       }
 
       setSelectedIds(new Set());
-      setAlertMessage(publish ? `تم نشر ${productsToUpdate.length} منتجات في المعرض بنجاح` : `تم إلغاء نشر ${productsToUpdate.length} منتجات من المعرض`);
     } catch (e: any) {
       console.error("Error bulk toggling showcase:", e);
       const updated = await api.getProducts();
@@ -1174,7 +1161,6 @@ export default function ProductManager() {
           return prod;
         })
       );
-      setAlertMessage(`تم تفعيل ونشر ${ids.length} منتج في المعرض تلقائياً بنجاح 👁️✨`);
 
       try {
         const categoryGroups: Record<string, string[]> = {};
@@ -1202,7 +1188,6 @@ export default function ProductManager() {
           selectedIds.has(prod.id!) ? { ...prod, isHidden: true } : prod
         )
       );
-      setAlertMessage(`تم إخفاء ${ids.length} منتج بنجاح 👁️`);
 
       try {
         await api.bulkUpdateProducts(ids, { isHidden: true });
@@ -1232,7 +1217,6 @@ export default function ProductManager() {
           return prod;
         })
       );
-      setAlertMessage(`تم إلغاء قفل ونشر ${ids.length} منتج في المعرض تلقائياً بنجاح 🔓✨`);
 
       try {
         const categoryGroups: Record<string, string[]> = {};
@@ -1260,7 +1244,6 @@ export default function ProductManager() {
           selectedIds.has(prod.id!) ? { ...prod, isLocked: true } : prod
         )
       );
-      setAlertMessage(`تم قفل ${ids.length} منتج بنجاح 🔒`);
 
       try {
         await api.bulkUpdateProducts(ids, { isLocked: true });
@@ -1290,7 +1273,6 @@ export default function ProductManager() {
           return prod;
         })
       );
-      setAlertMessage(`تم استعادة ونشر ${ids.length} منتج في المعرض تلقائياً بنجاح 📦✨`);
 
       try {
         const categoryGroups: Record<string, string[]> = {};
@@ -1320,7 +1302,6 @@ export default function ProductManager() {
             : prod
         )
       );
-      setAlertMessage(`تم نقل ${ids.length} منتج إلى المواد المنتهية (الأرشيف) 📦`);
 
       try {
         await api.bulkUpdateProducts(ids, { isArchived: true, isShowcase: false });
@@ -1349,7 +1330,6 @@ export default function ProductManager() {
     setIsMoveModalOpen(false);
     setMoveToCategoryId("");
     setMoveToSubcategoryId("");
-    setAlertMessage(`تم نقل ${ids.length} منتج بنجاح 🚀`);
 
     try {
       await api.bulkUpdateProducts(ids, { categoryId: targetCatId, subcategoryId: targetSubcatId });
@@ -1402,7 +1382,6 @@ export default function ProductManager() {
     setIsMoveModalOpen(false);
     setMoveToCategoryId("");
     setMoveToSubcategoryId("");
-    setAlertMessage(`تم النقل الذكي التلقائي لـ ${ids.length} منتج إلى أقسامها الرئيسية بنجاح!`);
 
     setIsSubmitting(true);
     try {

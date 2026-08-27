@@ -39,6 +39,9 @@ import ShowcaseCartModal from './ShowcaseCartModal';
 import { localCache } from '../../utils/localCache';
 import { useGridZoom } from '../../hooks/useGridZoom';
 import ZoomHUD from '../ui/ZoomHUD';
+import QuickContactWidget from '../common/QuickContactWidget';
+import ShowcasePromptModal from './ShowcasePromptModal';
+import { Headset } from 'lucide-react';
 
 export const SHOWCASE_CATEGORIES = [
   { id: 'all', name: 'كل الأقسام', icon: '✨', image: allCategoriesImg },
@@ -181,7 +184,25 @@ export default function ShowcasePage() {
   const [cart, setCart] = useState<{product: Product, quantity: number}[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [isPromptModalOpen, setIsPromptModalOpen] = useState(false);
+  const [navCounter, setNavCounter] = useState(0);
   const itemsPerPage = 40;
+
+  const handleCategorySelect = (catId: string) => {
+    if (catId !== selectedCategory) {
+      setSelectedCategory(catId);
+      setCurrentPage(1);
+      if (settings?.showcasePromptEnabled !== false) {
+        setNavCounter(prev => {
+          const next = prev + 1;
+          if (next === 1 || next % 2 === 0) {
+            setIsPromptModalOpen(true);
+          }
+          return next;
+        });
+      }
+    }
+  };
 
   const addToCart = (product: Product) => {
     setCart(prev => {
@@ -575,18 +596,14 @@ export default function ShowcasePage() {
                 <span>مشاركة</span>
               </button>
 
-              {settings?.phone && (
-                <a
-                  href={`https://wa.me/${settings.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent('السلام عليكم شركة الوفاء المتميز، أود الاستفسار عن الموديلات المعروضة في الكتالوج.')}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-xl bg-brq-royal hover:bg-blue-600 text-white text-xs sm:text-sm font-bold transition-all shadow-lg active:scale-95"
-                  title="محادثة واتساب مباشرة"
-                >
-                  <MessageCircle size={16} />
-                  <span className="hidden sm:inline">طلب / استفسار</span>
-                </a>
-              )}
+              <button
+                onClick={() => setIsPromptModalOpen(true)}
+                className="flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-xl bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-400 hover:to-amber-400 text-black text-xs sm:text-sm font-black transition-all shadow-[0_0_15px_rgba(234,179,8,0.3)] active:scale-95 cursor-pointer"
+                title="أرقام التواصل والطلب (واتساب، تيليجرام، مكالمة)"
+              >
+                <Headset size={16} />
+                <span>أرقام التواصل</span>
+              </button>
             </div>
           </div>
 
@@ -662,7 +679,7 @@ export default function ShowcasePage() {
               return (
                 <button
                   key={cat.id}
-                  onClick={() => setSelectedCategory(cat.id)}
+                  onClick={() => handleCategorySelect(cat.id)}
                   className={`flex items-center gap-2 pr-4 pl-1.5 py-1.5 rounded-full whitespace-nowrap transition-all border shrink-0 ${
                     isSelected
                       ? 'bg-brq-gold text-black font-bold border-brq-gold shadow-[0_0_12px_rgba(251,191,36,0.3)]'
@@ -698,6 +715,31 @@ export default function ShowcasePage() {
 
       {/* Main Content Area */}
       <main className="max-w-7xl mx-auto px-3 sm:px-6 py-6">
+
+        {/* Beautiful More Products Banner */}
+        <div className="mb-6 p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-yellow-500/10 via-black/40 to-yellow-500/10 border border-yellow-500/30 text-white shadow-xl relative overflow-hidden" dir="rtl">
+          <div className="flex flex-col lg:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3 text-right">
+              <div className="w-11 h-11 rounded-2xl bg-yellow-500/20 border border-yellow-500/40 flex items-center justify-center text-yellow-300 shrink-0 shadow-inner">
+                <Sparkles size={22} className="animate-pulse" />
+              </div>
+              <div>
+                <h4 className="font-black text-sm sm:text-base text-yellow-300 flex items-center gap-2">
+                  <span>لرؤية المزيد من المنتجات والتشكيلات الحصرية</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-400/20 text-yellow-300 border border-yellow-400/30">كتالوجات متجددة</span>
+                </h4>
+                <p className="text-xs text-white/70 mt-0.5">
+                  يرجى مراسلة أو الاتصال بالأرقام المباشرة لتزويدكم بأحدث الموديلات والأسعار الخاصة:
+                </p>
+              </div>
+            </div>
+            
+            <div className="w-full lg:w-auto">
+              <QuickContactWidget settings={settings} variant="inline" className="w-full" />
+            </div>
+          </div>
+        </div>
+
         {loading ? (
           <div className="flex flex-col items-center justify-center h-64 gap-4">
             <div className="w-12 h-12 border-4 border-brq-gold border-t-transparent rounded-full animate-spin"></div>
@@ -928,6 +970,17 @@ export default function ShowcasePage() {
         onZoomIn={zoomIn} 
         onZoomOut={zoomOut} 
         onReset={resetZoom} 
+      />
+
+      {/* Floating Quick Contact Widget */}
+      <QuickContactWidget settings={settings} variant="floating" />
+
+      {/* Interactive Prompt Modal when navigating */}
+      <ShowcasePromptModal 
+        isOpen={isPromptModalOpen}
+        onClose={() => setIsPromptModalOpen(false)}
+        settings={settings}
+        categoryName={SHOWCASE_CATEGORIES.find(c => c.id === selectedCategory)?.name}
       />
     </div>
   );
