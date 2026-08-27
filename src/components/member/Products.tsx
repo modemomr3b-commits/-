@@ -1033,7 +1033,7 @@ export default function Products() {
               )}
               
               <div 
-                className="w-full aspect-[1/1] bg-black/40 relative flex items-center justify-center border-b border-white/5 p-0 overflow-hidden cursor-pointer group/img"
+                className="w-full aspect-[3/4] bg-black/60 relative flex items-center justify-center border-b border-white/5 p-0 overflow-hidden cursor-pointer group/img"
                 onClick={(e) => {
                   if (isSelectionMode) return;
                   e.preventDefault();
@@ -1045,13 +1045,13 @@ export default function Products() {
                 }}
               >
                 {p.finalImageUrl || p.imageUrl ? (
-                  <div className="absolute inset-0">
+                  <div className="absolute inset-0 w-full h-full">
                     <OptimizedImage
                       src={p.finalImageUrl || p.imageUrl}
                       alt={p.name}
                       size="medium"
                       className="w-full h-full"
-                      imgClassName="object-contain w-full h-full group-hover/img:scale-105 transition-transform duration-500"
+                      imgClassName="object-fill w-full h-full group-hover/img:scale-105 transition-transform duration-500"
                     />
                   </div>
                 ) : (

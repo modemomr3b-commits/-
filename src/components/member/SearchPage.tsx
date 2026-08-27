@@ -266,10 +266,10 @@ export default function SearchPage() {
                             sessionStorage.setItem('return_search_query', searchInput);
                             sessionStorage.setItem('return_search_archived', searchArchived.toString());
                           }}>
-                      <div className="w-full aspect-[1/1] bg-black/50 relative flex items-center justify-center p-0 overflow-hidden border-b border-yellow-500/20">
+                      <div className="w-full aspect-[3/4] bg-black/50 relative flex items-center justify-center p-0 overflow-hidden border-b border-yellow-500/20">
                          {p.finalImageUrl || p.imageUrl ? (
-                           <div className="absolute inset-0">
-                             <OptimizedImage src={p.finalImageUrl || p.imageUrl} alt={p.name || ''} size="medium" className="w-full h-full" imgClassName="object-contain w-full h-full" />
+                           <div className="absolute inset-0 w-full h-full">
+                             <OptimizedImage src={p.finalImageUrl || p.imageUrl} alt={p.name || ''} size="medium" className="w-full h-full" imgClassName="object-fill w-full h-full" />
                            </div>
                          ) : (
                            <span className="text-4xl opacity-50">👟</span>

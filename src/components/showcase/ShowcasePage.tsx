@@ -651,15 +651,15 @@ export default function ShowcasePage() {
                 }}
                 className="rounded-2xl overflow-hidden flex flex-col justify-between h-full border-2 border-yellow-500/50 hover:border-yellow-400 transition-all duration-300 group cursor-pointer shadow-lg hover:shadow-[0_8px_30px_rgba(234,179,8,0.28)] relative bg-gradient-to-b from-[#2B2304] to-[#141002]"
               >
-                {/* Image Container - Unified 1:1 Aspect Ratio & Contain without Cropping */}
-                <div className="w-full aspect-[1/1] bg-black/60 relative flex items-center justify-center overflow-hidden border-b border-yellow-500/20">
+                {/* Image Container - Unified 3:4 Aspect Ratio & Edge-to-edge Fill without Cropping */}
+                <div className="w-full aspect-[3/4] bg-black/60 relative flex items-center justify-center overflow-hidden border-b border-yellow-500/20">
                   {p.finalImageUrl || p.imageUrl ? (
                     <OptimizedImage
                       src={p.finalImageUrl || p.imageUrl}
                       alt={p.name}
                       size="medium"
                       className="w-full h-full"
-                      imgClassName="object-contain w-full h-full p-1 group-hover:scale-105 transition-transform duration-500"
+                      imgClassName="object-fill w-full h-full group-hover:scale-105 transition-transform duration-500"
                     />
                   ) : (
                     <div className="text-4xl text-white/30">👟</div>
