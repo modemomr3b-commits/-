@@ -161,22 +161,8 @@ export default function Home() {
         </div>
       </motion.div>
 
-      {/* Animated Moving Contact Widget Bar */}
-      <motion.div
-        initial={{ opacity: 0, scale: 0.98 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ delay: 0.1 }}
-        className="max-w-4xl mx-auto"
-      >
-        <QuickContactWidget
-          variant="marquee"
-          settings={showcaseSettings}
-          customMessage="السلام عليكم شركة الوفاء المتميز، أود الاستفسار والطلب من المنتجات المعروضة بالموقع."
-        />
-      </motion.div>
-
       {/* 3D Animated Hero Logo Section */}
-      <div className="w-full flex items-center justify-center mb-12 relative pt-8">
+      <div className="w-full flex items-center justify-center mb-8 relative pt-4">
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="w-1/2 h-full bg-brq-gold/10 blur-[120px] rounded-full" />
         </div>
@@ -184,6 +170,20 @@ export default function Home() {
           <Animated3DLogo isHovered={true} scale={1.3} />
         </div>
       </div>
+
+      {/* Luxury Animated Moving Contact Widget Bar - Positioned right above the Bento Banner */}
+      <motion.div
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.15, duration: 0.5 }}
+        className="w-full mb-8"
+      >
+        <QuickContactWidget
+          variant="marquee"
+          settings={showcaseSettings}
+          customMessage="السلام عليكم شركة الوفاء المتميز، أود الاستفسار والطلب من المنتجات المعروضة بالموقع."
+        />
+      </motion.div>
 
       {/* Bento Grid Layout for Desktop */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">

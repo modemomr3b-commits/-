@@ -249,11 +249,6 @@ export default function MemberLayout() {
           <Outlet />
         </main>
 
-        {/* Quick Contact Widget for Main App */}
-        <div className="hidden sm:block">
-          <QuickContactWidget settings={settings} variant="floating" />
-        </div>
-
         {/* Mobile Bottom Navigation */}
         <nav className="fixed bottom-0 left-0 right-0 glass-panel border-t border-brq-gold/20 pb-safe md:hidden z-50 rounded-t-2xl">
           <div className="flex items-center justify-around p-2">

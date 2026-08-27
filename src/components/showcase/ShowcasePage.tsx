@@ -951,9 +951,6 @@ export default function ShowcasePage() {
         onReset={resetZoom} 
       />
 
-      {/* Floating Quick Contact Widget */}
-      <QuickContactWidget settings={settings} variant="floating" />
-
       {/* Interactive Prompt Modal when navigating */}
       <ShowcasePromptModal 
         isOpen={isPromptModalOpen}
