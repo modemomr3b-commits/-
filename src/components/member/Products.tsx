@@ -1,6 +1,6 @@
 import { formatDateTime, formatDate } from '../../utils/time';
 import { useParams, Link, useNavigate } from "react-router";
-import { ChevronRight, Filter, Download, ShoppingCart, Layers, Share2, CheckSquare, Square, History, Loader2, Search, Lock, LayoutGrid, Columns, Check } from "lucide-react";
+import { ChevronRight, Filter, Download, ShoppingCart, Layers, Share2, CheckSquare, Square, History, Loader2, Search, Lock, LayoutGrid, Columns, Check, ZoomIn, ZoomOut } from "lucide-react";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { compressImage } from '../../utils/compressImage';
 import { api } from "../../api";
@@ -16,6 +16,8 @@ import ImageViewer from "../ImageViewer";
 import { shuffleProductsForUser } from '../../utils/shuffle';
 import { localCache } from "../../utils/localCache";
 import { isWafaaUser } from "../../utils/wafaaHelper";
+import { useGridZoom } from '../../hooks/useGridZoom';
+import ZoomHUD from '../ui/ZoomHUD';
 
 const MOCK_PRODUCTS: Product[] = [];
 
@@ -35,10 +37,25 @@ export default function Products() {
   });
   
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
-  const [gridColumns, setGridColumns] = useState<1 | 2 | 4>(() => {
-    const saved = localStorage.getItem('brq_catalog_cols');
-    return (saved === '1' || saved === '2' || saved === '4') ? (Number(saved) as 1 | 2 | 4) : 2;
+  
+  // Grid Column & Zoom management with Ctrl + Mouse Wheel support
+  const {
+    columns: gridColumns,
+    setColumns: setGridColumns,
+    zoomIn,
+    zoomOut,
+    resetZoom,
+    showHUD,
+    zoomLabel,
+    gridClass,
+    canZoomIn,
+    canZoomOut
+  } = useGridZoom({
+    storageKey: 'brq_catalog_cols',
+    minCols: 1,
+    maxCols: 6
   });
+
   const [isViewModeOpen, setIsViewModeOpen] = useState(false);
   const [subCategories, setSubCategories] = useState<any[]>([]);
   const [allCategories, setAllCategories] = useState<Category[]>([]);
@@ -832,91 +849,78 @@ export default function Products() {
             <CheckSquare size={14} /> تحديد
           </button>
           
-          <div className="relative flex-1">
-            <button 
-              onClick={() => setIsViewModeOpen(!isViewModeOpen)}
-              className={`w-full py-2 rounded-lg border text-xs flex gap-1.5 items-center justify-center transition-all ${
-                isViewModeOpen 
-                  ? "bg-brq-gold/20 text-brq-gold border-brq-gold/50 shadow-[0_0_10px_rgba(212,175,55,0.2)]" 
-                  : "bg-white/5 text-white border-white/10 hover:bg-white/10 hover:border-white/20"
-              }`}
-              title="طريقة العرض (1، 2، 4 منتجات)"
+          <div className="flex items-center gap-1 bg-white/5 border border-white/10 rounded-lg p-0.5 shrink-0">
+            <button
+              type="button"
+              onClick={zoomIn}
+              disabled={!canZoomIn}
+              className="p-1.5 rounded-md text-white/70 hover:text-white hover:bg-white/10 disabled:opacity-30 transition-colors"
+              title="تكبير حجم الصور (Ctrl + بكرة الماوس لأعلى)"
             >
-              <LayoutGrid size={14} className="text-brq-gold" />
-              <span className="font-medium whitespace-nowrap">طريقة العرض</span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded bg-white/10 font-mono text-brq-gold font-bold">{gridColumns}</span>
+              <ZoomIn size={14} />
+            </button>
+            <button
+              type="button"
+              onClick={zoomOut}
+              disabled={!canZoomOut}
+              className="p-1.5 rounded-md text-white/70 hover:text-white hover:bg-white/10 disabled:opacity-30 transition-colors"
+              title="تصغير حجم الصور (Ctrl + بكرة الماوس لأسفل)"
+            >
+              <ZoomOut size={14} />
             </button>
 
-            {isViewModeOpen && (
-              <>
-                <div 
-                  className="fixed inset-0 z-40" 
-                  onClick={() => setIsViewModeOpen(false)} 
-                />
-                <div className="absolute left-0 top-full mt-2 w-52 bg-gray-900/95 backdrop-blur-xl border border-white/15 rounded-xl shadow-2xl p-1.5 z-50 animate-in fade-in zoom-in-95 duration-150">
-                  <p className="text-[11px] text-white/60 px-2.5 py-1.5 font-medium border-b border-white/10 mb-1 text-right">
-                    طريقة عرض المنتجات:
-                  </p>
-                  
-                  <button
-                    onClick={() => {
-                      setGridColumns(4);
-                      localStorage.setItem('brq_catalog_cols', '4');
-                      setIsViewModeOpen(false);
-                    }}
-                    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-colors mb-1 ${
-                      gridColumns === 4 
-                        ? "bg-brq-gold/20 text-brq-gold font-bold border border-brq-gold/30" 
-                        : "text-white/80 hover:bg-white/10"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <LayoutGrid size={16} />
-                      <span>4 منتجات (عرض مصغر)</span>
-                    </div>
-                    {gridColumns === 4 && <Check size={14} className="text-brq-gold" />}
-                  </button>
+            <div className="w-[1px] h-3.5 bg-white/15 mx-0.5" />
 
-                  <button
-                    onClick={() => {
-                      setGridColumns(2);
-                      localStorage.setItem('brq_catalog_cols', '2');
-                      setIsViewModeOpen(false);
-                    }}
-                    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-colors mb-1 ${
-                      gridColumns === 2 
-                        ? "bg-brq-gold/20 text-brq-gold font-bold border border-brq-gold/30" 
-                        : "text-white/80 hover:bg-white/10"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Columns size={16} />
-                      <span>2 منتج (العرض القياسي)</span>
-                    </div>
-                    {gridColumns === 2 && <Check size={14} className="text-brq-gold" />}
-                  </button>
+            <div className="relative">
+              <button 
+                onClick={() => setIsViewModeOpen(!isViewModeOpen)}
+                className={`py-1 px-2 rounded-md text-xs flex gap-1 items-center justify-center transition-all ${
+                  isViewModeOpen 
+                    ? "bg-brq-gold/20 text-brq-gold border border-brq-gold/50" 
+                    : "text-white/80 hover:text-white hover:bg-white/10"
+                }`}
+                title="طريقة العرض والأعمدة"
+              >
+                <LayoutGrid size={13} className="text-brq-gold" />
+                <span className="font-mono text-[11px] font-bold text-brq-gold">{gridColumns}ع</span>
+              </button>
 
-                  <button
-                    onClick={() => {
-                      setGridColumns(1);
-                      localStorage.setItem('brq_catalog_cols', '1');
-                      setIsViewModeOpen(false);
-                    }}
-                    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-colors ${
-                      gridColumns === 1 
-                        ? "bg-brq-gold/20 text-brq-gold font-bold border border-brq-gold/30" 
-                        : "text-white/80 hover:bg-white/10"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Square size={16} />
-                      <span>1 منتج (عرض عريض وكبير)</span>
-                    </div>
-                    {gridColumns === 1 && <Check size={14} className="text-brq-gold" />}
-                  </button>
-                </div>
-              </>
-            )}
+              {isViewModeOpen && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-40" 
+                    onClick={() => setIsViewModeOpen(false)} 
+                  />
+                  <div className="absolute left-0 top-full mt-2 w-52 bg-gray-900/95 backdrop-blur-xl border border-white/15 rounded-xl shadow-2xl p-1.5 z-50 animate-in fade-in zoom-in-95 duration-150">
+                    <p className="text-[11px] text-white/60 px-2.5 py-1.5 font-medium border-b border-white/10 mb-1 text-right">
+                      طريقة عرض المنتجات:
+                    </p>
+                    
+                    {[4, 3, 2, 1].map((cols) => (
+                      <button
+                        key={cols}
+                        onClick={() => {
+                          setGridColumns(cols);
+                          localStorage.setItem('brq_catalog_cols', cols.toString());
+                          setIsViewModeOpen(false);
+                        }}
+                        className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-colors mb-1 ${
+                          gridColumns === cols 
+                            ? "bg-brq-gold/20 text-brq-gold font-bold border border-brq-gold/30" 
+                            : "text-white/80 hover:bg-white/10"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          {cols >= 4 ? <LayoutGrid size={15} /> : cols === 2 ? <Columns size={15} /> : <Square size={15} />}
+                          <span>{cols} {cols === 1 ? 'منتج كبير' : 'منتجات'}</span>
+                        </div>
+                        {gridColumns === cols && <Check size={14} className="text-brq-gold" />}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -948,20 +952,14 @@ export default function Products() {
           </button>
         </div>
       ) : (
-        <div className={`pb-24 transition-all duration-300 ${
-          gridColumns === 4 
-            ? "p-2 sm:p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-2.5 sm:gap-4" 
-            : gridColumns === 1 
-            ? "p-4 grid grid-cols-1 max-w-xl mx-auto gap-5" 
-            : "p-3 sm:p-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5 sm:gap-4"
-        }`}>
+        <div className={`pb-24 transition-all duration-300 ${gridClass}`}>
           {filteredProducts.map((p) => {
             const isWafaa = isWafaaUser(user);
             const isExpanded = isWafaa ? !!expandedProducts[p.id!] : true;
             return (
             <Link to={`/product/${p.id}`} state={{ product: p }}
               key={p.id}
-              className={`rounded-2xl overflow-hidden flex flex-col relative group transition-all shadow-xl bg-gradient-to-b from-[#2B2304] to-[#141002] border-2 border-yellow-500/50 hover:border-yellow-400 hover:shadow-[0_8px_30px_rgba(234,179,8,0.28)] ${
+              className={`rounded-2xl overflow-hidden flex flex-col justify-between h-full relative group transition-all shadow-xl bg-gradient-to-b from-[#2B2304] to-[#141002] border-2 border-yellow-500/50 hover:border-yellow-400 hover:shadow-[0_8px_30px_rgba(234,179,8,0.28)] ${
                 selectedIds.has(p.id!) ? "ring-2 ring-blue-500" : ""
               }`}
               onClick={(e) => {
@@ -1312,6 +1310,16 @@ export default function Products() {
           onCancel={() => setDownloadChoiceDialog(null)}
         />
       )}
+
+      {/* Floating Zoom HUD Indicator for Mouse Wheel & Buttons */}
+      <ZoomHUD 
+        show={showHUD} 
+        columns={gridColumns} 
+        label={zoomLabel} 
+        onZoomIn={zoomIn} 
+        onZoomOut={zoomOut} 
+        onReset={resetZoom} 
+      />
     </div>
   );
 }

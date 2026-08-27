@@ -19,7 +19,10 @@ import {
   PackageCheck,
   Home,
   ShoppingCart,
-  Plus
+  Plus,
+  ZoomIn,
+  ZoomOut,
+  Grid
 } from 'lucide-react';
 import { api } from '../../api';
 import { supabase } from '../../supabase';
@@ -33,6 +36,8 @@ import Animated3DLogo from '../ui/Animated3DLogo';
 import ShowcaseAuth from './ShowcaseAuth';
 import ShowcaseCartModal from './ShowcaseCartModal';
 import { localCache } from '../../utils/localCache';
+import { useGridZoom } from '../../hooks/useGridZoom';
+import ZoomHUD from '../ui/ZoomHUD';
 
 export const SHOWCASE_CATEGORIES = [
   { id: 'all', name: 'كل الأقسام', icon: '✨', image: allCategoriesImg },
@@ -142,11 +147,22 @@ export default function ShowcasePage() {
     showToast('تمت إضافة الموديل إلى السلة');
   };
 
-  // Column view layout (1, 2, or 4)
-  const [gridColumns, setGridColumns] = useState<1 | 2 | 4>(() => {
-    const saved = localStorage.getItem('brq_showcase_cols');
-    if (saved === '1' || saved === '2' || saved === '4') return Number(saved) as 1 | 2 | 4;
-    return window.innerWidth < 640 ? 2 : 4;
+  // Grid Column & Zoom management with Ctrl + Mouse Wheel support
+  const {
+    columns: gridColumns,
+    setColumns: setGridColumns,
+    zoomIn,
+    zoomOut,
+    resetZoom,
+    showHUD,
+    zoomLabel,
+    gridClass,
+    canZoomIn,
+    canZoomOut
+  } = useGridZoom({
+    storageKey: 'brq_showcase_cols',
+    minCols: 1,
+    maxCols: 6
   });
 
   const showToast = (msg: string) => {
@@ -506,38 +522,46 @@ export default function ShowcasePage() {
               )}
             </div>
 
-            {/* Grid Column Selector Buttons */}
-            <div className="flex items-center bg-white/5 border border-white/10 rounded-xl p-1 shrink-0">
+            {/* Grid Zoom & Column Selector Controls */}
+            <div className="flex items-center gap-1 bg-white/5 border border-white/10 rounded-xl p-1 shrink-0">
               <button
-                onClick={() => {
-                  setGridColumns(4);
-                  localStorage.setItem('brq_showcase_cols', '4');
-                }}
-                className={`p-1.5 rounded-lg transition-colors ${gridColumns === 4 ? 'bg-brq-gold text-black font-bold' : 'text-white/50 hover:text-white'}`}
-                title="عرض 4 أعمدة"
+                type="button"
+                onClick={zoomIn}
+                disabled={!canZoomIn}
+                className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer"
+                title="تكبير حجم الصور (تقليل الأعمدة) - يمكنك أيضاً استخدام Ctrl + بكرة الماوس"
               >
-                <LayoutGrid size={16} />
+                <ZoomIn size={15} />
               </button>
+
               <button
-                onClick={() => {
-                  setGridColumns(2);
-                  localStorage.setItem('brq_showcase_cols', '2');
-                }}
-                className={`p-1.5 rounded-lg transition-colors ${gridColumns === 2 ? 'bg-brq-gold text-black font-bold' : 'text-white/50 hover:text-white'}`}
-                title="عرض عمودين"
+                type="button"
+                onClick={zoomOut}
+                disabled={!canZoomOut}
+                className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer"
+                title="تصغير حجم الصور (زيادة الأعمدة) - يمكنك أيضاً استخدام Ctrl + بكرة الماوس"
               >
-                <Columns size={16} />
+                <ZoomOut size={15} />
               </button>
-              <button
-                onClick={() => {
-                  setGridColumns(1);
-                  localStorage.setItem('brq_showcase_cols', '1');
-                }}
-                className={`p-1.5 rounded-lg transition-colors ${gridColumns === 1 ? 'bg-brq-gold text-black font-bold' : 'text-white/50 hover:text-white'}`}
-                title="عرض عمود واحد كبير"
-              >
-                <Square size={16} />
-              </button>
+
+              <div className="w-[1px] h-4 bg-white/15 mx-0.5" />
+
+              {/* Quick column buttons */}
+              {[4, 3, 2, 1].map((colVal) => (
+                <button
+                  key={colVal}
+                  type="button"
+                  onClick={() => setGridColumns(colVal)}
+                  className={`px-2 py-1 rounded-lg text-xs font-bold font-mono transition-all cursor-pointer ${
+                    gridColumns === colVal
+                      ? 'bg-brq-gold text-black shadow-md font-black scale-105'
+                      : 'text-white/50 hover:text-white hover:bg-white/10'
+                  }`}
+                  title={`عرض ${colVal} ${colVal === 1 ? 'عمود' : 'أعمدة'}`}
+                >
+                  {colVal}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -612,13 +636,7 @@ export default function ShowcasePage() {
             )}
           </div>
         ) : (
-          <div className={`transition-all duration-300 ${
-            gridColumns === 4 
-              ? "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-3 sm:gap-4" 
-              : gridColumns === 1 
-              ? "grid grid-cols-1 max-w-2xl mx-auto gap-5" 
-              : "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4"
-          }`}>
+          <div className={`transition-all duration-300 ${gridClass}`}>
             {paginatedProducts.map((p, idx) => (
               <div
                 key={p.id}
@@ -631,17 +649,17 @@ export default function ShowcasePage() {
                     });
                   }
                 }}
-                className="rounded-2xl overflow-hidden flex flex-col border-2 border-yellow-500/50 hover:border-yellow-400 transition-all duration-300 group cursor-pointer shadow-lg hover:shadow-[0_8px_30px_rgba(234,179,8,0.28)] relative bg-gradient-to-b from-[#2B2304] to-[#141002]"
+                className="rounded-2xl overflow-hidden flex flex-col justify-between h-full border-2 border-yellow-500/50 hover:border-yellow-400 transition-all duration-300 group cursor-pointer shadow-lg hover:shadow-[0_8px_30px_rgba(234,179,8,0.28)] relative bg-gradient-to-b from-[#2B2304] to-[#141002]"
               >
-                {/* Image Container */}
-                <div className="w-full aspect-[1/1] bg-black/50 relative flex items-center justify-center overflow-hidden border-b border-yellow-500/20">
+                {/* Image Container - Unified 1:1 Aspect Ratio & Contain without Cropping */}
+                <div className="w-full aspect-[1/1] bg-black/60 relative flex items-center justify-center overflow-hidden border-b border-yellow-500/20">
                   {p.finalImageUrl || p.imageUrl ? (
                     <OptimizedImage
                       src={p.finalImageUrl || p.imageUrl}
                       alt={p.name}
                       size="medium"
                       className="w-full h-full"
-                      imgClassName="object-contain w-full h-full group-hover:scale-105 transition-transform duration-500"
+                      imgClassName="object-contain w-full h-full p-1 group-hover:scale-105 transition-transform duration-500"
                     />
                   ) : (
                     <div className="text-4xl text-white/30">👟</div>
@@ -812,6 +830,16 @@ export default function ShowcasePage() {
           hasPrev={filteredProducts.findIndex(p => p.id === fullscreenImage.product.id) > 0}
         />
       )}
+
+      {/* Floating Zoom HUD Indicator for Mouse Wheel & Buttons */}
+      <ZoomHUD 
+        show={showHUD} 
+        columns={gridColumns} 
+        label={zoomLabel} 
+        onZoomIn={zoomIn} 
+        onZoomOut={zoomOut} 
+        onReset={resetZoom} 
+      />
     </div>
   );
 }
