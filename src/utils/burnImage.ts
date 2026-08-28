@@ -57,7 +57,7 @@ export const burnProductOverlay = async (product: any, rawImageUrl: string): Pro
         // --- ROW 1: Code and Packaging ---
         const row1Y = topH + (25 * scale);
 
-        // Code (Right side - Enlarged)
+        // Code (Right side - Enlarged in Original Gold)
         ctx.fillStyle = '#ffd700';
         ctx.font = `900 ${52 * scale}px Cairo, sans-serif`;
         const codeText = `الكود: ${product.productCode || '---'}`;
@@ -92,10 +92,11 @@ export const burnProductOverlay = async (product: any, rawImageUrl: string): Pro
             ctx.fillRect(doxX, boxY, doxW, doxH);
         }
 
-        ctx.fillStyle = '#aaaaaa';
-        ctx.font = `${24 * scale}px Cairo, sans-serif`;
+        // 'دم الغزال' Crimson Red for Wholesale Label
+        ctx.fillStyle = '#dc2626';
+        ctx.font = `bold ${24 * scale}px Cairo, sans-serif`;
         ctx.fillText('سعر الجملة (الدرزن)', doxX + doxW - (20 * scale), boxY + (15 * scale));
-        ctx.fillStyle = '#d4af37';
+        ctx.fillStyle = '#ffd700';
         ctx.font = `bold ${36 * scale}px Cairo, sans-serif`;
         ctx.fillText(Number(product.price || 0).toLocaleString("en-US") + ' د.ع', doxX + doxW - (20 * scale), boxY + (45 * scale));
 
@@ -119,8 +120,9 @@ export const burnProductOverlay = async (product: any, rawImageUrl: string): Pro
         const calcPieces = (product.forceStandardCrush ?? true) ? 12 : (Number(product.piecesCount) || (parseInt(product.packaging) > 0 ? parseInt(product.packaging) : 12));
         const finalPiecePrice = product.piecePriceIqd || (product.price && calcPieces > 0 ? Math.round(product.price / calcPieces) : 0);
 
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'; // Dark text for label
-        ctx.font = `${24 * scale}px Cairo, sans-serif`;
+        // 'دم الغزال' Deep Burgundy / Oxblood Red for Retail Label on Gold
+        ctx.fillStyle = '#800020';
+        ctx.font = `bold ${24 * scale}px Cairo, sans-serif`;
         // In Arabic, we're writing rtl but the text origin is right for fillText because of ctx.textAlign = 'right'
         ctx.fillText('سعر المفرد (القطعة)', pceX + pceW - (20 * scale), boxY + (15 * scale));
         ctx.fillStyle = '#000000'; // Black text for price

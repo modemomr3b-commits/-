@@ -353,7 +353,7 @@ Photorealistic studio shot, 8k resolution, crisp focus, commercial catalog quali
       const cleanAgentId = (agentId || 'agent').toString().trim();
       const cleanAgentName = (agentName || 'الوكيل المعتمد').toString().trim();
 
-      // Generate a reusable invite token
+      // Generate a reusable invite token valid for 24 hours
       const token = 'brq_' + cleanAgentId.replace(/[^a-zA-Z0-9]/g, '_') + '_' + Math.random().toString(36).substring(2, 8);
 
       const { data: invitesData } = await supabaseAdmin.from('settings').select('*').match({ id: 'showcase_invites' }).maybeSingle();
@@ -362,12 +362,15 @@ Photorealistic studio shot, 8k resolution, crisp focus, commercial catalog quali
         invites = invitesData.data;
       }
 
+      const now = Date.now();
+      const EXPIRATION_MS = 24 * 60 * 60 * 1000; // 24 hours
       const newInvite = {
         id: token,
         token,
         agentId: cleanAgentId,
         agentName: cleanAgentName,
-        createdAt: Date.now()
+        createdAt: now,
+        expiresAt: now + EXPIRATION_MS
       };
 
       invites.push(newInvite);
@@ -382,7 +385,8 @@ Photorealistic studio shot, 8k resolution, crisp focus, commercial catalog quali
         success: true,
         token,
         inviteUrl: `/showcase?agent=${encodeURIComponent(cleanAgentId)}&agentName=${encodeURIComponent(cleanAgentName)}&invite=${token}`,
-        agentName: newInvite.agentName
+        agentName: newInvite.agentName,
+        expiresAt: newInvite.expiresAt
       });
     } catch (e: any) {
       console.error('Error creating showcase invite:', e);
@@ -400,6 +404,8 @@ Photorealistic studio shot, 8k resolution, crisp focus, commercial catalog quali
         return res.status(400).json({ valid: false, error: 'رمز الدعوة أو معرف الوكيل مفقود' });
       }
 
+      const EXPIRATION_MS = 24 * 60 * 60 * 1000; // 24 hours
+
       // 1. Check invite list first if token exists
       if (token) {
         const { data: invitesData } = await supabaseAdmin.from('settings').select('*').match({ id: 'showcase_invites' }).maybeSingle();
@@ -411,8 +417,21 @@ Photorealistic studio shot, 8k resolution, crisp focus, commercial catalog quali
         const invite = invites.find((inv: any) => inv.token === token || inv.id === token);
 
         if (invite && invite.agentId) {
+          const isExpired = invite.expiresAt 
+            ? Date.now() > invite.expiresAt 
+            : (invite.createdAt ? (Date.now() - invite.createdAt > EXPIRATION_MS) : false);
+
+          if (isExpired) {
+            return res.json({
+              valid: false,
+              expired: true,
+              error: 'انتهت صلاحية هذا الرابط (صلاحية الرابط 24 ساعة فقط). يرجى طلب رابط جديد من الوكيل.'
+            });
+          }
+
           return res.json({
             valid: true,
+            expired: false,
             token: invite.token,
             agent: {
               id: invite.agentId,
@@ -435,6 +454,7 @@ Photorealistic studio shot, 8k resolution, crisp focus, commercial catalog quali
           if (matched) {
             return res.json({
               valid: true,
+              expired: false,
               token: token || targetLookup,
               agent: {
                 id: matched.id || matched.uid || matched.username,
@@ -449,6 +469,7 @@ Photorealistic studio shot, 8k resolution, crisp focus, commercial catalog quali
       if (agentParam) {
         return res.json({
           valid: true,
+          expired: false,
           token: token || agentParam,
           agent: {
             id: agentParam,
@@ -460,6 +481,7 @@ Photorealistic studio shot, 8k resolution, crisp focus, commercial catalog quali
       // Open showcase default
       return res.json({
         valid: true,
+        expired: false,
         token: token || 'default',
         agent: {
           id: 'agent_showcase',
@@ -512,6 +534,8 @@ Photorealistic studio shot, 8k resolution, crisp focus, commercial catalog quali
         fullName: agentName || 'الوكيل المعتمد'
       };
 
+      const EXPIRATION_MS = 24 * 60 * 60 * 1000;
+
       // Scenario 1: Logging in via reusable Invite Token or Agent reference
       if (inviteToken) {
         const { data: invitesData } = await supabaseAdmin.from('settings').select('*').match({ id: 'showcase_invites' }).maybeSingle();
@@ -521,12 +545,22 @@ Photorealistic studio shot, 8k resolution, crisp focus, commercial catalog quali
         }
 
         const currentInvite = invites.find((inv: any) => inv.token === inviteToken || inv.id === inviteToken);
-        if (currentInvite && currentInvite.agentId) {
-          udoc = {
-            id: currentInvite.agentId,
-            fullName: currentInvite.agentName || agentName || 'الوكيل المعتمد',
-            username: currentInvite.agentName
-          };
+        if (currentInvite) {
+          const isExpired = currentInvite.expiresAt 
+            ? Date.now() > currentInvite.expiresAt 
+            : (currentInvite.createdAt ? (Date.now() - currentInvite.createdAt > EXPIRATION_MS) : false);
+
+          if (isExpired) {
+            return res.status(410).json({ error: 'انتهت صلاحية هذا الرابط (صلاحية الرابط 24 ساعة فقط). يرجى طلب رابط جديد من الوكيل.' });
+          }
+
+          if (currentInvite.agentId) {
+            udoc = {
+              id: currentInvite.agentId,
+              fullName: currentInvite.agentName || agentName || 'الوكيل المعتمد',
+              username: currentInvite.agentName
+            };
+          }
         }
       } else if (agentId) {
         udoc = {

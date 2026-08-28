@@ -1,16 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { User, Phone, ArrowRight, Sparkles, CheckCircle2, ShoppingBag } from 'lucide-react';
+import { User, Phone, ArrowRight, Sparkles, CheckCircle2, ShoppingBag, Clock, AlertTriangle } from 'lucide-react';
 import Animated3DLogo from '../ui/Animated3DLogo';
-import { verifyShowcaseInvite, loginShowcase } from '../../services/showcaseService';
+import { verifyShowcaseInvite, loginShowcase, getSavedShowcaseVisitor, saveShowcaseVisitor } from '../../services/showcaseService';
 
 interface ShowcaseAuthProps {
   onSuccess: (agentInfo: { id: string, fullName: string }, visitorName: string, visitorPhone?: string) => void;
 }
 
 export default function ShowcaseAuth({ onSuccess }: ShowcaseAuthProps) {
-  const [visitorName, setVisitorName] = useState('');
-  const [visitorPhone, setVisitorPhone] = useState('');
+  const [visitorName, setVisitorName] = useState(() => {
+    const saved = getSavedShowcaseVisitor();
+    return saved?.visitorName || '';
+  });
+  const [visitorPhone, setVisitorPhone] = useState(() => {
+    const saved = getSavedShowcaseVisitor();
+    return saved?.visitorPhone || '';
+  });
   const [error, setError] = useState('');
+  const [isExpired, setIsExpired] = useState(false);
   const [loading, setLoading] = useState(false);
 
   // Invite & Agent detection
@@ -39,7 +46,10 @@ export default function ShowcaseAuth({ onSuccess }: ShowcaseAuthProps) {
 
       if (token || agent) {
         verifyShowcaseInvite(token, agent, name).then((res) => {
-          if (res && res.agent && res.agent.id) {
+          if (res.expired) {
+            setIsExpired(true);
+            setError(res.error || 'انتهت صلاحية هذا الرابط (صلاحية كل رابط 24 ساعة). يرجى طلب رابط جديد من الوكيل.');
+          } else if (res && res.agent && res.agent.id) {
             setAgentInfo(res.agent);
           }
         }).catch(() => {});
@@ -52,6 +62,11 @@ export default function ShowcaseAuth({ onSuccess }: ShowcaseAuthProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    if (isExpired) {
+      setError('انتهت صلاحية هذا الرابط (صلاحية كل رابط 24 ساعة). يرجى طلب رابط جديد ومحدث من الوكيل.');
+      return;
+    }
 
     if (!visitorName.trim()) {
       setError('يرجى إدخال اسمك الكريم');
@@ -81,8 +96,15 @@ export default function ShowcaseAuth({ onSuccess }: ShowcaseAuthProps) {
         fullName: resolvedAgentName || 'الوكيل المعتمد'
       };
 
-      onSuccess(finalAgent, res.visitorName || visitorName.trim(), res.visitorPhone || visitorPhone.trim());
+      const finalName = res.visitorName || visitorName.trim();
+      const finalPhone = res.visitorPhone || visitorPhone.trim();
+
+      saveShowcaseVisitor(finalName, finalPhone, finalAgent);
+      onSuccess(finalAgent, finalName, finalPhone);
     } catch (err: any) {
+      if (err.message && err.message.includes('انتهت صلاحية')) {
+        setIsExpired(true);
+      }
       setError(err.message || 'حدث خطأ أثناء الدخول');
     } finally {
       setLoading(false);
@@ -113,66 +135,80 @@ export default function ShowcaseAuth({ onSuccess }: ShowcaseAuthProps) {
           </p>
         </div>
 
-        {error && (
-          <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-xs p-3.5 rounded-2xl mb-4 text-center font-medium">
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-xs font-bold text-white/90 mb-1.5">
-              الاسم الكامل <span className="text-brq-gold">*</span>
-            </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-white/40">
-                <User size={18} />
-              </div>
-              <input
-                type="text"
-                required
-                value={visitorName}
-                onChange={(e) => setVisitorName(e.target.value)}
-                className="w-full bg-black/50 border border-white/15 rounded-2xl py-3.5 pr-11 pl-4 text-sm text-white placeholder-white/30 focus:outline-none focus:border-brq-gold focus:ring-1 focus:ring-brq-gold transition-colors"
-                placeholder="أدخل اسمك الكريم..."
-                autoFocus
-              />
+        {isExpired ? (
+          <div className="bg-red-500/10 border border-red-500/30 text-red-400 p-5 rounded-2xl mb-4 text-center space-y-3">
+            <div className="w-12 h-12 mx-auto rounded-full bg-red-500/20 flex items-center justify-center text-red-400">
+              <Clock size={24} />
             </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-white/90 mb-1.5">
-              رقم الهاتف <span className="text-brq-gold">*</span>
-            </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-white/40">
-                <Phone size={18} />
-              </div>
-              <input
-                type="tel"
-                required
-                value={visitorPhone}
-                onChange={(e) => setVisitorPhone(e.target.value)}
-                className="w-full bg-black/50 border border-white/15 rounded-2xl py-3.5 pr-11 pl-4 text-sm text-white placeholder-white/30 focus:outline-none focus:border-brq-gold focus:ring-1 focus:ring-brq-gold transition-colors font-mono"
-                placeholder="مثلاً: 07801234567"
-                dir="ltr"
-              />
-            </div>
-            <p className="text-[11px] text-white/40 mt-1 flex items-center gap-1">
-              <CheckCircle2 size={12} className="text-emerald-400" />
-              لإرسال تفاصيل التشكيلات وتأكيد الطلبات عبر واتساب
+            <h3 className="font-bold text-sm text-red-300">انتهت صلاحية رابط المعرض</h3>
+            <p className="text-xs text-white/70 leading-relaxed">
+              روابط المعرض صالحة لمدة 24 ساعة فقط للحفاظ على تحديثات الأسعار والموديلات. يرجى مراسلة الوكيل لإرسال رابط جديد ومحدث.
             </p>
           </div>
+        ) : (
+          <>
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-xs p-3.5 rounded-2xl mb-4 text-center font-medium">
+                {error}
+              </div>
+            )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-brq-gold hover:bg-yellow-400 text-black font-black py-4 rounded-2xl transition-all flex items-center justify-center gap-2 mt-6 disabled:opacity-70 shadow-[0_0_25px_rgba(251,191,36,0.3)] active:scale-[0.98] text-sm cursor-pointer"
-          >
-            {loading ? 'جاري الدخول للمعرض...' : 'دخول للمعرض الحصري'}
-            {!loading && <ArrowRight size={18} />}
-          </button>
-        </form>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-white/90 mb-1.5">
+                  الاسم الكامل <span className="text-brq-gold">*</span>
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-white/40">
+                    <User size={18} />
+                  </div>
+                  <input
+                    type="text"
+                    required
+                    value={visitorName}
+                    onChange={(e) => setVisitorName(e.target.value)}
+                    className="w-full bg-black/50 border border-white/15 rounded-2xl py-3.5 pr-11 pl-4 text-sm text-white placeholder-white/30 focus:outline-none focus:border-brq-gold focus:ring-1 focus:ring-brq-gold transition-colors"
+                    placeholder="أدخل اسمك الكريم..."
+                    autoFocus
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-white/90 mb-1.5">
+                  رقم الهاتف <span className="text-brq-gold">*</span>
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-white/40">
+                    <Phone size={18} />
+                  </div>
+                  <input
+                    type="tel"
+                    required
+                    value={visitorPhone}
+                    onChange={(e) => setVisitorPhone(e.target.value)}
+                    className="w-full bg-black/50 border border-white/15 rounded-2xl py-3.5 pr-11 pl-4 text-sm text-white placeholder-white/30 focus:outline-none focus:border-brq-gold focus:ring-1 focus:ring-brq-gold transition-colors font-mono"
+                    placeholder="مثلاً: 07801234567"
+                    dir="ltr"
+                  />
+                </div>
+                <p className="text-[11px] text-white/40 mt-1 flex items-center gap-1">
+                  <CheckCircle2 size={12} className="text-emerald-400" />
+                  لإرسال تفاصيل التشكيلات وتأكيد الطلبات عبر واتساب
+                </p>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-brq-gold hover:bg-yellow-400 text-black font-black py-4 rounded-2xl transition-all flex items-center justify-center gap-2 mt-6 disabled:opacity-70 shadow-[0_0_25px_rgba(251,191,36,0.3)] active:scale-[0.98] text-sm cursor-pointer"
+              >
+                {loading ? 'جاري الدخول للمعرض...' : 'دخول للمعرض الحصري'}
+                {!loading && <ArrowRight size={18} />}
+              </button>
+            </form>
+          </>
+        )}
 
         <div className="mt-6 pt-4 border-t border-white/10 flex items-center justify-center gap-2 text-[11px] text-white/40">
           <ShoppingBag size={13} className="text-brq-gold" />

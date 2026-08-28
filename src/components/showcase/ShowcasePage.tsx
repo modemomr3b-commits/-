@@ -29,7 +29,17 @@ import { api } from '../../api';
 import { supabase } from '../../supabase';
 import { Product, Category } from '../../types';
 import { detectShowcaseCategory, VALID_SHOWCASE_CATEGORIES, SHOWCASE_CATEGORIES_METADATA, allCategoriesImg } from '../../utils/showcaseClassifier';
-import { createShowcaseInvite, checkIsVisitorBlocked, isVisitorInBlockedList, getBlockedVisitors, BlockedVisitor } from '../../services/showcaseService';
+import { 
+  createShowcaseInvite, 
+  verifyShowcaseInvite, 
+  loginShowcase, 
+  getSavedShowcaseVisitor, 
+  saveShowcaseVisitor, 
+  checkIsVisitorBlocked, 
+  isVisitorInBlockedList, 
+  getBlockedVisitors, 
+  BlockedVisitor 
+} from '../../services/showcaseService';
 import { useStore } from '../../store';
 import OptimizedImage from '../OptimizedImage';
 import ImageViewer from '../ImageViewer';
@@ -41,7 +51,7 @@ import { useGridZoom } from '../../hooks/useGridZoom';
 import ZoomHUD from '../ui/ZoomHUD';
 import QuickContactWidget from '../common/QuickContactWidget';
 import ShowcasePromptModal from './ShowcasePromptModal';
-import { Headset } from 'lucide-react';
+import { Headset, Clock } from 'lucide-react';
 
 export const SHOWCASE_CATEGORIES = [
   { id: 'all', name: 'كل الأقسام', icon: '✨', image: allCategoriesImg },
@@ -52,6 +62,9 @@ export default function ShowcasePage() {
   const navigate = useNavigate();
   const { user } = useStore();
   
+  const [isLinkExpired, setIsLinkExpired] = useState(false);
+  const [expiredReason, setExpiredReason] = useState('');
+
   const [authData, setAuthData] = useState<{ agent: { id: string, fullName: string }, visitorName: string } | null>(() => {
     try {
       const urlParams = new URLSearchParams(window.location.search);
@@ -94,11 +107,78 @@ export default function ShowcasePage() {
         } catch {}
       }
 
+      // 3. Check if saved visitor exists to seamlessly pre-authenticate with default agent
+      const savedVisitor = getSavedShowcaseVisitor();
+      if (savedVisitor && savedVisitor.visitorName && !hasInvite && !agentParam) {
+        return {
+          agent: {
+            id: 'agent_showcase',
+            fullName: 'معرض شركة الوفاء'
+          },
+          visitorName: savedVisitor.visitorName,
+          visitorPhone: savedVisitor.visitorPhone
+        } as any;
+      }
+
       return null;
     } catch {
       return null;
     }
   });
+
+  // Verify invite link expiration and handle automatic re-login with saved visitor profile
+  useEffect(() => {
+    let isMounted = true;
+    const checkInviteValidity = async () => {
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const inviteParam = urlParams.get('invite') || urlParams.get('token');
+        const agentParam = urlParams.get('agent') || urlParams.get('agentId');
+        const nameParam = urlParams.get('agentName') || urlParams.get('name');
+
+        if (inviteParam || agentParam) {
+          const verifyRes = await verifyShowcaseInvite(inviteParam || undefined, agentParam || undefined, nameParam || undefined);
+          if (!isMounted) return;
+
+          if (verifyRes.expired || (verifyRes.valid === false && verifyRes.error?.includes('انتهت صلاحية'))) {
+            setIsLinkExpired(true);
+            setExpiredReason(verifyRes.error || 'انتهت صلاحية هذا الرابط (صلاحية كل رابط 24 ساعة فقط). يرجى طلب رابط جديد ومحدث من الوكيل.');
+            return;
+          }
+
+          if (verifyRes.valid && verifyRes.agent) {
+            setIsLinkExpired(false);
+            const verifiedAgent = verifyRes.agent;
+
+            // Check if visitor was previously registered on this device
+            const savedVisitor = getSavedShowcaseVisitor();
+            if (savedVisitor && savedVisitor.visitorName && savedVisitor.visitorPhone) {
+              const newAuth = {
+                agent: verifiedAgent,
+                visitorName: savedVisitor.visitorName,
+                visitorPhone: savedVisitor.visitorPhone
+              };
+              setAuthData(newAuth);
+              saveShowcaseVisitor(savedVisitor.visitorName, savedVisitor.visitorPhone, verifiedAgent);
+              // Log visit in background seamlessly
+              loginShowcase({
+                visitorName: savedVisitor.visitorName,
+                visitorPhone: savedVisitor.visitorPhone,
+                inviteToken: inviteParam || undefined,
+                agentId: verifiedAgent.id,
+                agentName: verifiedAgent.fullName
+              }).catch(() => {});
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Error verifying invite token:", e);
+      }
+    };
+
+    checkInviteValidity();
+    return () => { isMounted = false; };
+  }, []);
 
   // Auto-login if user object loads from zustand store and not in guest invite mode
   useEffect(() => {
@@ -503,6 +583,25 @@ export default function ShowcasePage() {
           >
             تسجيل خروج / الدخول بحساب آخر
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLinkExpired) {
+    return (
+      <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center p-4 selection:bg-brq-gold selection:text-black" dir="rtl">
+        <div className="w-full max-w-md bg-[#111] border border-red-500/30 rounded-3xl p-6 sm:p-8 shadow-[0_0_50px_rgba(0,0,0,0.8)] relative overflow-hidden text-center space-y-4">
+          <div className="w-16 h-16 mx-auto rounded-full bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-400">
+            <Clock size={32} className="animate-pulse" />
+          </div>
+          <h2 className="text-xl font-black text-white">انتهت صلاحية هذا الرابط</h2>
+          <p className="text-xs text-white/70 leading-relaxed">
+            {expiredReason || 'روابط معرض شركة الوفاء صالحة لمدة 24 ساعة فقط للحفاظ على تحديثات الأسعار والموديلات. يرجى التواصل مع الوكيل لإرسال رابط جديد ومحدث.'}
+          </p>
+          <div className="p-3 bg-white/5 border border-white/10 rounded-2xl text-[11px] text-white/50 leading-relaxed text-right">
+            💡 <strong className="text-white/80">ملاحظة:</strong> بمجرد أن يرسل لك الوكيل الرابط الجديد وتضغط عليه، ستدخل للمعرض مباشرة وبشكل تلقائي دون الحاجة لإعادة كتابة بياناتك.
+          </div>
         </div>
       </div>
     );

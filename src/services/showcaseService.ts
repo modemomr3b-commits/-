@@ -1,16 +1,75 @@
 import { supabase } from '../supabase';
 import bcryptjs from 'bcryptjs';
 
+export const SHOWCASE_INVITE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours strictly
+
 export interface ShowcaseInvite {
   id: string;
   token: string;
   agentId: string;
   agentName: string;
   createdAt: number;
+  expiresAt?: number;
   isUsed?: boolean;
   usedByVisitor?: string | null;
   usedAt?: number | null;
   visitorPhone?: string | null;
+}
+
+export interface ShowcaseVisitorProfile {
+  visitorName: string;
+  visitorPhone: string;
+  savedAt?: number;
+}
+
+export function getSavedShowcaseVisitor(): ShowcaseVisitorProfile | null {
+  try {
+    const rawAuth = localStorage.getItem('brq_showcase_auth') || sessionStorage.getItem('brq_showcase_auth');
+    if (rawAuth) {
+      const parsed = JSON.parse(rawAuth);
+      if (parsed && parsed.visitorName && typeof parsed.visitorName === 'string') {
+        return {
+          visitorName: parsed.visitorName.trim(),
+          visitorPhone: (parsed.visitorPhone || '').trim(),
+          savedAt: parsed.lastLoginAt || Date.now()
+        };
+      }
+    }
+    const rawVisitor = localStorage.getItem('brq_showcase_visitor');
+    if (rawVisitor) {
+      const parsed = JSON.parse(rawVisitor);
+      if (parsed && parsed.visitorName && typeof parsed.visitorName === 'string') {
+        return {
+          visitorName: parsed.visitorName.trim(),
+          visitorPhone: (parsed.visitorPhone || '').trim(),
+          savedAt: parsed.savedAt || Date.now()
+        };
+      }
+    }
+  } catch {}
+  return null;
+}
+
+export function saveShowcaseVisitor(visitorName: string, visitorPhone: string, agent?: ShowcaseAgent) {
+  try {
+    const cleanName = (visitorName || '').trim();
+    const cleanPhone = (visitorPhone || '').trim();
+    if (cleanName) {
+      localStorage.setItem('brq_showcase_visitor', JSON.stringify({
+        visitorName: cleanName,
+        visitorPhone: cleanPhone,
+        savedAt: Date.now()
+      }));
+      if (agent && agent.id) {
+        localStorage.setItem('brq_showcase_auth', JSON.stringify({
+          agent,
+          visitorName: cleanName,
+          visitorPhone: cleanPhone,
+          lastLoginAt: Date.now()
+        }));
+      }
+    }
+  } catch {}
 }
 
 export interface ShowcaseAgent {
@@ -89,7 +148,7 @@ export function isVisitorInBlockedList(
 
 /**
  * Creates a sharable showcase link for an agent.
- * The link is open and can be shared with unlimited users/visitors.
+ * The link is open and can be shared with unlimited users/visitors for 24 hours.
  */
 export async function createShowcaseInvite(agentId: string, agentName: string): Promise<{ token: string; inviteUrl: string }> {
   const cleanAgentId = (agentId || 'agent').toString().trim();
@@ -97,12 +156,15 @@ export async function createShowcaseInvite(agentId: string, agentName: string): 
   const token = 'brq_' + cleanAgentId.replace(/[^a-zA-Z0-9]/g, '_') + '_' + Math.random().toString(36).substring(2, 8);
   const targetInviteUrl = `/showcase?agent=${encodeURIComponent(cleanAgentId)}&agentName=${encodeURIComponent(cleanAgentName)}&invite=${token}`;
   
+  const now = Date.now();
+  const expiresAt = now + SHOWCASE_INVITE_TTL_MS;
+
   // 1. Try server API first
   try {
     const res = await fetch('/api/showcase/create-invite', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ agentId: cleanAgentId, agentName: cleanAgentName, token })
+      body: JSON.stringify({ agentId: cleanAgentId, agentName: cleanAgentName, token, expiresAt })
     });
 
     if (res.ok) {
@@ -141,7 +203,8 @@ export async function createShowcaseInvite(agentId: string, agentName: string): 
       token,
       agentId: cleanAgentId,
       agentName: cleanAgentName,
-      createdAt: Date.now()
+      createdAt: now,
+      expiresAt: expiresAt
     };
 
     invites.push(newInvite);
@@ -161,10 +224,11 @@ export async function createShowcaseInvite(agentId: string, agentName: string): 
 }
 
 /**
- * Verifies if an invite token / agent parameter is valid.
+ * Verifies if an invite token / agent parameter is valid and not expired (24-hour lifetime).
  */
 export async function verifyShowcaseInvite(token?: string, fallbackAgentId?: string, fallbackAgentName?: string): Promise<{
   valid: boolean;
+  expired?: boolean;
   agent?: ShowcaseAgent;
   error?: string;
   reason?: string;
@@ -185,7 +249,7 @@ export async function verifyShowcaseInvite(token?: string, fallbackAgentId?: str
       const text = await res.text();
       try {
         const data = JSON.parse(text);
-        if (data && typeof data.valid === 'boolean' && data.agent && data.agent.id) {
+        if (data && typeof data.valid === 'boolean') {
           return data;
         }
       } catch {
@@ -213,8 +277,22 @@ export async function verifyShowcaseInvite(token?: string, fallbackAgentId?: str
       const invite = invites.find((inv) => inv.token === cleanToken || inv.id === cleanToken);
 
       if (invite && invite.agentId) {
+        // Check 24-hour expiration
+        const isExpired = invite.expiresAt 
+          ? Date.now() > invite.expiresAt 
+          : (invite.createdAt ? (Date.now() - invite.createdAt > SHOWCASE_INVITE_TTL_MS) : false);
+
+        if (isExpired) {
+          return {
+            valid: false,
+            expired: true,
+            error: 'انتهت صلاحية هذا الرابط (صلاحية الرابط 24 ساعة فقط). يرجى طلب رابط جديد من الوكيل.'
+          };
+        }
+
         return {
           valid: true,
+          expired: false,
           agent: {
             id: invite.agentId,
             fullName: invite.agentName || cleanFallbackName || 'الوكيل المعتمد'
@@ -239,6 +317,7 @@ export async function verifyShowcaseInvite(token?: string, fallbackAgentId?: str
         if (matchedUser) {
           return {
             valid: true,
+            expired: false,
             agent: {
               id: matchedUser.id || matchedUser.uid || matchedUser.username,
               fullName: matchedUser.fullName || matchedUser.username
@@ -252,6 +331,7 @@ export async function verifyShowcaseInvite(token?: string, fallbackAgentId?: str
     if (cleanFallbackId) {
       return {
         valid: true,
+        expired: false,
         agent: {
           id: cleanFallbackId,
           fullName: cleanFallbackName || 'الوكيل المعتمد'
@@ -261,6 +341,7 @@ export async function verifyShowcaseInvite(token?: string, fallbackAgentId?: str
 
     return {
       valid: true,
+      expired: false,
       agent: {
         id: 'agent_showcase',
         fullName: 'معرض شركة الوفاء'
@@ -270,6 +351,7 @@ export async function verifyShowcaseInvite(token?: string, fallbackAgentId?: str
     if (cleanFallbackId) {
       return {
         valid: true,
+        expired: false,
         agent: {
           id: cleanFallbackId,
           fullName: cleanFallbackName || 'الوكيل المعتمد'
@@ -278,6 +360,7 @@ export async function verifyShowcaseInvite(token?: string, fallbackAgentId?: str
     }
     return {
       valid: true,
+      expired: false,
       agent: {
         id: 'agent_showcase',
         fullName: 'معرض شركة الوفاء'
@@ -333,8 +416,13 @@ export async function loginShowcase(params: {
       if (!res.ok) {
         throw new Error(data.error || 'فشل تسجيل الدخول للمعرض');
       }
+      const agentRes = data.agent || {
+        id: agentId || 'agent_1',
+        fullName: agentName || 'الوكيل المعتمد'
+      };
+      saveShowcaseVisitor(cleanVisitor, cleanPhone, agentRes);
       return {
-        agent: data.agent,
+        agent: agentRes,
         visitorName: data.visitorName || cleanVisitor,
         visitorPhone: data.visitorPhone || cleanPhone
       };
@@ -384,6 +472,14 @@ export async function loginShowcase(params: {
     if (invitesData && invitesData.data && Array.isArray(invitesData.data)) {
       const inv = invitesData.data.find((i: any) => i.token === inviteToken || i.id === inviteToken);
       if (inv) {
+        const isExpired = inv.expiresAt 
+          ? Date.now() > inv.expiresAt 
+          : (inv.createdAt ? (Date.now() - inv.createdAt > SHOWCASE_INVITE_TTL_MS) : false);
+
+        if (isExpired) {
+          throw new Error('انتهت صلاحية هذا الرابط (صلاحية الرابط 24 ساعة فقط). يرجى طلب رابط جديد من الوكيل.');
+        }
+
         targetAgentId = inv.agentId;
         targetAgentName = inv.agentName;
       }
@@ -428,11 +524,15 @@ export async function loginShowcase(params: {
   // Log visit directly with phone number
   await logShowcaseVisitDirectly(targetAgentId, targetAgentName, cleanVisitor, cleanPhone, inviteToken || undefined);
 
+  const finalAgent = {
+    id: targetAgentId,
+    fullName: targetAgentName
+  };
+
+  saveShowcaseVisitor(cleanVisitor, cleanPhone, finalAgent);
+
   return {
-    agent: {
-      id: targetAgentId,
-      fullName: targetAgentName
-    },
+    agent: finalAgent,
     visitorName: cleanVisitor,
     visitorPhone: cleanPhone
   };
