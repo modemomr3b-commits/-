@@ -170,6 +170,12 @@ export const api = {
     if (error || !data) return null;
     return {
       ...data,
+      packaging: data.packaging !== undefined && data.packaging !== null && data.packaging !== '' && data.packaging !== '---'
+        ? String(data.packaging)
+        : (data.size?.packaging || (data.piecesCount ? String(data.piecesCount) : (data.size?.piecesCount ? String(data.size.piecesCount) : ''))),
+      piecesCount: data.piecesCount !== undefined && data.piecesCount !== null
+        ? Number(data.piecesCount)
+        : (data.size?.piecesCount !== undefined ? Number(data.size.piecesCount) : undefined),
       isHidden: data.size?.isHidden !== undefined ? Boolean(data.size.isHidden) : Boolean(data.isHidden),
       isLocked: data.size?.isLocked !== undefined ? Boolean(data.size.isLocked) : Boolean(data.isLocked),
       isArchived: data.size?.isArchived !== undefined ? Boolean(data.size.isArchived) : Boolean(data.isArchived),
@@ -189,6 +195,12 @@ export const api = {
 
     const mapProduct = (p: any) => ({
       ...p,
+      packaging: p.packaging !== undefined && p.packaging !== null && p.packaging !== '' && p.packaging !== '---'
+        ? String(p.packaging)
+        : (p.size?.packaging || (p.piecesCount ? String(p.piecesCount) : (p.size?.piecesCount ? String(p.size.piecesCount) : ''))),
+      piecesCount: p.piecesCount !== undefined && p.piecesCount !== null
+        ? Number(p.piecesCount)
+        : (p.size?.piecesCount !== undefined ? Number(p.size.piecesCount) : undefined),
       isHidden: p.size?.isHidden !== undefined ? Boolean(p.size.isHidden) : Boolean(p.isHidden),
       isLocked: p.size?.isLocked !== undefined ? Boolean(p.size.isLocked) : Boolean(p.isLocked),
       isArchived: p.size?.isArchived !== undefined ? Boolean(p.size.isArchived) : Boolean(p.isArchived),
@@ -238,6 +250,8 @@ export const api = {
     }
 
     safeData.size = safeData.size || {};
+    if (safeData.packaging !== undefined) safeData.size.packaging = safeData.packaging;
+    if (safeData.piecesCount !== undefined) safeData.size.piecesCount = safeData.piecesCount;
     if (safeData.isHidden !== undefined) safeData.size.isHidden = safeData.isHidden;
     if (safeData.isLocked !== undefined) safeData.size.isLocked = safeData.isLocked;
     if (safeData.isShowcase !== undefined) safeData.size.isShowcase = safeData.isShowcase;
@@ -381,6 +395,8 @@ export const api = {
     }
 
     safeData.size = { ...existingSize, ...(safeData.size || {}) };
+    if (safeData.packaging !== undefined) safeData.size.packaging = safeData.packaging;
+    if (safeData.piecesCount !== undefined) safeData.size.piecesCount = safeData.piecesCount;
     if (safeData.isHidden !== undefined) safeData.size.isHidden = safeData.isHidden;
     if (safeData.isLocked !== undefined) safeData.size.isLocked = safeData.isLocked;
     if (safeData.isArchived !== undefined) safeData.size.isArchived = safeData.isArchived;
@@ -406,6 +422,12 @@ export const api = {
           ? {
               ...p,
               ...r,
+              packaging: r.packaging !== undefined && r.packaging !== null && r.packaging !== '' && r.packaging !== '---'
+                ? String(r.packaging)
+                : (r.size?.packaging || (r.piecesCount ? String(r.piecesCount) : (r.size?.piecesCount ? String(r.size.piecesCount) : p.packaging))),
+              piecesCount: r.piecesCount !== undefined && r.piecesCount !== null
+                ? Number(r.piecesCount)
+                : (r.size?.piecesCount !== undefined ? Number(r.size.piecesCount) : p.piecesCount),
               isHidden: r.size?.isHidden !== undefined ? Boolean(r.size.isHidden) : Boolean(r.isHidden),
               isLocked: r.size?.isLocked !== undefined ? Boolean(r.size.isLocked) : Boolean(r.isLocked),
               isArchived: r.size?.isArchived !== undefined ? Boolean(r.size.isArchived) : Boolean(r.isArchived),
@@ -500,6 +522,8 @@ export const api = {
       'barcode',
       'imageUrl',
       'finalImageUrl',
+      'packaging',
+      'piecesCount',
       'views'
     ];
     
@@ -509,6 +533,8 @@ export const api = {
       'isShowcase',
       'showcaseCategory',
       'oldPriceInfo',
+      'packaging',
+      'piecesCount',
       'forceStandardCrush'
     ];
     

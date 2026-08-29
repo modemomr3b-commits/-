@@ -63,11 +63,23 @@ export const burnProductOverlay = async (product: any, rawImageUrl: string): Pro
         const codeText = `الكود: ${product.productCode || '---'}`;
         ctx.fillText(codeText, CANVAS_W - (35 * scale), row1Y);
 
-        // Packaging (Left side)
+        // Packaging (Left side - Strictly use what the user entered only)
         ctx.textAlign = 'left';
         ctx.fillStyle = '#cccccc';
         ctx.font = `bold ${32 * scale}px Cairo, sans-serif`;
-        let packStr = `التعبئة: ${product.packaging || '---'}`;
+
+        const userPackaging = product.packaging !== undefined && product.packaging !== null && String(product.packaging).trim() !== ''
+          ? String(product.packaging).trim()
+          : (product.size?.packaging !== undefined && product.size?.packaging !== null && String(product.size.packaging).trim() !== ''
+              ? String(product.size.packaging).trim()
+              : (product.packing !== undefined && product.packing !== null && String(product.packing).trim() !== ''
+                  ? String(product.packing).trim()
+                  : ''));
+
+        let packStr = 'التعبئة: ---';
+        if (userPackaging && userPackaging !== '---' && userPackaging !== 'null' && userPackaging !== 'undefined') {
+          packStr = userPackaging.startsWith('التعبئة:') ? userPackaging : `التعبئة: ${userPackaging}`;
+        }
         ctx.fillText(packStr, 35 * scale, row1Y + (10 * scale));
 
         // --- ROW 2: Prices ---

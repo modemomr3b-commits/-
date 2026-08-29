@@ -856,6 +856,10 @@ export default function ProductManager() {
         originalProduct?.name !== payloadToUpdate.name ||
         originalProduct?.piecePriceIqd !== payloadToUpdate.piecePriceIqd ||
         originalProduct?.dozenPriceUsd !== payloadToUpdate.dozenPriceUsd ||
+        originalProduct?.packaging !== payloadToUpdate.packaging ||
+        originalProduct?.piecesCount !== payloadToUpdate.piecesCount ||
+        originalProduct?.forceStandardCrush !== payloadToUpdate.forceStandardCrush ||
+        originalProduct?.productCode !== payloadToUpdate.productCode ||
         originalProduct?.imageUrl !== payloadToUpdate.imageUrl ||
         !payloadToUpdate.finalImageUrl
       )) {
