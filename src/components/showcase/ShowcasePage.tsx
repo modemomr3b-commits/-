@@ -65,14 +65,13 @@ export default function ShowcasePage() {
   const [isLinkExpired, setIsLinkExpired] = useState(false);
   const [expiredReason, setExpiredReason] = useState('');
 
-  const [authData, setAuthData] = useState<{ agent: { id: string, fullName: string }, visitorName: string } | null>(() => {
+  const [authData, setAuthData] = useState<{ agent: { id: string, fullName: string }, visitorName: string, visitorPhone?: string } | null>(() => {
     try {
       const urlParams = new URLSearchParams(window.location.search);
       const hasInvite = urlParams.get('invite') || urlParams.get('token');
       const agentParam = urlParams.get('agent') || urlParams.get('agentId');
-      const agentNameParam = urlParams.get('agentName') || urlParams.get('name');
 
-      // 1. If currently logged in as agent/member/admin and not visiting via someone else's invite link, bypass auth immediately
+      // 1. If currently logged in as admin/staff in system and not visiting via guest invite link, allow immediate preview
       const storedAuth = localStorage.getItem('brq-storage');
       let loggedUser = null;
       if (storedAuth) {
@@ -81,52 +80,35 @@ export default function ShowcasePage() {
         } catch {}
       }
 
-      if (loggedUser && !hasInvite && (!agentParam || agentParam === loggedUser.id || agentParam === loggedUser.username)) {
+      if (loggedUser && (loggedUser.role === 'admin' || loggedUser.role === 'sales') && !hasInvite && !agentParam) {
         return {
           agent: {
-            id: loggedUser.id || loggedUser.uid || loggedUser.username || 'agent_1',
-            fullName: loggedUser.fullName || loggedUser.username || 'الوكيل المعتمد'
+            id: loggedUser.id || loggedUser.uid || loggedUser.username || 'agent_admin',
+            fullName: loggedUser.fullName || loggedUser.username || 'الإدارة'
           },
-          visitorName: loggedUser.fullName || loggedUser.username || 'الوكيل'
+          visitorName: loggedUser.fullName || loggedUser.username || 'معاينة الإدارة'
         };
       }
 
-      // 2. If visiting with a specific invite or agent parameter, check if saved auth matches that exact agent
-      const saved = localStorage.getItem('brq_showcase_auth') || sessionStorage.getItem('brq_showcase_auth');
-      if (saved) {
+      // 2. Only allow active in-session auth for current tab session
+      const sessionAuth = sessionStorage.getItem('brq_showcase_auth');
+      if (sessionAuth) {
         try {
-          const parsed = JSON.parse(saved);
-          if (parsed && parsed.agent && parsed.agent.id) {
-            // If URL has specific agent and it does not match saved session, force re-auth
-            if (agentParam && parsed.agent.id !== agentParam && parsed.agent.id !== `agent_${agentParam}`) {
-              return null;
-            }
-            // If URL has invite token, let user authenticate or proceed
+          const parsed = JSON.parse(sessionAuth);
+          if (parsed && parsed.visitorName && parsed.visitorPhone) {
             return parsed;
           }
         } catch {}
       }
 
-      // 3. Check if saved visitor exists to seamlessly pre-authenticate with default agent
-      const savedVisitor = getSavedShowcaseVisitor();
-      if (savedVisitor && savedVisitor.visitorName && !hasInvite && !agentParam) {
-        return {
-          agent: {
-            id: 'agent_showcase',
-            fullName: 'معرض شركة الوفاء'
-          },
-          visitorName: savedVisitor.visitorName,
-          visitorPhone: savedVisitor.visitorPhone
-        } as any;
-      }
-
+      // Force fresh registration and WhatsApp verification for all visitors opening the link
       return null;
     } catch {
       return null;
     }
   });
 
-  // Verify invite link expiration and handle automatic re-login with saved visitor profile
+  // Verify invite link expiration
   useEffect(() => {
     let isMounted = true;
     const checkInviteValidity = async () => {
@@ -146,29 +128,8 @@ export default function ShowcasePage() {
             return;
           }
 
-          if (verifyRes.valid && verifyRes.agent) {
+          if (verifyRes.valid) {
             setIsLinkExpired(false);
-            const verifiedAgent = verifyRes.agent;
-
-            // Check if visitor was previously registered on this device
-            const savedVisitor = getSavedShowcaseVisitor();
-            if (savedVisitor && savedVisitor.visitorName && savedVisitor.visitorPhone) {
-              const newAuth = {
-                agent: verifiedAgent,
-                visitorName: savedVisitor.visitorName,
-                visitorPhone: savedVisitor.visitorPhone
-              };
-              setAuthData(newAuth);
-              saveShowcaseVisitor(savedVisitor.visitorName, savedVisitor.visitorPhone, verifiedAgent);
-              // Log visit in background seamlessly
-              loginShowcase({
-                visitorName: savedVisitor.visitorName,
-                visitorPhone: savedVisitor.visitorPhone,
-                inviteToken: inviteParam || undefined,
-                agentId: verifiedAgent.id,
-                agentName: verifiedAgent.fullName
-              }).catch(() => {});
-            }
           }
         }
       } catch (e) {
@@ -194,7 +155,7 @@ export default function ShowcasePage() {
         visitorName: user.fullName || user.username || 'الوكيل'
       };
       setAuthData(agentAuth);
-      localStorage.setItem('brq_showcase_auth', JSON.stringify(agentAuth));
+      sessionStorage.setItem('brq_showcase_auth', JSON.stringify(agentAuth));
     }
   }, [user, authData]);
 
@@ -612,7 +573,6 @@ export default function ShowcasePage() {
       <ShowcaseAuth 
         onSuccess={(agent, visitorName, visitorPhone) => {
           const newAuthData = { agent, visitorName, visitorPhone };
-          localStorage.setItem('brq_showcase_auth', JSON.stringify(newAuthData));
           sessionStorage.setItem('brq_showcase_auth', JSON.stringify(newAuthData));
           setAuthData(newAuthData);
         }}

@@ -61,7 +61,7 @@ export function saveShowcaseVisitor(visitorName: string, visitorPhone: string, a
         savedAt: Date.now()
       }));
       if (agent && agent.id) {
-        localStorage.setItem('brq_showcase_auth', JSON.stringify({
+        sessionStorage.setItem('brq_showcase_auth', JSON.stringify({
           agent,
           visitorName: cleanName,
           visitorPhone: cleanPhone,
