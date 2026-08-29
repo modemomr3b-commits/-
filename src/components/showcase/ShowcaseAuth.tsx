@@ -75,6 +75,83 @@ export default function ShowcaseAuth({ onSuccess }: ShowcaseAuthProps) {
     }
   }, []);
 
+  // Strict phone normalization & validation
+  const validateVisitorData = (name: string, phone: string): { valid: boolean; cleanPhone: string; error?: string } => {
+    const trimmedName = name.trim();
+    if (!trimmedName || trimmedName.length < 3) {
+      return { valid: false, cleanPhone: '', error: 'يرجى كتابة اسمك الكريم (الاسم الثنائي أو الثلاثي على الأقل)' };
+    }
+    // Reject names made purely of digits or symbols
+    if (/^[\d\W_]+$/.test(trimmedName)) {
+      return { valid: false, cleanPhone: '', error: 'يرجى كتابة اسم حقيقي بالأحرف' };
+    }
+
+    // Convert Arabic-Indic numerals (٠-٩) to ASCII (0-9)
+    const arabicNumbers = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+    let normalized = phone.trim();
+    for (let i = 0; i < 10; i++) {
+      normalized = normalized.replace(new RegExp(arabicNumbers[i], 'g'), i.toString());
+    }
+    const digitsOnly = normalized.replace(/\D/g, '');
+
+    if (!digitsOnly || digitsOnly.length < 10) {
+      return { valid: false, cleanPhone: '', error: 'رقم الهاتف قصير جداً. يرجى إدخال رقم هاتف صحيح مكون من 11 رقماً (مثال: 07801234567)' };
+    }
+
+    // Reject all-identical numbers like 00000000000 or 11111111111
+    if (/^(\d)\1+$/.test(digitsOnly)) {
+      return { valid: false, cleanPhone: '', error: 'رقم الهاتف غير صحيح (أرقام مكررة وهمية)' };
+    }
+
+    // Reject obvious dummy sequences
+    const dummySequences = ['0123456789', '1234567890', '9876543210', '07812345678', '07712345678', '07512345678', '07912345678'];
+    if (dummySequences.some(seq => digitsOnly.includes(seq))) {
+      return { valid: false, cleanPhone: '', error: 'يرجى إدخال رقم هاتفك الفعلي وليس تسلسلاً وهمياً' };
+    }
+
+    // Check Iraqi phone format
+    let local11 = '';
+    if (digitsOnly.startsWith('009647') && digitsOnly.length === 14) {
+      local11 = '0' + digitsOnly.substring(5);
+    } else if (digitsOnly.startsWith('9647') && digitsOnly.length === 12) {
+      local11 = '0' + digitsOnly.substring(3);
+    } else if (digitsOnly.startsWith('07') && digitsOnly.length === 11) {
+      local11 = digitsOnly;
+    } else if (digitsOnly.startsWith('7') && digitsOnly.length === 10) {
+      local11 = '0' + digitsOnly;
+    }
+
+    if (local11) {
+      const validPrefixes = ['078', '077', '075', '079', '076', '074'];
+      const prefix = local11.substring(0, 3);
+      if (!validPrefixes.includes(prefix)) {
+        return { valid: false, cleanPhone: '', error: `مقدمة الرقم (${prefix}) غير معتمدة. يجب أن يبدأ الرقم بـ 078 أو 077 أو 075 أو 079` };
+      }
+
+      // Check if remainder digits are mostly identical (e.g. 07800000000, 07877777777)
+      const remainder = local11.substring(3);
+      if (/^(\d)\1{5,}$/.test(remainder)) {
+        return { valid: false, cleanPhone: '', error: 'رقم الهاتف غير مكتمل أو غير صحيح، يرجى كتابة الرقم الفعلي' };
+      }
+
+      return { valid: true, cleanPhone: local11 };
+    }
+
+    // If international foreign mobile number
+    if (digitsOnly.length >= 10 && digitsOnly.length <= 15) {
+      if (/^(\d)\1{5,}$/.test(digitsOnly)) {
+        return { valid: false, cleanPhone: '', error: 'رقم الهاتف المدخل غير صحيح' };
+      }
+      return { valid: true, cleanPhone: '+' + digitsOnly };
+    }
+
+    return {
+      valid: false,
+      cleanPhone: '',
+      error: 'رقم الهاتف غير مطابق. رقم الهاتف العراقي يجب أن يتكون من 11 رقماً ويبدأ بـ (078 أو 077 أو 075 أو 079)'
+    };
+  };
+
   const generateAndOpenWhatsApp = (name: string, phone: string) => {
     // Generate a clean 4-digit verification code
     const generated = Math.floor(1000 + Math.random() * 9000).toString();
@@ -83,11 +160,16 @@ export default function ShowcaseAuth({ onSuccess }: ShowcaseAuthProps) {
     setStep('verify');
 
     // Format target phone for WhatsApp
-    let cleanTarget = (supportPhone || '07801359735').replace(/[^0-9]/g, '');
-    if (cleanTarget.startsWith('07')) {
-      cleanTarget = '964' + cleanTarget.substring(1);
-    } else if (cleanTarget.startsWith('7') && cleanTarget.length === 10) {
-      cleanTarget = '964' + cleanTarget;
+    let cleanTarget = '9647801359735'; // Approved official WhatsApp
+    if (supportPhone) {
+      const raw = supportPhone.replace(/[^0-9]/g, '');
+      if (raw.startsWith('07')) {
+        cleanTarget = '964' + raw.substring(1);
+      } else if (raw.startsWith('7') && raw.length === 10) {
+        cleanTarget = '964' + raw;
+      } else if (raw.startsWith('964')) {
+        cleanTarget = raw;
+      }
     }
 
     const message = `مرحباً، أود تأكيد رقمي للدخول إلى معرض شركة الوفاء المتميز 🌟%0A` +
@@ -115,17 +197,15 @@ export default function ShowcaseAuth({ onSuccess }: ShowcaseAuthProps) {
       return;
     }
 
-    if (!visitorName.trim()) {
-      setError('يرجى إدخال اسمك الكريم');
+    const validation = validateVisitorData(visitorName, visitorPhone);
+    if (!validation.valid) {
+      setError(validation.error || 'يرجى إدخال رقم هاتف صحيح');
       return;
     }
 
-    if (!visitorPhone.trim() || visitorPhone.trim().length < 8) {
-      setError('يرجى إدخال رقم هاتف صحيح للتواصل');
-      return;
-    }
-
-    generateAndOpenWhatsApp(visitorName, visitorPhone);
+    // Update with cleaned standardized phone
+    setVisitorPhone(validation.cleanPhone);
+    generateAndOpenWhatsApp(visitorName.trim(), validation.cleanPhone);
   };
 
   const handleFinalVerify = async (e?: React.FormEvent) => {
@@ -254,9 +334,13 @@ export default function ShowcaseAuth({ onSuccess }: ShowcaseAuthProps) {
                       dir="ltr"
                     />
                   </div>
+                  <p className="text-[11px] text-white/50 mt-1 flex items-center justify-between">
+                    <span>يجب أن يتكون من 11 رقماً (078 / 077 / 075 / 079)</span>
+                    <span className="font-mono text-white/40 dir-ltr">11 Digits</span>
+                  </p>
                   <p className="text-[11px] text-emerald-400/90 mt-1.5 flex items-center gap-1.5 font-medium">
                     <MessageCircle size={13} className="text-emerald-400 shrink-0" />
-                    <span>يتم تأكيد الرقم وفتح الواتساب برسالة تأكيد جاهزة فوراً</span>
+                    <span>يتم فحص وتأكيد الرقم وفتح الواتساب برسالة التوثيق فوراً</span>
                   </p>
                 </div>
 
