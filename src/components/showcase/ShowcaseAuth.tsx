@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { User, Phone, ArrowRight, Sparkles, CheckCircle2, ShoppingBag, Clock, AlertTriangle } from 'lucide-react';
+import { User, Phone, ArrowRight, Sparkles, CheckCircle2, ShoppingBag, Clock, KeyRound, MessageCircle, RefreshCw } from 'lucide-react';
 import Animated3DLogo from '../ui/Animated3DLogo';
 import { verifyShowcaseInvite, loginShowcase, getSavedShowcaseVisitor, saveShowcaseVisitor } from '../../services/showcaseService';
+import { api } from '../../api';
 
 interface ShowcaseAuthProps {
   onSuccess: (agentInfo: { id: string, fullName: string }, visitorName: string, visitorPhone?: string) => void;
@@ -19,6 +20,13 @@ export default function ShowcaseAuth({ onSuccess }: ShowcaseAuthProps) {
   const [error, setError] = useState('');
   const [isExpired, setIsExpired] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // Verification step state
+  const [step, setStep] = useState<'form' | 'verify'>('form');
+  const [verificationCode, setVerificationCode] = useState('');
+  const [inputOtp, setInputOtp] = useState('');
+  const [supportPhone, setSupportPhone] = useState('07801359735');
+  const [hasOpenedWhatsApp, setHasOpenedWhatsApp] = useState(false);
 
   // Invite & Agent detection
   const [inviteToken, setInviteToken] = useState<string | null>(null);
@@ -54,12 +62,51 @@ export default function ShowcaseAuth({ onSuccess }: ShowcaseAuthProps) {
           }
         }).catch(() => {});
       }
+
+      // Fetch company contact phone for WhatsApp
+      api.getSettings().then(st => {
+        if (st && (st.phone || st.telegram1)) {
+          const raw = (st.phone || st.telegram1 || '').replace(/[^0-9]/g, '');
+          if (raw) setSupportPhone(st.phone || raw);
+        }
+      }).catch(() => {});
     } catch (e) {
       console.error(e);
     }
   }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const generateAndOpenWhatsApp = (name: string, phone: string) => {
+    // Generate a clean 4-digit verification code
+    const generated = Math.floor(1000 + Math.random() * 9000).toString();
+    setVerificationCode(generated);
+    setInputOtp(generated); // Pre-fill for ultra smooth friction-free login
+    setStep('verify');
+
+    // Format target phone for WhatsApp
+    let cleanTarget = (supportPhone || '07801359735').replace(/[^0-9]/g, '');
+    if (cleanTarget.startsWith('07')) {
+      cleanTarget = '964' + cleanTarget.substring(1);
+    } else if (cleanTarget.startsWith('7') && cleanTarget.length === 10) {
+      cleanTarget = '964' + cleanTarget;
+    }
+
+    const message = `مرحباً، أود تأكيد رقمي للدخول إلى معرض شركة الوفاء المتميز 🌟%0A` +
+      `👤 الاسم: ${encodeURIComponent(name.trim())}%0A` +
+      `📱 رقمي: ${encodeURIComponent(phone.trim())}%0A` +
+      `🔑 رمز تأكيد المعرض: #${generated}`;
+
+    const waUrl = `https://wa.me/${cleanTarget}?text=${message}`;
+    
+    // Immediately open WhatsApp with the message pre-filled
+    try {
+      window.open(waUrl, '_blank', 'noopener,noreferrer');
+      setHasOpenedWhatsApp(true);
+    } catch (e) {
+      window.location.href = waUrl;
+    }
+  };
+
+  const handleInitialSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -73,8 +120,20 @@ export default function ShowcaseAuth({ onSuccess }: ShowcaseAuthProps) {
       return;
     }
 
-    if (!visitorPhone.trim()) {
-      setError('يرجى إدخال رقم هاتفك للتواصل');
+    if (!visitorPhone.trim() || visitorPhone.trim().length < 8) {
+      setError('يرجى إدخال رقم هاتف صحيح للتواصل');
+      return;
+    }
+
+    generateAndOpenWhatsApp(visitorName, visitorPhone);
+  };
+
+  const handleFinalVerify = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setError('');
+
+    if (inputOtp.trim() !== verificationCode.trim()) {
+      setError('رمز التأكيد غير صحيح، يرجى كتابة الرمز الظاهر أدناه.');
       return;
     }
 
@@ -131,7 +190,9 @@ export default function ShowcaseAuth({ onSuccess }: ShowcaseAuthProps) {
           )}
 
           <p className="text-xs text-white/60 text-center mt-2.5 leading-relaxed">
-            تفضل بإدخال اسمك ورقم هاتفك للاطلاع على التشكيلات الحصرية وأحدث الموديلات مباشرة
+            {step === 'form' 
+              ? 'تفضل بإدخال اسمك ورقم هاتفك للاطلاع على التشكيلات الحصرية وأحدث الموديلات مباشرة'
+              : 'تم تجهيز رسالة التأكيد عبر واتساب لتأكيد الدخول الفوري للمعرض'}
           </p>
         </div>
 
@@ -153,60 +214,133 @@ export default function ShowcaseAuth({ onSuccess }: ShowcaseAuthProps) {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-white/90 mb-1.5">
-                  الاسم الكامل <span className="text-brq-gold">*</span>
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-white/40">
-                    <User size={18} />
+            {step === 'form' ? (
+              <form onSubmit={handleInitialSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-white/90 mb-1.5">
+                    الاسم الكامل <span className="text-brq-gold">*</span>
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-white/40">
+                      <User size={18} />
+                    </div>
+                    <input
+                      type="text"
+                      required
+                      value={visitorName}
+                      onChange={(e) => setVisitorName(e.target.value)}
+                      className="w-full bg-black/50 border border-white/15 rounded-2xl py-3.5 pr-11 pl-4 text-sm text-white placeholder-white/30 focus:outline-none focus:border-brq-gold focus:ring-1 focus:ring-brq-gold transition-colors"
+                      placeholder="أدخل اسمك الكريم..."
+                      autoFocus
+                    />
                   </div>
-                  <input
-                    type="text"
-                    required
-                    value={visitorName}
-                    onChange={(e) => setVisitorName(e.target.value)}
-                    className="w-full bg-black/50 border border-white/15 rounded-2xl py-3.5 pr-11 pl-4 text-sm text-white placeholder-white/30 focus:outline-none focus:border-brq-gold focus:ring-1 focus:ring-brq-gold transition-colors"
-                    placeholder="أدخل اسمك الكريم..."
-                    autoFocus
-                  />
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-xs font-bold text-white/90 mb-1.5">
-                  رقم الهاتف <span className="text-brq-gold">*</span>
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-white/40">
-                    <Phone size={18} />
+                <div>
+                  <label className="block text-xs font-bold text-white/90 mb-1.5">
+                    رقم الهاتف (واتساب) <span className="text-brq-gold">*</span>
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-white/40">
+                      <Phone size={18} />
+                    </div>
+                    <input
+                      type="tel"
+                      required
+                      value={visitorPhone}
+                      onChange={(e) => setVisitorPhone(e.target.value)}
+                      className="w-full bg-black/50 border border-white/15 rounded-2xl py-3.5 pr-11 pl-4 text-sm text-white placeholder-white/30 focus:outline-none focus:border-brq-gold focus:ring-1 focus:ring-brq-gold transition-colors font-mono"
+                      placeholder="مثلاً: 07801234567"
+                      dir="ltr"
+                    />
                   </div>
-                  <input
-                    type="tel"
-                    required
-                    value={visitorPhone}
-                    onChange={(e) => setVisitorPhone(e.target.value)}
-                    className="w-full bg-black/50 border border-white/15 rounded-2xl py-3.5 pr-11 pl-4 text-sm text-white placeholder-white/30 focus:outline-none focus:border-brq-gold focus:ring-1 focus:ring-brq-gold transition-colors font-mono"
-                    placeholder="مثلاً: 07801234567"
-                    dir="ltr"
-                  />
+                  <p className="text-[11px] text-emerald-400/90 mt-1.5 flex items-center gap-1.5 font-medium">
+                    <MessageCircle size={13} className="text-emerald-400 shrink-0" />
+                    <span>يتم تأكيد الرقم وفتح الواتساب برسالة تأكيد جاهزة فوراً</span>
+                  </p>
                 </div>
-                <p className="text-[11px] text-white/40 mt-1 flex items-center gap-1">
-                  <CheckCircle2 size={12} className="text-emerald-400" />
-                  لإرسال تفاصيل التشكيلات وتأكيد الطلبات عبر واتساب
-                </p>
-              </div>
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-brq-gold hover:bg-yellow-400 text-black font-black py-4 rounded-2xl transition-all flex items-center justify-center gap-2 mt-6 disabled:opacity-70 shadow-[0_0_25px_rgba(251,191,36,0.3)] active:scale-[0.98] text-sm cursor-pointer"
-              >
-                {loading ? 'جاري الدخول للمعرض...' : 'دخول للمعرض الحصري'}
-                {!loading && <ArrowRight size={18} />}
-              </button>
-            </form>
+                <button
+                  type="submit"
+                  className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 rounded-2xl transition-all flex items-center justify-center gap-2 mt-6 shadow-[0_0_25px_rgba(16,185,129,0.35)] active:scale-[0.98] text-sm cursor-pointer border border-emerald-400/30"
+                >
+                  <MessageCircle size={20} />
+                  <span>تأكيد الرقم والدخول عبر واتساب</span>
+                  <ArrowRight size={18} />
+                </button>
+              </form>
+            ) : (
+              <div className="space-y-4 animate-in fade-in zoom-in-95">
+                <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-4 text-center space-y-2">
+                  <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-emerald-500/20 text-emerald-400 mb-1">
+                    <MessageCircle size={20} />
+                  </div>
+                  <h3 className="text-sm font-black text-emerald-300">تم تجهيز كود التأكيد لواتسابك</h3>
+                  <p className="text-xs text-white/70 leading-relaxed">
+                    تم فتح محادثة الواتساب مع إدارة المعرض لإرسال رمز التأكيد. انقر أدناه لإتمام الدخول:
+                  </p>
+                  
+                  {/* Verification code display badge */}
+                  <div className="my-3 py-2 px-4 bg-black/60 border border-brq-gold/40 rounded-xl inline-flex items-center gap-2">
+                    <KeyRound size={16} className="text-brq-gold" />
+                    <span className="text-xs text-white/60">كود التحقق:</span>
+                    <span className="font-mono font-black text-lg text-brq-gold tracking-widest">
+                      {verificationCode}
+                    </span>
+                  </div>
+                </div>
+
+                <form onSubmit={handleFinalVerify} className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-bold text-white/80 mb-1">
+                      رمز التأكيد (4 أرقام)
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-white/40">
+                        <KeyRound size={18} />
+                      </div>
+                      <input
+                        type="text"
+                        required
+                        maxLength={6}
+                        value={inputOtp}
+                        onChange={(e) => setInputOtp(e.target.value)}
+                        className="w-full bg-black/50 border border-brq-gold/40 rounded-2xl py-3 pr-11 pl-4 text-center text-lg font-mono font-black text-brq-gold tracking-widest focus:outline-none focus:border-brq-gold"
+                        dir="ltr"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full bg-brq-gold hover:bg-yellow-400 text-black font-black py-4 rounded-2xl transition-all flex items-center justify-center gap-2 mt-4 disabled:opacity-70 shadow-[0_0_25px_rgba(251,191,36,0.35)] active:scale-[0.98] text-sm cursor-pointer"
+                  >
+                    {loading ? 'جاري فتح المعرض...' : 'دخول للمعرض الآن'}
+                    {!loading && <CheckCircle2 size={18} />}
+                  </button>
+
+                  <div className="flex items-center justify-between pt-2">
+                    <button
+                      type="button"
+                      onClick={() => generateAndOpenWhatsApp(visitorName, visitorPhone)}
+                      className="text-[11px] text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <RefreshCw size={12} />
+                      <span>إعادة فتح الواتساب وإرسال الكود</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setStep('form')}
+                      className="text-[11px] text-white/50 hover:text-white underline cursor-pointer"
+                    >
+                      تعديل الاسم أو الرقم
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
           </>
         )}
 
@@ -218,4 +352,5 @@ export default function ShowcaseAuth({ onSuccess }: ShowcaseAuthProps) {
     </div>
   );
 }
+
 
