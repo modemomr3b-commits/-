@@ -81,8 +81,9 @@ export default function ShowcaseAuth({ onSuccess }: ShowcaseAuthProps) {
     if (!trimmedName || trimmedName.length < 3) {
       return { valid: false, cleanPhone: '', error: 'يرجى كتابة اسمك الكريم (الاسم الثنائي أو الثلاثي على الأقل)' };
     }
-    // Reject names made purely of digits or symbols
-    if (/^[\d\W_]+$/.test(trimmedName)) {
+    // Reject if name does not contain any letters (Arabic or Latin)
+    const hasLetters = /[\p{L}]/u.test(trimmedName) || /[a-zA-Z\u0600-\u06FF]/.test(trimmedName);
+    if (!hasLetters) {
       return { valid: false, cleanPhone: '', error: 'يرجى كتابة اسم حقيقي بالأحرف' };
     }
 
