@@ -90,8 +90,10 @@ export default function ShowcasePage() {
         };
       }
 
-      // 2. Only allow active in-session auth for current tab session
-      const sessionAuth = sessionStorage.getItem('brq_showcase_auth');
+      // 2. Check for previously verified visitor credentials
+      const savedVisitor = getSavedShowcaseVisitor();
+      const sessionAuth = sessionStorage.getItem('brq_showcase_auth') || localStorage.getItem('brq_showcase_auth');
+      
       if (sessionAuth) {
         try {
           const parsed = JSON.parse(sessionAuth);
@@ -101,14 +103,24 @@ export default function ShowcasePage() {
         } catch {}
       }
 
-      // Force fresh registration and WhatsApp verification for all visitors opening the link
+      if (savedVisitor && savedVisitor.visitorName && savedVisitor.visitorPhone && savedVisitor.isVerified !== false) {
+        return {
+          agent: {
+            id: agentParam || 'agent_showcase',
+            fullName: urlParams.get('agentName') || urlParams.get('name') || 'معرض شركة الوفاء'
+          },
+          visitorName: savedVisitor.visitorName,
+          visitorPhone: savedVisitor.visitorPhone
+        };
+      }
+
       return null;
     } catch {
       return null;
     }
   });
 
-  // Verify invite link expiration
+  // Verify invite link expiration (24 hours lifetime) and auto-bind verified visitors
   useEffect(() => {
     let isMounted = true;
     const checkInviteValidity = async () => {
@@ -130,6 +142,33 @@ export default function ShowcasePage() {
 
           if (verifyRes.valid) {
             setIsLinkExpired(false);
+            
+            // Check if this visitor is already verified on this device
+            const saved = getSavedShowcaseVisitor();
+            if (saved && saved.visitorName && saved.visitorPhone && saved.isVerified !== false) {
+              const targetAgent = verifyRes.agent || {
+                id: agentParam || 'agent_showcase',
+                fullName: nameParam || 'الوكيل المعتمد'
+              };
+
+              const autoAuth = {
+                agent: targetAgent,
+                visitorName: saved.visitorName,
+                visitorPhone: saved.visitorPhone
+              };
+
+              setAuthData(autoAuth);
+              saveShowcaseVisitor(saved.visitorName, saved.visitorPhone, targetAgent, true);
+
+              // Background log visitor entry
+              loginShowcase({
+                visitorName: saved.visitorName,
+                visitorPhone: saved.visitorPhone,
+                inviteToken: inviteParam || undefined,
+                agentId: targetAgent.id,
+                agentName: targetAgent.fullName
+              }).catch(() => {});
+            }
           }
         }
       } catch (e) {

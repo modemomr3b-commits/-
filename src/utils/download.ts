@@ -1,3 +1,38 @@
+// Fast helper to fetch Blob from url or base64
+async function fetchBlobFast(url: string, timeoutMs: number = 8000): Promise<Blob | null> {
+  if (!url) return null;
+
+  if (url.startsWith('data:')) {
+    try {
+      const parts = url.split(',');
+      const mimeMatch = parts[0].match(/:(.*?);/);
+      const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+      const b64Data = parts[1];
+      const byteCharacters = atob(b64Data);
+      const byteArrays = new Uint8Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteArrays[i] = byteCharacters.charCodeAt(i);
+      }
+      return new Blob([byteArrays], { type: mimeType });
+    } catch (e) {
+      console.warn('Direct base64 decode failed, fallback to fetch', e);
+    }
+  }
+
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const res = await fetch(url, { signal: controller.signal, cache: 'force-cache' });
+    clearTimeout(timer);
+    if (res.ok) {
+      return await res.blob();
+    }
+  } catch (err) {
+    console.warn(`Failed to fetch image: ${url.slice(0, 50)}...`, err);
+  }
+  return null;
+}
+
 export const downloadSingleImage = async (
   url: string,
   filename: string
@@ -10,23 +45,38 @@ export const downloadImages = async (
   onProgress?: (progress: number, total: number) => void
 ): Promise<boolean> => {
   try {
+    if (!images || images.length === 0) return false;
+
     const files: File[] = [];
     let completed = 0;
     
-    // Fetch all images and convert to File objects
-    for (const img of images) {
-      try {
-        const res = await fetch(img.url);
-        const blob = await res.blob();
-        files.push(new File([blob], img.filename, { type: blob.type }));
-        completed++;
-        if (onProgress) {
-          onProgress(completed, images.length);
+    // Concurrency pool for parallel downloads
+    const CONCURRENCY = 12;
+    let idx = 0;
+
+    const worker = async () => {
+      while (idx < images.length) {
+        const item = images[idx++];
+        if (!item) break;
+
+        try {
+          const blob = await fetchBlobFast(item.url, 8000);
+          if (blob) {
+            files.push(new File([blob], item.filename, { type: blob.type || 'image/jpeg' }));
+          }
+        } catch (e) {
+          console.error(`Failed to fetch image ${item.url}`, e);
+        } finally {
+          completed++;
+          if (onProgress) {
+            onProgress(completed, images.length);
+          }
         }
-      } catch (e) {
-        console.error(`Failed to fetch image ${img.url}`, e);
       }
-    }
+    };
+
+    const workers = Array.from({ length: Math.min(CONCURRENCY, images.length) }, () => worker());
+    await Promise.all(workers);
 
     if (files.length === 0) return false;
 

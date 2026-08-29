@@ -315,10 +315,10 @@ export default function Home() {
                 </button>
               </div>
 
-              {/* Single-use security notice */}
-              <div className="flex items-center gap-1.5 text-[10px] text-white/40 bg-white/5 p-2 rounded-lg border border-white/5">
+              {/* 24-hour and verified visitor notice */}
+              <div className="flex items-center gap-1.5 text-[10px] text-white/50 bg-white/5 p-2 rounded-lg border border-white/5">
                 <Sparkles size={12} className="text-brq-gold shrink-0" />
-                <span>الروابط المُنشأة صالحة للاستخدام لمرة واحدة فقط وتُقفل تلقائياً بعد دخول الزائر.</span>
+                <span>الرابط صالح لمدة 24 ساعة، ويتعرف الرابط تلقائياً على بيانات الزبون بعد تأكيد رقمه لمرة واحدة.</span>
               </div>
 
               {/* Admin quick status toggle */}

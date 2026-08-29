@@ -19,7 +19,9 @@ export interface ShowcaseInvite {
 export interface ShowcaseVisitorProfile {
   visitorName: string;
   visitorPhone: string;
+  isVerified?: boolean;
   savedAt?: number;
+  lastVerifiedAt?: number;
 }
 
 export function getSavedShowcaseVisitor(): ShowcaseVisitorProfile | null {
@@ -31,7 +33,9 @@ export function getSavedShowcaseVisitor(): ShowcaseVisitorProfile | null {
         return {
           visitorName: parsed.visitorName.trim(),
           visitorPhone: (parsed.visitorPhone || '').trim(),
-          savedAt: parsed.lastLoginAt || Date.now()
+          isVerified: parsed.isVerified !== false,
+          savedAt: parsed.lastLoginAt || parsed.savedAt || Date.now(),
+          lastVerifiedAt: parsed.lastVerifiedAt || parsed.lastLoginAt || Date.now()
         };
       }
     }
@@ -42,7 +46,9 @@ export function getSavedShowcaseVisitor(): ShowcaseVisitorProfile | null {
         return {
           visitorName: parsed.visitorName.trim(),
           visitorPhone: (parsed.visitorPhone || '').trim(),
-          savedAt: parsed.savedAt || Date.now()
+          isVerified: parsed.isVerified !== false,
+          savedAt: parsed.savedAt || Date.now(),
+          lastVerifiedAt: parsed.lastVerifiedAt || parsed.savedAt || Date.now()
         };
       }
     }
@@ -50,24 +56,32 @@ export function getSavedShowcaseVisitor(): ShowcaseVisitorProfile | null {
   return null;
 }
 
-export function saveShowcaseVisitor(visitorName: string, visitorPhone: string, agent?: ShowcaseAgent) {
+export function saveShowcaseVisitor(visitorName: string, visitorPhone: string, agent?: ShowcaseAgent, isVerified: boolean = true) {
   try {
     const cleanName = (visitorName || '').trim();
     const cleanPhone = (visitorPhone || '').trim();
+    const now = Date.now();
     if (cleanName) {
-      localStorage.setItem('brq_showcase_visitor', JSON.stringify({
+      const profileData = {
         visitorName: cleanName,
         visitorPhone: cleanPhone,
-        savedAt: Date.now()
-      }));
-      if (agent && agent.id) {
-        sessionStorage.setItem('brq_showcase_auth', JSON.stringify({
-          agent,
-          visitorName: cleanName,
-          visitorPhone: cleanPhone,
-          lastLoginAt: Date.now()
-        }));
-      }
+        isVerified: !!isVerified,
+        savedAt: now,
+        lastVerifiedAt: now
+      };
+      localStorage.setItem('brq_showcase_visitor', JSON.stringify(profileData));
+      
+      const authPayload = {
+        agent: agent && agent.id ? agent : { id: 'agent_showcase', fullName: 'معرض شركة الوفاء' },
+        visitorName: cleanName,
+        visitorPhone: cleanPhone,
+        isVerified: !!isVerified,
+        lastLoginAt: now,
+        lastVerifiedAt: now
+      };
+
+      localStorage.setItem('brq_showcase_auth', JSON.stringify(authPayload));
+      sessionStorage.setItem('brq_showcase_auth', JSON.stringify(authPayload));
     }
   } catch {}
 }

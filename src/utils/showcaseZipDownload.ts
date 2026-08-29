@@ -270,8 +270,50 @@ function generateCategoryHtmlCatalog(categoryName: string, products: Product[], 
 </html>`;
 }
 
+// High-performance image fetcher with concurrency pool and ultra-fast base64/blob conversion
+async function fetchImageAsBlob(url: string, timeoutMs: number = 10000): Promise<Blob | null> {
+  if (!url) return null;
+
+  // 1. If it's a data URL, convert directly in memory (0ms network cost)
+  if (url.startsWith('data:')) {
+    try {
+      const parts = url.split(',');
+      const mimeMatch = parts[0].match(/:(.*?);/);
+      const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+      const b64Data = parts[1];
+      const byteCharacters = atob(b64Data);
+      const byteArrays = new Uint8Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteArrays[i] = byteCharacters.charCodeAt(i);
+      }
+      return new Blob([byteArrays], { type: mimeType });
+    } catch (e) {
+      console.warn('Failed to decode data URL in memory, falling back to fetch', e);
+    }
+  }
+
+  // 2. Network fetch with abort controller and retry
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+      const res = await fetch(url, { signal: controller.signal, cache: 'force-cache' });
+      clearTimeout(timeoutId);
+      if (res.ok) {
+        return await res.blob();
+      }
+    } catch (err) {
+      if (attempt === 1) {
+        console.warn(`Failed to fetch image: ${url.slice(0, 60)}...`, err);
+      }
+    }
+  }
+
+  return null;
+}
+
 /**
- * Master exporter function: Downloads all categorized showcase products into a beautiful structured ZIP
+ * Master exporter function: Downloads all categorized showcase products into a beautiful structured ZIP with maximum speed
  */
 export async function exportShowcaseToCategorizedZip(
   categoriesStats: CategoryExportStats[],
@@ -287,15 +329,61 @@ export async function exportShowcaseToCategorizedZip(
       return options.selectedCategories.includes(c.category);
     });
 
-    // Calculate total images to fetch
-    let totalImages = 0;
+    // Prepare all image download tasks across all categories
+    interface DownloadTask {
+      catName: string;
+      folderName: string;
+      product: Product;
+      imgUrl: string;
+      filename: string;
+    }
+
+    const tasks: DownloadTask[] = [];
+    const usedFilenamesPerFolder = new Map<string, Set<string>>();
+    const categoryFilenamesMap = new Map<string, Map<string, string>>();
+
     activeStats.forEach(cat => {
-      cat.products.forEach(p => {
-        if (p.finalImageUrl || p.imageUrl) {
-          totalImages++;
+      const usedNames = new Set<string>();
+      usedFilenamesPerFolder.set(cat.folderName, usedNames);
+      const catFileMap = new Map<string, string>();
+      categoryFilenamesMap.set(cat.category, catFileMap);
+
+      cat.products.forEach(product => {
+        const imgUrl = product.finalImageUrl || product.imageUrl;
+        if (!imgUrl) return;
+
+        const extMatch = imgUrl.split('.').pop()?.split('?')[0];
+        const ext = extMatch && extMatch.length <= 4 ? extMatch : 'jpg';
+
+        let baseParts: string[] = [];
+        if (product.productCode) baseParts.push(sanitizeFilename(product.productCode));
+        if (product.name) baseParts.push(sanitizeFilename(product.name));
+        if (options.includePriceInFilename && product.price) {
+          baseParts.push(`${product.price.toLocaleString('ar-IQ')} دينار`);
         }
+
+        let baseName = baseParts.join(' - ');
+        if (!baseName) baseName = `product_${product.id || 'item'}`;
+
+        let filename = `${baseName}.${ext}`;
+        let counter = 1;
+        while (usedNames.has(filename)) {
+          filename = `${baseName}_${counter++}.${ext}`;
+        }
+        usedNames.add(filename);
+        catFileMap.set(product.id || '', filename);
+
+        tasks.push({
+          catName: cat.category,
+          folderName: cat.folderName,
+          product,
+          imgUrl,
+          filename
+        });
       });
     });
+
+    const totalImages = tasks.length;
 
     if (totalImages === 0 && activeStats.every(c => c.products.length === 0)) {
       return { success: false, totalFiles: 0, error: 'لا توجد منتجات أو صور في الأقسام المحددة.' };
@@ -304,7 +392,7 @@ export async function exportShowcaseToCategorizedZip(
     let processedImages = 0;
     const updateProgress = (categoryName: string, filename: string, message: string) => {
       if (onProgress) {
-        const percent = totalImages > 0 ? Math.round((processedImages / totalImages) * 100) : 0;
+        const percent = totalImages > 0 ? Math.round((processedImages / totalImages) * 90) : 0;
         onProgress({
           current: processedImages,
           total: totalImages,
@@ -316,7 +404,40 @@ export async function exportShowcaseToCategorizedZip(
       }
     };
 
-    updateProgress('بدء التصدير', '', 'جاري تحضير هيكل المجلدات والأقسام...');
+    updateProgress('بدء التصدير السريع', '', 'جاري تنزيل الصور بالتوازي بأقصى سرعة...');
+
+    // Parallel Concurrent Worker Pool (Downloads 12 images at the exact same instant)
+    const CONCURRENCY = 12;
+    let taskIndex = 0;
+
+    const worker = async () => {
+      while (taskIndex < tasks.length) {
+        const currentTask = tasks[taskIndex++];
+        if (!currentTask) break;
+
+        try {
+          const blob = await fetchImageAsBlob(currentTask.imgUrl, 8000);
+          if (blob) {
+            const folder = zip.folder(currentTask.folderName);
+            if (folder) {
+              folder.file(currentTask.filename, blob);
+            }
+          }
+        } catch (e) {
+          console.warn(`Error processing image ${currentTask.filename}`, e);
+        } finally {
+          processedImages++;
+          updateProgress(
+            currentTask.catName,
+            currentTask.filename,
+            `تم تحميل صورة (${processedImages}/${totalImages})`
+          );
+        }
+      }
+    };
+
+    const workers = Array.from({ length: Math.min(CONCURRENCY, tasks.length) }, () => worker());
+    await Promise.all(workers);
 
     // Master Summary file content
     const masterDateStr = new Date().toLocaleDateString('ar-IQ', {
@@ -332,105 +453,59 @@ export async function exportShowcaseToCategorizedZip(
     masterReport += `=========================================================\n`;
     masterReport += `تاريخ التصدير: ${masterDateStr}\n`;
     masterReport += `نوع التصدير: ${options.scope === 'showcase_only' ? 'منتجات المعرض العام المفعلة' : 'جميع منتجات المتجر المتاحة'}\n`;
-    masterReport += `إجمالي الصور المُحملة: ${totalImages}\n\n`;
+    masterReport += `إجمالي الصور المُحملة: ${processedImages}\n\n`;
     masterReport += `تقسيم الأقسام والمجلدات:\n`;
 
     activeStats.forEach(cat => {
       masterReport += `  📁 ${cat.folderName}: ${cat.products.length} موديل (${cat.imageCount} صورة)\n`;
-    });
-    masterReport += `\n=========================================================\n`;
-
-    // Process each category
-    for (const cat of activeStats) {
       const folder = zip.folder(cat.folderName);
-      if (!folder) continue;
+      if (folder) {
+        const catFilenames = categoryFilenamesMap.get(cat.category) || new Map();
+        // Add Category Plain Text Catalog if enabled
+        if (options.includeTextCatalog !== false && cat.products.length > 0) {
+          const textCatalog = generateCategoryTextCatalog(cat.category, cat.products);
+          folder.file(`00_دليل_منتجات_${sanitizeFilename(cat.category)}.txt`, textCatalog);
+        }
 
-      const categoryFilenames = new Map<string, string>();
-      const usedFilenamesInFolder = new Set<string>();
-
-      // Fetch images for products in this category
-      for (const product of cat.products) {
-        const imgUrl = product.finalImageUrl || product.imageUrl;
-        if (!imgUrl) continue;
-
-        try {
-          // Construct clean filename
-          const extMatch = imgUrl.split('.').pop()?.split('?')[0];
-          const ext = extMatch && extMatch.length <= 4 ? extMatch : 'jpg';
-
-          let baseParts: string[] = [];
-          if (product.productCode) baseParts.push(sanitizeFilename(product.productCode));
-          if (product.name) baseParts.push(sanitizeFilename(product.name));
-          if (options.includePriceInFilename && product.price) {
-            baseParts.push(`${product.price.toLocaleString('ar-IQ')} دينار`);
-          }
-
-          let baseName = baseParts.join(' - ');
-          if (!baseName) baseName = `product_${product.id || 'item'}`;
-
-          let filename = `${baseName}.${ext}`;
-          let counter = 1;
-          while (usedFilenamesInFolder.has(filename)) {
-            filename = `${baseName}_${counter++}.${ext}`;
-          }
-          usedFilenamesInFolder.add(filename);
-          categoryFilenames.set(product.id || '', filename);
-
-          updateProgress(cat.category, filename, `جاري تحميل صورة: ${filename}`);
-
-          // Fetch the image blob with timeout protection
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 15000);
-
-          const res = await fetch(imgUrl, { signal: controller.signal });
-          clearTimeout(timeoutId);
-
-          if (res.ok) {
-            const blob = await res.blob();
-            folder.file(filename, blob);
-            processedImages++;
-            updateProgress(cat.category, filename, `تمت إضافة صورة (${processedImages}/${totalImages})`);
-          } else {
-            console.warn(`Failed to fetch image for ${product.name} (status: ${res.status})`);
-          }
-        } catch (fetchErr) {
-          console.error(`Error downloading image for product ${product.name}:`, fetchErr);
+        // Add Category HTML interactive catalog if enabled
+        if (options.includeHtmlCatalog !== false && cat.products.length > 0) {
+          const htmlCatalog = generateCategoryHtmlCatalog(cat.category, cat.products, catFilenames);
+          folder.file(`00_كتالوج_${sanitizeFilename(cat.category)}_التفاعلي.html`, htmlCatalog);
         }
       }
-
-      // Add Category Plain Text Catalog if enabled
-      if (options.includeTextCatalog !== false && cat.products.length > 0) {
-        const textCatalog = generateCategoryTextCatalog(cat.category, cat.products);
-        folder.file(`00_دليل_منتجات_${sanitizeFilename(cat.category)}.txt`, textCatalog);
-      }
-
-      // Add Category HTML interactive catalog if enabled
-      if (options.includeHtmlCatalog !== false && cat.products.length > 0) {
-        const htmlCatalog = generateCategoryHtmlCatalog(cat.category, cat.products, categoryFilenames);
-        folder.file(`00_كتالوج_${sanitizeFilename(cat.category)}_التفاعلي.html`, htmlCatalog);
-      }
-    }
+    });
+    masterReport += `\n=========================================================\n`;
 
     // Add Master report at root of ZIP
     zip.file('00_دليل_معرض_شركة_الوفاء_الشامل.txt', masterReport);
 
-    updateProgress('جاري إنشاء وضغط ملف الـ Zip...', '', 'جاري ضغط جميع المجلدات والصور...');
+    if (onProgress) {
+      onProgress({
+        current: processedImages,
+        total: totalImages,
+        percent: 92,
+        currentCategory: 'ضغط الملفات',
+        currentFilename: 'جاري الحفظ...',
+        statusMessage: 'جاري تجميع الملفات في أرشيف Zip فائق السرعة...'
+      });
+    }
 
+    // Generate ZIP with STORE mode for already compressed images -> near INSTANT speed
     const zipBlob = await zip.generateAsync(
       {
         type: 'blob',
-        compression: 'DEFLATE',
-        compressionOptions: { level: 6 }
+        compression: 'STORE'
       },
       (metadata) => {
         if (onProgress) {
+          const zipPercent = 90 + Math.round((metadata.percent / 100) * 10);
           onProgress({
             current: processedImages,
             total: totalImages,
-            percent: Math.round(metadata.percent),
+            percent: Math.min(100, zipPercent),
             currentCategory: 'ضغط الملفات',
             currentFilename: `${Math.round(metadata.percent)}%`,
-            statusMessage: 'جاري إنشاء وضغط ملف الـ Zip...'
+            statusMessage: 'جاري إنشاء ملف الـ Zip بسرعة فائقة...'
           });
         }
       }

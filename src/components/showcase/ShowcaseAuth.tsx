@@ -59,6 +59,13 @@ export default function ShowcaseAuth({ onSuccess }: ShowcaseAuthProps) {
             setError(res.error || 'انتهت صلاحية هذا الرابط (صلاحية كل رابط 24 ساعة). يرجى طلب رابط جديد من الوكيل.');
           } else if (res && res.agent && res.agent.id) {
             setAgentInfo(res.agent);
+
+            // If visitor has already verified on this device previously, log in immediately
+            const saved = getSavedShowcaseVisitor();
+            if (saved && saved.visitorName && saved.visitorPhone && saved.isVerified !== false) {
+              saveShowcaseVisitor(saved.visitorName, saved.visitorPhone, res.agent, true);
+              onSuccess(res.agent, saved.visitorName, saved.visitorPhone);
+            }
           }
         }).catch(() => {});
       }
@@ -239,7 +246,7 @@ export default function ShowcaseAuth({ onSuccess }: ShowcaseAuthProps) {
       const finalName = res.visitorName || visitorName.trim();
       const finalPhone = res.visitorPhone || visitorPhone.trim();
 
-      saveShowcaseVisitor(finalName, finalPhone, finalAgent);
+      saveShowcaseVisitor(finalName, finalPhone, finalAgent, true);
       onSuccess(finalAgent, finalName, finalPhone);
     } catch (err: any) {
       if (err.message && err.message.includes('انتهت صلاحية')) {
