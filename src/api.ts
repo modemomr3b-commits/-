@@ -178,7 +178,7 @@ export const api = {
         : (data.size?.piecesCount !== undefined ? Number(data.size.piecesCount) : undefined),
       isHidden: data.size?.isHidden !== undefined ? Boolean(data.size.isHidden) : Boolean(data.isHidden),
       isLocked: data.size?.isLocked !== undefined ? Boolean(data.size.isLocked) : Boolean(data.isLocked),
-      isArchived: data.size?.isArchived !== undefined ? Boolean(data.size.isArchived) : Boolean(data.isArchived),
+      isArchived: data.isArchived !== undefined ? Boolean(data.isArchived) : (data.size?.isArchived !== undefined ? Boolean(data.size.isArchived) : false),
       isDeleted: Boolean(data.isDeleted),
       isShowcase: data.size?.isShowcase !== undefined ? Boolean(data.size.isShowcase) : Boolean(data.isShowcase),
       showcaseCategory: data.size?.showcaseCategory || data.showcaseCategory || '',
@@ -203,7 +203,7 @@ export const api = {
         : (p.size?.piecesCount !== undefined ? Number(p.size.piecesCount) : undefined),
       isHidden: p.size?.isHidden !== undefined ? Boolean(p.size.isHidden) : Boolean(p.isHidden),
       isLocked: p.size?.isLocked !== undefined ? Boolean(p.size.isLocked) : Boolean(p.isLocked),
-      isArchived: p.size?.isArchived !== undefined ? Boolean(p.size.isArchived) : Boolean(p.isArchived),
+      isArchived: p.isArchived !== undefined ? Boolean(p.isArchived) : (p.size?.isArchived !== undefined ? Boolean(p.size.isArchived) : false),
       isDeleted: Boolean(p.isDeleted),
       isShowcase: p.size?.isShowcase !== undefined ? Boolean(p.size.isShowcase) : Boolean(p.isShowcase),
       showcaseCategory: p.size?.showcaseCategory || p.showcaseCategory || '',
@@ -530,6 +530,7 @@ export const api = {
     const sizeKeys = [
       'isHidden',
       'isLocked',
+      'isArchived',
       'isShowcase',
       'showcaseCategory',
       'oldPriceInfo',
@@ -554,7 +555,7 @@ export const api = {
       }
     });
 
-    const chunkSize = 200;
+    const chunkSize = 100;
     const chunks: string[][] = [];
     for (let i = 0; i < ids.length; i += chunkSize) {
       chunks.push(ids.slice(i, i + chunkSize));
@@ -570,8 +571,13 @@ export const api = {
         }
       }));
     } else {
-      // Direct updates and/or size JSON column updates
+      // Direct updates and size JSON column updates
       await Promise.all(chunks.map(async (chunk) => {
+        if (hasDirectUpdates) {
+          const { error: directErr } = await supabase.from('products').update(directUpdates).in('id', chunk);
+          if (directErr) console.warn('Bulk direct update partial error:', directErr);
+        }
+
         const { data: existingRows, error: fetchErr } = await supabase
           .from('products')
           .select('id, size')
@@ -592,8 +598,8 @@ export const api = {
             };
             return supabase.from('products').update(itemUpdate).eq('id', row.id);
           });
-          for (let j = 0; j < updatePromises.length; j += 100) {
-            const batchRes = await Promise.all(updatePromises.slice(j, j + 100));
+          for (let j = 0; j < updatePromises.length; j += 50) {
+            const batchRes = await Promise.all(updatePromises.slice(j, j + 50));
             for (const r of batchRes) {
               if (r.error) throw r.error;
             }
@@ -603,25 +609,32 @@ export const api = {
     }
 
     // IMMEDIATELY update local in-memory cache and IndexedDB
-    const idSet = new Set(ids);
+    const idSet = new Set(ids.map(String));
     if (memCache['all_products']?.data) {
       memCache['all_products'].data = memCache['all_products'].data.map((p: any) => {
-        if (idSet.has(p.id)) {
+        if (idSet.has(String(p.id))) {
+          const mergedSize = {
+            ...(p.size || {}),
+            ...(hasSizeUpdates ? sizeUpdates : {})
+          };
+          if (data.isArchived !== undefined) mergedSize.isArchived = Boolean(data.isArchived);
+          if (data.isHidden !== undefined) mergedSize.isHidden = Boolean(data.isHidden);
+          if (data.isLocked !== undefined) mergedSize.isLocked = Boolean(data.isLocked);
+          if (data.isShowcase !== undefined) mergedSize.isShowcase = Boolean(data.isShowcase);
+          if (data.showcaseCategory !== undefined) mergedSize.showcaseCategory = data.showcaseCategory;
+
           return {
             ...p,
             ...directUpdates,
             ...(hasSizeUpdates ? sizeUpdates : {}),
-            isHidden: data.isHidden !== undefined ? Boolean(data.isHidden) : (data.size?.isHidden !== undefined ? Boolean(data.size.isHidden) : p.isHidden),
-            isLocked: data.isLocked !== undefined ? Boolean(data.isLocked) : (data.size?.isLocked !== undefined ? Boolean(data.size.isLocked) : p.isLocked),
-            isArchived: data.isArchived !== undefined ? Boolean(data.isArchived) : (data.size?.isArchived !== undefined ? Boolean(data.size.isArchived) : p.isArchived),
-            isShowcase: data.isShowcase !== undefined ? Boolean(data.isShowcase) : (data.size?.isShowcase !== undefined ? Boolean(data.size.isShowcase) : p.isShowcase),
-            showcaseCategory: data.showcaseCategory !== undefined ? data.showcaseCategory : (data.size?.showcaseCategory || p.showcaseCategory),
+            isHidden: data.isHidden !== undefined ? Boolean(data.isHidden) : (mergedSize.isHidden !== undefined ? Boolean(mergedSize.isHidden) : p.isHidden),
+            isLocked: data.isLocked !== undefined ? Boolean(data.isLocked) : (mergedSize.isLocked !== undefined ? Boolean(mergedSize.isLocked) : p.isLocked),
+            isArchived: data.isArchived !== undefined ? Boolean(data.isArchived) : (mergedSize.isArchived !== undefined ? Boolean(mergedSize.isArchived) : p.isArchived),
+            isShowcase: data.isShowcase !== undefined ? Boolean(data.isShowcase) : (mergedSize.isShowcase !== undefined ? Boolean(mergedSize.isShowcase) : p.isShowcase),
+            showcaseCategory: data.showcaseCategory !== undefined ? data.showcaseCategory : (mergedSize.showcaseCategory || p.showcaseCategory),
             categoryId: data.categoryId !== undefined ? data.categoryId : p.categoryId,
             subcategoryId: data.subcategoryId !== undefined ? (data.subcategoryId || undefined) : p.subcategoryId,
-            size: {
-              ...(p.size || {}),
-              ...(hasSizeUpdates ? sizeUpdates : {})
-            },
+            size: mergedSize,
             updatedAt: serverTime
           };
         }

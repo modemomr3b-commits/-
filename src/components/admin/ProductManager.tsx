@@ -1151,14 +1151,16 @@ export default function ProductManager() {
   const handleBulkToggleHide = async (hide: boolean) => {
     if (selectedIds.size === 0) return;
     const ids = Array.from(selectedIds);
-    const productsToUpdate = products.filter(p => selectedIds.has(p.id!));
+    const targetIdsSet = new Set(ids.map(id => String(id)));
+    const productsToUpdate = products.filter(p => targetIdsSet.has(String(p.id)));
     setSelectedIds(new Set());
+    setIsSubmitting(true);
 
     if (!hide) {
       // Activating products -> Auto publish to showcase!
       setProducts((prev) =>
         prev.map((prod) => {
-          if (selectedIds.has(prod.id!)) {
+          if (targetIdsSet.has(String(prod.id))) {
             const cat = prod.showcaseCategory || detectShowcaseCategory(prod, categories) || 'عام';
             return { ...prod, isHidden: false, isShowcase: true, showcaseCategory: cat };
           }
@@ -1184,12 +1186,14 @@ export default function ProductManager() {
         const updated = await api.getProducts();
         setProducts(updated);
         setAlertMessage("فشل التحديث المجمع: " + e.message);
+      } finally {
+        setIsSubmitting(false);
       }
     } else {
       // Instant optimistic local update
       setProducts((prev) =>
         prev.map((prod) =>
-          selectedIds.has(prod.id!) ? { ...prod, isHidden: true } : prod
+          targetIdsSet.has(String(prod.id)) ? { ...prod, isHidden: true } : prod
         )
       );
 
@@ -1200,6 +1204,8 @@ export default function ProductManager() {
         const updated = await api.getProducts();
         setProducts(updated);
         setAlertMessage("فشل التحديث المجمع: " + e.message);
+      } finally {
+        setIsSubmitting(false);
       }
     }
   };
@@ -1207,14 +1213,15 @@ export default function ProductManager() {
   const handleBulkToggleLock = async (lock: boolean) => {
     if (selectedIds.size === 0) return;
     const ids = Array.from(selectedIds);
-    const productsToUpdate = products.filter(p => selectedIds.has(p.id!));
+    const targetIdsSet = new Set(ids.map(id => String(id)));
     setSelectedIds(new Set());
+    setIsSubmitting(true);
 
     if (!lock) {
       // Instant optimistic local update
       setProducts((prev) =>
         prev.map((prod) => {
-          if (selectedIds.has(prod.id!)) {
+          if (targetIdsSet.has(String(prod.id))) {
             return { ...prod, isLocked: false };
           }
           return prod;
@@ -1228,12 +1235,14 @@ export default function ProductManager() {
         const updated = await api.getProducts();
         setProducts(updated);
         setAlertMessage("فشل التحديث المجمع: " + e.message);
+      } finally {
+        setIsSubmitting(false);
       }
     } else {
       // Instant optimistic local update
       setProducts((prev) =>
         prev.map((prod) =>
-          selectedIds.has(prod.id!) ? { ...prod, isLocked: true } : prod
+          targetIdsSet.has(String(prod.id)) ? { ...prod, isLocked: true } : prod
         )
       );
 
@@ -1244,6 +1253,8 @@ export default function ProductManager() {
         const updated = await api.getProducts();
         setProducts(updated);
         setAlertMessage("فشل التحديث المجمع: " + e.message);
+      } finally {
+        setIsSubmitting(false);
       }
     }
   };
@@ -1251,46 +1262,32 @@ export default function ProductManager() {
   const handleBulkToggleArchive = async (archive: boolean) => {
     if (selectedIds.size === 0) return;
     const ids = Array.from(selectedIds);
-    const productsToUpdate = products.filter(p => selectedIds.has(p.id!));
+    const targetIdsSet = new Set(ids.map(id => String(id)));
     setSelectedIds(new Set());
+    setIsSubmitting(true);
 
-    if (!archive) {
-      // Instant optimistic local update
-      setProducts((prev) =>
-        prev.map((prod) => {
-          if (selectedIds.has(prod.id!)) {
-            return { ...prod, isArchived: false };
-          }
-          return prod;
-        })
-      );
+    const updatePayload = archive 
+      ? { isArchived: true, isShowcase: false } 
+      : { isArchived: false };
 
-      try {
-        await api.bulkUpdateProducts(ids, { isArchived: false });
-      } catch (e: any) {
-        console.error("Error bulk toggling out of stock:", e);
-        const updated = await api.getProducts();
-        setProducts(updated);
-        setAlertMessage("فشل التحديث المجمع: " + e.message);
-      }
-    } else {
-      // Instant optimistic local update
-      setProducts((prev) =>
-        prev.map((prod) =>
-          selectedIds.has(prod.id!) 
-            ? { ...prod, isArchived: true, isShowcase: false } 
-            : prod
-        )
-      );
+    // Instant optimistic local update
+    setProducts((prev) =>
+      prev.map((prod) =>
+        targetIdsSet.has(String(prod.id))
+          ? { ...prod, ...updatePayload }
+          : prod
+      )
+    );
 
-      try {
-        await api.bulkUpdateProducts(ids, { isArchived: true, isShowcase: false });
-      } catch (e: any) {
-        console.error("Error bulk toggling out of stock:", e);
-        const updated = await api.getProducts();
-        setProducts(updated);
-        setAlertMessage("فشل التحديث المجمع: " + e.message);
-      }
+    try {
+      await api.bulkUpdateProducts(ids, updatePayload);
+    } catch (e: any) {
+      console.error("Error bulk toggling out of stock:", e);
+      const updated = await api.getProducts();
+      setProducts(updated);
+      setAlertMessage("فشل التحديث المجمع: " + (e.message || e));
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -1299,17 +1296,19 @@ export default function ProductManager() {
     const targetCatId = moveToCategoryId;
     const targetSubcatId = moveToSubcategoryId || null;
     const ids = Array.from(selectedIds);
+    const targetIdsSet = new Set(ids.map(id => String(id)));
     
     // Instant optimistic update and close modal immediately
     setProducts((prev) =>
       prev.map((prod) =>
-        selectedIds.has(prod.id!) ? { ...prod, categoryId: targetCatId, subcategoryId: targetSubcatId || undefined } : prod
+        targetIdsSet.has(String(prod.id)) ? { ...prod, categoryId: targetCatId, subcategoryId: targetSubcatId || undefined } : prod
       )
     );
     setSelectedIds(new Set());
     setIsMoveModalOpen(false);
     setMoveToCategoryId("");
     setMoveToSubcategoryId("");
+    setIsSubmitting(true);
 
     try {
       await api.bulkUpdateProducts(ids, { categoryId: targetCatId, subcategoryId: targetSubcatId });
@@ -1317,7 +1316,9 @@ export default function ProductManager() {
       console.error("Error bulk moving categories:", e);
       const updated = await api.getProducts();
       setProducts(updated);
-      setAlertMessage("فشل نقل الأقسام: " + e.message);
+      setAlertMessage("فشل نقل الأقسام: " + (e.message || e));
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
