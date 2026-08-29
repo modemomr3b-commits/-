@@ -28,6 +28,7 @@ import {
   Sparkles,
   Wand2,
   Layers,
+  FolderArchive,
 } from "lucide-react";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
@@ -40,6 +41,7 @@ import { burnProductOverlay } from "../../utils/burnImage";
 import { BatchProductUpload } from "./BatchProductUpload";
 import { useStore } from "../../store";
 import { CategoryDownloadDialog } from "../shared/CategoryDownloadDialog";
+import { ShowcaseCategorizedDownloadDialog } from "./ShowcaseCategorizedDownloadDialog";
 import ImageViewer from "../ImageViewer";
 import { PriceHistoryViewer } from "../member/PriceHistoryViewer";
 
@@ -58,6 +60,7 @@ export default function ProductManager() {
   const [batchCategoryId, setBatchCategoryId] = useState<string>("");
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false);
   const [isAutoShowcaseOpen, setIsAutoShowcaseOpen] = useState(false);
+  const [isShowcaseDownloadOpen, setIsShowcaseDownloadOpen] = useState(false);
 
   // Real-time background sync polling every 6 seconds
   useEffect(() => {
@@ -1668,6 +1671,13 @@ export default function ProductManager() {
             <Sparkles size={18} /> النشر التلقائي للمعرض 🪄
           </button>
           <button
+            onClick={() => setIsShowcaseDownloadOpen(true)}
+            className="flex-1 md:flex-none flex items-center justify-center gap-2 py-2.5 px-4 bg-gradient-to-r from-amber-500/20 to-yellow-500/20 border border-amber-400/60 text-amber-300 rounded-xl hover:from-amber-500/30 hover:to-yellow-500/30 transition-all text-sm font-bold shadow-md cursor-pointer"
+            title="تحميل المعرض مقسم إلى مجلدات حسب الفئات (رجالي، نسائي، شبابي، ولادي، بناتي، طفل، طفلة، بيبي، مواليد، حقائب)"
+          >
+            <FolderArchive size={18} className="text-amber-400" /> تحميل المعرض المبوب (Zip) 📥
+          </button>
+          <button
             onClick={() => { setIsAdding(!isAdding); setIsBatchAdding(false); }}
             className="flex-1 md:flex-none flex items-center justify-center gap-2 py-2.5 px-4 bg-brq-royal hover:bg-blue-600 text-white rounded-xl transition-all text-sm font-bold shadow-[0_4px_15px_rgba(30,94,255,0.3)]"
           >
@@ -2042,6 +2052,13 @@ export default function ProductManager() {
               </span>
             </button>
             <button
+              onClick={() => setIsShowcaseDownloadOpen(true)}
+              className="pb-2 px-2.5 text-sm font-bold border-b-2 border-transparent text-amber-400 hover:text-white transition-colors flex items-center gap-1.5 whitespace-nowrap bg-amber-500/10 rounded-t-lg cursor-pointer"
+              title="تحميل صور المعرض مقسمة إلى مجلدات حسب الفئات العشر (رجالي، نسائي، ولادي...)"
+            >
+              <FolderArchive size={14} /> تحميل المعرض المبوب (Zip) 📥
+            </button>
+            <button
               onClick={() => setIsDownloadDialogOpen(true)}
               className="pb-2 px-2.5 text-sm font-bold border-b-2 border-transparent text-brq-gold hover:text-white transition-colors flex items-center gap-1 whitespace-nowrap"
             >
@@ -2286,6 +2303,31 @@ export default function ProductManager() {
                 </div>
               )}
             </div>
+
+            {filterStatus === 'showcase' && (
+              <div className="m-3 p-4 rounded-xl bg-gradient-to-r from-amber-500/15 via-yellow-500/10 to-amber-500/5 border border-amber-500/30 flex flex-col sm:flex-row items-center justify-between gap-3 text-right">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-300 shrink-0">
+                    <Sparkles size={20} />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black text-amber-300">معرض شركة الوفاء المبوب (10 فئات)</h4>
+                    <p className="text-xs text-white/70">
+                      يمكنك تنزيل المعرض بالكامل كملف Zip مقسم تلقائياً إلى مجلدات: رجالي، نسائي، شبابي، ولادي، بناتي، طفل، طفلة، بيبي، مواليد، حقائب.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsShowcaseDownloadOpen(true)}
+                  className="w-full sm:w-auto px-5 py-2.5 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black font-black rounded-xl text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition-all cursor-pointer whitespace-nowrap active:scale-95"
+                >
+                  <FolderArchive size={16} />
+                  <span>تحميل المعرض المبوب (Zip) 📥</span>
+                </button>
+              </div>
+            )}
 
             <div className="overflow-x-auto min-h-[400px]">
               {filterStatus === null && !searchQuery ? (
@@ -3754,6 +3796,14 @@ export default function ProductManager() {
             </div>
           </div>
         </div>
+      )}
+
+      {isShowcaseDownloadOpen && (
+        <ShowcaseCategorizedDownloadDialog
+          products={products}
+          categories={categories}
+          onClose={() => setIsShowcaseDownloadOpen(false)}
+        />
       )}
     </div>
   );

@@ -1,8 +1,33 @@
-import React, { useState, useEffect } from 'react';
-import { Loader2, Upload, X, CheckCircle2, AlertCircle, CheckSquare, Square, Layers, Check, Plus, Trash2 } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  Loader2, 
+  Upload, 
+  X, 
+  CheckCircle2, 
+  AlertCircle, 
+  CheckSquare, 
+  Square, 
+  Layers, 
+  Check, 
+  Plus, 
+  Trash2,
+  Images,
+  FolderOpen,
+  Sparkles,
+  FileCheck,
+  UploadCloud,
+  HelpCircle,
+  Eye
+} from 'lucide-react';
 import { api } from '../../api';
 import { burnProductOverlay } from '../../utils/burnImage';
 import { Product, Category } from '../../types';
+import { 
+  extractProductCodes, 
+  extractImageCodes, 
+  calculateMatchScore, 
+  processImageFileToDataUrl 
+} from '../../utils/artNumberMatcher';
 
 export const autoSelectSubcategory = (name: string, categoryId: string, currentSubcategoryId?: string, categories: Category[] = []) => {
   if (!categoryId || !name) return currentSubcategoryId || '';
@@ -54,6 +79,22 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
   const [isSuccess, setIsSuccess] = useState(false);
   const [uploadSessionId, setUploadSessionId] = useState(Date.now());
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
+  
+  // Bulk Image Upload & Auto-Match by Art Number States
+  const [isMatchingImages, setIsMatchingImages] = useState(false);
+  const [matchingProgress, setMatchingProgress] = useState<{ current: number; total: number; currentFile: string } | null>(null);
+  const [autoMatchedCards, setAutoMatchedCards] = useState<Record<number, { filename: string; matchedBy: string; score: number }>>({});
+  const [matchResultModal, setMatchResultModal] = useState<{
+    totalUploaded: number;
+    matchedCount: number;
+    unmatchedCount: number;
+    matchedDetails: Array<{ productIndex: number; productName: string; filename: string; matchedBy: string }>;
+    unmatchedFiles: string[];
+  } | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+
+  const multiFileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
   
   const emptyProduct = () => ({
     name: '',
@@ -297,6 +338,142 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
       return lastWord.toUpperCase().replace(/[-_]/g, '');
     }
     return null;
+  };
+
+  // Process Bulk Image Files & Auto-Match by Art Number
+  const handleProcessBulkImages = async (fileList: FileList | File[]) => {
+    const rawFiles = Array.from(fileList);
+    // Filter image files only
+    const imageFiles = rawFiles.filter(file => 
+      file.type.startsWith('image/') || /\.(jpe?g|png|webp|gif|bmp|avif)$/i.test(file.name)
+    );
+
+    if (imageFiles.length === 0) {
+      setAlertMessage('لم يتم العثور على أي ملفات صور صالحة بين الملفات المحددة.');
+      return;
+    }
+
+    setIsMatchingImages(true);
+    setMatchingProgress({ current: 0, total: imageFiles.length, currentFile: imageFiles[0]?.name || '' });
+
+    try {
+      // 1. Gather all product cards and their extracted Art Numbers
+      const productCodeInfos = products.map((p, idx) => ({
+        index: idx,
+        product: p,
+        codes: extractProductCodes(p),
+        hasNameOrCode: !!(p.name?.trim() || p.productCode?.trim() || p.modelNumber?.trim())
+      }));
+
+      const filledCardsCount = productCodeInfos.filter(p => p.hasNameOrCode).length;
+      if (filledCardsCount === 0) {
+        setIsMatchingImages(false);
+        setMatchingProgress(null);
+        setAlertMessage('يرجى أولاً كتابة اسم أو كود المنتجات في البطاقات (مثلاً: رياضة رجالي XD-83649) حتى يتعرف النظام على الآرت نمبر ومطابقة الصور معه.');
+        return;
+      }
+
+      const newProducts = [...products];
+      const matchedDetails: Array<{ productIndex: number; productName: string; filename: string; matchedBy: string }> = [];
+      const unmatchedFiles: string[] = [];
+      const newAutoMatched = { ...autoMatchedCards };
+      const matchedProductIndices = new Set<number>();
+
+      // 2. Iterate through each image file and match with best product
+      for (let i = 0; i < imageFiles.length; i++) {
+        const file = imageFiles[i];
+        setMatchingProgress({ current: i + 1, total: imageFiles.length, currentFile: file.name });
+
+        const imageCodeInfo = extractImageCodes(file.name);
+        let bestMatch: { index: number; score: number; matchedBy: string; product: Partial<Product> } | null = null;
+
+        // Compare against each product card that hasn't been assigned an image in this run
+        for (const pInfo of productCodeInfos) {
+          if (!pInfo.hasNameOrCode) continue; // Skip completely empty cards
+          if (matchedProductIndices.has(pInfo.index)) continue; // Already matched in this batch
+
+          const matchRes = calculateMatchScore(pInfo.codes, imageCodeInfo, pInfo.product.name || '');
+          if (matchRes.isMatch && matchRes.score >= 70) {
+            if (!bestMatch || matchRes.score > bestMatch.score) {
+              bestMatch = {
+                index: pInfo.index,
+                score: matchRes.score,
+                matchedBy: matchRes.matchedBy,
+                product: pInfo.product
+              };
+            }
+          }
+        }
+
+        if (bestMatch) {
+          try {
+            const dataUrl = await processImageFileToDataUrl(file);
+            newProducts[bestMatch.index] = {
+              ...newProducts[bestMatch.index],
+              imageUrl: dataUrl
+            };
+            matchedProductIndices.add(bestMatch.index);
+            newAutoMatched[bestMatch.index] = {
+              filename: file.name,
+              matchedBy: bestMatch.matchedBy,
+              score: bestMatch.score
+            };
+            matchedDetails.push({
+              productIndex: bestMatch.index + 1,
+              productName: bestMatch.product.name || `منتج ${bestMatch.index + 1}`,
+              filename: file.name,
+              matchedBy: bestMatch.matchedBy
+            });
+          } catch (err) {
+            console.error(`Error processing image ${file.name}:`, err);
+            unmatchedFiles.push(file.name);
+          }
+        } else {
+          unmatchedFiles.push(file.name);
+        }
+      }
+
+      setProducts(newProducts);
+      setAutoMatchedCards(newAutoMatched);
+      setIsMatchingImages(false);
+      setMatchingProgress(null);
+
+      // Open detailed summary modal
+      setMatchResultModal({
+        totalUploaded: imageFiles.length,
+        matchedCount: matchedDetails.length,
+        unmatchedCount: unmatchedFiles.length,
+        matchedDetails,
+        unmatchedFiles
+      });
+
+    } catch (err: any) {
+      console.error('Error during bulk image auto-matching:', err);
+      setIsMatchingImages(false);
+      setMatchingProgress(null);
+      setAlertMessage('حدث خطأ أثناء فحص الصور ومطابقتها: ' + (err.message || ''));
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleProcessBulkImages(e.dataTransfer.files);
+    }
   };
 
   // Ultra-Fast Parallel Publishing (Automatically created as inactive isHidden: true)
@@ -543,6 +720,114 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
         </div>
       </div>
 
+      {/* Hidden File and Folder Inputs for Bulk Matching */}
+      <input
+        ref={multiFileInputRef}
+        type="file"
+        multiple
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          if (e.target.files && e.target.files.length > 0) {
+            handleProcessBulkImages(e.target.files);
+            e.target.value = '';
+          }
+        }}
+      />
+      <input
+        ref={folderInputRef}
+        type="file"
+        multiple
+        {...({ webkitdirectory: "", directory: "" } as any)}
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          if (e.target.files && e.target.files.length > 0) {
+            handleProcessBulkImages(e.target.files);
+            e.target.value = '';
+          }
+        }}
+      />
+
+      {/* Bulk Images Auto-Match by Art Number Panel */}
+      <div 
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        className={`p-4 rounded-xl border transition-all ${
+          isDragOver 
+            ? 'bg-amber-500/20 border-amber-400 shadow-[0_0_30px_rgba(245,158,11,0.3)] scale-[1.01]' 
+            : 'bg-gradient-to-r from-amber-500/10 via-yellow-500/5 to-amber-500/10 border-amber-500/30'
+        }`}
+        dir="rtl"
+      >
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className="w-11 h-11 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-300 shrink-0 mt-0.5">
+              <Images size={22} className="text-amber-400" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h4 className="text-sm md:text-base font-extrabold text-amber-300 flex items-center gap-1.5">
+                  <Sparkles size={16} className="text-amber-400" />
+                  رفع وتوزيع الصور تلقائياً حسب الآرت نمبر (Art Number / رقم الموديل) ⚡
+                </h4>
+                <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full font-mono font-bold">
+                  Auto-Match
+                </span>
+              </div>
+              <p className="text-xs text-white/70 mt-1 leading-relaxed">
+                ارفع أي عدد من الصور (مثلاً <span className="text-amber-300 font-bold">20 صورة</span> والمنتجات <span className="text-amber-300 font-bold">10 منتجات</span>)، وسيقوم النظام فوراً بمطابقة كود الصورة (مثل <span className="text-amber-300 font-mono font-bold">XD-83649</span>) مع الآرت نمبر الموجود في اسم المنتج وتوزيعها على الحقول تلقائياً!
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto shrink-0">
+            <button
+              type="button"
+              onClick={() => multiFileInputRef.current?.click()}
+              disabled={isMatchingImages}
+              className="flex-1 md:flex-none px-4 py-2.5 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black font-extrabold rounded-xl text-xs md:text-sm flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+            >
+              <UploadCloud size={16} />
+              <span>اختر حزمة صور (Files) 📂</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => folderInputRef.current?.click()}
+              disabled={isMatchingImages}
+              className="flex-1 md:flex-none px-3.5 py-2.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold rounded-xl text-xs md:text-sm flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+              title="اختيار مجلد كامل لرفع كل الصور بداخله"
+            >
+              <FolderOpen size={16} className="text-amber-400" />
+              <span>مجلد كامل (Folder) 📁</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Progress indicator during matching */}
+        {isMatchingImages && matchingProgress && (
+          <div className="mt-3 pt-3 border-t border-amber-500/20">
+            <div className="flex justify-between items-center text-xs mb-1.5">
+              <span className="text-amber-300 font-bold flex items-center gap-1.5">
+                <Loader2 size={14} className="animate-spin text-amber-400" />
+                جاري مطابقة وتوزيع الصور ({matchingProgress.current} من {matchingProgress.total})...
+              </span>
+              <span className="font-mono text-white/70 text-[11px] truncate max-w-[200px]" dir="ltr">
+                {matchingProgress.currentFile}
+              </span>
+            </div>
+            <div className="w-full h-2 bg-black/50 rounded-full overflow-hidden border border-amber-500/20">
+              <div 
+                className="h-full bg-gradient-to-r from-amber-500 to-yellow-400 transition-all duration-150"
+                style={{ width: `${Math.round((matchingProgress.current / matchingProgress.total) * 100)}%` }}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Grid of Dynamic Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" dir="rtl">
         {products.map((product, idx) => {
@@ -709,14 +994,44 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
                 ) : null}
 
                 <div>
-                  <label className="text-[10px] text-white/50 block mb-0.5">صورة المنتج</label>
+                  <label className="text-[10px] text-white/50 block mb-0.5 font-bold">صورة المنتج</label>
+                  
+                  {autoMatchedCards[idx] && (
+                    <div className="mb-1.5 bg-amber-500/15 border border-amber-400/40 rounded-lg p-1.5 flex items-center justify-between text-[11px] text-amber-300 font-bold">
+                      <span className="flex items-center gap-1 truncate">
+                        <Sparkles size={12} className="text-amber-400 shrink-0" />
+                        <span>تم الربط التلقائي:</span>
+                      </span>
+                      <span className="font-mono text-white text-[10px] bg-black/40 px-1.5 py-0.5 rounded truncate max-w-[110px]" title={autoMatchedCards[idx].filename}>
+                        {autoMatchedCards[idx].filename}
+                      </span>
+                    </div>
+                  )}
+
                   <div className="flex flex-col gap-2">
                     {product.imageUrl && (
-                      <img
-                        src={product.imageUrl}
-                        alt="preview"
-                        className="w-16 h-16 rounded object-contain border border-white/20 bg-black/50"
-                      />
+                      <div className="relative group w-20 h-20 rounded-lg overflow-hidden border border-amber-400/40 bg-black/60 shadow-md">
+                        <img
+                          src={product.imageUrl}
+                          alt="preview"
+                          className="w-full h-full object-contain"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleProductChange(idx, 'imageUrl', '');
+                            setAutoMatchedCards(prev => {
+                              const next = { ...prev };
+                              delete next[idx];
+                              return next;
+                            });
+                          }}
+                          className="absolute top-1 left-1 bg-red-600/90 text-white rounded p-0.5 hover:bg-red-700 transition-colors opacity-90 group-hover:opacity-100"
+                          title="إزالة الصورة"
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
                     )}
                     <input
                       key={`${uploadSessionId}-${idx}`}
@@ -757,6 +1072,122 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
             )}
           </button>
       </div>
+
+      {/* Match Result Summary Modal */}
+      {matchResultModal && (
+        <div className="fixed inset-0 bg-black/85 flex items-center justify-center p-4 z-[320] backdrop-blur-md">
+          <div className="bg-brq-card border border-amber-500/40 rounded-2xl max-w-xl w-full max-h-[85vh] flex flex-col relative overflow-hidden shadow-[0_0_50px_rgba(245,158,11,0.2)]" dir="rtl">
+            <div className="absolute top-0 right-0 w-full h-1.5 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500"></div>
+
+            {/* Modal Header */}
+            <div className="p-5 border-b border-white/10 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
+                  <Sparkles size={22} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white">
+                    تقرير مطابقة وتوزيع الصور (Auto-Match)
+                  </h3>
+                  <p className="text-xs text-white/60">
+                    تم فحص أسماء ملفات الصور ومطابقتها مع كود الآرت نمبر لكل منتج
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setMatchResultModal(null)} 
+                className="text-white/40 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Stats Summary */}
+            <div className="grid grid-cols-3 gap-2 p-4 bg-black/40 border-b border-white/10 text-center">
+              <div className="bg-white/5 p-3 rounded-xl border border-white/10">
+                <span className="text-[11px] text-white/60 block mb-1">الصور المرفوعة</span>
+                <span className="text-lg font-extrabold text-white font-mono">{matchResultModal.totalUploaded}</span>
+              </div>
+              <div className="bg-emerald-500/10 p-3 rounded-xl border border-emerald-500/30">
+                <span className="text-[11px] text-emerald-400 block mb-1 font-bold">تم ربطها بنجاح</span>
+                <span className="text-lg font-extrabold text-emerald-400 font-mono">
+                  {matchResultModal.matchedCount}
+                </span>
+              </div>
+              <div className="bg-white/5 p-3 rounded-xl border border-white/10">
+                <span className="text-[11px] text-white/50 block mb-1">تم تجاهلها (بدون تطابق)</span>
+                <span className="text-lg font-extrabold text-white/70 font-mono">{matchResultModal.unmatchedCount}</span>
+              </div>
+            </div>
+
+            {/* Scrollable details list */}
+            <div className="p-4 overflow-y-auto flex-1 space-y-4 max-h-[40vh]">
+              {matchResultModal.matchedDetails.length > 0 && (
+                <div>
+                  <h4 className="text-xs font-bold text-emerald-400 mb-2 flex items-center gap-1.5">
+                    <CheckCircle2 size={14} />
+                    المنتجات التي تم إسناد صور لها بنجاح ({matchResultModal.matchedDetails.length}):
+                  </h4>
+                  <div className="space-y-1.5">
+                    {matchResultModal.matchedDetails.map((item, i) => (
+                      <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="bg-emerald-500/30 text-emerald-300 font-bold px-1.5 py-0.5 rounded text-[10px]">
+                            بطاقة {item.productIndex}
+                          </span>
+                          <span className="font-bold text-white max-w-[200px] truncate" title={item.productName}>
+                            {item.productName}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-white/40">⬅️</span>
+                          <span className="font-mono text-[11px] text-amber-300 bg-black/40 px-2 py-0.5 rounded max-w-[150px] truncate" title={item.filename} dir="ltr">
+                            {item.filename}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {matchResultModal.unmatchedFiles.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <h4 className="text-xs font-bold text-white/60 flex items-center gap-1.5">
+                      <HelpCircle size={14} className="text-amber-400/80" />
+                      صور لم يُعثر على منتج مطابق لها في البطاقات الحالية ({matchResultModal.unmatchedFiles.length}):
+                    </h4>
+                  </div>
+                  <p className="text-[11px] text-white/40 mb-2">
+                    (تأكد من كتابة الآرت نمبر في اسم المنتج مثل: <span className="text-amber-300 font-mono">XD-83649</span>)
+                  </p>
+                  <div className="p-2.5 rounded-lg bg-white/5 border border-white/10 max-h-32 overflow-y-auto">
+                    <div className="flex flex-wrap gap-1.5" dir="ltr">
+                      {matchResultModal.unmatchedFiles.map((fname, i) => (
+                        <span key={i} className="text-[10px] font-mono bg-black/50 text-white/70 px-2 py-0.5 rounded border border-white/10 truncate max-w-[180px]" title={fname}>
+                          {fname}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-white/10 bg-black/40 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setMatchResultModal(null)}
+                className="px-6 py-2.5 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black font-extrabold text-sm rounded-xl transition-all shadow-md active:scale-95 cursor-pointer"
+              >
+                ممتاز، متابعة العمل 👍
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {alertMessage && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[300] backdrop-blur-sm">

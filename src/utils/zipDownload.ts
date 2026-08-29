@@ -34,8 +34,12 @@ export const downloadAsZip = async (
         }
         usedNames.add(finalFilename);
 
-        // Always put images directly in root of zip (no subfolders)
-        zip.file(finalFilename, blob);
+        // If folderName is provided, place image in that folder, otherwise place in root
+        if (img.folderName) {
+          zip.folder(img.folderName)?.file(finalFilename, blob);
+        } else {
+          zip.file(finalFilename, blob);
+        }
         
         completed++;
         if (onProgress) {

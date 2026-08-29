@@ -1,8 +1,9 @@
 import React, { useState, useMemo } from "react";
-import { Download, X, Loader2, Search, ChevronRight, Folder } from "lucide-react";
+import { Download, X, Loader2, Search, ChevronRight, Folder, Sparkles, FolderArchive } from "lucide-react";
 import { Category, Product } from "../../types";
 import { DownloadChoiceDialog } from "./DownloadChoiceDialog";
 import { useStore } from "../../store";
+import { ShowcaseCategorizedDownloadDialog } from "../admin/ShowcaseCategorizedDownloadDialog";
 
 interface CategoryDownloadDialogProps {
   categories: Category[];
@@ -14,6 +15,7 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
   const { showToast, user } = useStore();
   const [downloadProgress, setDownloadProgress] = useState<{ progress: number; total: number; message?: string } | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [isShowcaseExportOpen, setIsShowcaseExportOpen] = useState(false);
   
   const [selectedGroupName, setSelectedGroupName] = useState<string | null>(null);
   
@@ -314,16 +316,32 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
               {!selectedGroupName ? (
                  <>
                     {!searchTerm && (
-                      <div>
+                      <div className="space-y-2.5">
                         <button
-                          onClick={handleDownloadAllStore}
-                          className="w-full p-4 bg-gradient-to-r from-brq-gold/10 to-brq-gold/5 border border-brq-gold/30 rounded-xl hover:bg-brq-gold/20 hover:border-brq-gold/60 transition-all text-right group flex justify-between items-center"
+                          onClick={() => setIsShowcaseExportOpen(true)}
+                          className="w-full p-4 bg-gradient-to-r from-amber-500/20 via-yellow-500/10 to-amber-500/5 border border-amber-400/50 rounded-xl hover:bg-amber-500/30 hover:border-amber-400 transition-all text-right group flex justify-between items-center shadow-lg cursor-pointer"
                         >
                           <div>
-                            <span className="font-bold text-brq-gold text-lg block mb-1">تحميل جميع صور المتجر</span>
-                            <span className="text-white/50 text-sm">سيتم تقسيم الصور في مجلدات</span>
+                            <span className="font-extrabold text-amber-300 text-lg block mb-1 flex items-center gap-1.5">
+                              <Sparkles size={18} className="text-amber-400" />
+                              تحميل معرض شركة الوفاء المبوب (Zip) 🌟
+                            </span>
+                            <span className="text-white/70 text-xs">
+                              يقسم المعرض تلقائياً إلى مجلدات (رجالي، نسائي، شبابي، ولادي، بناتي، طفل، طفلة، بيبي، مواليد، حقائب)
+                            </span>
                           </div>
-                          <Download size={24} className="text-brq-gold/70 group-hover:text-brq-gold group-hover:scale-110 transition-all" />
+                          <FolderArchive size={26} className="text-amber-400/80 group-hover:text-amber-300 group-hover:scale-110 transition-all shrink-0 mr-2" />
+                        </button>
+
+                        <button
+                          onClick={handleDownloadAllStore}
+                          className="w-full p-3.5 bg-gradient-to-r from-brq-gold/10 to-brq-gold/5 border border-brq-gold/30 rounded-xl hover:bg-brq-gold/20 hover:border-brq-gold/60 transition-all text-right group flex justify-between items-center cursor-pointer"
+                        >
+                          <div>
+                            <span className="font-bold text-brq-gold text-base block mb-0.5">تحميل جميع صور المتجر</span>
+                            <span className="text-white/50 text-xs">سيتم تقسيم الصور في مجلدات</span>
+                          </div>
+                          <Download size={22} className="text-brq-gold/70 group-hover:text-brq-gold group-hover:scale-110 transition-all" />
                         </button>
                       </div>
                     )}
@@ -406,6 +424,14 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
           onDownloadStudio={downloadChoiceDialog.onDownloadStudio}
           onDownloadZip={downloadChoiceDialog.onDownloadZip}
           onCancel={() => setDownloadChoiceDialog(null)}
+        />
+      )}
+
+      {isShowcaseExportOpen && (
+        <ShowcaseCategorizedDownloadDialog
+          products={products}
+          categories={categories}
+          onClose={() => setIsShowcaseExportOpen(false)}
         />
       )}
     </div>
