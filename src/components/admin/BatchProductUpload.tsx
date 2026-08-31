@@ -1103,45 +1103,45 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
             </div>
 
             {/* Stats Summary */}
-            <div className="grid grid-cols-3 gap-2 p-4 bg-black/40 border-b border-white/10 text-center">
-              <div className="bg-white/5 p-3 rounded-xl border border-white/10">
-                <span className="text-[11px] text-white/60 block mb-1">الصور المرفوعة</span>
-                <span className="text-lg font-extrabold text-white font-mono">{matchResultModal.totalUploaded}</span>
+            <div className="grid grid-cols-3 gap-2 p-4 bg-black/50 border-b border-white/10 text-center">
+              <div className="bg-white/10 p-3 rounded-xl border border-white/20">
+                <span className="text-xs text-white/90 block mb-1 font-bold">الصور المرفوعة</span>
+                <span className="text-xl font-black text-white font-mono">{matchResultModal.totalUploaded}</span>
               </div>
-              <div className="bg-emerald-500/10 p-3 rounded-xl border border-emerald-500/30">
-                <span className="text-[11px] text-emerald-400 block mb-1 font-bold">تم ربطها بنجاح</span>
-                <span className="text-lg font-extrabold text-emerald-400 font-mono">
+              <div className="bg-emerald-600/30 p-3 rounded-xl border border-emerald-400/40">
+                <span className="text-xs text-white font-bold block mb-1">تم ربطها بنجاح</span>
+                <span className="text-xl font-black text-white font-mono">
                   {matchResultModal.matchedCount}
                 </span>
               </div>
-              <div className="bg-white/5 p-3 rounded-xl border border-white/10">
-                <span className="text-[11px] text-white/50 block mb-1">تم تجاهلها (بدون تطابق)</span>
-                <span className="text-lg font-extrabold text-white/70 font-mono">{matchResultModal.unmatchedCount}</span>
+              <div className="bg-white/10 p-3 rounded-xl border border-white/20">
+                <span className="text-xs text-white/90 block mb-1 font-bold">تم تجاهلها (بدون تطابق)</span>
+                <span className="text-xl font-black text-white font-mono">{matchResultModal.unmatchedCount}</span>
               </div>
             </div>
 
             {/* Scrollable details list */}
-            <div className="p-4 overflow-y-auto flex-1 space-y-4 max-h-[40vh]">
+            <div className="p-4 overflow-y-auto flex-1 space-y-4 max-h-[45vh]">
               {matchResultModal.matchedDetails.length > 0 && (
                 <div>
-                  <h4 className="text-xs font-bold text-emerald-400 mb-2 flex items-center gap-1.5">
-                    <CheckCircle2 size={14} />
+                  <h4 className="text-sm font-black text-white mb-2.5 flex items-center gap-1.5">
+                    <CheckCircle2 size={16} className="text-emerald-400" />
                     المنتجات التي تم إسناد صور لها بنجاح ({matchResultModal.matchedDetails.length}):
                   </h4>
-                  <div className="space-y-1.5">
+                  <div className="space-y-2">
                     {matchResultModal.matchedDetails.map((item, i) => (
-                      <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs">
-                        <div className="flex items-center gap-2">
-                          <span className="bg-emerald-500/30 text-emerald-300 font-bold px-1.5 py-0.5 rounded text-[10px]">
+                      <div key={i} className="flex items-center justify-between p-2.5 rounded-lg bg-white/10 border border-white/20 text-xs shadow-sm">
+                        <div className="flex items-center gap-2.5">
+                          <span className="bg-emerald-600 text-white font-black px-2 py-1 rounded text-xs shadow-sm">
                             بطاقة {item.productIndex}
                           </span>
-                          <span className="font-bold text-white max-w-[200px] truncate" title={item.productName}>
+                          <span className="font-black text-white text-sm max-w-[240px] truncate drop-shadow-sm" title={item.productName}>
                             {item.productName}
                           </span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="text-white/40">⬅️</span>
-                          <span className="font-mono text-[11px] text-amber-300 bg-black/40 px-2 py-0.5 rounded max-w-[150px] truncate" title={item.filename} dir="ltr">
+                          <span className="text-white/60 text-sm">⬅️</span>
+                          <span className="font-mono text-xs text-yellow-300 font-bold bg-black/60 px-2.5 py-1 rounded border border-white/20 max-w-[180px] truncate" title={item.filename} dir="ltr">
                             {item.filename}
                           </span>
                         </div>
@@ -1154,18 +1154,18 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
               {matchResultModal.unmatchedFiles.length > 0 && (
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <h4 className="text-xs font-bold text-white/60 flex items-center gap-1.5">
-                      <HelpCircle size={14} className="text-amber-400/80" />
+                    <h4 className="text-sm font-black text-white flex items-center gap-1.5">
+                      <HelpCircle size={16} className="text-amber-400" />
                       صور لم يُعثر على منتج مطابق لها في البطاقات الحالية ({matchResultModal.unmatchedFiles.length}):
                     </h4>
                   </div>
-                  <p className="text-[11px] text-white/40 mb-2">
-                    (تأكد من كتابة الآرت نمبر في اسم المنتج مثل: <span className="text-amber-300 font-mono">XD-83649</span>)
+                  <p className="text-xs text-white/80 mb-2 font-medium">
+                    (تأكد من كتابة نفس الآرت نمبر بدقة في اسم المنتج مثل: <span className="text-yellow-300 font-mono font-bold bg-black/50 px-1 rounded">XD-83649</span>)
                   </p>
-                  <div className="p-2.5 rounded-lg bg-white/5 border border-white/10 max-h-32 overflow-y-auto">
-                    <div className="flex flex-wrap gap-1.5" dir="ltr">
+                  <div className="p-3 rounded-lg bg-white/10 border border-white/20 max-h-36 overflow-y-auto">
+                    <div className="flex flex-wrap gap-2" dir="ltr">
                       {matchResultModal.unmatchedFiles.map((fname, i) => (
-                        <span key={i} className="text-[10px] font-mono bg-black/50 text-white/70 px-2 py-0.5 rounded border border-white/10 truncate max-w-[180px]" title={fname}>
+                        <span key={i} className="text-xs font-mono bg-black/70 text-white font-bold px-2.5 py-1 rounded border border-white/20 truncate max-w-[200px]" title={fname}>
                           {fname}
                         </span>
                       ))}

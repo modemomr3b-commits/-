@@ -1024,17 +1024,16 @@ export default function ProductManager() {
   const handleToggleHide = async (p: Product) => {
     const nextHidden = !p.isHidden;
     const cat = p.showcaseCategory || detectShowcaseCategory(p, categories) || 'عام';
-    const updates: any = { isHidden: nextHidden };
-    if (!nextHidden) {
-      // Activating product -> auto-publish to showcase!
-      updates.isShowcase = true;
-      updates.showcaseCategory = cat;
-    }
+    // When hidden: true -> MUST set isShowcase: false to completely deactivate and remove from showcase
+    const updates: any = { 
+      isHidden: nextHidden,
+      ...(nextHidden ? { isShowcase: false } : { isShowcase: true, showcaseCategory: cat })
+    };
 
     // Optimistic update
     setProducts((prev) =>
       prev.map((prod) =>
-        prod.id === p.id ? { ...prod, isHidden: nextHidden, ...(!nextHidden ? { isShowcase: true, showcaseCategory: cat } : {}) } : prod
+        prod.id === p.id ? { ...prod, ...updates } : prod
       )
     );
     try {
@@ -1193,15 +1192,15 @@ export default function ProductManager() {
         setIsSubmitting(false);
       }
     } else {
-      // Instant optimistic local update
+      // Instant optimistic local update: hiding items completely removes them from showcase
       setProducts((prev) =>
         prev.map((prod) =>
-          targetIdsSet.has(String(prod.id)) ? { ...prod, isHidden: true } : prod
+          targetIdsSet.has(String(prod.id)) ? { ...prod, isHidden: true, isShowcase: false } : prod
         )
       );
 
       try {
-        await api.bulkUpdateProducts(ids, { isHidden: true });
+        await api.bulkUpdateProducts(ids, { isHidden: true, isShowcase: false });
       } catch (e: any) {
         console.error("Error bulk toggling hide:", e);
         const updated = await api.getProducts();
@@ -1991,15 +1990,6 @@ export default function ProductManager() {
               المواد المكررة
               <span className="text-[10px] bg-cyan-500/20 text-cyan-300 px-1.5 py-0.5 rounded-full font-mono font-bold">
                 {tabCounts.duplicates}
-              </span>
-            </button>
-            <button
-              onClick={() => setFilterStatus("locked")}
-              className={`pb-2 px-2.5 text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 ${filterStatus === "locked" ? "border-purple-400 text-purple-400" : "border-transparent text-white/50 hover:text-white"}`}
-            >
-              المواد المقفلة من قبل الادمن
-              <span className="text-[10px] bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded-full font-mono font-bold">
-                {tabCounts.locked}
               </span>
             </button>
             <button

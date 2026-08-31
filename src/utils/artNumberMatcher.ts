@@ -160,7 +160,7 @@ export function extractImageCodes(filename: string): ExtractedProductCode {
 
 /**
  * Checks whether an image matches a product by its Art Number / Code
- * Scoring from 0 to 100
+ * Scoring from 0 to 100 with strict exact-code matching
  */
 export function calculateMatchScore(
   productCodeInfo: ExtractedProductCode,
@@ -174,16 +174,16 @@ export function calculateMatchScore(
   const pTokens = productCodeInfo.tokens;
   const iTokens = imageCodeInfo.tokens;
 
-  // 1. Exact token match (e.g. "XD-83649" === "XD-83649")
+  // 1. Exact raw token match (e.g. "YT-8368" === "YT-8368" or "8368" === "8368")
   for (const pt of pTokens) {
     for (const it of iTokens) {
       if (pt.toUpperCase() === it.toUpperCase() && pt.length >= 2) {
-        return { isMatch: true, score: 100, matchedBy: `تطابق تام للكود: ${pt}` };
+        return { isMatch: true, score: 100, matchedBy: `تطابق تام ومباشر للآرت نمبر: ${pt}` };
       }
     }
   }
 
-  // 2. Exact normalized alphanumeric match (e.g. "XD83649" === "XD83649")
+  // 2. Exact normalized alphanumeric match (e.g. "YT-8368" === "YT8368" or "KK-8321" === "KK8321")
   for (const pt of pTokens) {
     const normP = normalizeAlphaNumeric(pt);
     if (!normP || normP.length < 2) continue;
@@ -192,13 +192,14 @@ export function calculateMatchScore(
       const normI = normalizeAlphaNumeric(it);
       if (!normI || normI.length < 2) continue;
 
+      // STRICT EQUALITY: both must have the exact same alphanumeric content
       if (normP === normI) {
-        return { isMatch: true, score: 95, matchedBy: `تطابق الكود بدون فواصل: ${pt}` };
+        return { isMatch: true, score: 98, matchedBy: `تطابق تام للآرت نمبر بدون فواصل: ${pt}` };
       }
     }
   }
 
-  // 3. Substring matching for strong codes (>= 4 characters)
+  // 3. Image with angle suffix (e.g. "YT-8368_1" or "YT-8368 (2)" matching "YT-8368")
   for (const pt of pTokens) {
     const normP = normalizeAlphaNumeric(pt);
     if (!normP || normP.length < 3) continue;
@@ -207,36 +208,25 @@ export function calculateMatchScore(
       const normI = normalizeAlphaNumeric(it);
       if (!normI || normI.length < 3) continue;
 
-      if (normI.includes(normP) || normP.includes(normI)) {
-        // Ensure it's a meaningful match (not just 1 digit)
-        const minLen = Math.min(normP.length, normI.length);
-        if (minLen >= 3) {
-          return { isMatch: true, score: 85, matchedBy: `تطابق جزئي للكود: ${pt}` };
-        }
+      // Check if image filename is exact code followed by angle/number suffix (e.g. YT83681 matching YT8368)
+      if (normI.startsWith(normP) && (normI.length === normP.length + 1 || normI.length === normP.length + 2)) {
+        return { isMatch: true, score: 92, matchedBy: `تطابق للآرت نمبر مع زاوية/تكرار: ${pt}` };
       }
     }
   }
 
-  // 4. Check if the image filename is contained in the product name or vice versa
+  // 4. Exact full filename inside product name (whole token boundary only)
   const normProdName = normalizeCode(productName);
-  const normImgName = normalizeCode(imageCodeInfo.raw);
-  if (normProdName && normImgName) {
-    if (normProdName.includes(normImgName) && normImgName.length >= 3) {
-      return { isMatch: true, score: 80, matchedBy: `اسم الصورة موجود في اسم المنتج: ${imageCodeInfo.raw}` };
+  const normImgName = normalizeAlphaNumeric(imageCodeInfo.raw);
+  if (normProdName && normImgName && normImgName.length >= 3) {
+    // Check if the exact alphanumeric image name exists as a distinct token in the product name
+    const prodTokens = normProdName.split(/[^A-Z0-9]/).filter(Boolean);
+    if (prodTokens.includes(normImgName)) {
+      return { isMatch: true, score: 90, matchedBy: `تطابق كود الصورة في اسم المنتج: ${imageCodeInfo.raw}` };
     }
   }
 
-  // 5. Pure digits match if >= 4 digits (e.g. 83649)
-  if (productCodeInfo.pureDigits.length >= 4 && imageCodeInfo.pureDigits.length >= 4) {
-    if (
-      productCodeInfo.pureDigits === imageCodeInfo.pureDigits ||
-      imageCodeInfo.pureDigits.includes(productCodeInfo.pureDigits) ||
-      productCodeInfo.pureDigits.includes(imageCodeInfo.pureDigits)
-    ) {
-      return { isMatch: true, score: 75, matchedBy: `تطابق الأرقام: ${productCodeInfo.pureDigits}` };
-    }
-  }
-
+  // NOTE: Disallow loose partial substring or pure digit overlap (e.g. 8368 matching YT-8368) to prevent collisions
   return { isMatch: false, score: 0, matchedBy: '' };
 }
 

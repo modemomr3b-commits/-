@@ -27,6 +27,7 @@ const ProductManager = lazy(() => import('./components/admin/ProductManager'));
 const CategoryManager = lazy(() => import('./components/admin/CategoryManager'));
 const OrderManager = lazy(() => import('./components/admin/OrderManager'));
 const UserManager = lazy(() => import('./components/admin/UserManager'));
+const AccessLogManager = lazy(() => import('./components/admin/AccessLogManager'));
 const SettingsManager = lazy(() => import('./components/admin/SettingsManager'));
 const NotificationManager = lazy(() => import('./components/admin/NotificationManager'));
 const ReportManager = lazy(() => import('./components/admin/ReportManager'));
@@ -126,6 +127,8 @@ export default function App() {
               <Route path="categories" element={<CategoryManager />} />
               <Route path="orders" element={<OrderManager />} />
               <Route path="users" element={<UserManager />} />
+              <Route path="access-log" element={<AccessLogManager />} />
+              <Route path="visits" element={<AccessLogManager />} />
               <Route path="settings" element={<SettingsManager />} />
               <Route path="notifications" element={<NotificationManager />} />
               <Route path="reports" element={<ReportManager />} />

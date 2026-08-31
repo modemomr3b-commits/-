@@ -1,7 +1,7 @@
 import { Outlet, Link, useLocation } from 'react-router';
 import { useStore } from '../store.ts';
 import { api } from '../api.ts';
-import { Home, Search, Heart, ShoppingBag, User, Download, X, Share, MessageCircle, LayoutDashboard, Package, Users } from 'lucide-react';
+import { Home, Search, Heart, ShoppingBag, User, Download, X, Share, MessageCircle, LayoutDashboard, Package, Users, Clock } from 'lucide-react';
 import { cn } from '../lib/utils.ts';
 import { motion, AnimatePresence } from 'motion/react';
 import { usePWAInstall } from '../hooks/usePWAInstall';
@@ -139,9 +139,14 @@ export default function MemberLayout() {
              </div>
           </Link>
           {(user?.role === 'admin' || user?.role === 'sales') && (
-            <Link to="/admin" className="mt-1 flex items-center justify-center w-full py-2.5 bg-gradient-to-r from-brq-gold/20 to-brq-royal/40 text-brq-gold rounded-xl border border-brq-gold/30 text-sm font-bold font-mono hover:from-brq-gold/30 hover:to-brq-royal/50 transition-colors gap-2 shadow-lg shadow-brq-gold/10">
-              <LayoutDashboard size={16} /> لوحة التحكم
-            </Link>
+            <div className="flex flex-col gap-1.5 mt-1">
+              <Link to="/admin" className="flex items-center justify-center w-full py-2 bg-gradient-to-r from-brq-gold/20 to-brq-royal/40 text-brq-gold rounded-xl border border-brq-gold/30 text-xs font-bold font-mono hover:from-brq-gold/30 hover:to-brq-royal/50 transition-colors gap-2 shadow-lg shadow-brq-gold/10">
+                <LayoutDashboard size={15} /> لوحة التحكم
+              </Link>
+              <Link to="/admin/access-log" className="flex items-center justify-center w-full py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl border border-white/20 text-xs font-bold transition-colors gap-1.5 shadow-sm">
+                <Clock size={14} className="text-amber-400" /> سجل الدخول (24h)
+              </Link>
+            </div>
           )}
         </div>
       </aside>
@@ -182,10 +187,16 @@ export default function MemberLayout() {
             </Link>
 
             {(user?.role === 'admin' || user?.role === 'sales') && (
-              <Link to="/admin" className="px-2.5 py-1.5 bg-brq-royal/20 text-brq-gold rounded-lg border border-brq-gold/30 text-xs font-bold font-mono hover:bg-brq-royal/40 flex items-center gap-1 shadow-lg shadow-brq-gold/10">
-                <LayoutDashboard size={13} />
-                <span className="hidden sm:inline">لوحة التحكم</span>
-              </Link>
+              <>
+                <Link to="/admin/access-log" className="px-2 py-1.5 bg-white/10 text-white rounded-lg border border-white/20 text-xs font-bold hover:bg-white/20 flex items-center gap-1 shadow-sm" title="سجل الدخول اليومي">
+                  <Clock size={13} className="text-amber-400" />
+                  <span className="hidden sm:inline">سجل 24h</span>
+                </Link>
+                <Link to="/admin" className="px-2.5 py-1.5 bg-brq-royal/20 text-brq-gold rounded-lg border border-brq-gold/30 text-xs font-bold font-mono hover:bg-brq-royal/40 flex items-center gap-1 shadow-lg shadow-brq-gold/10">
+                  <LayoutDashboard size={13} />
+                  <span className="hidden sm:inline">لوحة التحكم</span>
+                </Link>
+              </>
             )}
 
             <Link to="/profile" className="w-9 h-9 rounded-full bg-brq-black border border-brq-gold/30 flex items-center justify-center relative overflow-hidden">

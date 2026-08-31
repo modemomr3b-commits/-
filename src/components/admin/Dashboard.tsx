@@ -1,4 +1,5 @@
-import { Package, Users, ShoppingCart, ArrowUpRight, Download, Activity, Bell, Server, Database, Cloud, RefreshCw, ShieldCheck, Loader2 } from 'lucide-react';
+import { Package, Users, ShoppingCart, ArrowUpRight, Download, Activity, Bell, Server, Database, Cloud, RefreshCw, ShieldCheck, Loader2, Clock, Printer } from 'lucide-react';
+import { Link } from 'react-router';
 import { useState, useEffect } from 'react';
 import { api } from '../../api';
 
@@ -114,6 +115,36 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-6">
+      {/* 24h Access Log Quick Action Banner */}
+      <div className="bg-white border-2 border-amber-300/60 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-lg shadow-black/40">
+        <div className="flex items-center gap-3.5">
+          <div className="w-12 h-12 rounded-xl bg-gray-900 text-white flex items-center justify-center shadow-md shrink-0">
+            <Clock className="w-6 h-6 text-amber-400" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-black text-gray-900">سجل الدخول والنشاط اليومي (24 ساعة)</h2>
+              <span className="bg-amber-100 text-amber-900 text-[10px] font-black px-2 py-0.5 rounded-full border border-amber-300">
+                مباشر ودقيق
+              </span>
+            </div>
+            <p className="text-xs text-gray-600 font-bold mt-0.5">
+              عرض تفصيلي لجميع الوكلاء والزوار الذين دخلوا اليوم مع أرقام هواتفهم، حساباتهم، والوكيل المضيف وإمكانية الطباعة.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Link
+            to="/admin/access-log"
+            className="flex items-center gap-2 px-5 py-2.5 bg-gray-900 hover:bg-black text-white rounded-xl text-xs font-black transition-all shadow-md active:scale-95 whitespace-nowrap cursor-pointer"
+          >
+            <Printer size={15} className="text-amber-400" />
+            <span>فتح السجل والطباعة (A4)</span>
+          </Link>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
          {realtimeStats.map((stat, i) => {
             const Icon = stat.icon;
