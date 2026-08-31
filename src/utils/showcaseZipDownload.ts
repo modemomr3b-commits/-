@@ -2,6 +2,7 @@ import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { Product, Category } from '../types';
 import { detectShowcaseCategory, VALID_SHOWCASE_CATEGORIES } from './showcaseClassifier';
+import { detectShoeSubtype } from './productFolderClassifier';
 
 export interface CategoryExportStats {
   category: string;
@@ -343,14 +344,24 @@ export async function exportShowcaseToCategorizedZip(
     const categoryFilenamesMap = new Map<string, Map<string, string>>();
 
     activeStats.forEach(cat => {
-      const usedNames = new Set<string>();
-      usedFilenamesPerFolder.set(cat.folderName, usedNames);
       const catFileMap = new Map<string, string>();
       categoryFilenamesMap.set(cat.category, catFileMap);
 
       cat.products.forEach(product => {
         const imgUrl = product.finalImageUrl || product.imageUrl;
         if (!imgUrl) return;
+
+        // Calculate specific subfolder for shoes (احذية، رياضة، شحاطة، صندل، لاستيك), or unified for bags
+        let targetFolder = cat.folderName;
+        if (cat.category !== 'الحقائب') {
+          const subtype = detectShoeSubtype(product.name || '');
+          targetFolder = `${cat.folderName}/${subtype}`;
+        }
+
+        if (!usedFilenamesPerFolder.has(targetFolder)) {
+          usedFilenamesPerFolder.set(targetFolder, new Set<string>());
+        }
+        const usedNames = usedFilenamesPerFolder.get(targetFolder)!;
 
         const extMatch = imgUrl.split('.').pop()?.split('?')[0];
         const ext = extMatch && extMatch.length <= 4 ? extMatch : 'jpg';
@@ -375,7 +386,7 @@ export async function exportShowcaseToCategorizedZip(
 
         tasks.push({
           catName: cat.category,
-          folderName: cat.folderName,
+          folderName: targetFolder,
           product,
           imgUrl,
           filename

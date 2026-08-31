@@ -4,6 +4,12 @@ import { Category, Product } from "../../types";
 import { DownloadChoiceDialog } from "./DownloadChoiceDialog";
 import { useStore } from "../../store";
 import { ShowcaseCategorizedDownloadDialog } from "../admin/ShowcaseCategorizedDownloadDialog";
+import { 
+  detectStoreMainSection, 
+  detectShoeSubtype, 
+  STORE_MAIN_SECTIONS, 
+  SHOE_SUBTYPES 
+} from "../../utils/productFolderClassifier";
 
 interface CategoryDownloadDialogProps {
   categories: Category[];
@@ -27,79 +33,66 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
     onDownloadAllElastic?: () => void;
   } | null>(null);
 
-  const getProductGroup = (name: string) => {
-    if (!name) return 'أخرى';
-    const lowerName = name.toLowerCase();
-    if (lowerName.includes('رجالي')) return 'الرجالي';
-    if (lowerName.includes('نسائي')) return 'النسائي';
-    if (lowerName.includes('شبابي')) return 'الشبابي';
-    if (lowerName.includes('ولادي')) return 'الولادي';
-    if (lowerName.includes('بناتي')) return 'البناتي';
-    if (lowerName.includes('طفلة')) return 'الطفلة';
-    if (lowerName.includes('طفل')) return 'الطفل';
-    if (lowerName.includes('مواليد')) return 'المواليد';
-    if (lowerName.includes('بيبي')) return 'البيبي';
-    return 'أخرى';
+  const getProductGroup = (p: Product) => {
+    return detectStoreMainSection(p, categories);
   };
 
-  const getProductType = (name: string) => {
-    if (!name) return 'أخرى';
-    const lowerName = name.toLowerCase();
-    if (lowerName.includes('رياض')) return 'رياضة';
-    if (lowerName.includes('شحاط')) return 'شحاطة';
-    if (lowerName.includes('احذي') || lowerName.includes('أحذي') || lowerName.includes('حذاء')) return 'حذاء';
-    if (lowerName.includes('لابجين')) return 'لابجين';
-    if (lowerName.includes('لاستيك')) return 'لاستيك';
-    if (lowerName.includes('صندل') || lowerName.includes('صنادل')) return 'صندل';
-    if (lowerName.includes('سليبر')) return 'سليبر';
-    if (lowerName.includes('بوتين')) return 'بوتين';
-    if (lowerName.includes('كعب')) return 'كعب';
-    if (lowerName.includes('فلات')) return 'فلات';
-    if (lowerName.includes('بسطال')) return 'بسطال';
-    return 'أخرى';
+  const getProductType = (p: Product) => {
+    const mainSection = detectStoreMainSection(p, categories);
+    if (mainSection === 'الحقائب') return 'الحقائب';
+    return detectShoeSubtype(p.name || '');
   };
 
-  // Filter products to ONLY include active ones (exclude out-of-stock / inactive / hidden / archived)
+  // Filter products to ONLY include active ones (exclude out-of-stock / inactive / hidden / archived / deleted)
   const activeProducts = useMemo(() => {
     return products.filter(p => !p.isHidden && !p.isArchived && !p.isLocked && !p.isDeleted);
   }, [products]);
 
   const groupedProducts = useMemo(() => {
     const map = new Map<string, Product[]>();
+    
+    // Pre-populate main sections in canonical order
+    STORE_MAIN_SECTIONS.forEach(sec => {
+      map.set(sec, []);
+    });
+
     activeProducts.forEach(p => {
-      const groupName = getProductGroup(p.name || '');
+      const groupName = getProductGroup(p);
       if (!map.has(groupName)) map.set(groupName, []);
       map.get(groupName)!.push(p);
     });
     
     return Array.from(map.entries())
-      .map(([name, prods]) => ({ name, products: prods }))
-      .sort((a, b) => {
-         if (a.name === "أخرى") return 1;
-         if (b.name === "أخرى") return -1;
-         return b.products.length - a.products.length;
-      });
-  }, [activeProducts]);
+      .filter(([_, prods]) => prods.length > 0)
+      .map(([name, prods]) => ({ name, products: prods }));
+  }, [activeProducts, categories]);
 
   const selectedGroupSubtypes = useMemo(() => {
     if (!selectedGroupName) return [];
     
     const groupProds = groupedProducts.find(g => g.name === selectedGroupName)?.products || [];
     
+    // If it's bags, it doesn't need shoe subdivisions
+    if (selectedGroupName === 'الحقائب') {
+      return [{ name: 'جميع الحقائب', products: groupProds }];
+    }
+
     const subtypeMap = new Map<string, Product[]>();
+    
+    // Pre-populate the 5 shoe subtypes
+    SHOE_SUBTYPES.forEach(st => {
+      subtypeMap.set(st, []);
+    });
+
     groupProds.forEach(p => {
-      const typeName = getProductType(p.name || '');
+      const typeName = getProductType(p);
       if (!subtypeMap.has(typeName)) subtypeMap.set(typeName, []);
       subtypeMap.get(typeName)!.push(p);
     });
     
     return Array.from(subtypeMap.entries())
-      .map(([name, prods]) => ({ name, products: prods }))
-      .sort((a, b) => {
-         if (a.name === "أخرى") return 1;
-         if (b.name === "أخرى") return -1;
-         return b.products.length - a.products.length;
-      });
+      .filter(([_, prods]) => prods.length > 0)
+      .map(([name, prods]) => ({ name, products: prods }));
   }, [selectedGroupName, groupedProducts]);
 
   const filteredMains = groupedProducts.filter(g => g.name.includes(searchTerm));
@@ -162,10 +155,19 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
 
           let folderPath = groupName;
           if (!selectedGroupName) {
-            const subType = getProductType(p.name || '');
-            folderPath = `${groupName}/${subType}`;
+            const mainCat = getProductGroup(p);
+            if (mainCat === 'الحقائب') {
+              folderPath = 'الحقائب';
+            } else {
+              const subType = detectShoeSubtype(p.name || '');
+              folderPath = `${mainCat}/${subType}`;
+            }
           } else {
-            folderPath = `${selectedGroupName}/${groupName}`;
+            if (selectedGroupName === 'الحقائب') {
+              folderPath = 'الحقائب';
+            } else {
+              folderPath = `${selectedGroupName}/${groupName}`;
+            }
           }
 
           return { url: imgUrl!, filename, folderName: folderPath };
@@ -233,9 +235,17 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
           const safeName = (p.productCode || p.name || 'product').replace(/[\\/\\?<>\\:\\*\\|":]/g, '-');
           const filename = `${safeName}.${ext}`;
           
-          let mainCatName = getProductGroup(p.name || '');
-          let subType = getProductType(p.name || '');
-          let folderPath = `${mainCatName}/${subType}`;
+          const mainCatName = getProductGroup(p);
+          let folderPath = '';
+          
+          if (mainCatName === 'الحقائب') {
+            // All bags in a single unified folder
+            folderPath = 'الحقائب';
+          } else {
+            // Shoes divided into the exact 5 subtypes: احذية، رياضة، شحاطة، صندل، لاستيك
+            const subType = detectShoeSubtype(p.name || '');
+            folderPath = `${mainCatName}/${subType}`;
+          }
           
           return { url: imgUrl!, filename, folderName: folderPath };
         });
