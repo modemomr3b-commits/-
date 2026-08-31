@@ -99,6 +99,8 @@ export interface ShowcaseVisitRecord {
   agentId: string;
   agentName: string;
   timestamp: number;
+  lastActive?: number;
+  isOnline?: boolean;
   inviteToken?: string | null;
   method: 'invite' | 'credentials' | 'public';
 }
@@ -592,6 +594,75 @@ export async function logShowcaseVisitDirectly(
   }
 }
 
+/**
+ * Updates or creates an active session heartbeat for a visitor (active right now)
+ */
+export async function heartbeatShowcaseVisit(
+  agentId: string,
+  agentName: string,
+  visitorName: string,
+  visitorPhone?: string
+) {
+  try {
+    if (!visitorName) return;
+    const now = Date.now();
+    const cleanVisitor = visitorName.trim();
+    const cleanPhone = (visitorPhone || '').trim();
+    const cleanAgent = (agentName || 'معرض الوفاء').trim();
+
+    const { data: visitsData } = await supabase
+      .from('settings')
+      .select('*')
+      .match({ id: 'showcase_visits' })
+      .maybeSingle();
+
+    let visits: any[] = [];
+    if (visitsData && visitsData.data && Array.isArray(visitsData.data)) {
+      visits = visitsData.data;
+    }
+
+    // Look for matching visitor today (within last 12 hours)
+    let found = false;
+    for (let i = visits.length - 1; i >= 0; i--) {
+      const v = visits[i];
+      if (
+        v.visitorName === cleanVisitor &&
+        (!cleanPhone || v.visitorPhone === cleanPhone) &&
+        now - (v.timestamp || 0) < 12 * 60 * 60 * 1000
+      ) {
+        visits[i].timestamp = now;
+        visits[i].lastActive = now;
+        visits[i].isOnline = true;
+        if (cleanPhone && !visits[i].visitorPhone) visits[i].visitorPhone = cleanPhone;
+        found = true;
+        break;
+      }
+    }
+
+    if (!found) {
+      visits.push({
+        id: 'vis_' + now.toString(36) + Math.random().toString(36).substring(2, 6),
+        agentId: agentId || '',
+        agentName: cleanAgent,
+        visitorName: cleanVisitor,
+        visitorPhone: cleanPhone || null,
+        timestamp: now,
+        lastActive: now,
+        isOnline: true,
+        ip: 'Client Active'
+      });
+    }
+
+    if (visits.length > 500) {
+      visits = visits.slice(visits.length - 500);
+    }
+
+    await supabase.from('settings').upsert({ id: 'showcase_visits', data: visits });
+  } catch (e) {
+    // Non-blocking
+  }
+}
+
 export async function getShowcaseVisits(): Promise<ShowcaseVisitRecord[]> {
   try {
     const [visitsRes, invitesRes] = await Promise.all([
@@ -603,9 +674,13 @@ export async function getShowcaseVisits(): Promise<ShowcaseVisitRecord[]> {
     const seen = new Set<string>();
 
     if (visitsRes?.data?.data && Array.isArray(visitsRes.data.data)) {
+      const now = Date.now();
       for (const v of visitsRes.data.data) {
         const timeKey = Math.floor((v.timestamp || 0) / 10000);
         const key = `${v.visitorName}_${v.visitorPhone || ''}_${v.agentName || v.agentId}_${timeKey}`;
+        const activeTime = v.lastActive || v.timestamp || now;
+        const isOnline = Boolean(v.isOnline || (now - activeTime < 45000));
+
         if (!seen.has(key)) {
           seen.add(key);
           visitsList.push({
@@ -614,7 +689,9 @@ export async function getShowcaseVisits(): Promise<ShowcaseVisitRecord[]> {
             visitorPhone: v.visitorPhone || null,
             agentId: v.agentId || v.agentName || '',
             agentName: v.agentName || 'الوكيل',
-            timestamp: v.timestamp || Date.now(),
+            timestamp: v.timestamp || now,
+            lastActive: activeTime,
+            isOnline,
             inviteToken: v.inviteToken || null,
             method: v.inviteToken ? 'invite' : 'credentials'
           });

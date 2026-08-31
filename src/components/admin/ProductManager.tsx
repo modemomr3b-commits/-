@@ -1002,12 +1002,14 @@ export default function ProductManager() {
 
   const handleToggleLock = async (p: Product) => {
     const nextLocked = !p.isLocked;
-    const updates: any = { isLocked: nextLocked };
+    const updates: any = nextLocked 
+      ? { isLocked: true, isShowcase: false } 
+      : { isLocked: false };
 
     // Optimistic update
     setProducts((prev) =>
       prev.map((prod) =>
-        prod.id === p.id ? { ...prod, isLocked: nextLocked } : prod
+        prod.id === p.id ? { ...prod, ...updates } : prod
       )
     );
     try {
@@ -1244,12 +1246,12 @@ export default function ProductManager() {
       // Instant optimistic local update
       setProducts((prev) =>
         prev.map((prod) =>
-          targetIdsSet.has(String(prod.id)) ? { ...prod, isLocked: true } : prod
+          targetIdsSet.has(String(prod.id)) ? { ...prod, isLocked: true, isShowcase: false } : prod
         )
       );
 
       try {
-        await api.bulkUpdateProducts(ids, { isLocked: true });
+        await api.bulkUpdateProducts(ids, { isLocked: true, isShowcase: false });
       } catch (e: any) {
         console.error("Error bulk toggling lock:", e);
         const updated = await api.getProducts();
@@ -1984,6 +1986,15 @@ export default function ProductManager() {
               </span>
             </button>
             <button
+              onClick={() => setFilterStatus("locked")}
+              className={`pb-2 px-2.5 text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 ${filterStatus === "locked" ? "border-purple-400 text-purple-400" : "border-transparent text-white/50 hover:text-white"}`}
+            >
+              المواد المقفلة من قبل الادمن
+              <span className="text-[10px] bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded-full font-mono font-bold">
+                {tabCounts.locked}
+              </span>
+            </button>
+            <button
               onClick={() => setFilterStatus("duplicates")}
               className={`pb-2 px-2.5 text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 ${filterStatus === "duplicates" ? "border-cyan-400 text-cyan-400" : "border-transparent text-white/50 hover:text-white"}`}
             >
@@ -2409,9 +2420,14 @@ export default function ProductManager() {
                               )}
                             </div>
                           )}
-                          {!searchQuery && p.isHidden && (
-                            <span className="px-2 py-0.5 rounded text-[10px] bg-purple-500/20 text-purple-400 border border-purple-500/30">
-                              مخفي
+                          {p.isLocked && (
+                            <span className="px-2 py-0.5 rounded text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/40 font-bold">
+                              مقفل من قبل الادمن
+                            </span>
+                          )}
+                          {!searchQuery && !p.isLocked && p.isHidden && (
+                            <span className="px-2 py-0.5 rounded text-[10px] bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
+                              غير فعال
                             </span>
                           )}
                           {p.isShowcase && (

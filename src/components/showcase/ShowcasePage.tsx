@@ -38,6 +38,7 @@ import {
   checkIsVisitorBlocked, 
   isVisitorInBlockedList, 
   getBlockedVisitors, 
+  heartbeatShowcaseVisit,
   BlockedVisitor 
 } from '../../services/showcaseService';
 import { useStore } from '../../store';
@@ -244,6 +245,33 @@ export default function ShowcasePage() {
     };
   }, [authData]);
 
+  // Active visitor heartbeat ping (every 15s) to ensure real-time presence in access log
+  useEffect(() => {
+    if (!authData || !authData.visitorName) return;
+    const agentId = authData.agent?.id || 'agent_showcase';
+    const agentName = authData.agent?.fullName || 'معرض شركة الوفاء';
+    const visitorName = authData.visitorName;
+    const visitorPhone = (authData as any).visitorPhone || '';
+
+    // Send immediate heartbeat
+    heartbeatShowcaseVisit(agentId, agentName, visitorName, visitorPhone);
+
+    // Periodic heartbeat every 15 seconds while browsing
+    const hbInterval = setInterval(() => {
+      heartbeatShowcaseVisit(agentId, agentName, visitorName, visitorPhone);
+    }, 15000);
+
+    const onFocus = () => {
+      heartbeatShowcaseVisit(agentId, agentName, visitorName, visitorPhone);
+    };
+    window.addEventListener('focus', onFocus);
+
+    return () => {
+      clearInterval(hbInterval);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [authData]);
+
   // Clean URL if already authenticated
   useEffect(() => {
     if (authData && window.location.search.includes('invite=')) {
@@ -326,8 +354,8 @@ export default function ShowcasePage() {
         api.getCategories()
       ]);
       
-      // Filter products that are designated for showcase AND not archived/hidden
-      const showcaseProds = (allProds || []).filter(p => p.isShowcase && !p.isArchived && !p.isHidden);
+      // Filter products that are designated for showcase AND not archived/hidden/locked
+      const showcaseProds = (allProds || []).filter(p => p.isShowcase && !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted);
       setProducts(showcaseProds);
       setSettings(appSettings || {});
       setCategories(allCats || []);
@@ -348,7 +376,7 @@ export default function ShowcasePage() {
     ]).then(([cachedProds, cachedCats]) => {
       if (!mounted) return;
       if (cachedProds && cachedProds.length > 0) {
-        const showcaseProds = cachedProds.filter(p => p.isShowcase && !p.isArchived && !p.isHidden);
+        const showcaseProds = cachedProds.filter(p => p.isShowcase && !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted);
         setProducts(showcaseProds);
         setLoading(false);
       }

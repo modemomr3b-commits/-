@@ -61,7 +61,7 @@ export default function AccessLogManager() {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 8000);
+    const interval = setInterval(fetchData, 3000);
 
     const channel = supabase
       .channel('access_log_realtime')
@@ -114,6 +114,7 @@ export default function AccessLogManager() {
     // 2. Process Showcase Visitors
     showcaseVisits.forEach(v => {
       const hostAgent = userMap.get(v.agentId) || users.find(u => u.username === v.agentId || u.fullName === v.agentName);
+      const isOnline = Boolean(v.isOnline || (v.lastActive && now - v.lastActive < 45000));
       records.push({
         id: `visit-${v.id}`,
         type: 'visitor',
@@ -123,8 +124,9 @@ export default function AccessLogManager() {
         agentId: v.agentId,
         agentPhone: hostAgent?.phone || null,
         timestamp: v.timestamp || 0,
+        isOnline,
         method: v.method === 'invite' ? 'رابط دعوة' : 'دخول مباشر',
-        status: 'موثق'
+        status: isOnline ? 'نشط الآن' : 'موثق'
       });
     });
 
