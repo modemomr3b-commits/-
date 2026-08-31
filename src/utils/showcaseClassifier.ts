@@ -125,11 +125,16 @@ export function detectShowcaseCategory(
     return 'طفلة';
   }
 
-  // 4. طفل (Boy toddler / young kid)
+  // 4. طفل (Boy toddler / young kid / روضة)
   if (
     normalized.includes('طفل') ||
     normalized.includes('اطفال') ||
     normalized.includes('اطفالي') ||
+    normalized.includes('روضه') ||
+    normalized.includes('روضة') ||
+    normalized.includes('روضات') ||
+    normalized.includes('رياض') ||
+    normalized.includes('kindergarten') ||
     normalized.includes('toddler') ||
     normalized.includes('baby boy')
   ) {

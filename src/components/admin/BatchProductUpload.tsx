@@ -28,38 +28,12 @@ import {
   calculateMatchScore, 
   processImageFileToDataUrl 
 } from '../../utils/artNumberMatcher';
+import {
+  autoSelectSubcategory,
+  autoDetectCategoryAndSubcategory
+} from '../../utils/categoryDetector';
 
-export const autoSelectSubcategory = (name: string, categoryId: string, currentSubcategoryId?: string, categories: Category[] = []) => {
-  if (!categoryId || !name) return currentSubcategoryId || '';
-  
-  const lowerName = name.toLowerCase();
-  const subs = categories.filter(c => c.parentId === categoryId);
-  
-  const matches = [
-      { key: 'رجالي', term: 'رجالي' },
-      { key: 'نسائي', term: 'نسائي' },
-      { key: 'شبابي', term: 'شبابي' },
-      { key: 'ولادي', term: 'ولادي' },
-      { key: "طفلة", term: "طفلة" },
-      { key: 'طفل', term: 'طفل' },
-      { key: 'بناتي', term: 'بناتي' },
-      { key: 'بيبي', term: 'بيبي' },
-      { key: 'مواليد', term: 'مواليد' },
-      { key: 'اعدادي', term: 'اعدادي' },
-      { key: 'مدرسي', term: 'مدرسي' },
-      { key: 'سفر', term: 'سفر' },
-  ];
-  
-  for (const match of matches) {
-      if (lowerName.includes(match.key)) {
-          const foundSub = subs.find(s => s.name.includes(match.term) || s.name.includes(match.key));
-          if (foundSub) {
-              return foundSub.id;
-          }
-      }
-  }
-  return currentSubcategoryId || '';
-};
+export { autoSelectSubcategory };
 
 interface BatchProductUploadProps {
   categories: Category[];
@@ -212,8 +186,15 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
       const newProducts = [...prev];
       const product = { ...newProducts[index], [field]: value };
       
-      if (field === 'name' && product.categoryId) {
-        product.subcategoryId = autoSelectSubcategory(product.name || '', product.categoryId, product.subcategoryId, categories) || product.subcategoryId;
+      if (field === 'name') {
+        const { categoryId: autoCat, subcategoryId: autoSub } = autoDetectCategoryAndSubcategory(
+          product.name || '',
+          product.categoryId,
+          product.subcategoryId,
+          categories
+        );
+        if (autoCat) product.categoryId = autoCat;
+        if (autoSub !== undefined) product.subcategoryId = autoSub;
       }
       
       if (field === 'categoryId') {

@@ -22,8 +22,6 @@ import {
   CheckCircle,
   ChevronRight,
   ChevronLeft,
-  Lock,
-  Unlock,
   FolderInput,
   Sparkles,
   Wand2,
@@ -36,6 +34,11 @@ import { api } from "../../api";
 import { supabase } from "../../supabase";
 import { filterProductsBySearch } from '../../utils/search';
 import { Product, Category } from "../../types";
+import { 
+  autoDetectCategoryAndSubcategory, 
+  autoSelectSubcategory, 
+  smartDetectMainCategoryId 
+} from "../../utils/categoryDetector";
 import { detectShowcaseCategory, VALID_SHOWCASE_CATEGORIES, SHOWCASE_CATEGORIES_METADATA } from "../../utils/showcaseClassifier";
 import { burnProductOverlay } from "../../utils/burnImage";
 import { BatchProductUpload } from "./BatchProductUpload";
@@ -91,7 +94,7 @@ export default function ProductManager() {
       const numericCount = typeof autoShowcaseCount === 'number' ? autoShowcaseCount : (parseInt(autoShowcaseCount, 10) || 100);
 
       // 1. Get all eligible active products that are not yet in the showcase
-      const allAvailable = products.filter(p => !p.isHidden && !p.isArchived && !p.isLocked && !p.isShowcase);
+      const allAvailable = products.filter(p => !p.isHidden && !p.isArchived && !p.isShowcase);
 
       if (allAvailable.length === 0) {
         setAlertMessage("لا توجد منتجات فعالة متاحة للنشر في المعرض حالياً (قد تكون جميع المواد منشورة بالفعل أو غير فعالة/مقيدة).");
@@ -428,7 +431,7 @@ export default function ProductManager() {
     showcaseCategory: "رجالي",
   });
 
-  const [filterStatus, setFilterStatus] = useState<"all" | "active" | "archived" | "inactive" | "duplicates" | "locked" | "showcase" | null>("active");
+  const [filterStatus, setFilterStatus] = useState<"all" | "active" | "archived" | "inactive" | "duplicates" | "showcase" | null>("active");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [searchDate, setSearchDate] = useState("");
@@ -452,36 +455,8 @@ export default function ProductManager() {
     setCurrentPage(1);
   }, [searchQuery, searchDate, filterCategoryId, filterStatus]);
 
-  const autoSelectSubcategory = (name: string, categoryId: string, currentSubcategoryId?: string) => {
-    if (!categoryId || !name) return currentSubcategoryId || "";
-    
-    const lowerName = name.toLowerCase();
-    const subs = categories.filter(c => c.parentId === categoryId);
-    
-    const matches = [
-        { key: "رجالي", term: "رجالي" },
-        { key: "نسائي", term: "نسائي" },
-        { key: "شبابي", term: "شبابي" },
-        { key: "ولادي", term: "ولادي" },
-        { key: "طفلة", term: "طفلة" },
-        { key: "طفل", term: "طفل" },
-        { key: "بناتي", term: "بناتي" },
-        { key: "بيبي", term: "بيبي" },
-        { key: "مواليد", term: "مواليد" },
-        { key: "اعدادي", term: "اعدادي" },
-        { key: "مدرسي", term: "مدرسي" },
-        { key: "سفر", term: "سفر" },
-    ];
-    
-    for (const match of matches) {
-        if (lowerName.includes(match.key)) {
-            const foundSub = subs.find(s => s.name.includes(match.term) || s.name.includes(match.key));
-            if (foundSub) {
-                return foundSub.id;
-            }
-        }
-    }
-    return currentSubcategoryId || "";
+  const handleAutoSelectSubcategory = (name: string, categoryId: string, currentSubcategoryId?: string) => {
+    return autoSelectSubcategory(name, categoryId, currentSubcategoryId, categories);
   };
 
   const loadData = async () => {
@@ -834,8 +809,8 @@ export default function ProductManager() {
       updatedAt: Date.now()
     } : originalProduct?.oldPriceInfo;
 
-    const wasInactive = originalProduct && (originalProduct.isHidden || originalProduct.isArchived || originalProduct.isLocked);
-    const isNowActive = !payloadToUpdate.isHidden && !payloadToUpdate.isArchived && !payloadToUpdate.isLocked;
+    const wasInactive = originalProduct && (originalProduct.isHidden || originalProduct.isArchived);
+    const isNowActive = !payloadToUpdate.isHidden && !payloadToUpdate.isArchived;
     const autoShowcaseCat = (wasInactive && isNowActive)
       ? (payloadToUpdate.showcaseCategory || detectShowcaseCategory(payloadToUpdate, categories) || 'عام')
       : payloadToUpdate.showcaseCategory;
@@ -997,29 +972,6 @@ export default function ProductManager() {
       const updated = await api.getProducts();
       setProducts(updated);
       setAlertMessage("فشل تغيير حالة المنتج");
-    }
-  };
-
-  const handleToggleLock = async (p: Product) => {
-    const nextLocked = !p.isLocked;
-    const updates: any = nextLocked 
-      ? { isLocked: true, isShowcase: false } 
-      : { isLocked: false };
-
-    // Optimistic update
-    setProducts((prev) =>
-      prev.map((prod) =>
-        prod.id === p.id ? { ...prod, ...updates } : prod
-      )
-    );
-    try {
-      await api.updateProduct(p.id!, updates);
-    } catch (e) {
-      console.error(e);
-      // Revert optimistic update
-      const updated = await api.getProducts();
-      setProducts(updated);
-      setAlertMessage("فشل تغيير حالة القفل");
     }
   };
 
@@ -1214,55 +1166,6 @@ export default function ProductManager() {
     }
   };
 
-  const handleBulkToggleLock = async (lock: boolean) => {
-    if (selectedIds.size === 0) return;
-    const ids = Array.from(selectedIds);
-    const targetIdsSet = new Set(ids.map(id => String(id)));
-    setSelectedIds(new Set());
-    setIsSubmitting(true);
-
-    if (!lock) {
-      // Instant optimistic local update
-      setProducts((prev) =>
-        prev.map((prod) => {
-          if (targetIdsSet.has(String(prod.id))) {
-            return { ...prod, isLocked: false };
-          }
-          return prod;
-        })
-      );
-
-      try {
-        await api.bulkUpdateProducts(ids, { isLocked: false });
-      } catch (e: any) {
-        console.error("Error bulk toggling lock:", e);
-        const updated = await api.getProducts();
-        setProducts(updated);
-        setAlertMessage("فشل التحديث المجمع: " + e.message);
-      } finally {
-        setIsSubmitting(false);
-      }
-    } else {
-      // Instant optimistic local update
-      setProducts((prev) =>
-        prev.map((prod) =>
-          targetIdsSet.has(String(prod.id)) ? { ...prod, isLocked: true, isShowcase: false } : prod
-        )
-      );
-
-      try {
-        await api.bulkUpdateProducts(ids, { isLocked: true, isShowcase: false });
-      } catch (e: any) {
-        console.error("Error bulk toggling lock:", e);
-        const updated = await api.getProducts();
-        setProducts(updated);
-        setAlertMessage("فشل التحديث المجمع: " + e.message);
-      } finally {
-        setIsSubmitting(false);
-      }
-    }
-  };
-
   const handleBulkToggleArchive = async (archive: boolean) => {
     if (selectedIds.size === 0) return;
     const ids = Array.from(selectedIds);
@@ -1326,27 +1229,6 @@ export default function ProductManager() {
     }
   };
 
-  const smartDetectMainCategoryId = (product: Product) => {
-    const catObj = categories.find(c => c.id === product.categoryId);
-    const subObj = categories.find(c => c.id === product.subcategoryId);
-    const text = `${product.name || ''} ${catObj ? catObj.name : ''} ${subObj ? subObj.name : ''}`.toLowerCase();
-    const mainCategories = categories.filter(c => !c.parentId);
-    
-    let targetName = 'رجالي';
-    if (text.includes('نساء') || text.includes('نسائي') || text.includes('نسائية')) targetName = 'نسائي';
-    else if (text.includes('رجال') || text.includes('رجالي') || text.includes('رجالية')) targetName = 'رجالي';
-    else if (text.includes('شباب') || text.includes('شبابي')) targetName = 'شبابي';
-    else if (text.includes('ولاد') || text.includes('ولادي')) targetName = 'ولادي';
-    else if (text.includes('بنات') || text.includes('بناتي')) targetName = 'بناتي';
-    else if (text.includes('طفل') || text.includes('أطفال')) targetName = 'طفل';
-    else if (text.includes('طفلة')) targetName = 'طفلة';
-    else if (text.includes('بيبي')) targetName = 'بيبي';
-    else if (text.includes('مواليد')) targetName = 'مواليد';
-
-    const found = mainCategories.find(c => c.name.toLowerCase().includes(targetName));
-    return found ? found.id : (mainCategories[0]?.id || '');
-  };
-
   const handleSmartAutoMove = async () => {
     if (selectedIds.size === 0) return;
     const ids = Array.from(selectedIds);
@@ -1354,7 +1236,7 @@ export default function ProductManager() {
     
     const updatedProducts = products.map(prod => {
       if (selectedIds.has(prod.id!)) {
-        const matchedCatId = smartDetectMainCategoryId(prod);
+        const matchedCatId = smartDetectMainCategoryId(prod, categories);
         updates.push({ id: prod.id!, categoryId: matchedCatId });
         return { ...prod, categoryId: matchedCatId, subcategoryId: '' };
       }
@@ -1544,10 +1426,9 @@ export default function ProductManager() {
   const tabCounts = useMemo(() => {
     return {
       all: products.length,
-      active: products.filter(p => !p.isHidden && !p.isArchived && !p.isLocked).length,
-      inactive: products.filter(p => p.isHidden && !p.isArchived && !p.isLocked).length,
+      active: products.filter(p => !p.isHidden && !p.isArchived).length,
+      inactive: products.filter(p => p.isHidden && !p.isArchived).length,
       archived: products.filter(p => p.isArchived).length,
-      locked: products.filter(p => p.isLocked).length,
       duplicates: products.filter(p => duplicatesSet.has(p.modelNumber || p.productCode)).length,
       showcase: products.filter(p => p.isShowcase).length,
     };
@@ -1557,17 +1438,14 @@ export default function ProductManager() {
     return products.filter(p => {
       // 1. Filter by Status Tab
       if (filterStatus === 'active') {
-        // Only active: NOT hidden, NOT out of stock/archived, NOT locked
-        if (p.isHidden || p.isArchived || p.isLocked) return false;
+        // Only active: NOT hidden, NOT out of stock/archived
+        if (p.isHidden || p.isArchived) return false;
       } else if (filterStatus === 'inactive') {
-        // Only inactive: isHidden is true, NOT out of stock/archived, NOT locked
-        if (!p.isHidden || p.isArchived || p.isLocked) return false;
+        // Only inactive: isHidden is true, NOT out of stock/archived
+        if (!p.isHidden || p.isArchived) return false;
       } else if (filterStatus === 'archived') {
         // Only out of stock/archived
         if (!p.isArchived) return false;
-      } else if (filterStatus === 'locked') {
-        // Only locked
-        if (!p.isLocked) return false;
       } else if (filterStatus === 'duplicates') {
         // Only duplicates
         if (!duplicatesSet.has(p.modelNumber || p.productCode)) return false;
@@ -1575,12 +1453,12 @@ export default function ProductManager() {
         // Only showcase
         if (!p.isShowcase) return false;
       } else if (filterStatus === 'all') {
-        // All products regardless of active/inactive/archived/locked!
+        // All products regardless of active/inactive/archived!
       } else if (filterStatus === null) {
         // If null and no search, hide
         if (!searchQuery && !searchDate && !filterCategoryId) return false;
         // If search exists but no tab selected, default to active
-        if (p.isHidden || p.isArchived || p.isLocked) return false;
+        if (p.isHidden || p.isArchived) return false;
       }
 
       // 2. Filter by Category / Section
@@ -1651,7 +1529,7 @@ export default function ProductManager() {
       {isDownloadDialogOpen && (
         <CategoryDownloadDialog 
           categories={categories}
-          products={products.filter(p => !p.isHidden && !p.isArchived && !p.isLocked && !p.isDeleted)}
+          products={products.filter(p => !p.isHidden && !p.isArchived && !p.isDeleted)}
           onClose={() => setIsDownloadDialogOpen(false)}
         />
       )}
@@ -1691,8 +1569,18 @@ export default function ProductManager() {
                 value={newProduct.name}
                 onChange={(e) => {
                   const newName = e.target.value;
-                  const autoSub = autoSelectSubcategory(newName, newProduct.categoryId || "");
-                  setNewProduct({ ...newProduct, name: newName, subcategoryId: autoSub || newProduct.subcategoryId });
+                  const { categoryId: detectedCat, subcategoryId: detectedSub } = autoDetectCategoryAndSubcategory(
+                    newName,
+                    newProduct.categoryId,
+                    newProduct.subcategoryId,
+                    categories
+                  );
+                  setNewProduct({
+                    ...newProduct,
+                    name: newName,
+                    categoryId: detectedCat || newProduct.categoryId,
+                    subcategoryId: detectedSub !== undefined ? detectedSub : newProduct.subcategoryId
+                  });
                 }}
                 className="w-full bg-white border border-black rounded-lg px-3 py-2 text-base font-bold focus:border-brq-gold/50 outline-none text-black placeholder:text-gray-500"
               />
@@ -1796,7 +1684,7 @@ export default function ProductManager() {
                 value={newProduct.categoryId}
                 onChange={(e) => {
                   const newCat = e.target.value;
-                  const autoSub = autoSelectSubcategory(newProduct.name || "", newCat);
+                  const autoSub = autoSelectSubcategory(newProduct.name || "", newCat, "", categories);
                   setNewProduct({
                     ...newProduct,
                     categoryId: newCat,
@@ -1986,15 +1874,6 @@ export default function ProductManager() {
               </span>
             </button>
             <button
-              onClick={() => setFilterStatus("locked")}
-              className={`pb-2 px-2.5 text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 ${filterStatus === "locked" ? "border-purple-400 text-purple-400" : "border-transparent text-white/50 hover:text-white"}`}
-            >
-              المواد المقفلة من قبل الادمن
-              <span className="text-[10px] bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded-full font-mono font-bold">
-                {tabCounts.locked}
-              </span>
-            </button>
-            <button
               onClick={() => setFilterStatus("duplicates")}
               className={`pb-2 px-2.5 text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 ${filterStatus === "duplicates" ? "border-cyan-400 text-cyan-400" : "border-transparent text-white/50 hover:text-white"}`}
             >
@@ -2148,26 +2027,6 @@ export default function ProductManager() {
                     >
                       {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <EyeOff size={16} />}
                       إخفاء
-                    </button>
-                  )}
-                  {selectedIds.size > 0 && filterStatus !== 'locked' && (
-                    <button
-                      onClick={() => handleBulkToggleLock(true)}
-                      disabled={isSubmitting}
-                      className="flex items-center gap-2 px-4 py-2 bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded-lg text-sm hover:bg-purple-500/30 transition-colors font-bold whitespace-nowrap disabled:opacity-50"
-                    >
-                      {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Lock size={16} />}
-                      نقل للمواد المقفلة من قبل الادمن
-                    </button>
-                  )}
-                  {selectedIds.size > 0 && filterStatus === 'locked' && (
-                    <button
-                      onClick={() => handleBulkToggleLock(false)}
-                      disabled={isSubmitting}
-                      className="flex items-center gap-2 px-4 py-2 bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded-lg text-sm hover:bg-purple-500/30 transition-colors font-bold whitespace-nowrap disabled:opacity-50"
-                    >
-                      {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Unlock size={16} />}
-                      استرجاع من المواد المقفلة من قبل الادمن
                     </button>
                   )}
                   {selectedIds.size > 0 && filterStatus !== 'archived' && (
@@ -2420,12 +2279,7 @@ export default function ProductManager() {
                               )}
                             </div>
                           )}
-                          {p.isLocked && (
-                            <span className="px-2 py-0.5 rounded text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/40 font-bold">
-                              مقفل من قبل الادمن
-                            </span>
-                          )}
-                          {!searchQuery && !p.isLocked && p.isHidden && (
+                          {!searchQuery && p.isHidden && (
                             <span className="px-2 py-0.5 rounded text-[10px] bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
                               غير فعال
                             </span>
@@ -2570,18 +2424,6 @@ export default function ProductManager() {
                             >
                               <Package size={16} />
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => handleToggleLock(p)}
-                              className="p-1.5 hover:bg-purple-500/20 text-purple-400 rounded transition-colors"
-                              title={
-                                p.isLocked
-                                  ? "استرجاع من المواد المقفلة من قبل الادمن"
-                                  : "نقل للمواد المقفلة من قبل الادمن"
-                              }
-                            >
-                              {p.isLocked ? <Unlock size={16} /> : <Lock size={16} />}
-                            </button>
 
                             <button
                               type="button"
@@ -2700,11 +2542,17 @@ export default function ProductManager() {
                   value={editingProduct.name}
                   onChange={(e) => {
                     const newName = e.target.value;
-                    const autoSub = autoSelectSubcategory(newName, editingProduct.categoryId || "");
+                    const { categoryId: detectedCat, subcategoryId: detectedSub } = autoDetectCategoryAndSubcategory(
+                      newName,
+                      editingProduct.categoryId,
+                      editingProduct.subcategoryId,
+                      categories
+                    );
                     setEditingProduct({
                       ...editingProduct,
                       name: newName,
-                      subcategoryId: autoSub || editingProduct.subcategoryId
+                      categoryId: detectedCat || editingProduct.categoryId,
+                      subcategoryId: detectedSub !== undefined ? detectedSub : editingProduct.subcategoryId
                     });
                   }}
                   className="w-full bg-white border border-black rounded-lg px-3 py-2 text-base font-bold focus:border-brq-gold/50 outline-none text-black placeholder:text-gray-500"
@@ -2811,7 +2659,7 @@ export default function ProductManager() {
                   value={editingProduct.categoryId}
                   onChange={(e) => {
                     const newCat = e.target.value;
-                    const autoSub = autoSelectSubcategory(editingProduct.name || "", newCat);
+                    const autoSub = autoSelectSubcategory(editingProduct.name || "", newCat, "", categories);
                     setEditingProduct({
                       ...editingProduct,
                       categoryId: newCat,
@@ -3506,7 +3354,7 @@ export default function ProductManager() {
                     {SHOWCASE_CATEGORIES_METADATA.map(item => {
                       const isSelected = selectedShowcaseCollections.includes(item.name);
                       const countAvailable = products.filter(p => 
-                        !p.isHidden && !p.isArchived && !p.isLocked && !p.isShowcase &&
+                        !p.isHidden && !p.isArchived && !p.isShowcase &&
                         (p.showcaseCategory || detectShowcaseCategory(p, categories)) === item.name
                       ).length;
 
@@ -3567,7 +3415,7 @@ export default function ProductManager() {
                     {categories.filter(c => !c.parentId).map(cat => {
                       const isSelected = selectedMainCategoryIds.includes(cat.id);
                       const countAvailable = products.filter(p => 
-                        !p.isHidden && !p.isArchived && !p.isLocked && !p.isShowcase &&
+                        !p.isHidden && !p.isArchived && !p.isShowcase &&
                         p.categoryId === cat.id
                       ).length;
 
