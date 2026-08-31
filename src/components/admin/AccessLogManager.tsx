@@ -2,7 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Users, Eye, Search, Filter, Printer, RefreshCw, Smartphone, 
   Globe, Shield, CheckCircle2, Clock, Phone, ExternalLink, 
-  Calendar, UserCheck, ArrowUpDown, UserX, AlertCircle, Sparkles
+  Calendar, UserCheck, ArrowUpDown, UserX, AlertCircle, Sparkles,
+  Download, FileSpreadsheet
 } from 'lucide-react';
 import { api } from '../../api';
 import { supabase } from '../../supabase';
@@ -36,6 +37,7 @@ export default function AccessLogManager() {
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'agents' | 'visitors' | 'online'>('all');
   const [timeFilter, setTimeFilter] = useState<'24h' | '3d' | '7d' | 'all'>('24h');
+  const [printScope, setPrintScope] = useState<'current' | 'all'>('all');
 
   const fetchData = async () => {
     try {
@@ -171,6 +173,11 @@ export default function AccessLogManager() {
     });
   }, [unifiedRecords, timeFilter, typeFilter, searchQuery]);
 
+  // Records to display for print depending on printScope
+  const recordsToPrint = useMemo(() => {
+    return printScope === 'all' ? unifiedRecords : filteredRecords;
+  }, [printScope, unifiedRecords, filteredRecords]);
+
   // Stats for the last 24h
   const stats24h = useMemo(() => {
     const now = Date.now();
@@ -185,36 +192,147 @@ export default function AccessLogManager() {
     };
   }, [unifiedRecords]);
 
-  const handlePrint = () => {
-    window.print();
+  const handlePrint = (scope: 'all' | 'current' = 'all') => {
+    setPrintScope(scope);
+    setTimeout(() => {
+      window.print();
+    }, 150);
+  };
+
+  // Export full CSV file for download
+  const handleExportCSV = () => {
+    const list = printScope === 'current' && searchQuery ? filteredRecords : unifiedRecords;
+    if (!list || list.length === 0) {
+      alert("لا توجد بيانات لتصديرها حالياً");
+      return;
+    }
+
+    const headers = [
+      "ت",
+      "نوع الداخل",
+      "الاسم الكامل",
+      "اسم المستخدم",
+      "رقم الهاتف",
+      "رقم الحساب / الكود",
+      "الجهة / الوكيل المضيف",
+      "هاتف الوكيل المضيف",
+      "تاريخ ووقت الدخول",
+      "حالة الاتصال والنشاط"
+    ];
+
+    const rows = list.map((r, i) => [
+      i + 1,
+      r.type === 'agent' ? (r.role || 'وكيل') : 'زائر معرض',
+      `"${(r.name || '').replace(/"/g, '""')}"`,
+      `"${(r.username || '').replace(/"/g, '""')}"`,
+      `"${(r.phone || '').replace(/"/g, '""')}"`,
+      r.userNumber ? `#${r.userNumber}` : (r.method || '-'),
+      `"${(r.agentName || (r.type === 'agent' ? 'لوحة الإدارة' : 'معرض عام')).replace(/"/g, '""')}"`,
+      `"${(r.agentPhone || '').replace(/"/g, '""')}"`,
+      `"${r.timestamp ? formatDateTime(r.timestamp) : '-'}"`,
+      r.isOnline ? "متصل الآن" : (r.status || "موثق")
+    ]);
+
+    const csvContent = "\uFEFF" + [headers.join(","), ...rows.map(row => row.join(","))].join("\r\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const dateStr = new Date().toISOString().slice(0, 10);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `سجل_الزوار_والداخلين_شركة_الوفاء_${dateStr}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   return (
     <div className="min-h-screen bg-white text-gray-900 font-sans print:p-0 print:m-0 print:bg-white" dir="rtl">
-      {/* Print-specific style */}
+      {/* Comprehensive Print-specific stylesheet for crystal-clear A4 document */}
       <style>{`
         @media print {
+          @page {
+            size: A4 portrait;
+            margin: 8mm 8mm 10mm 8mm;
+          }
+          *, *:before, *:after {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
+          }
           body {
-            background-color: white !important;
+            background: white !important;
             color: black !important;
+            font-size: 10px !important;
+            line-height: 1.3 !important;
           }
           .no-print {
             display: none !important;
+          }
+          .print-only {
+            display: block !important;
           }
           .print-full {
             width: 100% !important;
             margin: 0 !important;
             padding: 0 !important;
           }
+          .overflow-x-auto, .overflow-hidden {
+            overflow: visible !important;
+          }
           table {
             border-collapse: collapse !important;
             width: 100% !important;
+            page-break-inside: auto !important;
           }
-          th, td {
-            border: 1px solid #d1d5db !important;
-            padding: 8px !important;
-            font-size: 11px !important;
-            color: black !important;
+          thead {
+            display: table-header-group !important;
+          }
+          tr {
+            page-break-inside: avoid !important;
+            page-break-after: auto !important;
+          }
+          th {
+            background-color: #f3f4f6 !important;
+            color: #000 !important;
+            border: 1.5px solid #374151 !important;
+            padding: 6px 4px !important;
+            font-size: 10px !important;
+            font-weight: 900 !important;
+            text-align: right !important;
+          }
+          td {
+            border: 1px solid #9ca3af !important;
+            padding: 5px 4px !important;
+            font-size: 9.5px !important;
+            color: #111827 !important;
+            vertical-align: middle !important;
+          }
+          .badge-agent {
+            background-color: #dbeafe !important;
+            color: #1e3a8a !important;
+            border: 1px solid #93c5fd !important;
+            padding: 2px 4px !important;
+            border-radius: 4px !important;
+            font-weight: bold !important;
+            display: inline-block !important;
+          }
+          .badge-visitor {
+            background-color: #fef3c7 !important;
+            color: #78350f !important;
+            border: 1px solid #fde68a !important;
+            padding: 2px 4px !important;
+            border-radius: 4px !important;
+            font-weight: bold !important;
+            display: inline-block !important;
+          }
+          .badge-online {
+            background-color: #d1fae5 !important;
+            color: #065f46 !important;
+            border: 1px solid #a7f3d0 !important;
+            padding: 2px 5px !important;
+            border-radius: 4px !important;
+            font-weight: bold !important;
+            display: inline-block !important;
           }
         }
       `}</style>
@@ -222,8 +340,8 @@ export default function AccessLogManager() {
       {/* Main Container */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 print:p-0 print:max-w-none">
         
-        {/* Header (Screen & Print) */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-gray-200">
+        {/* Header (Screen Only) */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-gray-200 no-print">
           <div>
             <div className="flex items-center gap-3">
               <div className="w-11 h-11 bg-gray-900 text-white rounded-xl flex items-center justify-center shadow-sm">
@@ -234,45 +352,75 @@ export default function AccessLogManager() {
                   سجل الدخول والنشاط اليومي (24 ساعة)
                 </h1>
                 <p className="text-sm text-gray-600 font-medium mt-0.5">
-                  رصد دقيق ومباشر لجميع الوكلاء، المسؤولين، وزوار معارض الوكلاء
+                  رصد مباشر وتفصيلي لجميع الوكلاء، المسؤولين، وزوار معارض الوكلاء
                 </p>
               </div>
             </div>
           </div>
 
           {/* Action Buttons (Hidden on print) */}
-          <div className="flex items-center gap-2.5 no-print">
+          <div className="flex flex-wrap items-center gap-2 no-print">
             <button
               onClick={fetchData}
               disabled={refreshing}
-              className="flex items-center gap-1.5 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl text-sm font-bold border border-gray-300 transition-colors shadow-sm cursor-pointer disabled:opacity-50"
-              title="تحديث البيانات"
+              className="flex items-center gap-1.5 px-3.5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl text-xs font-bold border border-gray-300 transition-colors shadow-sm cursor-pointer disabled:opacity-50"
+              title="تحديث البيانات فوراً"
             >
-              <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
-              <span>تحديث السجل</span>
+              <RefreshCw size={15} className={refreshing ? 'animate-spin text-amber-600' : ''} />
+              <span>تحديث</span>
             </button>
+            
             <button
-              onClick={handlePrint}
-              className="flex items-center gap-2 px-5 py-2.5 bg-gray-900 hover:bg-black text-white rounded-xl text-sm font-black transition-all shadow-md active:scale-95 cursor-pointer"
+              onClick={handleExportCSV}
+              className="flex items-center gap-1.5 px-3.5 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-xl text-xs font-black border border-emerald-300 transition-colors shadow-sm cursor-pointer"
+              title="تحميل السجل كملف إكسل كامل"
+            >
+              <FileSpreadsheet size={16} className="text-emerald-600" />
+              <span>تصدير Excel (ملف كامل)</span>
+            </button>
+
+            <button
+              onClick={() => handlePrint('all')}
+              className="flex items-center gap-2 px-4 py-2.5 bg-gray-900 hover:bg-black text-white rounded-xl text-xs font-black transition-all shadow-md active:scale-95 cursor-pointer"
+              title="طباعة السجل بالكامل بجميع الأسماء والتفاصيل بدون أي نقصان"
             >
               <Printer size={16} className="text-amber-400" />
-              <span>طباعة السجل الرسمي (A4)</span>
+              <span>طباعة الملف الشامل (جميع الأسماء A4)</span>
             </button>
           </div>
         </div>
 
-        {/* Print Title Header (Only visible on paper print) */}
-        <div className="hidden print:block mb-4 text-center border-b-2 border-black pb-3 pt-2">
-          <h2 className="text-xl font-black text-black">شركة الوفاء المتميز - سجل الدخول والمشاهدات اليومي</h2>
-          <div className="flex justify-between text-xs text-gray-700 font-bold mt-2">
-            <span>تاريخ ووقت التقرير: {formatDateTime(Date.now())}</span>
-            <span>الفلتر الحالي: {timeFilter === '24h' ? 'آخر 24 ساعة' : timeFilter === '3d' ? 'آخر 3 أيام' : 'الكل'}</span>
-            <span>إجمالي السجلات: {filteredRecords.length} حركة</span>
+        {/* Official Printable Header Document Banner (Only visible on paper print) */}
+        <div className="hidden print:block mb-4 border-b-2 border-black pb-3">
+          <div className="flex items-center justify-between">
+            <div className="text-right">
+              <h2 className="text-xl font-black text-black tracking-tight">شركة الوفاء المتميز للتجارة العامة</h2>
+              <p className="text-xs font-bold text-gray-800 mt-0.5">تقرير سجل الدخول والمشاهدات اليومي الشامل</p>
+            </div>
+            <div className="text-left font-mono text-[11px] text-gray-800">
+              <div>تاريخ ووقت الطباعة: <strong>{formatDateTime(Date.now())}</strong></div>
+              <div>نوع التقرير: <strong>{printScope === 'all' ? 'السجل الشامل الكامل (كافة الأسماء)' : 'السجل المفلتر'}</strong></div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-4 gap-2 mt-3 pt-2 border-t border-gray-400 text-center text-xs font-bold">
+            <div className="bg-gray-100 p-1.5 rounded border border-gray-300">
+              إجمالي الحركات: <strong className="font-mono text-sm">{recordsToPrint.length}</strong>
+            </div>
+            <div className="bg-gray-100 p-1.5 rounded border border-gray-300">
+              الوكلاء والمسؤولين: <strong className="font-mono text-sm">{recordsToPrint.filter(r => r.type === 'agent').length}</strong>
+            </div>
+            <div className="bg-gray-100 p-1.5 rounded border border-gray-300">
+              زوار المعارض: <strong className="font-mono text-sm">{recordsToPrint.filter(r => r.type === 'visitor').length}</strong>
+            </div>
+            <div className="bg-gray-100 p-1.5 rounded border border-gray-300">
+              المتواجدون الآن: <strong className="font-mono text-sm">{recordsToPrint.filter(r => r.isOnline).length}</strong>
+            </div>
           </div>
         </div>
 
-        {/* Top Metric Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 my-6">
+        {/* Top Metric Cards (Screen Only) */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 my-6 no-print">
           <div className="bg-white p-4 rounded-2xl border-2 border-gray-200 shadow-xs flex flex-col justify-between">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-gray-500">إجمالي الداخلين (24 ساعة)</span>
@@ -429,20 +577,20 @@ export default function AccessLogManager() {
           </div>
         </div>
 
-        {/* Data Table (High Contrast White & Black) */}
-        <div className="bg-white border-2 border-gray-200 rounded-2xl overflow-hidden shadow-xs">
-          <div className="overflow-x-auto">
-            <table className="w-full text-right border-collapse">
+        {/* Data Table (High Contrast White & Black, Full Width for Screen and Print) */}
+        <div className="bg-white border-2 border-gray-200 rounded-2xl overflow-hidden shadow-xs print:border-none print:shadow-none">
+          <div className="overflow-x-auto print:overflow-visible">
+            <table className="w-full text-right border-collapse print:w-full">
               <thead>
-                <tr className="bg-gray-100 text-gray-900 border-b-2 border-gray-200 text-xs font-black">
-                  <th className="py-3.5 px-4">#</th>
-                  <th className="py-3.5 px-4">نوع الداخل</th>
-                  <th className="py-3.5 px-4">الاسم / الحساب</th>
-                  <th className="py-3.5 px-4">رقم الهاتف</th>
-                  <th className="py-3.5 px-4">رقم الحساب / الكود</th>
-                  <th className="py-3.5 px-4">الجهة / الوكيل المضيف</th>
-                  <th className="py-3.5 px-4">وقت وتاريخ الدخول</th>
-                  <th className="py-3.5 px-4 text-center">حالة الاتصال والنشاط</th>
+                <tr className="bg-gray-100 text-gray-900 border-b-2 border-gray-300 text-xs font-black">
+                  <th className="py-3 px-3 w-10 text-center">#</th>
+                  <th className="py-3 px-3">نوع الداخل</th>
+                  <th className="py-3 px-3">الاسم الكامل / الحساب</th>
+                  <th className="py-3 px-3">رقم الهاتف</th>
+                  <th className="py-3 px-3">رقم الحساب / الكود</th>
+                  <th className="py-3 px-3">الجهة / الوكيل المضيف</th>
+                  <th className="py-3 px-3">وقت وتاريخ الدخول</th>
+                  <th className="py-3 px-3 text-center">حالة الاتصال والنشاط</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 text-xs font-medium text-gray-900">
@@ -452,58 +600,58 @@ export default function AccessLogManager() {
                       جاري تحميل وتحديث سجل الدخول...
                     </td>
                   </tr>
-                ) : filteredRecords.length === 0 ? (
+                ) : (printScope === 'all' ? unifiedRecords : filteredRecords).length === 0 ? (
                   <tr>
                     <td colSpan={8} className="py-12 text-center text-gray-500 font-bold">
                       لا توجد حركات دخول مسجلة خلال الفترة أو الفلتر المحدد.
                     </td>
                   </tr>
                 ) : (
-                  filteredRecords.map((rec, index) => {
+                  (printScope === 'all' ? unifiedRecords : filteredRecords).map((rec, index) => {
                     const isAgent = rec.type === 'agent';
                     return (
                       <tr key={rec.id} className="hover:bg-gray-50/80 transition-colors">
                         {/* Index */}
-                        <td className="py-3.5 px-4 font-mono font-bold text-gray-500">
+                        <td className="py-3 px-3 font-mono font-bold text-gray-700 text-center">
                           {index + 1}
                         </td>
 
                         {/* Type Badge */}
-                        <td className="py-3.5 px-4 whitespace-nowrap">
+                        <td className="py-3 px-3 whitespace-nowrap">
                           {isAgent ? (
-                            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-black ${
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-black badge-agent ${
                               rec.role === 'مدير نظام' 
                                 ? 'bg-purple-100 text-purple-900 border border-purple-200' 
                                 : 'bg-blue-100 text-blue-900 border border-blue-200'
                             }`}>
-                              <Shield size={12} />
+                              <Shield size={12} className="no-print" />
                               {rec.role}
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-black bg-amber-100 text-amber-900 border border-amber-200">
-                              <Sparkles size={12} />
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-black bg-amber-100 text-amber-900 border border-amber-200 badge-visitor">
+                              <Sparkles size={12} className="no-print" />
                               زائر معرض
                             </span>
                           )}
                         </td>
 
                         {/* Name & Details */}
-                        <td className="py-3.5 px-4">
-                          <div className="font-bold text-gray-900 text-sm">
+                        <td className="py-3 px-3">
+                          <div className="font-black text-gray-900 text-sm">
                             {rec.name}
                           </div>
                           {isAgent && rec.username && rec.username !== rec.name && (
-                            <div className="text-[11px] text-gray-500 font-mono">
+                            <div className="text-[11px] text-gray-600 font-mono">
                               {rec.username}
                             </div>
                           )}
                         </td>
 
                         {/* Phone */}
-                        <td className="py-3.5 px-4 whitespace-nowrap font-mono">
+                        <td className="py-3 px-3 whitespace-nowrap font-mono">
                           {rec.phone ? (
                             <div className="flex items-center gap-1.5">
-                              <span className="font-bold text-gray-900 text-xs" dir="ltr">
+                              <span className="font-black text-gray-900 text-xs" dir="ltr">
                                 {rec.phone}
                               </span>
                               <a
@@ -522,7 +670,7 @@ export default function AccessLogManager() {
                         </td>
 
                         {/* User Number / Code */}
-                        <td className="py-3.5 px-4 whitespace-nowrap font-mono">
+                        <td className="py-3 px-3 whitespace-nowrap font-mono">
                           {rec.userNumber ? (
                             <span className="font-black text-gray-900 bg-gray-100 px-2 py-0.5 rounded border border-gray-300">
                               #{rec.userNumber}
@@ -537,18 +685,18 @@ export default function AccessLogManager() {
                         </td>
 
                         {/* Host Agent / Context */}
-                        <td className="py-3.5 px-4">
+                        <td className="py-3 px-3">
                           {isAgent ? (
-                            <span className="text-gray-600 font-medium text-[11px]">
+                            <span className="text-gray-700 font-medium text-[11px]">
                               {rec.role === 'مدير نظام' ? 'لوحة الإدارة المركزية' : 'تطبيق المبيعات والطلبات'}
                             </span>
                           ) : (
                             <div>
-                              <div className="font-black text-gray-900 text-xs flex items-center gap-1">
-                                <span className="text-gray-500 font-normal">معرض الوكيل:</span> {rec.agentName}
+                              <div className="font-black text-gray-900 text-xs">
+                                <span className="text-gray-600 font-normal">معرض الوكيل: </span>{rec.agentName}
                               </div>
                               {rec.agentPhone && (
-                                <div className="text-[10px] text-gray-500 font-mono" dir="ltr">
+                                <div className="text-[10px] text-gray-600 font-mono" dir="ltr">
                                   هاتف الوكيل: {rec.agentPhone}
                                 </div>
                               )}
@@ -557,13 +705,13 @@ export default function AccessLogManager() {
                         </td>
 
                         {/* Entry Timestamp */}
-                        <td className="py-3.5 px-4 whitespace-nowrap">
+                        <td className="py-3 px-3 whitespace-nowrap">
                           {rec.timestamp ? (
                             <div>
                               <div className="font-bold text-gray-900 text-xs font-mono">
                                 {formatDateTime(rec.timestamp)}
                               </div>
-                              <div className="text-[10px] text-gray-500">
+                              <div className="text-[10px] text-gray-500 no-print">
                                 {rec.isOnline ? (
                                   <span className="text-emerald-700 font-bold">نشط الآن</span>
                                 ) : (
@@ -577,10 +725,10 @@ export default function AccessLogManager() {
                         </td>
 
                         {/* Status */}
-                        <td className="py-3.5 px-4 whitespace-nowrap text-center">
+                        <td className="py-3 px-3 whitespace-nowrap text-center">
                           {rec.isOnline ? (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
-                              <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse"></span>
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300 badge-online">
+                              <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse no-print"></span>
                               متصل الآن
                             </span>
                           ) : isAgent ? (
@@ -589,7 +737,7 @@ export default function AccessLogManager() {
                             </span>
                           ) : (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                              <CheckCircle2 size={12} />
+                              <CheckCircle2 size={12} className="no-print" />
                               زيارة موثقة
                             </span>
                           )}
@@ -603,15 +751,25 @@ export default function AccessLogManager() {
           </div>
 
           {/* Table Footer with Counts */}
-          <div className="bg-gray-50 p-4 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between text-xs text-gray-600 font-bold gap-2">
+          <div className="bg-gray-50 p-4 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between text-xs text-gray-600 font-bold gap-2 print:bg-white print:border-black print:text-black">
             <div>
               عرض <span className="text-gray-900 font-black">{filteredRecords.length}</span> من إجمالي <span className="text-gray-900 font-black">{unifiedRecords.length}</span> حركة دخول
             </div>
             <div className="flex items-center gap-4">
-              <span>وكلاء: <strong className="text-gray-900">{filteredRecords.filter(r => r.type === 'agent').length}</strong></span>
-              <span>زوار: <strong className="text-gray-900">{filteredRecords.filter(r => r.type === 'visitor').length}</strong></span>
-              <span>متصل الآن: <strong className="text-emerald-700">{filteredRecords.filter(r => r.isOnline).length}</strong></span>
+              <span>وكلاء: <strong className="text-gray-900 font-mono">{filteredRecords.filter(r => r.type === 'agent').length}</strong></span>
+              <span>زوار: <strong className="text-gray-900 font-mono">{filteredRecords.filter(r => r.type === 'visitor').length}</strong></span>
+              <span>متصل الآن: <strong className="text-emerald-700 font-mono">{filteredRecords.filter(r => r.isOnline).length}</strong></span>
             </div>
+          </div>
+        </div>
+
+        {/* Printable Official Document Footer Signatures */}
+        <div className="hidden print:flex justify-between items-center mt-8 pt-4 border-t-2 border-black text-xs font-bold text-black">
+          <div>
+            <span>المسؤول عن التدقيق: ______________________</span>
+          </div>
+          <div>
+            <span>توقيع الإدارة / الختم: ______________________</span>
           </div>
         </div>
 
@@ -630,3 +788,4 @@ function getTimeAgo(timestamp: number): string {
   const days = Math.floor(hours / 24);
   return `منذ ${days} يوم`;
 }
+
