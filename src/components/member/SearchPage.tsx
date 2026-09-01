@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { api } from '../../api';
 import { supabase } from '../../supabase';
 import { shuffleProductsForUser } from '../../utils/shuffle';
-import { filterProductsBySearch } from '../../utils/search';
+import { filterProductsBySearch, isProductRestrictedFromSearch } from '../../utils/search';
 import { Product } from '../../types';
 import OptimizedImage from '../OptimizedImage';
 import { useStore } from '../../store';
@@ -46,7 +46,9 @@ export default function SearchPage() {
          if (mounted) {
             setAllCategories(cats);
             const isStaff = user?.role === 'admin' || user?.role === 'sales';
-            const visibleProducts = isStaff ? allProducts : allProducts.filter(p => !p.isHidden && !p.isDeleted);
+            const visibleProducts = isStaff
+              ? allProducts
+              : allProducts.filter(p => !p.isHidden && !p.isDeleted && !isProductRestrictedFromSearch(p, cats));
             setProducts(shuffleProductsForUser(visibleProducts));
          }
       } catch (e) {
@@ -141,6 +143,9 @@ export default function SearchPage() {
     } else {
       result = result.filter(p => !p.isArchived && !p.isHidden && !p.isLocked);
     }
+    
+    // Always exclude products in restricted categories ("المواد المقفلة من قبل الادمن", "الموديلات متابعة")
+    result = result.filter(p => !isProductRestrictedFromSearch(p, allCategories));
     
     return filterProductsBySearch(result, query, allCategories);
   }, [products, query, searchArchived, allCategories]);

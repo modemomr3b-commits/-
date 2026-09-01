@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { compressImage } from '../../utils/compressImage';
 import { api } from "../../api";
 import { supabase } from "../../supabase";
-import { filterProductsBySearch } from '../../utils/search';
+import { filterProductsBySearch, isProductRestrictedFromSearch } from '../../utils/search';
 import { Product, Category } from "../../types";
 import { useStore } from "../../store";
 import OptimizedImage from "../OptimizedImage";
@@ -82,13 +82,13 @@ export default function Products() {
         if (categoryId) {
           const fresh = await api.getProductsByCategoryDirect(categoryId);
           if (fresh) {
-            const active = fresh.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted);
+            const active = fresh.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, allCategories));
             setProducts(active);
           }
         } else {
           const fresh = await api.getProducts();
           if (fresh) {
-            const active = fresh.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted);
+            const active = fresh.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, allCategories));
             setProducts(active);
             setAllStoreProducts(active);
           }
@@ -162,7 +162,7 @@ export default function Products() {
       setAllCategories(cats);
       
       const allStore = await api.getProducts();
-      const activeStore = allStore.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted);
+      const activeStore = allStore.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, cats));
       setAllStoreProducts(activeStore);
       
       let allProducts = [];
@@ -172,7 +172,7 @@ export default function Products() {
         allProducts = activeStore;
       }
       
-      let fetchedProducts = allProducts.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted);
+      let fetchedProducts = allProducts.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, cats));
       fetchedProducts = shuffleProductsForUser(fetchedProducts);
       
       if (categoryId) {
@@ -401,9 +401,14 @@ export default function Products() {
   };
 
   const filteredProductsAll = useMemo(() => {
-    const isActive = (p: any) => !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted;
+    const isActive = (p: any) =>
+      !p.isArchived &&
+      !p.isHidden &&
+      !p.isLocked &&
+      !p.isDeleted &&
+      !isProductRestrictedFromSearch(p, allCategories);
 
-    // Only active products (never archived, hidden or locked) in categories
+    // Only active products (never archived, hidden, locked, or in restricted categories)
     if (searchTerm && searchTerm.trim()) {
       const source = (allStoreProducts.length > 0 ? allStoreProducts : products).filter(isActive);
       let result = filterProductsBySearch(source, searchTerm, allCategories);

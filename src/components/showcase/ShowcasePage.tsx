@@ -28,6 +28,7 @@ import {
 import { api } from '../../api';
 import { supabase } from '../../supabase';
 import { Product, Category } from '../../types';
+import { isProductRestrictedFromSearch } from '../../utils/search';
 import { detectShowcaseCategory, VALID_SHOWCASE_CATEGORIES, SHOWCASE_CATEGORIES_METADATA, allCategoriesImg } from '../../utils/showcaseClassifier';
 import { 
   createShowcaseInvite, 
@@ -354,8 +355,10 @@ export default function ShowcasePage() {
         api.getCategories()
       ]);
       
-      // Filter products that are designated for showcase AND not archived/hidden/locked
-      const showcaseProds = (allProds || []).filter(p => p.isShowcase && !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted);
+      // Filter products that are designated for showcase AND not archived/hidden/locked/restricted
+      const showcaseProds = (allProds || []).filter(
+        p => p.isShowcase && !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, allCats || [])
+      );
       setProducts(showcaseProds);
       setSettings(appSettings || {});
       setCategories(allCats || []);
@@ -376,7 +379,9 @@ export default function ShowcasePage() {
     ]).then(([cachedProds, cachedCats]) => {
       if (!mounted) return;
       if (cachedProds && cachedProds.length > 0) {
-        const showcaseProds = cachedProds.filter(p => p.isShowcase && !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted);
+        const showcaseProds = cachedProds.filter(
+          p => p.isShowcase && !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, cachedCats || [])
+        );
         setProducts(showcaseProds);
         setLoading(false);
       }

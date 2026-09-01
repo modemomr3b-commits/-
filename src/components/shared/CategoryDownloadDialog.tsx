@@ -10,6 +10,7 @@ import {
   STORE_MAIN_SECTIONS, 
   SHOE_SUBTYPES 
 } from "../../utils/productFolderClassifier";
+import { isProductRestrictedFromSearch } from "../../utils/search";
 
 interface CategoryDownloadDialogProps {
   categories: Category[];
@@ -43,10 +44,12 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
     return detectShoeSubtype(p.name || '');
   };
 
-  // Filter products to ONLY include active ones (exclude out-of-stock / inactive / hidden / archived / deleted)
+  // Filter products to ONLY include active ones (exclude out-of-stock / inactive / hidden / archived / deleted / restricted)
   const activeProducts = useMemo(() => {
-    return products.filter(p => !p.isHidden && !p.isArchived && !p.isLocked && !p.isDeleted);
-  }, [products]);
+    return products.filter(
+      p => !p.isHidden && !p.isArchived && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, categories)
+    );
+  }, [products, categories]);
 
   const groupedProducts = useMemo(() => {
     const map = new Map<string, Product[]>();

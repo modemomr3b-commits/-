@@ -47,6 +47,12 @@ import { CategoryDownloadDialog } from "../shared/CategoryDownloadDialog";
 import { ShowcaseCategorizedDownloadDialog } from "./ShowcaseCategorizedDownloadDialog";
 import ImageViewer from "../ImageViewer";
 import { PriceHistoryViewer } from "../member/PriceHistoryViewer";
+import { 
+  ProductEditDiffModal, 
+  ProductEditLiveDiff, 
+  calculateProductDiff,
+  ProductChangeDiffItem 
+} from "./ProductEditDiffModal";
 
 export default function ProductManager() {
   const { user } = useStore();
@@ -196,6 +202,15 @@ export default function ProductManager() {
     }
   };
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [initialEditingProduct, setInitialEditingProduct] = useState<Product | null>(null);
+  const [showDiffConfirmModal, setShowDiffConfirmModal] = useState<boolean>(false);
+
+  const handleStartEdit = (p: Product) => {
+    const prepared = { ...p, forceStandardCrush: p.forceStandardCrush ?? true };
+    setInitialEditingProduct(JSON.parse(JSON.stringify(prepared)));
+    setEditingProduct(prepared);
+    setShowDiffConfirmModal(false);
+  };
   const [aiStudioProduct, setAiStudioProduct] = useState<Product | null>(null);
   const [aiCharacter, setAiCharacter] = useState<string>('none');
   const [aiShoeCount, setAiShoeCount] = useState<string>('pair');
@@ -790,8 +805,9 @@ export default function ProductManager() {
     proceedCreate(newProduct);
   };
 
-  const proceedUpdate = async (payloadToUpdate: any) => {
+  const proceedUpdate = async (payloadToUpdate: any, diffs?: ProductChangeDiffItem[]) => {
     setDuplicateConfirm(null);
+    setShowDiffConfirmModal(false);
     const originalProduct = products.find(p => p.id === payloadToUpdate.id);
     let finalImg = payloadToUpdate.finalImageUrl || payloadToUpdate.imageUrl;
 
@@ -825,7 +841,13 @@ export default function ProductManager() {
     // 1. INSTANT LOCAL UPDATE & CLOSE MODAL (Zero wait time for the user)
     setProducts(prev => prev.map(p => p.id === payloadToUpdate.id ? { ...p, ...fullUpdatedProduct } : p));
     setEditingProduct(null);
+    setInitialEditingProduct(null);
     setIsSubmitting(false);
+
+    const changedFieldNames = diffs && diffs.length > 0 
+      ? diffs.map(d => d.label).join("، ") 
+      : "البيانات";
+    setAlertMessage(`تم حفظ التعديلات بنجاح على المنتج (${payloadToUpdate.name || payloadToUpdate.productCode || ''}) - تم تعديل: ${changedFieldNames}`);
 
     // 2. Background burn and persist
     try {
@@ -861,7 +883,18 @@ export default function ProductManager() {
         action: "تعديل بيانات أو صورة منتج",
         entityType: "product",
         entityId: payloadToUpdate.id,
-        details: { name: payloadToUpdate.name },
+        details: { 
+          name: payloadToUpdate.name,
+          code: payloadToUpdate.productCode,
+          changesCount: diffs?.length || 0,
+          changesSummary: diffs && diffs.length > 0 ? diffs.map(d => `${d.label}: (${d.oldDisplay} ➔ ${d.newDisplay})`).join(" | ") : undefined,
+          changes: diffs?.map(d => ({
+            field: d.label,
+            from: d.oldDisplay,
+            to: d.newDisplay,
+            difference: d.difference || undefined
+          }))
+        },
       }).catch(() => {});
     } catch (error: any) {
       console.error(error);
@@ -875,6 +908,12 @@ export default function ProductManager() {
     e.preventDefault();
     if (!editingProduct || !editingProduct.name || !editingProduct.price || isSubmitting)
       return;
+
+    const diffs = calculateProductDiff(initialEditingProduct, editingProduct, categories);
+    if (diffs.length === 0) {
+      setAlertMessage("لم تقم بإجراء أي تغييرات على بيانات هذا المنتج.");
+      return;
+    }
 
     const atNumber = extractAtNumber(editingProduct.name);
     if (atNumber) {
@@ -894,7 +933,8 @@ export default function ProductManager() {
       }
     }
 
-    proceedUpdate(editingProduct);
+    // Open confirmation diff modal so user reviews full breakdown before saving
+    setShowDiffConfirmModal(true);
   };
 
   const handleDelete = (id: string, name: string) => {
@@ -1473,7 +1513,7 @@ export default function ProductManager() {
 
       // 3. Filter by Search Query (Name, Code, Model, etc.)
       if (searchQuery && searchQuery.trim()) {
-        const match = filterProductsBySearch([p], searchQuery, categories);
+        const match = filterProductsBySearch([p], searchQuery, categories, { includeRestricted: true });
         if (match.length === 0) return false;
       }
 
@@ -2406,7 +2446,7 @@ export default function ProductManager() {
                             </button>
                             <button
                               type="button"
-                              onClick={() => setEditingProduct({ ...p, forceStandardCrush: p.forceStandardCrush ?? true })}
+                              onClick={() => handleStartEdit(p)}
                               className="p-1.5 hover:bg-blue-500/20 text-blue-400 rounded transition-colors"
                               title="تعديل"
                             >
@@ -2505,7 +2545,11 @@ export default function ProductManager() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="glass-panel p-6 rounded-2xl border border-brq-gold/30 relative w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <button
-              onClick={() => setEditingProduct(null)}
+              onClick={() => {
+                setEditingProduct(null);
+                setInitialEditingProduct(null);
+                setShowDiffConfirmModal(false);
+              }}
               className="absolute top-4 left-4 p-2 text-white/50 hover:text-white bg-black/40 rounded-full"
             >
               <X size={16} />
@@ -2779,10 +2823,15 @@ export default function ProductManager() {
                 )}
               </div>
               <div className="md:col-span-2">
+                <ProductEditLiveDiff
+                  diffs={calculateProductDiff(initialEditingProduct, editingProduct, categories)}
+                />
+              </div>
+              <div className="md:col-span-2">
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full py-3 bg-brq-gold text-black font-bold rounded-lg mt-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="w-full py-3 bg-brq-gold text-black font-bold rounded-lg mt-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer hover:bg-amber-400 transition-colors shadow-lg"
                 >
                   {isSubmitting ? (
                     <>
@@ -2790,7 +2839,7 @@ export default function ProductManager() {
                       جاري الحفظ...
                     </>
                   ) : (
-                    "حفظ التعديلات"
+                    "حفظ ومراجعة التعديلات"
                   )}
                 </button>
               </div>
@@ -2798,6 +2847,19 @@ export default function ProductManager() {
           </div>
         </div>
       )}
+
+      {/* Confirmation & Details Diff Modal */}
+      <ProductEditDiffModal
+        isOpen={showDiffConfirmModal}
+        onClose={() => setShowDiffConfirmModal(false)}
+        onConfirm={() => {
+          proceedUpdate(editingProduct, calculateProductDiff(initialEditingProduct, editingProduct, categories));
+        }}
+        originalProduct={initialEditingProduct}
+        editedProduct={editingProduct}
+        categories={categories}
+        isSubmitting={isSubmitting}
+      />
 
       {/* Image Viewer */}
       {viewImage && (

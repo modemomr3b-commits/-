@@ -30,6 +30,7 @@ import { SHOWCASE_CATEGORIES_METADATA } from "../../utils/showcaseClassifier";
 import { createShowcaseInvite } from "../../services/showcaseService";
 import CategoryIcon from "../ui/CategoryIcon";
 import { localCache } from "../../utils/localCache";
+import { isRestrictedCategoryName } from "../../utils/search";
 
 const DEFAULT_ICONS = ["✨", "👟", "🇹🇷", "⭐", "🎒", "☀️", "🔥"];
 
@@ -59,7 +60,7 @@ export default function Home() {
       if (cats && Array.isArray(cats)) {
         setCategories(
           cats
-            .filter((c) => !c.isHidden && !c.parentId)
+            .filter((c) => !c.isHidden && !c.parentId && !isRestrictedCategoryName(c.name))
             .sort((a: any, b: any) => (a.order || 0) - (b.order || 0)),
         );
       }
@@ -86,7 +87,7 @@ export default function Home() {
       if (mounted && cachedCats && cachedCats.length > 0) {
         setCategories(
           cachedCats
-            .filter((c) => !c.isHidden && !c.parentId)
+            .filter((c) => !c.isHidden && !c.parentId && !isRestrictedCategoryName(c.name))
             .sort((a: any, b: any) => (a.order || 0) - (b.order || 0)),
         );
         setLoading(false);
