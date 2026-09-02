@@ -43,6 +43,7 @@ import {
   BlockedVisitor 
 } from '../../services/showcaseService';
 import { useStore } from '../../store';
+import { shuffleProductsForUser } from '../../utils/shuffle';
 import OptimizedImage from '../OptimizedImage';
 import ImageViewer from '../ImageViewer';
 import Animated3DLogo from '../ui/Animated3DLogo';
@@ -359,7 +360,7 @@ export default function ShowcasePage() {
       const showcaseProds = (allProds || []).filter(
         p => p.isShowcase && !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, allCats || [])
       );
-      setProducts(showcaseProds);
+      setProducts(shuffleProductsForUser(showcaseProds));
       setSettings(appSettings || {});
       setCategories(allCats || []);
     } catch (e) {
@@ -382,7 +383,7 @@ export default function ShowcasePage() {
         const showcaseProds = cachedProds.filter(
           p => p.isShowcase && !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, cachedCats || [])
         );
-        setProducts(showcaseProds);
+        setProducts(shuffleProductsForUser(showcaseProds));
         setLoading(false);
       }
       if (cachedCats && cachedCats.length > 0) {

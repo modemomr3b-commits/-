@@ -79,24 +79,25 @@ export default function Products() {
   useEffect(() => {
     const pollInterval = setInterval(async () => {
       try {
-        if (categoryId) {
+          if (categoryId) {
           const fresh = await api.getProductsByCategoryDirect(categoryId);
           if (fresh) {
-            const active = fresh.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, allCategories));
-            setProducts(active);
+            const active: Product[] = fresh.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, allCategories));
+            setProducts(shuffleProductsForUser<Product>(active));
           }
         } else {
           const fresh = await api.getProducts();
           if (fresh) {
-            const active = fresh.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, allCategories));
-            setProducts(active);
-            setAllStoreProducts(active);
+            const active: Product[] = fresh.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, allCategories));
+            const shuffled = shuffleProductsForUser<Product>(active);
+            setProducts(shuffled);
+            setAllStoreProducts(shuffled);
           }
         }
       } catch {}
     }, 10000);
     return () => clearInterval(pollInterval);
-  }, [categoryId]);
+  }, [categoryId, allCategories]);
 
   const [categoryName, setCategoryName] = useState("جميع المنتجات");
   const [downloadProgress, setDownloadProgress] = useState<{ progress: number, total: number } | null>(null);
@@ -162,8 +163,9 @@ export default function Products() {
       setAllCategories(cats);
       
       const allStore = await api.getProducts();
-      const activeStore = allStore.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, cats));
-      setAllStoreProducts(activeStore);
+      const activeStore: Product[] = allStore.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, cats));
+      const shuffledStore = shuffleProductsForUser<Product>(activeStore);
+      setAllStoreProducts(shuffledStore);
       
       let allProducts = [];
       if (categoryId) {
@@ -172,8 +174,8 @@ export default function Products() {
         allProducts = activeStore;
       }
       
-      let fetchedProducts = allProducts.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, cats));
-      fetchedProducts = shuffleProductsForUser(fetchedProducts);
+      let fetchedProducts: Product[] = allProducts.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, cats));
+      fetchedProducts = shuffleProductsForUser<Product>(fetchedProducts);
       
       if (categoryId) {
         const cat = cats.find((c: any) => c.id === categoryId);

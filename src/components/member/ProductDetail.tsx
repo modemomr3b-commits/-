@@ -33,6 +33,7 @@ import {
 import { api } from '../../api';
 import { Product } from '../../types';
 import { useStore } from '../../store';
+import { shuffleProductsForUser } from '../../utils/shuffle';
 import OptimizedImage from '../OptimizedImage';
 import { formatDate } from '../../utils/time';
 import { PriceHistoryViewer } from './PriceHistoryViewer';
@@ -85,11 +86,11 @@ export default function ProductDetail() {
           if (found && found.categoryId) {
             const catProducts = await api.getProductsByCategory(found.categoryId);
             const active = catProducts.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted);
-            if (mounted) setSiblingProducts(active);
+            if (mounted) setSiblingProducts(shuffleProductsForUser(active));
           } else {
             const allProducts = await api.getProducts();
             const active = allProducts.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted);
-            if (mounted) setSiblingProducts(active);
+            if (mounted) setSiblingProducts(shuffleProductsForUser(active));
           }
           setLoading(false);
         }
