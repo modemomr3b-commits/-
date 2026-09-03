@@ -204,13 +204,45 @@ export function isVisitorInBlockedList(
 }
 
 /**
+ * Generates showcase invite details synchronously and immediately with zero latency.
+ */
+export function generateShowcaseInviteData(agentId?: string, agentName?: string, customToken?: string) {
+  const cleanAgentId = (agentId || 'agent').toString().trim();
+  const cleanAgentName = (agentName || 'الوكيل المعتمد').toString().trim();
+  const token = customToken || ('brq_' + cleanAgentId.replace(/[^a-zA-Z0-9]/g, '_') + '_' + Math.random().toString(36).substring(2, 8));
+  const inviteUrl = `/showcase?agent=${encodeURIComponent(cleanAgentId)}&agentName=${encodeURIComponent(cleanAgentName)}&invite=${token}`;
+  
+  let origin = '';
+  try {
+    if (typeof window !== 'undefined' && window.location && window.location.origin) {
+      origin = window.location.origin;
+    }
+  } catch {
+    origin = '';
+  }
+
+  const fullUrl = origin ? `${origin}${inviteUrl}` : inviteUrl;
+  const message = `✨ معرض شركة الوفاء المتميز BRQ ✨\nدعوة خاصة من: ${cleanAgentName}\nتفضل بالاطلاع على أحدث الموديلات والتشكيلات الحصرية عبر الرابط المباشر:\n${fullUrl}`;
+
+  return {
+    token,
+    agentId: cleanAgentId,
+    agentName: cleanAgentName,
+    inviteUrl,
+    fullUrl,
+    message,
+    expiresAt: Date.now() + SHOWCASE_INVITE_TTL_MS
+  };
+}
+
+/**
  * Creates a sharable showcase link for an agent.
  * The link is open and can be shared with unlimited users/visitors for 24 hours.
  */
-export async function createShowcaseInvite(agentId: string, agentName: string): Promise<{ token: string; inviteUrl: string }> {
+export async function createShowcaseInvite(agentId: string, agentName: string, precomputedToken?: string): Promise<{ token: string; inviteUrl: string }> {
   const cleanAgentId = (agentId || 'agent').toString().trim();
   const cleanAgentName = (agentName || 'الوكيل المعتمد').toString().trim();
-  const token = 'brq_' + cleanAgentId.replace(/[^a-zA-Z0-9]/g, '_') + '_' + Math.random().toString(36).substring(2, 8);
+  const token = precomputedToken || ('brq_' + cleanAgentId.replace(/[^a-zA-Z0-9]/g, '_') + '_' + Math.random().toString(36).substring(2, 8));
   const targetInviteUrl = `/showcase?agent=${encodeURIComponent(cleanAgentId)}&agentName=${encodeURIComponent(cleanAgentName)}&invite=${token}`;
   
   const now = Date.now();

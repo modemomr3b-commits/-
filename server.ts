@@ -349,12 +349,12 @@ Photorealistic studio shot, 8k resolution, crisp focus, commercial catalog quali
 
   app.post('/api/showcase/create-invite', express.json(), async (req, res) => {
     try {
-      const { agentId, agentName } = req.body;
+      const { agentId, agentName, token: customToken } = req.body;
       const cleanAgentId = (agentId || 'agent').toString().trim();
       const cleanAgentName = (agentName || 'الوكيل المعتمد').toString().trim();
 
-      // Generate a reusable invite token valid for 24 hours
-      const token = 'brq_' + cleanAgentId.replace(/[^a-zA-Z0-9]/g, '_') + '_' + Math.random().toString(36).substring(2, 8);
+      // Use client token if provided, or generate a reusable invite token valid for 24 hours
+      const token = customToken || ('brq_' + cleanAgentId.replace(/[^a-zA-Z0-9]/g, '_') + '_' + Math.random().toString(36).substring(2, 8));
 
       const { data: invitesData } = await supabaseAdmin.from('settings').select('*').match({ id: 'showcase_invites' }).maybeSingle();
       let invites = [];

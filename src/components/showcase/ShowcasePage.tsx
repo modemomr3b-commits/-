@@ -32,6 +32,7 @@ import { isProductRestrictedFromSearch } from '../../utils/search';
 import { detectShowcaseCategory, VALID_SHOWCASE_CATEGORIES, SHOWCASE_CATEGORIES_METADATA, allCategoriesImg } from '../../utils/showcaseClassifier';
 import { 
   createShowcaseInvite, 
+  generateShowcaseInviteData,
   verifyShowcaseInvite, 
   loginShowcase, 
   getSavedShowcaseVisitor, 
@@ -44,6 +45,8 @@ import {
 } from '../../services/showcaseService';
 import { useStore } from '../../store';
 import { shuffleProductsForUser } from '../../utils/shuffle';
+import { copyTextToClipboard, openWhatsAppDirectly } from '../../utils/whatsappShare';
+import { WhatsAppShareDialog } from '../shared/WhatsAppShareDialog';
 import OptimizedImage from '../OptimizedImage';
 import ImageViewer from '../ImageViewer';
 import Animated3DLogo from '../ui/Animated3DLogo';
@@ -67,6 +70,8 @@ export default function ShowcasePage() {
   
   const [isLinkExpired, setIsLinkExpired] = useState(false);
   const [expiredReason, setExpiredReason] = useState('');
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [shareInviteData, setShareInviteData] = useState<any>(null);
 
   const [authData, setAuthData] = useState<{ agent: { id: string, fullName: string }, visitorName: string, visitorPhone?: string } | null>(() => {
     try {
@@ -520,38 +525,26 @@ export default function ShowcasePage() {
   }, [products, categories]);
 
   // WhatsApp share handler with reusable showcase link
-  const handleSharePage = async () => {
-    try {
-      showToast('جاري تحويلك إلى واتساب...');
-      let url = `${window.location.origin}/showcase`;
-      const agentId = authData?.agent?.id || user?.id || 'agent_1';
-      const agentName = authData?.agent?.fullName || user?.fullName || 'معرض شركة الوفاء';
+  const handleSharePage = () => {
+    const agentId = authData?.agent?.id || user?.id || user?.uid || user?.username || 'agent_1';
+    const agentName = authData?.agent?.fullName || user?.fullName || user?.username || 'معرض شركة الوفاء';
 
-      try {
-        const inviteRes = await createShowcaseInvite(agentId, agentName);
-        if (inviteRes.token) {
-          url = `${window.location.origin}${inviteRes.inviteUrl}`;
-        }
-      } catch (e) {
-        console.error("Failed to create invite link:", e);
-      }
+    // 1. Synchronously generate invite details with 0 latency to preserve native user gesture
+    const inviteData = generateShowcaseInviteData(agentId, agentName);
+    setShareInviteData(inviteData);
+    setShareModalOpen(true);
 
-      const text = `✨ معرض شركة الوفاء المتميز BRQ ✨\nدعوة خاصة من: ${agentName}\nتفضل بالاطلاع على أحدث الموديلات والتشكيلات الحصرية عبر الرابط التالي:\n${url}`;
+    // 2. Immediate clipboard copy
+    copyTextToClipboard(inviteData.message);
+    showToast('تم نسخ الرابط وجاري فتح واتساب...');
 
-      try {
-        await navigator.clipboard.writeText(text);
-      } catch {
-        // ignore
-      }
+    // 3. Open WhatsApp directly using multi-tier safe strategy
+    openWhatsAppDirectly(inviteData.message);
 
-      // Direct WhatsApp redirect to immediately pick a contact
-      const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
-      window.location.href = waUrl;
-    } catch (e) {
-      const url = `${window.location.origin}/showcase`;
-      const fallbackText = `✨ معرض شركة الوفاء المتميز BRQ ✨\n${url}`;
-      window.location.href = `https://api.whatsapp.com/send?text=${encodeURIComponent(fallbackText)}`;
-    }
+    // 4. Save invite in background without blocking user
+    createShowcaseInvite(agentId, agentName, inviteData.token).catch((err) => {
+      console.warn("Background invite registration warning:", err);
+    });
   };
 
   // Download product image
@@ -1119,6 +1112,13 @@ export default function ShowcasePage() {
         onClose={() => setIsPromptModalOpen(false)}
         settings={settings}
         categoryName={SHOWCASE_CATEGORIES.find(c => c.id === selectedCategory)?.name}
+      />
+
+      {/* WhatsApp and Showcase Link Share Dialog */}
+      <WhatsAppShareDialog
+        isOpen={shareModalOpen}
+        onClose={() => setShareModalOpen(false)}
+        inviteData={shareInviteData}
       />
     </div>
   );

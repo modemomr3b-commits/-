@@ -27,7 +27,9 @@ import { supabase } from "../../supabase";
 import { useStore } from "../../store";
 import Animated3DLogo from "../ui/Animated3DLogo";
 import { SHOWCASE_CATEGORIES_METADATA } from "../../utils/showcaseClassifier";
-import { createShowcaseInvite } from "../../services/showcaseService";
+import { createShowcaseInvite, generateShowcaseInviteData } from "../../services/showcaseService";
+import { copyTextToClipboard, openWhatsAppDirectly } from "../../utils/whatsappShare";
+import { WhatsAppShareDialog } from "../shared/WhatsAppShareDialog";
 import CategoryIcon from "../ui/CategoryIcon";
 import { localCache } from "../../utils/localCache";
 import { isRestrictedCategoryName } from "../../utils/search";
@@ -42,6 +44,8 @@ export default function Home() {
   const [showcaseSettings, setShowcaseSettings] = useState<any>({ showcaseEnabled: true });
   const [showcaseCount, setShowcaseCount] = useState(0);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [shareInviteData, setShareInviteData] = useState<any>(null);
   const navigate = useNavigate();
 
   const showToast = (msg: string) => {
@@ -283,33 +287,28 @@ export default function Home() {
                 </Link>
 
                 <button
-                  onClick={async () => {
-                    try {
-                      showToast('جاري تحويلك إلى واتساب...');
-                      const agentId = user?.id || user?.uid || user?.username || 'agent_1';
-                      const agentDisplayName = user?.fullName || user?.username || 'الوكيل المعتمد';
-                      
-                      const inviteRes = await createShowcaseInvite(agentId, agentDisplayName);
-                      const url = `${window.location.origin}${inviteRes.inviteUrl}`;
-                      const text = `✨ معرض شركة الوفاء المتميز BRQ ✨\nدعوة خاصة من: ${agentDisplayName}\nتفضل بالاطلاع على أحدث الموديلات والتشكيلات الحصرية عبر الرابط المباشر:\n${url}`;
+                  onClick={() => {
+                    const agentId = user?.id || user?.uid || user?.username || 'agent_1';
+                    const agentDisplayName = user?.fullName || user?.username || 'الوكيل المعتمد';
+                    
+                    // 1. Generate invite data immediately and synchronously (0ms latency, keeps user gesture active)
+                    const inviteData = generateShowcaseInviteData(agentId, agentDisplayName);
+                    setShareInviteData(inviteData);
+                    setShareModalOpen(true);
 
-                      try {
-                        await navigator.clipboard.writeText(text);
-                      } catch {
-                        // ignore clipboard errors
-                      }
+                    // 2. Immediate clipboard copy as a guaranteed safety net
+                    copyTextToClipboard(inviteData.message);
+                    showToast('تم نسخ الرابط وجاري فتح واتساب...');
 
-                      // Direct WhatsApp redirect to immediately pick a contact
-                      const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
-                      window.location.href = waUrl;
-                    } catch (e) {
-                      console.error("Error creating invite:", e);
-                      const fallbackUrl = `${window.location.origin}/showcase`;
-                      const fallbackText = `✨ معرض شركة الوفاء المتميز BRQ ✨\n${fallbackUrl}`;
-                      window.location.href = `https://api.whatsapp.com/send?text=${encodeURIComponent(fallbackText)}`;
-                    }
+                    // 3. Open WhatsApp directly using multi-tier safe strategy
+                    openWhatsAppDirectly(inviteData.message);
+
+                    // 4. Register invite token in the database in the background without blocking user
+                    createShowcaseInvite(agentId, agentDisplayName, inviteData.token).catch((err) => {
+                      console.warn("Background invite save warning:", err);
+                    });
                   }}
-                  className="py-2.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-[0_0_15px_rgba(16,185,129,0.3)]"
+                  className="py-2.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-[0_0_15px_rgba(16,185,129,0.3)] cursor-pointer"
                 >
                   <MessageCircle size={16} className="text-white fill-white/20" />
                   <span>مشاركة عبر واتساب</span>
@@ -465,6 +464,13 @@ export default function Home() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* WhatsApp and Showcase Link Share Dialog */}
+      <WhatsAppShareDialog
+        isOpen={shareModalOpen}
+        onClose={() => setShareModalOpen(false)}
+        inviteData={shareInviteData}
+      />
     </div>
   );
 }
