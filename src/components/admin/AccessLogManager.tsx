@@ -10,6 +10,7 @@ import { supabase } from '../../supabase';
 import { User } from '../../types';
 import { getShowcaseVisits, ShowcaseVisitRecord } from '../../services/showcaseService';
 import { formatDate, formatDateTime } from '../../utils/time';
+import { printVisitorsLogToPDF } from '../../utils/printVisitorsLog';
 
 export interface UnifiedAccessRecord {
   id: string;
@@ -194,9 +195,26 @@ export default function AccessLogManager() {
 
   const handlePrint = (scope: 'all' | 'current' = 'all') => {
     setPrintScope(scope);
-    setTimeout(() => {
-      window.print();
-    }, 150);
+    const listToPrint = scope === 'current' && searchQuery ? filteredRecords : unifiedRecords;
+    
+    // Map unified records into ShowcaseVisitRecord
+    const visitList: ShowcaseVisitRecord[] = listToPrint.map(r => ({
+      id: r.id,
+      visitorName: r.name,
+      visitorPhone: r.phone || null,
+      agentId: r.agentId || r.agentName || '',
+      agentName: r.agentName || (r.type === 'agent' ? 'إدارة النظام' : 'معرض عام'),
+      timestamp: r.timestamp || Date.now(),
+      isOnline: r.isOnline,
+      method: r.method === 'رابط دعوة' ? 'invite' : 'credentials'
+    }));
+
+    printVisitorsLogToPDF(visitList, users, {
+      title: scope === 'all' 
+        ? 'السجل الرسمي العام لكافة الزوار والمستخدمين الداخلين (حتى لحظة الطباعة)' 
+        : `سجل الزوار المفلتر (${searchQuery ? `البحث: ${searchQuery}` : ''})`,
+      filterDescription: scope === 'current' && searchQuery ? `نتائج البحث عن: ${searchQuery}` : undefined
+    });
   };
 
   // Export full CSV file for download
@@ -381,11 +399,11 @@ export default function AccessLogManager() {
 
             <button
               onClick={() => handlePrint('all')}
-              className="flex items-center gap-2 px-4 py-2.5 bg-gray-900 hover:bg-black text-white rounded-xl text-xs font-black transition-all shadow-md active:scale-95 cursor-pointer"
-              title="طباعة السجل بالكامل بجميع الأسماء والتفاصيل بدون أي نقصان"
+              className="flex items-center gap-2 px-4 py-2.5 bg-gray-900 hover:bg-black text-white rounded-xl text-xs font-black transition-all shadow-md active:scale-95 cursor-pointer border border-amber-400/30"
+              title="طباعة وحفظ كملف PDF رسمي لجميع المستخدمين والزوار الداخلين حتى هذه اللحظة"
             >
               <Printer size={16} className="text-amber-400" />
-              <span>طباعة الملف الشامل (جميع الأسماء A4)</span>
+              <span>طباعة كملف PDF (شامل كل الزوار لحد الآن)</span>
             </button>
           </div>
         </div>

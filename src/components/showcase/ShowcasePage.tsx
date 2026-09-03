@@ -100,20 +100,27 @@ export default function ShowcasePage() {
       if (sessionAuth) {
         try {
           const parsed = JSON.parse(sessionAuth);
-          if (parsed && parsed.visitorName && parsed.visitorPhone) {
-            return parsed;
+          if (parsed && parsed.visitorName) {
+            return {
+              agent: parsed.agent || {
+                id: agentParam || 'agent_showcase',
+                fullName: urlParams.get('agentName') || urlParams.get('name') || 'معرض شركة الوفاء'
+              },
+              visitorName: parsed.visitorName,
+              visitorPhone: parsed.visitorPhone || ''
+            };
           }
         } catch {}
       }
 
-      if (savedVisitor && savedVisitor.visitorName && savedVisitor.visitorPhone && savedVisitor.isVerified !== false) {
+      if (savedVisitor && savedVisitor.visitorName) {
         return {
           agent: {
             id: agentParam || 'agent_showcase',
             fullName: urlParams.get('agentName') || urlParams.get('name') || 'معرض شركة الوفاء'
           },
           visitorName: savedVisitor.visitorName,
-          visitorPhone: savedVisitor.visitorPhone
+          visitorPhone: savedVisitor.visitorPhone || ''
         };
       }
 
@@ -148,7 +155,7 @@ export default function ShowcasePage() {
             
             // Check if this visitor is already verified on this device
             const saved = getSavedShowcaseVisitor();
-            if (saved && saved.visitorName && saved.visitorPhone && saved.isVerified !== false) {
+            if (saved && saved.visitorName) {
               const targetAgent = verifyRes.agent || {
                 id: agentParam || 'agent_showcase',
                 fullName: nameParam || 'الوكيل المعتمد'
@@ -157,21 +164,33 @@ export default function ShowcasePage() {
               const autoAuth = {
                 agent: targetAgent,
                 visitorName: saved.visitorName,
-                visitorPhone: saved.visitorPhone
+                visitorPhone: saved.visitorPhone || ''
               };
 
               setAuthData(autoAuth);
-              saveShowcaseVisitor(saved.visitorName, saved.visitorPhone, targetAgent, true);
+              saveShowcaseVisitor(saved.visitorName, saved.visitorPhone || '', targetAgent, true);
 
               // Background log visitor entry
               loginShowcase({
                 visitorName: saved.visitorName,
-                visitorPhone: saved.visitorPhone,
+                visitorPhone: saved.visitorPhone || '',
                 inviteToken: inviteParam || undefined,
                 agentId: targetAgent.id,
                 agentName: targetAgent.fullName
               }).catch(() => {});
             }
+          }
+        } else {
+          // If no link parameters but visitor is saved, auto-bind default agent
+          const saved = getSavedShowcaseVisitor();
+          if (saved && saved.visitorName) {
+            const defaultAgent = { id: 'agent_showcase', fullName: 'معرض شركة الوفاء' };
+            setAuthData({
+              agent: defaultAgent,
+              visitorName: saved.visitorName,
+              visitorPhone: saved.visitorPhone || ''
+            });
+            saveShowcaseVisitor(saved.visitorName, saved.visitorPhone || '', defaultAgent, true);
           }
         }
       } catch (e) {
@@ -360,7 +379,7 @@ export default function ShowcasePage() {
       const showcaseProds = (allProds || []).filter(
         p => p.isShowcase && !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, allCats || [])
       );
-      setProducts(shuffleProductsForUser(showcaseProds));
+      setProducts(showcaseProds);
       setSettings(appSettings || {});
       setCategories(allCats || []);
     } catch (e) {
@@ -383,7 +402,7 @@ export default function ShowcasePage() {
         const showcaseProds = cachedProds.filter(
           p => p.isShowcase && !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, cachedCats || [])
         );
-        setProducts(shuffleProductsForUser(showcaseProds));
+        setProducts(showcaseProds);
         setLoading(false);
       }
       if (cachedCats && cachedCats.length > 0) {
@@ -452,9 +471,9 @@ export default function ShowcasePage() {
     setCurrentPage(1);
   }, [selectedCategory, searchTerm]);
 
-  // Filter products by category and search
+  // Filter products by category and search, then distribute evenly across pages
   const filteredProducts = useMemo(() => {
-    return products.filter(p => {
+    const list = products.filter(p => {
       // Category match
       if (selectedCategory !== 'all') {
         const cat = getShowcaseCategory(p);
@@ -472,6 +491,15 @@ export default function ShowcasePage() {
 
       return true;
     });
+
+    // If user is searching, return direct matching items
+    if (searchTerm.trim()) {
+      return list;
+    }
+
+    // Distribute products evenly across pages (with exact itemsPerPage = 40)
+    // so newly added or activated products are dispersed across Page 1, Page 2, Page 3, etc.
+    return shuffleProductsForUser(list, itemsPerPage, `showcase_${selectedCategory}`);
   }, [products, selectedCategory, searchTerm, categories]);
 
   const totalPages = Math.ceil(filteredProducts.length / itemsPerPage) || 1;
@@ -646,7 +674,9 @@ export default function ShowcasePage() {
       <ShowcaseAuth 
         onSuccess={(agent, visitorName, visitorPhone) => {
           const newAuthData = { agent, visitorName, visitorPhone };
+          saveShowcaseVisitor(visitorName, visitorPhone || '', agent, true);
           sessionStorage.setItem('brq_showcase_auth', JSON.stringify(newAuthData));
+          localStorage.setItem('brq_showcase_auth', JSON.stringify(newAuthData));
           setAuthData(newAuthData);
         }}
       />

@@ -425,8 +425,12 @@ export default function Products() {
     if (activeSub) {
       result = result.filter((p) => p.subcategoryId === activeSub || (p.categoryId === activeSub && !p.subcategoryId));
     }
-    return result.filter(isActive);
-  }, [activeSub, products, allStoreProducts, searchTerm, allCategories]);
+    const cleanList = result.filter(isActive);
+    
+    // Distribute products across pages with pageSize = 100
+    // so newly added or activated products are spread evenly across Page 1, Page 2, Page 3, etc.
+    return shuffleProductsForUser(cleanList, 100, `member_${categoryId || 'all'}_${activeSub || 'none'}`);
+  }, [activeSub, products, allStoreProducts, searchTerm, allCategories, categoryId]);
   
   // Pagination & infinite loading per page sliced products
   const totalPages = Math.ceil(filteredProductsAll.length / 100);

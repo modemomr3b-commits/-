@@ -3,7 +3,7 @@ import {
   Users, Eye, EyeOff, Plus, Search, Filter, Edit, ShieldX, CheckCircle, 
   KeyRound, MoreVertical, Loader2, X, Trash2, Smartphone, Monitor, Globe, 
   Sparkles, Calendar, Clock, ExternalLink, Phone, ShieldAlert, UserX, UserCheck, 
-  Ban, AlertTriangle, ShieldCheck
+  Ban, AlertTriangle, ShieldCheck, Printer
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import bcryptjs from 'bcryptjs';
@@ -15,6 +15,7 @@ import {
   getShowcaseVisits, ShowcaseVisitRecord, getBlockedVisitors, blockVisitor, 
   unblockVisitor, isVisitorInBlockedList, BlockedVisitor 
 } from '../../services/showcaseService';
+import { printVisitorsLogToPDF } from '../../utils/printVisitorsLog';
 
 import { UserManagerErrorBoundary } from "./UserManagerErrorBoundary";
 
@@ -880,16 +881,31 @@ function UserManagerContent() {
               <X size={18} />
             </button>
 
-            <div className="flex items-center gap-3 mb-4 pb-4 border-b border-white/10">
-              <div className="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
-                <Eye size={24} />
+            <div className="flex items-center justify-between gap-3 mb-4 pb-4 border-b border-white/10">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+                  <Eye size={24} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-white">سجل جميع زوار المعرض</h3>
+                  <p className="text-xs text-white/50">
+                    متابعة حية وشاملة لجميع الزوار مع إمكانية إيقاف أو تفعيل أي حساب مباشرة
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-xl font-bold text-white">سجل جميع زوار المعرض</h3>
-                <p className="text-xs text-white/50">
-                  متابعة حية وشاملة لجميع الزوار مع إمكانية إيقاف أو تفعيل أي حساب مباشرة
-                </p>
-              </div>
+
+              <button
+                type="button"
+                onClick={() => printVisitorsLogToPDF(filteredShowcaseVisits, users, {
+                  title: 'سجل زوار المعارض والمستخدمين الداخلين (حتى لحظة الطباعة)',
+                  filterDescription: modalAgentFilter !== 'all' ? `الوكيل المختار: ${modalAgentFilter}` : undefined
+                })}
+                className="px-4 py-2 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black font-black rounded-xl text-xs flex items-center gap-2 shadow-lg cursor-pointer transition-all active:scale-95"
+                title="طباعة وحفظ السجل كملف PDF"
+              >
+                <Printer size={15} />
+                <span>طباعة كملف PDF</span>
+              </button>
             </div>
 
             {/* Filter and Search */}
@@ -1012,12 +1028,25 @@ function UserManagerContent() {
 
             <div className="mt-4 pt-3 border-t border-white/10 flex items-center justify-between text-xs text-white/50">
               <span>المعروض: {filteredShowcaseVisits.length} من إجمالي {showcaseVisits.length} زائر</span>
-              <button 
-                onClick={() => setAllVisitsModalOpen(false)}
-                className="px-5 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-colors"
-              >
-                إغلاق
-              </button>
+              <div className="flex items-center gap-2">
+                <button 
+                  type="button"
+                  onClick={() => printVisitorsLogToPDF(filteredShowcaseVisits, users, {
+                    title: 'سجل زوار المعارض والمستخدمين الداخلين (حتى لحظة الطباعة)',
+                    filterDescription: modalAgentFilter !== 'all' ? `الوكيل المختار: ${modalAgentFilter}` : undefined
+                  })}
+                  className="px-4 py-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Printer size={14} />
+                  <span>طباعة السجل كملف PDF</span>
+                </button>
+                <button 
+                  onClick={() => setAllVisitsModalOpen(false)}
+                  className="px-5 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                >
+                  إغلاق
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -4,22 +4,32 @@
  * rather than all clustering on Page 1, while keeping a consistent session seed
  * for stable pagination and back-and-forth navigation.
  */
-export function shuffleProductsForUser<T = any>(products: T[], pageSize: number = 100): T[] {
+
+export function shuffleProductsForUser<T = any>(
+  products: T[], 
+  pageSize: number = 40,
+  subKey: string = 'default'
+): T[] {
   if (!products || products.length <= 1) return products;
 
-  // 1. Maintain a persistent session seed so pagination doesn't jump or shuffle on every page switch
-  let seedStr: string | null = null;
+  // 1. Maintain a persistent session seed so pagination doesn't jump or reshuffle on navigation
+  let baseSeedStr: string | null = null;
   try {
-    seedStr = sessionStorage.getItem('brq_user_product_seed');
-    if (!seedStr) {
-      seedStr = Math.floor(Math.random() * 1000000).toString();
-      sessionStorage.setItem('brq_user_product_seed', seedStr);
+    baseSeedStr = sessionStorage.getItem('brq_user_product_seed');
+    if (!baseSeedStr) {
+      baseSeedStr = Math.floor(Math.random() * 1000000).toString();
+      sessionStorage.setItem('brq_user_product_seed', baseSeedStr);
     }
   } catch {
-    seedStr = '42891';
+    baseSeedStr = '42891';
   }
 
-  const seed = parseInt(seedStr || '42891', 10);
+  // Combine session seed with subKey (e.g. category name)
+  let subHash = 0;
+  for (let i = 0; i < subKey.length; i++) {
+    subHash = (Math.imul(31, subHash) + subKey.charCodeAt(i)) | 0;
+  }
+  const seed = (parseInt(baseSeedStr || '42891', 10) + subHash) | 0;
 
   // Deterministic seeded hash helper
   const getHash = (item: T, subSeed: number = 0) => {
@@ -32,36 +42,55 @@ export function shuffleProductsForUser<T = any>(products: T[], pageSize: number 
     return h;
   };
 
+  const safePageSize = Math.max(1, pageSize);
   const total = products.length;
-  const numPages = Math.ceil(total / pageSize);
+  const numPages = Math.ceil(total / safePageSize);
 
-  // If there's only 1 page, simple deterministic shuffle is sufficient
+  // If all products fit on 1 single page, deterministic shuffle is sufficient
   if (numPages <= 1) {
     return [...products].sort((a, b) => getHash(a) - getHash(b));
   }
 
-  // 2. Sort by recency (newest / most recently created first) so we know which products are new
+  // Helper to extract the most accurate timestamp for recency (creation, update, or activation)
+  const getRecency = (item: any): number => {
+    if (!item) return 0;
+    const tUpdate = item.updatedAt
+      ? (typeof item.updatedAt === 'string' ? new Date(item.updatedAt).getTime() : Number(item.updatedAt))
+      : 0;
+    const tCreate = item.createdAt
+      ? (typeof item.createdAt === 'string' ? new Date(item.createdAt).getTime() : Number(item.createdAt))
+      : 0;
+    return Math.max(tUpdate || 0, tCreate || 0);
+  };
+
+  // 2. Sort all products strictly by recency (newest / most recently activated first)
   const sortedByRecency = [...products].sort((a, b) => {
+    const timeA = getRecency(a);
+    const timeB = getRecency(b);
+    if (timeA !== timeB) return timeB - timeA;
+    // Tie-breaker using item ID / Code to guarantee strict determinism
     const rawA = a as any;
     const rawB = b as any;
-    const timeA = rawA?.createdAt ? new Date(rawA.createdAt).getTime() : 0;
-    const timeB = rawB?.createdAt ? new Date(rawB.createdAt).getTime() : 0;
-    if (timeA !== timeB) return timeB - timeA;
-    return 0;
+    const codeA = String(rawA?.productCode || rawA?.id || '');
+    const codeB = String(rawB?.productCode || rawB?.id || '');
+    return codeB.localeCompare(codeA);
   });
 
   // 3. Create page buckets for Page 0, 1, 2, ..., (numPages - 1)
   const pageBuckets: T[][] = Array.from({ length: numPages }, () => []);
   const pageCapacities = Array.from({ length: numPages }, (_, idx) => {
-    return idx === numPages - 1 ? total - (numPages - 1) * pageSize : pageSize;
+    return idx === numPages - 1 ? total - (numPages - 1) * safePageSize : safePageSize;
   });
 
-  // Calculate starting page offset based on seed so different user sessions get different starting pages
-  const startOffset = Math.abs(seed) % numPages;
+  // Start round-robin offset starting at Page 1 (2nd human page) or staggered
+  // to ensure Page 1 does NOT hoard the newest products, but distributes them
+  // cleanly across Page 2, Page 3, and beyond first!
+  const startOffset = ((Math.abs(seed) % (numPages - 1)) + 1) % numPages;
 
   // 4. Distribute products round-robin across all page buckets
-  // This guarantees that newly created/activated items (at the top of sortedByRecency)
-  // are split equally across Page 1, Page 2, Page 3, etc.
+  // This guarantees that newly created/activated items are split equally across
+  // Page 1, Page 2, Page 3, etc., fulfilling the user requirement:
+  // "اريد تتشر قسم بالصفحة الثانية قسم بالثالثة وهيج ماريد الجديد كلة يكون بالصفحة الأولى"
   for (let i = 0; i < sortedByRecency.length; i++) {
     const item = sortedByRecency[i];
     let targetPage = (i + startOffset) % numPages;
@@ -77,12 +106,11 @@ export function shuffleProductsForUser<T = any>(products: T[], pageSize: number 
   }
 
   // 5. Shuffle the items INSIDE each page bucket deterministically
-  // so new items are not just at the top of each page, but scattered smoothly throughout that page!
+  // so new items are not grouped together at the top of any page, but smoothly scattered throughout
   for (let p = 0; p < numPages; p++) {
-    pageBuckets[p].sort((a, b) => getHash(a, p * 7919) - getHash(b, p * 7919));
+    pageBuckets[p].sort((a, b) => getHash(a, (p + 1) * 7919) - getHash(b, (p + 1) * 7919));
   }
 
-  // 6. Flatten buckets back to single array
+  // 6. Flatten buckets back to single array corresponding to Page 1, Page 2, Page 3, etc.
   return pageBuckets.flat();
 }
-

@@ -26,6 +26,7 @@ export interface ShowcaseVisitorProfile {
 
 export function getSavedShowcaseVisitor(): ShowcaseVisitorProfile | null {
   try {
+    // 1. Check primary auth key
     const rawAuth = localStorage.getItem('brq_showcase_auth') || sessionStorage.getItem('brq_showcase_auth');
     if (rawAuth) {
       const parsed = JSON.parse(rawAuth);
@@ -33,12 +34,13 @@ export function getSavedShowcaseVisitor(): ShowcaseVisitorProfile | null {
         return {
           visitorName: parsed.visitorName.trim(),
           visitorPhone: (parsed.visitorPhone || '').trim(),
-          isVerified: parsed.isVerified !== false,
+          isVerified: true,
           savedAt: parsed.lastLoginAt || parsed.savedAt || Date.now(),
           lastVerifiedAt: parsed.lastVerifiedAt || parsed.lastLoginAt || Date.now()
         };
       }
     }
+    // 2. Check visitor profile key
     const rawVisitor = localStorage.getItem('brq_showcase_visitor');
     if (rawVisitor) {
       const parsed = JSON.parse(rawVisitor);
@@ -46,10 +48,42 @@ export function getSavedShowcaseVisitor(): ShowcaseVisitorProfile | null {
         return {
           visitorName: parsed.visitorName.trim(),
           visitorPhone: (parsed.visitorPhone || '').trim(),
-          isVerified: parsed.isVerified !== false,
+          isVerified: true,
           savedAt: parsed.savedAt || Date.now(),
           lastVerifiedAt: parsed.lastVerifiedAt || parsed.savedAt || Date.now()
         };
+      }
+    }
+    // 3. Check permanent backup key
+    const rawPermanent = localStorage.getItem('brq_permanent_visitor');
+    if (rawPermanent) {
+      const parsed = JSON.parse(rawPermanent);
+      if (parsed && parsed.visitorName && typeof parsed.visitorName === 'string') {
+        return {
+          visitorName: parsed.visitorName.trim(),
+          visitorPhone: (parsed.visitorPhone || '').trim(),
+          isVerified: true,
+          savedAt: parsed.savedAt || Date.now(),
+          lastVerifiedAt: parsed.lastVerifiedAt || parsed.savedAt || Date.now()
+        };
+      }
+    }
+    // 4. Fallback: check persistent cookie (for in-app browsers like WhatsApp/Telegram webviews)
+    if (typeof document !== 'undefined' && document.cookie) {
+      const match = document.cookie.match(/(?:^|;\s*)brq_visitor=([^;]*)/);
+      if (match && match[1]) {
+        try {
+          const cookieData = JSON.parse(decodeURIComponent(match[1]));
+          if (cookieData && cookieData.name) {
+            return {
+              visitorName: String(cookieData.name).trim(),
+              visitorPhone: String(cookieData.phone || '').trim(),
+              isVerified: true,
+              savedAt: Date.now(),
+              lastVerifiedAt: Date.now()
+            };
+          }
+        } catch {}
       }
     }
   } catch {}
@@ -65,23 +99,30 @@ export function saveShowcaseVisitor(visitorName: string, visitorPhone: string, a
       const profileData = {
         visitorName: cleanName,
         visitorPhone: cleanPhone,
-        isVerified: !!isVerified,
+        isVerified: true,
         savedAt: now,
         lastVerifiedAt: now
       };
       localStorage.setItem('brq_showcase_visitor', JSON.stringify(profileData));
+      localStorage.setItem('brq_permanent_visitor', JSON.stringify(profileData));
       
       const authPayload = {
         agent: agent && agent.id ? agent : { id: 'agent_showcase', fullName: 'معرض شركة الوفاء' },
         visitorName: cleanName,
         visitorPhone: cleanPhone,
-        isVerified: !!isVerified,
+        isVerified: true,
         lastLoginAt: now,
         lastVerifiedAt: now
       };
 
       localStorage.setItem('brq_showcase_auth', JSON.stringify(authPayload));
       sessionStorage.setItem('brq_showcase_auth', JSON.stringify(authPayload));
+
+      // Save cookie lasting 2 years for in-app browser continuity
+      try {
+        const cookieVal = encodeURIComponent(JSON.stringify({ name: cleanName, phone: cleanPhone }));
+        document.cookie = `brq_visitor=${cookieVal}; path=/; max-age=63072000; SameSite=Lax`;
+      } catch {}
     }
   } catch {}
 }
