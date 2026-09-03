@@ -43,6 +43,17 @@ export const printVisitorsLogToPDF = (
     };
   });
 
+  // Group records by agent so each agent's customers appear together in succession ("كل وكيل وزبائنه سوة ومصنفين")
+  records.sort((a, b) => {
+    if (a.agentName !== b.agentName) {
+      return a.agentName.localeCompare(b.agentName, 'ar');
+    }
+    return (b.timestamp || 0) - (a.timestamp || 0);
+  });
+  records.forEach((r, idx) => {
+    r.index = idx + 1;
+  });
+
   // Calculate high-level summary statistics up to this moment
   const totalEntries = records.length;
   const uniqueVisitorNames = new Set(records.map(r => r.visitorName.toLowerCase().trim())).size;

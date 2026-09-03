@@ -18,6 +18,7 @@ export interface ShowcaseZipExportOptions {
   includePriceInFilename?: boolean;
   includeTextCatalog?: boolean;
   includeHtmlCatalog?: boolean;
+  categories?: Category[];
 }
 
 export interface ShowcaseZipProgress {
@@ -354,7 +355,7 @@ export async function exportShowcaseToCategorizedZip(
         // Calculate specific subfolder for shoes (احذية، رياضة، شحاطة، صندل، لاستيك), or unified for bags
         let targetFolder = cat.folderName;
         if (cat.category !== 'الحقائب') {
-          const subtype = detectShoeSubtype(product.name || '');
+          const subtype = detectShoeSubtype(product, options.categories);
           targetFolder = `${cat.folderName}/${subtype}`;
         }
 

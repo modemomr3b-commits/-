@@ -64,11 +64,18 @@ export function detectStoreMainSection(
   categories?: Category[] | string
 ): StoreMainSection {
   let categoryName = '';
+  let subcategoryName = '';
   if (typeof categories === 'string') {
     categoryName = categories;
-  } else if (Array.isArray(categories) && product.categoryId) {
-    const found = categories.find(c => c.id === product.categoryId);
-    if (found) categoryName = found.name;
+  } else if (Array.isArray(categories)) {
+    if (product.categoryId) {
+      const found = categories.find(c => c.id === product.categoryId);
+      if (found) categoryName = found.name;
+    }
+    if (product.subcategoryId) {
+      const foundSub = categories.find(c => c.id === product.subcategoryId);
+      if (foundSub) subcategoryName = foundSub.name;
+    }
   }
 
   const combined = [
@@ -76,7 +83,9 @@ export function detectStoreMainSection(
     product.productCode || '',
     product.modelNumber || '',
     categoryName,
-    (product as any).description || ''
+    subcategoryName,
+    (product as any).description || '',
+    (product as any).showcaseCategory || ''
   ].join(' ');
 
   const norm = normalizeArabic(combined);
@@ -224,30 +233,64 @@ export function detectStoreMainSection(
 
 /**
  * Detects the specific subtype (احذية، رياضة، شحاطة، صندل، لاستيك)
- * strictly from the product name.
+ * using product name, code, modelNumber, categoryName, subcategoryName.
  */
-export function detectShoeSubtype(name: string): ShoeSubtype {
-  const norm = normalizeArabic(name || '');
+export function detectShoeSubtype(
+  productOrName: Partial<Product> | string,
+  categories?: Category[] | string
+): ShoeSubtype {
+  let name = '';
+  let code = '';
+  let model = '';
+  let categoryName = '';
+  let subcategoryName = '';
 
-  // 1. رياضة (Sports / Sneakers)
+  if (typeof productOrName === 'string') {
+    name = productOrName;
+  } else if (productOrName && typeof productOrName === 'object') {
+    name = productOrName.name || '';
+    code = productOrName.productCode || '';
+    model = productOrName.modelNumber || '';
+    if (typeof categories === 'string') {
+      categoryName = categories;
+    } else if (Array.isArray(categories)) {
+      if (productOrName.categoryId) {
+        const cat = categories.find(c => c.id === productOrName.categoryId);
+        if (cat) categoryName = cat.name;
+      }
+      if (productOrName.subcategoryId) {
+        const sub = categories.find(c => c.id === productOrName.subcategoryId);
+        if (sub) subcategoryName = sub.name;
+      }
+    }
+  }
+
+  const combined = [name, code, model, categoryName, subcategoryName].join(' ');
+  const norm = normalizeArabic(combined);
+
+  // 1. لاستيك (Rubber / Silicone / Crocs / EVA) - Priority 1 to prevent "سلبر لاستيك" or "صندل كروكس" from miscategorizing
   if (
-    norm.includes('رياض') ||
-    norm.includes('سبورت') ||
-    norm.includes('سنيكر') ||
-    norm.includes('ركض') ||
-    norm.includes('جيم') ||
-    norm.includes('كول') ||
-    norm.includes('sport') ||
-    norm.includes('sneaker') ||
-    norm.includes('running')
+    norm.includes('لاستيك') ||
+    norm.includes('بلاستيك') ||
+    norm.includes('مطاط') ||
+    norm.includes('كروكس') ||
+    norm.includes('سيليكون') ||
+    norm.includes('جلي') ||
+    norm.includes('ايفا') ||
+    norm.includes('waterproof') ||
+    norm.includes('rubber') ||
+    norm.includes('crocs') ||
+    norm.includes('clog') ||
+    norm.includes('jelly')
   ) {
-    return 'رياضة';
+    return 'لاستيك';
   }
 
   // 2. شحاطة (Sliders / Slippers)
   if (
     norm.includes('شحاط') ||
     norm.includes('سليبر') ||
+    norm.includes('سلبر') ||
     norm.includes('شبشب') ||
     norm.includes('نعال') ||
     norm.includes('سلايد') ||
@@ -257,34 +300,34 @@ export function detectShoeSubtype(name: string): ShoeSubtype {
     return 'شحاطة';
   }
 
-  // 3. صندل (Sandals / Heels)
+  // 3. صندل (Sandals)
   if (
     norm.includes('صندل') ||
     norm.includes('صنادل') ||
-    norm.includes('كعب') ||
-    norm.includes('سير') ||
-    norm.includes('سيور') ||
     norm.includes('sandal') ||
-    norm.includes('heels')
+    norm.includes('sandals')
   ) {
     return 'صندل';
   }
 
-  // 4. لاستيك (Rubber / Silicone / Crocs)
+  // 4. رياضة (Sports / Sneakers / Skechers)
   if (
-    norm.includes('لاستيك') ||
-    norm.includes('بلاستيك') ||
-    norm.includes('مطاط') ||
-    norm.includes('كروكس') ||
-    norm.includes('سيليكون') ||
-    norm.includes('جلي') ||
-    norm.includes('waterproof') ||
-    norm.includes('rubber') ||
-    norm.includes('crocs')
+    norm.includes('رياض') ||
+    norm.includes('سبورت') ||
+    norm.includes('سكجر') ||
+    norm.includes('سكيتشر') ||
+    norm.includes('سنيكر') ||
+    norm.includes('ركض') ||
+    norm.includes('جيم') ||
+    norm.includes('كول') ||
+    norm.includes('sport') ||
+    norm.includes('sneaker') ||
+    norm.includes('running') ||
+    norm.includes('skechers')
   ) {
-    return 'لاستيك';
+    return 'رياضة';
   }
 
-  // 5. احذية (Default Shoe category: حذاء، بوت، بسطال، فلات، لابجين، قندرة...)
+  // 5. احذية (Default Shoe category: حذاء، بوت، بسطال، كعب، فلات، رسمي، كلاسيك، قندرة، لابجين...)
   return 'احذية';
 }

@@ -41,7 +41,7 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
   const getProductType = (p: Product) => {
     const mainSection = detectStoreMainSection(p, categories);
     if (mainSection === 'الحقائب') return 'الحقائب';
-    return detectShoeSubtype(p.name || '');
+    return detectShoeSubtype(p, categories);
   };
 
   // Filter products to ONLY include active ones (exclude out-of-stock / inactive / hidden / archived / deleted / restricted)
@@ -162,7 +162,7 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
             if (mainCat === 'الحقائب') {
               folderPath = 'الحقائب';
             } else {
-              const subType = detectShoeSubtype(p.name || '');
+              const subType = detectShoeSubtype(p, categories);
               folderPath = `${mainCat}/${subType}`;
             }
           } else {
@@ -246,7 +246,7 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
             folderPath = 'الحقائب';
           } else {
             // Shoes divided into the exact 5 subtypes: احذية، رياضة، شحاطة، صندل، لاستيك
-            const subType = detectShoeSubtype(p.name || '');
+            const subType = detectShoeSubtype(p, categories);
             folderPath = `${mainCatName}/${subType}`;
           }
           

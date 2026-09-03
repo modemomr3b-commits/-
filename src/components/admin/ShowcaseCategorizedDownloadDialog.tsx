@@ -115,7 +115,8 @@ export function ShowcaseCategorizedDownloadDialog({
         selectedCategories,
         includePriceInFilename,
         includeTextCatalog: includeCatalogs,
-        includeHtmlCatalog: includeCatalogs
+        includeHtmlCatalog: includeCatalogs,
+        categories
       },
       (p) => {
         setProgress(p);

@@ -3,9 +3,9 @@ import {
   Users, Eye, EyeOff, Plus, Search, Filter, Edit, ShieldX, CheckCircle, 
   KeyRound, MoreVertical, Loader2, X, Trash2, Smartphone, Monitor, Globe, 
   Sparkles, Calendar, Clock, ExternalLink, Phone, ShieldAlert, UserX, UserCheck, 
-  Ban, AlertTriangle, ShieldCheck, Printer
+  Ban, AlertTriangle, ShieldCheck, Printer, Store, Layers
 } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import bcryptjs from 'bcryptjs';
 import { api } from '../../api';
 import { supabase } from '../../supabase';
@@ -40,6 +40,7 @@ function UserManagerContent() {
   const [selectedAgentVisits, setSelectedAgentVisits] = useState<{ user: User; visits: ShowcaseVisitRecord[] } | null>(null);
   const [modalSearch, setModalSearch] = useState('');
   const [modalAgentFilter, setModalAgentFilter] = useState('all');
+  const [visitorViewMode, setVisitorViewMode] = useState<'grouped' | 'list'>('grouped');
 
   // Manual block form state
   const [manualBlockPhone, setManualBlockPhone] = useState('');
@@ -397,6 +398,55 @@ function UserManagerContent() {
       (v.agentId && v.agentId.toLowerCase().includes(sq))
     );
   });
+
+  const groupedShowcaseVisits = useMemo(() => {
+    const groupsMap = new Map<string, {
+      agentKey: string;
+      agentName: string;
+      agentId?: string;
+      agentPhone?: string | null;
+      user?: User | null;
+      visits: ShowcaseVisitRecord[];
+      latestTimestamp: number;
+    }>();
+
+    filteredShowcaseVisits.forEach(visit => {
+      const hostAgent = users.find(u => 
+        (u.uid && u.uid === visit.agentId) || 
+        (u.id && u.id === visit.agentId) || 
+        (u.username && u.username === visit.agentId) || 
+        (u.fullName && u.fullName === visit.agentName)
+      );
+
+      const rawAgentName = (visit.agentName || hostAgent?.fullName || 'معرض عام').trim();
+      const agentKey = rawAgentName.toLowerCase();
+
+      if (!groupsMap.has(agentKey)) {
+        groupsMap.set(agentKey, {
+          agentKey,
+          agentName: rawAgentName,
+          agentId: visit.agentId,
+          agentPhone: hostAgent?.phone || null,
+          user: hostAgent || null,
+          visits: [],
+          latestTimestamp: 0
+        });
+      }
+
+      const grp = groupsMap.get(agentKey)!;
+      grp.visits.push(visit);
+      if ((visit.timestamp || 0) > grp.latestTimestamp) {
+        grp.latestTimestamp = visit.timestamp || 0;
+      }
+    });
+
+    return Array.from(groupsMap.values())
+      .map(grp => ({
+        ...grp,
+        visits: [...grp.visits].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+      }))
+      .sort((a, b) => b.latestTimestamp - a.latestTimestamp);
+  }, [filteredShowcaseVisits, users]);
 
   return (
     <div className="space-y-6">
@@ -937,13 +987,174 @@ function UserManagerContent() {
               </select>
             </div>
 
+            {/* View Mode Switcher: Grouped by Agent (Default) vs Flat List */}
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-3 bg-white/5 p-1.5 rounded-xl border border-white/10">
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setVisitorViewMode('grouped')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    visitorViewMode === 'grouped'
+                      ? 'bg-amber-500 text-black shadow-md'
+                      : 'text-white/60 hover:text-white hover:bg-white/10'
+                  }`}
+                  title="عرض كل وكيل ومعه قائمة زبائنه والداخلين من طرفه بالسرة"
+                >
+                  <Store size={14} />
+                  <span>تصنيف حسب الوكلاء (كل وكيل وزبائنه سوة)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setVisitorViewMode('list')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    visitorViewMode === 'list'
+                      ? 'bg-amber-500 text-black shadow-md'
+                      : 'text-white/60 hover:text-white hover:bg-white/10'
+                  }`}
+                  title="عرض زمني شامل لكافة الزوار"
+                >
+                  <Layers size={14} />
+                  <span>عرض زمني موحد</span>
+                </button>
+              </div>
+              <span className="text-[11px] text-amber-300/80 px-2 font-mono">
+                {groupedShowcaseVisits.length} جهة / وكيل
+              </span>
+            </div>
+
             {/* Visits List */}
-            <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 custom-scrollbar">
+            <div className="flex-1 overflow-y-auto space-y-3 pr-1 custom-scrollbar">
               {filteredShowcaseVisits.length === 0 ? (
                 <div className="text-center py-12 text-white/40 text-sm">
                   لا توجد زيارات مسجلة تطابق خيارات البحث.
                 </div>
+              ) : visitorViewMode === 'grouped' ? (
+                // Grouped by Agent Mode ("كل وكيل وزبائنه سوة ومصنفين")
+                groupedShowcaseVisits.map((group, gIdx) => (
+                  <div key={group.agentKey} className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden shadow-sm">
+                    {/* Agent Header Section */}
+                    <div className="p-3.5 bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-transparent border-b border-amber-500/20 flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-300 flex items-center justify-center font-bold text-sm shrink-0 shadow-xs">
+                          <Store size={18} />
+                        </div>
+                        <div>
+                          <div className="text-sm font-black text-white flex items-center gap-2">
+                            <span>الوكيل: {group.agentName}</span>
+                            {group.user?.userNumber && (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-white/70 font-mono">
+                                #{group.user.userNumber}
+                              </span>
+                            )}
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">
+                              {group.visits.length} زائر مسجل
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-white/50 flex items-center gap-2 mt-0.5">
+                            <span>الجهة المضيفة للرابط</span>
+                            {group.agentPhone && (
+                              <span className="text-emerald-400 font-mono" dir="ltr">{group.agentPhone}</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {group.agentPhone && (
+                        <a
+                          href={`https://wa.me/${group.agentPhone.replace(/[^0-9]/g, '')}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-3 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 text-xs font-bold flex items-center gap-1.5 transition-colors"
+                        >
+                          <Phone size={12} />
+                          <span>واتساب الوكيل</span>
+                        </a>
+                      )}
+                    </div>
+
+                    {/* Visitors of this Agent Listed One Under Another ("واحد تحت الثاني") */}
+                    <div className="p-3 space-y-2.5">
+                      {group.visits.map((visit, vIdx) => {
+                        const isBlocked = isVisitorInBlockedList(visit.visitorPhone, visit.visitorName, blockedVisitors);
+                        return (
+                          <div key={visit.id || vIdx} className={`p-3 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                            isBlocked ? 'bg-red-950/20 border-red-500/30' : 'bg-white/5 border-white/10 hover:bg-white/10'
+                          }`}>
+                            <div className="flex items-center gap-3">
+                              <div className={`w-7 h-7 rounded-lg border flex items-center justify-center font-bold text-xs shrink-0 ${
+                                isBlocked ? 'bg-red-500/20 border-red-500/30 text-red-300' : 'bg-amber-500/15 border-amber-500/30 text-amber-300'
+                              }`}>
+                                {vIdx + 1}
+                              </div>
+                              <div>
+                                <div className="text-sm font-bold text-white flex flex-wrap items-center gap-2">
+                                  <span>{visit.visitorName}</span>
+                                  {visit.visitorPhone && (
+                                    <a
+                                      href={`https://wa.me/${visit.visitorPhone.replace(/[^0-9]/g, '')}`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 border border-emerald-500/30 flex items-center gap-1 font-mono transition-colors"
+                                      title="تواصل عبر واتساب"
+                                    >
+                                      <Phone size={11} />
+                                      <span dir="ltr">{visit.visitorPhone}</span>
+                                    </a>
+                                  )}
+                                  {isBlocked ? (
+                                    <span className="px-2 py-0.5 text-[10px] rounded-full bg-red-500/20 text-red-300 border border-red-500/30 font-bold flex items-center gap-1">
+                                      <ShieldAlert size={10} />
+                                      موقوف
+                                    </span>
+                                  ) : (
+                                    <span className="px-2 py-0.5 text-[10px] rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 font-bold flex items-center gap-1">
+                                      <CheckCircle size={10} />
+                                      نشط
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-[11px] text-white/40 flex items-center gap-2 mt-1">
+                                  <Clock size={11} />
+                                  <span>{formatDateTime(visit.timestamp)}</span>
+                                  <span className="text-amber-300/80 font-mono">({formatTimeAgo(visit.timestamp)})</span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                              <span className="px-2.5 py-1 text-[11px] rounded-lg bg-white/5 text-white/60 border border-white/10 font-bold">
+                                {visit.inviteToken ? 'رابط دعوة' : 'دخول مباشر'}
+                              </span>
+                              <button
+                                onClick={() => handleToggleBlockVisitor(visit)}
+                                disabled={isBlockingLoading}
+                                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50 ${
+                                  isBlocked
+                                    ? 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 shadow-sm'
+                                    : 'bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/40 shadow-sm'
+                                }`}
+                                title={isBlocked ? "تفعيل حساب الزائر والسماح له بالدخول" : "إيقاف حساب الزائر ومنعه من دخول المعرض"}
+                              >
+                                {isBlocked ? (
+                                  <>
+                                    <UserCheck size={14} />
+                                    <span>تفعيل الحساب</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <UserX size={14} />
+                                    <span>إيقاف الحساب</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))
               ) : (
+                // Chronological Flat List
                 filteredShowcaseVisits.map((visit, idx) => {
                   const isBlocked = isVisitorInBlockedList(visit.visitorPhone, visit.visitorName, blockedVisitors);
                   return (
