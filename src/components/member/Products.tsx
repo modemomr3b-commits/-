@@ -939,7 +939,7 @@ export default function Products() {
       {isDownloadDialogOpen && (
         <CategoryDownloadDialog 
           categories={allCategories}
-          products={products}
+          products={allStoreProducts.length > 0 ? allStoreProducts : products}
           onClose={() => setIsDownloadDialogOpen(false)}
         />
       )}

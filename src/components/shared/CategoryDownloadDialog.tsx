@@ -1,6 +1,7 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Download, X, Loader2, Search, ChevronRight, Folder, Sparkles, FolderArchive } from "lucide-react";
 import { Category, Product } from "../../types";
+import { api } from "../../api";
 import { DownloadChoiceDialog } from "./DownloadChoiceDialog";
 import { useStore } from "../../store";
 import { ShowcaseCategorizedDownloadDialog } from "../admin/ShowcaseCategorizedDownloadDialog";
@@ -25,6 +26,52 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
   const [isShowcaseExportOpen, setIsShowcaseExportOpen] = useState(false);
   
   const [selectedGroupName, setSelectedGroupName] = useState<string | null>(null);
+
+  // Store complete catalogs to guarantee accurate categorization and complete item counts
+  const [storeProducts, setStoreProducts] = useState<Product[]>(products);
+  const [storeCategories, setStoreCategories] = useState<Category[]>(categories);
+  const [isLoadingStore, setIsLoadingStore] = useState(false);
+
+  useEffect(() => {
+    if (products.length > storeProducts.length) {
+      setStoreProducts(products);
+    }
+  }, [products]);
+
+  useEffect(() => {
+    if (categories.length > storeCategories.length) {
+      setStoreCategories(categories);
+    }
+  }, [categories]);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function ensureFullStoreData() {
+      if (storeProducts.length < 500) {
+        setIsLoadingStore(true);
+        try {
+          const [allProducts, allCats] = await Promise.all([
+            api.getProducts(),
+            storeCategories.length > 0 ? Promise.resolve(storeCategories) : api.getCategories()
+          ]);
+          if (isMounted) {
+            if (allProducts && allProducts.length > 0) {
+              setStoreProducts(allProducts);
+            }
+            if (allCats && allCats.length > 0) {
+              setStoreCategories(allCats);
+            }
+          }
+        } catch (err) {
+          console.error("Failed to load full store for download dialog:", err);
+        } finally {
+          if (isMounted) setIsLoadingStore(false);
+        }
+      }
+    }
+    ensureFullStoreData();
+    return () => { isMounted = false; };
+  }, []);
   
   const [downloadChoiceDialog, setDownloadChoiceDialog] = useState<{ 
     isOpen: boolean; 
@@ -35,21 +82,21 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
   } | null>(null);
 
   const getProductGroup = (p: Product) => {
-    return detectStoreMainSection(p, categories);
+    return detectStoreMainSection(p, storeCategories);
   };
 
   const getProductType = (p: Product) => {
-    const mainSection = detectStoreMainSection(p, categories);
+    const mainSection = detectStoreMainSection(p, storeCategories);
     if (mainSection === 'الحقائب') return 'الحقائب';
-    return detectShoeSubtype(p, categories);
+    return detectShoeSubtype(p, storeCategories);
   };
 
   // Filter products to ONLY include active ones (exclude out-of-stock / inactive / hidden / archived / deleted / restricted)
   const activeProducts = useMemo(() => {
-    return products.filter(
-      p => !p.isHidden && !p.isArchived && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, categories)
+    return storeProducts.filter(
+      p => !p.isHidden && !p.isArchived && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, storeCategories)
     );
-  }, [products, categories]);
+  }, [storeProducts, storeCategories]);
 
   const groupedProducts = useMemo(() => {
     const map = new Map<string, Product[]>();
@@ -68,7 +115,7 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
     return Array.from(map.entries())
       .filter(([_, prods]) => prods.length > 0)
       .map(([name, prods]) => ({ name, products: prods }));
-  }, [activeProducts, categories]);
+  }, [activeProducts, storeCategories]);
 
   const selectedGroupSubtypes = useMemo(() => {
     if (!selectedGroupName) return [];
@@ -82,7 +129,7 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
 
     const subtypeMap = new Map<string, Product[]>();
     
-    // Pre-populate the 5 shoe subtypes
+    // Pre-populate the 5 shoe subtypes in canonical order
     SHOE_SUBTYPES.forEach(st => {
       subtypeMap.set(st, []);
     });
@@ -94,12 +141,15 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
     });
     
     return Array.from(subtypeMap.entries())
-      .filter(([_, prods]) => prods.length > 0)
       .map(([name, prods]) => ({ name, products: prods }));
-  }, [selectedGroupName, groupedProducts]);
+  }, [selectedGroupName, groupedProducts, storeCategories]);
 
   const filteredMains = groupedProducts.filter(g => g.name.includes(searchTerm));
   const filteredSubs = selectedGroupSubtypes.filter(s => s.name.includes(searchTerm));
+
+  const totalStoreImagesCount = useMemo(() => {
+    return activeProducts.filter(p => p.finalImageUrl || p.imageUrl).length;
+  }, [activeProducts]);
 
   const handleDownloadGroup = (groupName: string, groupProducts: Product[]) => {
     const imagesWithData = groupProducts.filter((p) => (p.finalImageUrl || p.imageUrl) && !p.isHidden && !p.isArchived && !p.isLocked && !p.isDeleted);
@@ -118,7 +168,7 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
 
     setDownloadChoiceDialog({
       isOpen: true,
-      message: `كيف تود تحميل جميع الصور المحددة؟ (العدد: ${imagesWithData.length} صورة).`,
+      message: `كيف تود تحميل الصور المحددة؟ (العدد: ${imagesWithData.length} صورة من أصل ${groupProducts.length} منتج).`,
       onDownloadStudio: async () => {
         setDownloadChoiceDialog(null);
         setDownloadProgress({ progress: 0, total: imagesWithData.length, message: 'جاري تحضير الملفات...' });
@@ -162,12 +212,16 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
             if (mainCat === 'الحقائب') {
               folderPath = 'الحقائب';
             } else {
-              const subType = detectShoeSubtype(p, categories);
+              const subType = detectShoeSubtype(p, storeCategories);
               folderPath = `${mainCat}/${subType}`;
             }
           } else {
             if (selectedGroupName === 'الحقائب') {
               folderPath = 'الحقائب';
+            } else if (groupName.startsWith('جميع')) {
+              // Properly subdivide category into 5 shoe subtypes
+              const subType = detectShoeSubtype(p, storeCategories);
+              folderPath = `${selectedGroupName}/${subType}`;
             } else {
               folderPath = `${selectedGroupName}/${groupName}`;
             }
@@ -203,7 +257,7 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
 
     setDownloadChoiceDialog({
       isOpen: true,
-      message: `كيف تود تحميل جميع صور المتجر؟ (العدد: ${imagesWithData.length} صورة).`,
+      message: `كيف تود تحميل جميع صور المتجر؟ (العدد الإجمالي: ${imagesWithData.length} صورة من أصل ${activeProducts.length} منتج، موزعة بدقة في مجلدات حسب الفئات والنوعيات الخمسة).`,
       onDownloadStudio: async () => {
         setDownloadChoiceDialog(null);
         setDownloadProgress({ progress: 0, total: imagesWithData.length, message: 'جاري تحضير الملفات...' });
@@ -222,9 +276,9 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
         });
         
         if (success) {
-           showToast("تم حفظ الصور في الاستوديو بنجاح", "success");
+           showToast("تم حفظ جميع صور المتجر في الاستوديو بنجاح", "success");
         } else {
-           showToast("حدث خطأ أثناء حفظ الصور أو تم إلغاء العملية", "error");
+           showToast("حدث خطأ أثناء حفظ الصور", "error");
         }
         setDownloadProgress(null);
       },
@@ -242,11 +296,9 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
           let folderPath = '';
           
           if (mainCatName === 'الحقائب') {
-            // All bags in a single unified folder
             folderPath = 'الحقائب';
           } else {
-            // Shoes divided into the exact 5 subtypes: احذية، رياضة، شحاطة، صندل، لاستيك
-            const subType = detectShoeSubtype(p, categories);
+            const subType = detectShoeSubtype(p, storeCategories);
             folderPath = `${mainCatName}/${subType}`;
           }
           
@@ -254,12 +306,12 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
         });
         
         const { downloadAsZip } = await import('../../utils/zipDownload');
-        const success = await downloadAsZip('جميع الأقسام', imagesToDownload, (progress, total, message) => {
+        const success = await downloadAsZip('جميع_صور_المتجر_المبوبة', imagesToDownload, (progress, total, message) => {
           setDownloadProgress({ progress, total, message });
         });
         
         if (success) {
-           showToast("تم تحميل الملف المضغوط بنجاح", "success");
+           showToast("تم تحميل الملف المضغوط لجميع صور المتجر بنجاح وبتقسيم مضبوط", "success");
         } else {
            showToast("حدث خطأ أثناء التحميل", "error");
         }
@@ -348,11 +400,15 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
 
                         <button
                           onClick={handleDownloadAllStore}
-                          className="w-full p-3.5 bg-gradient-to-r from-brq-gold/10 to-brq-gold/5 border border-brq-gold/30 rounded-xl hover:bg-brq-gold/20 hover:border-brq-gold/60 transition-all text-right group flex justify-between items-center cursor-pointer"
+                          className="w-full p-3.5 bg-gradient-to-r from-brq-gold/15 to-brq-gold/5 border border-brq-gold/40 rounded-xl hover:bg-brq-gold/25 hover:border-brq-gold/70 transition-all text-right group flex justify-between items-center cursor-pointer"
                         >
                           <div>
-                            <span className="font-bold text-brq-gold text-base block mb-0.5">تحميل جميع صور المتجر</span>
-                            <span className="text-white/50 text-xs">سيتم تقسيم الصور في مجلدات</span>
+                            <span className="font-bold text-brq-gold text-base block mb-0.5">
+                              تحميل جميع صور المتجر ({totalStoreImagesCount.toLocaleString('ar-IQ')} صورة)
+                            </span>
+                            <span className="text-white/60 text-xs">
+                              إجمالي {activeProducts.length.toLocaleString('ar-IQ')} منتج مقسمة بدقة في مجلدات حسب الفئات والنوعيات
+                            </span>
                           </div>
                           <Download size={22} className="text-brq-gold/70 group-hover:text-brq-gold group-hover:scale-110 transition-all" />
                         </button>
@@ -363,19 +419,25 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
                       <div>
                         <h3 className="text-sm font-bold text-blue-400 mb-3 flex items-center gap-2 mt-2">
                           <div className="w-2 h-2 rounded-full bg-blue-400"></div>
-                          اختر الفئة
+                          اختر الفئة الرئيسية
                         </h3>
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                          {filteredMains.map((group, idx) => (
-                            <button
-                              key={idx}
-                              onClick={() => { setSelectedGroupName(group.name); setSearchTerm(""); }}
-                              className="p-4 bg-white/5 border border-white/10 rounded-xl hover:bg-blue-500/10 hover:border-blue-500/50 transition-all text-right group flex flex-col gap-2 items-start"
-                            >
-                              <Folder size={24} className="text-blue-400/70 group-hover:text-blue-400 transition-all" />
-                              <span className="font-bold text-white group-hover:text-blue-400 transition-colors text-lg">{group.name}</span>
-                            </button>
-                          ))}
+                          {filteredMains.map((group, idx) => {
+                            const imgCount = group.products.filter(p => p.finalImageUrl || p.imageUrl).length;
+                            return (
+                              <button
+                                key={idx}
+                                onClick={() => { setSelectedGroupName(group.name); setSearchTerm(""); }}
+                                className="p-4 bg-white/5 border border-white/10 rounded-xl hover:bg-blue-500/15 hover:border-blue-500/50 transition-all text-right group flex flex-col gap-1.5 items-start"
+                              >
+                                <Folder size={24} className="text-blue-400/70 group-hover:text-blue-400 transition-all" />
+                                <span className="font-bold text-white group-hover:text-blue-400 transition-colors text-lg">{group.name}</span>
+                                <span className="text-white/50 text-xs font-mono">
+                                  {group.products.length.toLocaleString('ar-IQ')} منتج • {imgCount.toLocaleString('ar-IQ')} صورة
+                                </span>
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
                     )}
@@ -386,38 +448,78 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
                  </>
               ) : (
                  <div>
-                    <h3 className="text-sm font-bold text-brq-gold mb-3 flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-brq-gold"></div>
-                      أقسام {selectedGroupName}
-                    </h3>
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-sm font-bold text-brq-gold flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-brq-gold"></div>
+                        أقسام ونوعيات {selectedGroupName}
+                      </h3>
+                      {(() => {
+                        const catProducts = groupedProducts.find(g => g.name === selectedGroupName)?.products || [];
+                        const catImages = catProducts.filter(p => p.finalImageUrl || p.imageUrl).length;
+                        return (
+                          <span className="text-xs text-white/50 font-mono">
+                            {catProducts.length.toLocaleString('ar-IQ')} منتج • {catImages.toLocaleString('ar-IQ')} صورة
+                          </span>
+                        );
+                      })()}
+                    </div>
                     
                     <div className="mb-4">
-                      <button
-                        onClick={() => {
-                          const catProducts = groupedProducts.find(g => g.name === selectedGroupName)?.products || [];
-                          handleDownloadGroup(`جميع ${selectedGroupName}`, catProducts);
-                        }}
-                        className="w-full p-3 bg-gradient-to-r from-blue-600/20 to-blue-400/10 border border-blue-500/30 rounded-xl hover:bg-blue-500/20 hover:border-blue-500/60 transition-all text-right flex justify-between items-center group"
-                      >
-                        <span className="font-bold text-blue-400 group-hover:text-blue-300">تحميل جميع صور ({selectedGroupName}) بالكامل</span>
-                        <Download size={18} className="text-blue-400/70 group-hover:text-blue-300 transition-all" />
-                      </button>
+                      {(() => {
+                        const catProducts = groupedProducts.find(g => g.name === selectedGroupName)?.products || [];
+                        const catImages = catProducts.filter(p => p.finalImageUrl || p.imageUrl).length;
+                        return (
+                          <button
+                            onClick={() => {
+                              handleDownloadGroup(`جميع ${selectedGroupName}`, catProducts);
+                            }}
+                            className="w-full p-3.5 bg-gradient-to-r from-blue-600/20 via-blue-500/15 to-blue-400/10 border border-blue-500/40 rounded-xl hover:bg-blue-500/30 hover:border-blue-500/70 transition-all text-right flex justify-between items-center group cursor-pointer"
+                          >
+                            <div>
+                              <span className="font-bold text-blue-300 group-hover:text-white block text-sm sm:text-base">
+                                تحميل جميع صور ({selectedGroupName}) بالكامل
+                              </span>
+                              <span className="text-white/50 text-xs mt-0.5 block">
+                                {catProducts.length.toLocaleString('ar-IQ')} منتج • {catImages.toLocaleString('ar-IQ')} صورة موزعة تلقائياً في مجلدات النوعيات
+                              </span>
+                            </div>
+                            <Download size={20} className="text-blue-400 group-hover:text-white transition-all shrink-0 mr-2" />
+                          </button>
+                        );
+                      })()}
                     </div>
 
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                      {filteredSubs.map((sub, index) => (
+                      {filteredSubs.map((sub, index) => {
+                        const imgCount = sub.products.filter(p => p.finalImageUrl || p.imageUrl).length;
+                        const isEmpty = sub.products.length === 0;
+                        return (
                           <button
                             key={`${sub.name}-${index}`}
-                            onClick={() => handleDownloadGroup(sub.name, sub.products)}
-                            className="p-3 bg-white/5 border border-white/10 rounded-xl hover:bg-brq-gold/10 hover:border-brq-gold/50 transition-all text-right group flex justify-between items-center"
+                            onClick={() => {
+                              if (!isEmpty) handleDownloadGroup(sub.name, sub.products);
+                            }}
+                            disabled={isEmpty}
+                            className={`p-3.5 rounded-xl border transition-all text-right group flex justify-between items-center ${
+                              isEmpty 
+                                ? 'bg-white/[0.02] border-white/5 opacity-40 cursor-not-allowed' 
+                                : 'bg-white/5 border-white/10 hover:bg-brq-gold/10 hover:border-brq-gold/50 cursor-pointer'
+                            }`}
                           >
                             <div>
-                              <span className="font-bold text-white group-hover:text-brq-gold transition-colors block">{sub.name}</span>
-                              <span className="text-white/40 text-xs">{sub.products.length} منتج</span>
+                              <span className={`font-bold block text-base ${isEmpty ? 'text-white/40' : 'text-white group-hover:text-brq-gold'} transition-colors`}>
+                                {sub.name}
+                              </span>
+                              <span className="text-white/50 text-xs font-mono mt-1 block">
+                                {sub.products.length.toLocaleString('ar-IQ')} منتج • {imgCount.toLocaleString('ar-IQ')} صورة
+                              </span>
                             </div>
-                            <Download size={18} className="text-white/40 group-hover:text-brq-gold opacity-0 group-hover:opacity-100 transition-all" />
+                            {!isEmpty && (
+                              <Download size={18} className="text-white/40 group-hover:text-brq-gold opacity-0 group-hover:opacity-100 transition-all shrink-0 mr-1" />
+                            )}
                           </button>
-                      ))}
+                        );
+                      })}
                     </div>
                     {filteredSubs.length === 0 && (
                       <div className="text-center py-10 text-white/40">لا توجد أصناف مطابقة</div>
@@ -442,8 +544,8 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
 
       {isShowcaseExportOpen && (
         <ShowcaseCategorizedDownloadDialog
-          products={products}
-          categories={categories}
+          products={storeProducts}
+          categories={storeCategories}
           onClose={() => setIsShowcaseExportOpen(false)}
         />
       )}
