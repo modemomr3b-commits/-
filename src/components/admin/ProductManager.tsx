@@ -1398,10 +1398,10 @@ export default function ProductManager() {
           const getProductType = (name: string) => {
             if (!name) return 'أخرى';
             const lowerName = name.toLowerCase();
+            if (lowerName.includes('لابجين')) return 'لابجين';
             if (lowerName.includes('رياض')) return 'رياضة';
             if (lowerName.includes('شحاط')) return 'شحاطة';
             if (lowerName.includes('احذي') || lowerName.includes('أحذي') || lowerName.includes('حذاء')) return 'حذاء';
-            if (lowerName.includes('لابجين')) return 'لابجين';
             if (lowerName.includes('لاستيك')) return 'لاستيك';
             if (lowerName.includes('صندل') || lowerName.includes('صنادل')) return 'صندل';
             if (lowerName.includes('سليبر')) return 'سليبر';

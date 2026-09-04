@@ -129,9 +129,14 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
 
     const subtypeMap = new Map<string, Product[]>();
     
-    // Pre-populate the 5 shoe subtypes in canonical order
+    // Specifically ensure 'لابجين' is present for the requested groups: رجالي, شبابي, ولادي, طفل
+    const isTargetLapjinGroup = ['رجالي', 'شبابي', 'ولادي', 'طفل'].includes(selectedGroupName);
+
+    // Pre-populate shoe subtypes in canonical order
     SHOE_SUBTYPES.forEach(st => {
-      subtypeMap.set(st, []);
+      if (st !== 'لابجين' || isTargetLapjinGroup) {
+        subtypeMap.set(st, []);
+      }
     });
 
     groupProds.forEach(p => {

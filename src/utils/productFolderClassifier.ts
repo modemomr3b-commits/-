@@ -38,19 +38,21 @@ export const STORE_MAIN_SECTIONS = [
 export type StoreMainSection = typeof STORE_MAIN_SECTIONS[number];
 
 /**
- * Valid Product Subtypes (strictly the 5 shoe types requested + bags + others):
+ * Valid Product Subtypes:
  * - احذية (أو حذاء)
  * - رياضة
  * - شحاطة
  * - صندل
  * - لاستيك
+ * - لابجين (صنف لابجين للشبابي والرجالي والطفل والولادي)
  */
 export const SHOE_SUBTYPES = [
   'احذية',
   'رياضة',
   'شحاطة',
   'صندل',
-  'لاستيك'
+  'لاستيك',
+  'لابجين'
 ] as const;
 
 export type ShoeSubtype = typeof SHOE_SUBTYPES[number];
@@ -219,7 +221,19 @@ export function detectShoeSubtype(
   const combined = [name, code, model, categoryName, subcategoryName].join(' ');
   const norm = normalizeArabic(combined);
 
-  // 1. لاستيك (Rubber / Silicone / Crocs / EVA) - Priority 1 to prevent "سلبر لاستيك" or "صندل كروكس" from miscategorizing
+  // 1. لابجين (Loafers / Lapjin - صنف لابجين للشبابي والرجالي والطفل والولادي)
+  // Check for products explicitly named or classified as لابجين
+  if (
+    norm.includes('لابجين') ||
+    norm.includes('لبجين') ||
+    norm.includes('لوبجين') ||
+    norm.includes('lapjin') ||
+    norm.includes('loafer')
+  ) {
+    return 'لابجين';
+  }
+
+  // 2. لاستيك (Rubber / Silicone / Crocs / EVA) - Priority to prevent "سلبر لاستيك" or "صندل كروكس" from miscategorizing
   if (
     norm.includes('لاستيك') ||
     norm.includes('بلاستيك') ||
@@ -287,6 +301,6 @@ export function detectShoeSubtype(
     return 'رياضة';
   }
 
-  // 5. احذية (Default Shoe category: حذاء، بوت، بسطال، كعب، فلات، رسمي، كلاسيك، قندرة، لابجين...)
+  // 6. احذية (Default Shoe category: حذاء، بوت، بسطال، كعب، فلات، رسمي، كلاسيك، قندرة...)
   return 'احذية';
 }
