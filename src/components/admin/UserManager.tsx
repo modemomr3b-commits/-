@@ -80,20 +80,29 @@ function UserManagerContent() {
     };
 
     fetchUsers();
-    const inv = setInterval(fetchUsers, 4000);
+    let debounceTimer: any = null;
+    const scheduleFetch = () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        if (mounted) fetchUsers();
+      }, 1000);
+    };
+
+    const inv = setInterval(fetchUsers, 30000);
 
     const channel = supabase
       .channel('public:users_manager_changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => {
-        fetchUsers();
+        scheduleFetch();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'settings' }, () => {
-        fetchUsers();
+        scheduleFetch();
       })
       .subscribe();
 
     return () => {
       mounted = false;
+      clearTimeout(debounceTimer);
       clearInterval(inv);
       supabase.removeChannel(channel);
     };

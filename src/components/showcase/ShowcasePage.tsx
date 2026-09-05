@@ -255,7 +255,7 @@ export default function ShowcasePage() {
     };
 
     checkBlocked();
-    const interval = setInterval(checkBlocked, 5000);
+    const interval = setInterval(checkBlocked, 60000);
 
     const channel = supabase
       .channel('public:showcase_blocked_sub')
@@ -417,6 +417,14 @@ export default function ShowcasePage() {
 
     loadData();
 
+    let fetchTimeout: any = null;
+    const scheduleRefresh = (delay = 1500) => {
+      clearTimeout(fetchTimeout);
+      fetchTimeout = setTimeout(() => {
+        if (mounted) loadData();
+      }, delay);
+    };
+
     const channel = supabase
       .channel('showcase_realtime')
       .on('broadcast', { event: 'settings_updated' }, ({ payload }) => {
@@ -425,19 +433,19 @@ export default function ShowcasePage() {
         }
       })
       .on('broadcast', { event: 'bulk_updated' }, () => {
-        if (mounted) loadData();
+        scheduleRefresh(800);
       })
       .on('broadcast', { event: 'product_changed' }, () => {
-        if (mounted) loadData();
+        scheduleRefresh(800);
       })
       .on('broadcast', { event: 'product_created' }, () => {
-        if (mounted) loadData();
+        scheduleRefresh(800);
       })
       .on('broadcast', { event: 'bulk_deleted' }, () => {
-        if (mounted) loadData();
+        scheduleRefresh(800);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
-        if (mounted) loadData();
+        scheduleRefresh(1500);
       })
       .subscribe();
 
@@ -447,13 +455,14 @@ export default function ShowcasePage() {
       if (typeof window !== 'undefined' && (window as any).BroadcastChannel) {
         bc = new (window as any).BroadcastChannel('brq_products_sync');
         bc.onmessage = () => {
-          if (mounted) loadData();
+          scheduleRefresh(500);
         };
       }
     } catch {}
 
     return () => {
       mounted = false;
+      clearTimeout(fetchTimeout);
       supabase.removeChannel(channel);
       if (bc) {
         try { bc.close(); } catch {}

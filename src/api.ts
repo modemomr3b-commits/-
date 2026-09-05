@@ -17,7 +17,7 @@ const getData = async (table: string) => {
       
     if (error) {
       console.error('Error in getData for table', table, error);
-      return allData;
+      throw error;
     }
     
     if (data && data.length > 0) {
@@ -48,7 +48,7 @@ const getDeletedData = async (table: string) => {
       
     if (error) {
       console.error(error);
-      return allData;
+      throw error;
     }
     
     if (data && data.length > 0) {
@@ -225,17 +225,38 @@ export const api = {
             memCache[cacheKey] = { data: res, timestamp: Date.now() };
             localCache.set(cacheKey, res).catch(() => {});
           }
-        } catch {}
+        } catch (e) {
+          console.warn('Background products revalidation failed, keeping cache:', e);
+        }
       }, 50);
       return localData.map(mapProduct);
     }
 
-    const data = await getData('products');
-    const res = data.map(mapProduct).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    try {
+      const data = await getData('products');
+      if (data && data.length > 0) {
+        const res = data.map(mapProduct).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        memCache[cacheKey] = { data: res, timestamp: Date.now() };
+        localCache.set(cacheKey, res).catch(() => {});
+        return res;
+      }
+    } catch (fetchErr) {
+      console.warn('Direct fetch products failed, attempting persistent cache fallback:', fetchErr);
+    }
 
-    memCache[cacheKey] = { data: res, timestamp: Date.now() };
-    localCache.set(cacheKey, res).catch(() => {});
-    return res;
+    // Fallback to localCache even if older than TTL
+    const fallbackLocal = await localCache.get<any[]>(cacheKey, Infinity);
+    if (fallbackLocal && fallbackLocal.length > 0) {
+      const res = fallbackLocal.map(mapProduct);
+      memCache[cacheKey] = { data: res, timestamp: Date.now() };
+      return res;
+    }
+
+    if (memCache[cacheKey]?.data?.length) {
+      return memCache[cacheKey].data;
+    }
+
+    return [];
   },
   createProduct: async (data: any) => { 
     const serverTime = await getServerTime();
@@ -444,6 +465,7 @@ export const api = {
     Object.keys(memCache).forEach(k => {
       if (k.startsWith('products_cat_')) delete memCache[k];
     });
+    localCache.clearMatching('products_cat_').catch(() => {});
 
     // Real-time broadcast
     try {
@@ -562,17 +584,17 @@ export const api = {
     }
     
     if (hasDirectUpdates && !hasSizeUpdates) {
-      // Direct SQL bulk update on Supabase table in parallel
-      await Promise.all(chunks.map(async (chunk) => {
+      // Direct SQL bulk update on Supabase table sequentially per chunk
+      for (const chunk of chunks) {
         const { error } = await supabase.from('products').update(directUpdates).in('id', chunk);
         if (error) {
           console.error('Bulk direct update error:', error);
           throw error;
         }
-      }));
+      }
     } else {
-      // Direct updates and size JSON column updates
-      await Promise.all(chunks.map(async (chunk) => {
+      // Direct updates and size JSON column updates sequentially per chunk
+      for (const chunk of chunks) {
         if (hasDirectUpdates) {
           const { error: directErr } = await supabase.from('products').update(directUpdates).in('id', chunk);
           if (directErr) console.warn('Bulk direct update partial error:', directErr);
@@ -598,14 +620,15 @@ export const api = {
             };
             return supabase.from('products').update(itemUpdate).eq('id', row.id);
           });
-          for (let j = 0; j < updatePromises.length; j += 50) {
-            const batchRes = await Promise.all(updatePromises.slice(j, j + 50));
+          // Process in smaller safe batches of 15 to avoid overloading database connection limits
+          for (let j = 0; j < updatePromises.length; j += 15) {
+            const batchRes = await Promise.all(updatePromises.slice(j, j + 15));
             for (const r of batchRes) {
               if (r.error) throw r.error;
             }
           }
         }
-      }));
+      }
     }
 
     // IMMEDIATELY update local in-memory cache and IndexedDB
@@ -650,6 +673,7 @@ export const api = {
         delete memCache[k];
       }
     });
+    localCache.clearMatching('products_cat_').catch(() => {});
 
     // Real-time broadcast across all open tabs and all remote clients
     try {
@@ -672,14 +696,12 @@ export const api = {
   },
   bulkDeleteProducts: async (ids: string[], deletedBy?: string) => {
     if (!ids || ids.length === 0) return { success: true };
-    const chunkSize = 1000;
-    const chunks: string[][] = [];
+    const chunkSize = 200;
     for (let i = 0; i < ids.length; i += chunkSize) {
-      chunks.push(ids.slice(i, i + chunkSize));
+      const chunk = ids.slice(i, i + chunkSize);
+      const { error } = await supabase.from('products').delete().in('id', chunk);
+      if (error) throw error;
     }
-    await Promise.all(chunks.map(chunk => 
-      supabase.from('products').delete().in('id', chunk)
-    ));
     
     // Invalidate caches
     const idSet = new Set(ids);

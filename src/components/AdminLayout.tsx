@@ -5,6 +5,7 @@ import { cn } from '../lib/utils';
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { api } from '../api';
+import { supabase } from '../supabase';
 import { Order } from '../types';
 import Animated3DLogo from './ui/Animated3DLogo';
 
@@ -50,10 +51,18 @@ export default function AdminLayout() {
       } catch (e) {}
     };
     fetchOrdersForNotifications();
-    const inv = setInterval(fetchOrdersForNotifications, 4000); 
+    const channel = supabase
+      .channel('admin_layout_orders_realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+        if (mounted) fetchOrdersForNotifications();
+      })
+      .subscribe();
+
+    const inv = setInterval(fetchOrdersForNotifications, 30000); 
     return () => {
       mounted = false;
       clearInterval(inv);
+      supabase.removeChannel(channel);
     };
   }, []);
 

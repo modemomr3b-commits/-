@@ -37,7 +37,7 @@ export default function NotificationManager() {
       }
     };
     fetchData();
-    const inv = setInterval(fetchData, 5000);
+    const inv = setInterval(fetchData, 30000);
     return () => {
       mounted = false;
       clearInterval(inv);

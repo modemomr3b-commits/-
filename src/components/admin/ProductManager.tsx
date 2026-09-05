@@ -27,6 +27,8 @@ import {
   Wand2,
   Layers,
   FolderArchive,
+  Lock,
+  Unlock,
 } from "lucide-react";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
@@ -70,19 +72,6 @@ export default function ProductManager() {
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false);
   const [isAutoShowcaseOpen, setIsAutoShowcaseOpen] = useState(false);
   const [isShowcaseDownloadOpen, setIsShowcaseDownloadOpen] = useState(false);
-
-  // Real-time background sync polling every 6 seconds
-  useEffect(() => {
-    const pollInterval = setInterval(async () => {
-      try {
-        const fresh = await api.getProducts();
-        if (fresh && fresh.length > 0) {
-          setProducts(fresh);
-        }
-      } catch {}
-    }, 6000);
-    return () => clearInterval(pollInterval);
-  }, []);
 
   // Multi-Category Showcase Publishing State
   const [autoShowcaseTab, setAutoShowcaseTab] = useState<'collections' | 'categories'>('collections');
@@ -187,16 +176,18 @@ export default function ProductManager() {
         categoryGroups[cat].push(p.id!);
       });
 
-      await Promise.all(
-        Object.entries(categoryGroups).map(([cat, ids]) =>
-          api.bulkUpdateProducts(ids, { isShowcase: true, showcaseCategory: cat })
-        )
-      );
+      for (const [cat, ids] of Object.entries(categoryGroups)) {
+        await api.bulkUpdateProducts(ids, { isShowcase: true, showcaseCategory: cat });
+      }
     } catch (e: any) {
       console.error("Auto publish showcase error:", e);
       setAlertMessage("حدث خطأ أثناء النشر: " + (e?.message || ""));
-      const fresh = await api.getProducts();
-      setProducts(fresh);
+      try {
+        const fresh = await api.getProducts();
+        if (fresh && fresh.length > 0) {
+          setProducts(fresh);
+        }
+      } catch {}
     } finally {
       setIsSubmitting(false);
     }
@@ -446,7 +437,7 @@ export default function ProductManager() {
     showcaseCategory: "رجالي",
   });
 
-  const [filterStatus, setFilterStatus] = useState<"all" | "active" | "archived" | "inactive" | "duplicates" | "showcase" | null>("active");
+  const [filterStatus, setFilterStatus] = useState<"all" | "active" | "archived" | "locked" | "inactive" | "duplicates" | "showcase" | null>("active");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [searchDate, setSearchDate] = useState("");
@@ -1015,6 +1006,29 @@ export default function ProductManager() {
     }
   };
 
+  const handleToggleLock = async (p: Product) => {
+    const nextLocked = !p.isLocked;
+    const updates: any = { isLocked: nextLocked };
+
+    // Optimistic update
+    setProducts((prev) =>
+      prev.map((prod) =>
+        prod.id === p.id 
+          ? { ...prod, isLocked: nextLocked } 
+          : prod
+      )
+    );
+    try {
+      await api.updateProduct(p.id!, updates);
+    } catch (e) {
+      console.error(e);
+      // Revert optimistic update
+      const updated = await api.getProducts();
+      setProducts(updated);
+      setAlertMessage("فشل تغيير قفل المنتج");
+    }
+  };
+
   const handleToggleHide = async (p: Product) => {
     const nextHidden = !p.isHidden;
     const cat = p.showcaseCategory || detectShowcaseCategory(p, categories) || 'عام';
@@ -1086,19 +1100,23 @@ export default function ProductManager() {
           categoryGroups[cat].push(p.id!);
         });
 
-        await Promise.all(
-          Object.entries(categoryGroups).map(([cat, ids]) =>
-            api.bulkUpdateProducts(ids, { isShowcase: true, showcaseCategory: cat })
-          )
-        );
+        for (const [cat, ids] of Object.entries(categoryGroups)) {
+          await api.bulkUpdateProducts(ids, { isShowcase: true, showcaseCategory: cat });
+        }
       }
 
       setSelectedIds(new Set());
     } catch (e: any) {
       console.error("Error bulk toggling showcase:", e);
-      const updated = await api.getProducts();
-      setProducts(updated);
-      setAlertMessage("فشل التحديث المجمع للمعرض: " + e.message);
+      try {
+        const updated = await api.getProducts();
+        if (updated && updated.length > 0) {
+          setProducts(updated);
+        }
+      } catch (err) {
+        console.warn("Could not reload products after showcase update error:", err);
+      }
+      setAlertMessage("فشل التحديث المجمع للمعرض: " + (e?.message || "تعذر الاتصال بالخادم"));
     } finally {
       setIsSubmitting(false);
     }
@@ -1172,15 +1190,17 @@ export default function ProductManager() {
           categoryGroups[cat].push(p.id!);
         });
 
-        await Promise.all(
-          Object.entries(categoryGroups).map(([cat, groupIds]) =>
-            api.bulkUpdateProducts(groupIds, { isHidden: false, isShowcase: true, showcaseCategory: cat })
-          )
-        );
+        for (const [cat, groupIds] of Object.entries(categoryGroups)) {
+          await api.bulkUpdateProducts(groupIds, { isHidden: false, isShowcase: true, showcaseCategory: cat });
+        }
       } catch (e: any) {
         console.error("Error bulk toggling hide:", e);
-        const updated = await api.getProducts();
-        setProducts(updated);
+        try {
+          const updated = await api.getProducts();
+          if (updated && updated.length > 0) {
+            setProducts(updated);
+          }
+        } catch {}
         setAlertMessage("فشل التحديث المجمع: " + e.message);
       } finally {
         setIsSubmitting(false);
@@ -1197,8 +1217,12 @@ export default function ProductManager() {
         await api.bulkUpdateProducts(ids, { isHidden: true, isShowcase: false });
       } catch (e: any) {
         console.error("Error bulk toggling hide:", e);
-        const updated = await api.getProducts();
-        setProducts(updated);
+        try {
+          const updated = await api.getProducts();
+          if (updated && updated.length > 0) {
+            setProducts(updated);
+          }
+        } catch {}
         setAlertMessage("فشل التحديث المجمع: " + e.message);
       } finally {
         setIsSubmitting(false);
@@ -1292,12 +1316,22 @@ export default function ProductManager() {
 
     setIsSubmitting(true);
     try {
-      const promises = updates.map(u => api.updateProduct(u.id, { categoryId: u.categoryId, subcategoryId: '' }));
-      await Promise.all(promises);
+      const catGroups: Record<string, string[]> = {};
+      updates.forEach(u => {
+        if (!catGroups[u.categoryId]) catGroups[u.categoryId] = [];
+        catGroups[u.categoryId].push(u.id);
+      });
+      for (const [catId, groupIds] of Object.entries(catGroups)) {
+        await api.bulkUpdateProducts(groupIds, { categoryId: catId, subcategoryId: '' });
+      }
     } catch (e: any) {
       console.error(e);
-      const updated = await api.getProducts();
-      setProducts(updated);
+      try {
+        const updated = await api.getProducts();
+        if (updated && updated.length > 0) {
+          setProducts(updated);
+        }
+      } catch {}
       setAlertMessage("حدث خطأ أثناء النقل التلقائي: " + e.message);
     } finally {
       setIsSubmitting(false);
@@ -1469,6 +1503,7 @@ export default function ProductManager() {
       active: products.filter(p => !p.isHidden && !p.isArchived).length,
       inactive: products.filter(p => p.isHidden && !p.isArchived).length,
       archived: products.filter(p => p.isArchived).length,
+      locked: products.filter(p => p.isLocked).length,
       duplicates: products.filter(p => duplicatesSet.has(p.modelNumber || p.productCode)).length,
       showcase: products.filter(p => p.isShowcase).length,
     };
@@ -1486,6 +1521,9 @@ export default function ProductManager() {
       } else if (filterStatus === 'archived') {
         // Only out of stock/archived
         if (!p.isArchived) return false;
+      } else if (filterStatus === 'locked') {
+        // Only locked products
+        if (!p.isLocked) return false;
       } else if (filterStatus === 'duplicates') {
         // Only duplicates
         if (!duplicatesSet.has(p.modelNumber || p.productCode)) return false;
@@ -1549,13 +1587,6 @@ export default function ProductManager() {
           </button>
           <button onClick={() => setIsAutoShowcaseOpen(true)} className="flex-1 md:flex-none flex items-center justify-center gap-2 py-2.5 px-4 bg-amber-500/20 border border-amber-500/50 text-amber-300 rounded-xl hover:bg-amber-500/30 transition-all text-sm font-bold shadow-md">
             <Sparkles size={18} /> النشر التلقائي للمعرض 🪄
-          </button>
-          <button
-            onClick={() => setIsShowcaseDownloadOpen(true)}
-            className="flex-1 md:flex-none flex items-center justify-center gap-2 py-2.5 px-4 bg-gradient-to-r from-amber-500/20 to-yellow-500/20 border border-amber-400/60 text-amber-300 rounded-xl hover:from-amber-500/30 hover:to-yellow-500/30 transition-all text-sm font-bold shadow-md cursor-pointer"
-            title="تحميل المعرض مقسم إلى مجلدات حسب الفئات (رجالي، نسائي، شبابي، ولادي، بناتي، طفل، طفلة، بيبي، مواليد، حقائب)"
-          >
-            <FolderArchive size={18} className="text-amber-400" /> تحميل المعرض المبوب (Zip) 📥
           </button>
           <button
             onClick={() => { setIsAdding(!isAdding); setIsBatchAdding(false); }}
@@ -1914,6 +1945,16 @@ export default function ProductManager() {
               </span>
             </button>
             <button
+              onClick={() => setFilterStatus("locked")}
+              className={`pb-2 px-2.5 text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 ${filterStatus === "locked" ? "border-purple-400 text-purple-400" : "border-transparent text-white/50 hover:text-white"}`}
+            >
+              <Lock size={14} className="text-purple-400" />
+              المواد المقفلة
+              <span className="text-[10px] bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded-full font-mono font-bold">
+                {tabCounts.locked}
+              </span>
+            </button>
+            <button
               onClick={() => setFilterStatus("duplicates")}
               className={`pb-2 px-2.5 text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 ${filterStatus === "duplicates" ? "border-cyan-400 text-cyan-400" : "border-transparent text-white/50 hover:text-white"}`}
             >
@@ -1931,13 +1972,6 @@ export default function ProductManager() {
               <span className="text-[10px] bg-amber-400/20 text-amber-300 px-1.5 py-0.5 rounded-full font-mono font-bold">
                 {tabCounts.showcase}
               </span>
-            </button>
-            <button
-              onClick={() => setIsShowcaseDownloadOpen(true)}
-              className="pb-2 px-2.5 text-sm font-bold border-b-2 border-transparent text-amber-400 hover:text-white transition-colors flex items-center gap-1.5 whitespace-nowrap bg-amber-500/10 rounded-t-lg cursor-pointer"
-              title="تحميل صور المعرض مقسمة إلى مجلدات حسب الفئات العشر (رجالي، نسائي، ولادي...)"
-            >
-              <FolderArchive size={14} /> تحميل المعرض المبوب (Zip) 📥
             </button>
             <button
               onClick={() => setIsDownloadDialogOpen(true)}
@@ -2165,31 +2199,6 @@ export default function ProductManager() {
               )}
             </div>
 
-            {filterStatus === 'showcase' && (
-              <div className="m-3 p-4 rounded-xl bg-gradient-to-r from-amber-500/15 via-yellow-500/10 to-amber-500/5 border border-amber-500/30 flex flex-col sm:flex-row items-center justify-between gap-3 text-right">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-300 shrink-0">
-                    <Sparkles size={20} />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-black text-amber-300">معرض شركة الوفاء المبوب (10 فئات)</h4>
-                    <p className="text-xs text-white/70">
-                      يمكنك تنزيل المعرض بالكامل كملف Zip مقسم تلقائياً إلى مجلدات: رجالي، نسائي، شبابي، ولادي، بناتي، طفل، طفلة، بيبي، مواليد، حقائب.
-                    </p>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setIsShowcaseDownloadOpen(true)}
-                  className="w-full sm:w-auto px-5 py-2.5 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black font-black rounded-xl text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition-all cursor-pointer whitespace-nowrap active:scale-95"
-                >
-                  <FolderArchive size={16} />
-                  <span>تحميل المعرض المبوب (Zip) 📥</span>
-                </button>
-              </div>
-            )}
-
             <div className="overflow-x-auto min-h-[400px]">
               {filterStatus === null && !searchQuery ? (
                 <div className="flex flex-col items-center justify-center h-[400px] text-center p-8 space-y-6">
@@ -2276,7 +2285,7 @@ export default function ProductManager() {
                         </td>
                         <td className="p-4">
                           <div 
-                            className="w-12 h-12 rounded-lg bg-brq-navy flex items-center justify-center border border-white/10 overflow-hidden text-2xl cursor-pointer"
+                            className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl bg-brq-navy flex items-center justify-center border border-white/10 overflow-hidden text-3xl cursor-pointer shadow-md hover:scale-105 transition-transform"
                             onClick={() => {
                               if (p.finalImageUrl || p.imageUrl) {
                                 const prodIndex = paginatedProducts.findIndex(item => item.id === p.id);
@@ -2451,6 +2460,18 @@ export default function ProductManager() {
                               title="تعديل"
                             >
                               <Edit size={16} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleLock(p)}
+                              className={`p-1.5 rounded transition-colors ${
+                                p.isLocked
+                                  ? "bg-purple-500/20 text-purple-400 border border-purple-500/40 hover:bg-purple-500/30"
+                                  : "hover:bg-purple-500/20 text-white/50 hover:text-purple-300"
+                              }`}
+                              title={p.isLocked ? "إلغاء قفل المنتج" : "قفل المنتج"}
+                            >
+                              {p.isLocked ? <Lock size={16} className="text-purple-400 fill-purple-400/20" /> : <Unlock size={16} />}
                             </button>
                             <button
                               type="button"

@@ -60,12 +60,20 @@ export default function SearchPage() {
     fetchProducts();
 
     // Instant local BroadcastChannel synchronization across tabs
+    let fetchTimeout: any = null;
+    const scheduleFetch = (delay = 1200) => {
+      clearTimeout(fetchTimeout);
+      fetchTimeout = setTimeout(() => {
+        if (mounted) fetchProducts();
+      }, delay);
+    };
+
     let bc: any = null;
     try {
       if (typeof window !== 'undefined' && (window as any).BroadcastChannel) {
         bc = new (window as any).BroadcastChannel('brq_products_sync');
         bc.onmessage = () => {
-          if (mounted) fetchProducts();
+          scheduleFetch(400);
         };
       }
     } catch {}
@@ -73,24 +81,25 @@ export default function SearchPage() {
     const channel = supabase
       .channel('search_products_sync')
       .on('broadcast', { event: 'bulk_updated' }, () => {
-        if (mounted) fetchProducts();
+        scheduleFetch(600);
       })
       .on('broadcast', { event: 'product_changed' }, () => {
-        if (mounted) fetchProducts();
+        scheduleFetch(600);
       })
       .on('broadcast', { event: 'product_created' }, () => {
-        if (mounted) fetchProducts();
+        scheduleFetch(600);
       })
       .on('broadcast', { event: 'bulk_deleted' }, () => {
-        if (mounted) fetchProducts();
+        scheduleFetch(600);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
-        if (mounted) fetchProducts();
+        scheduleFetch(1200);
       })
       .subscribe();
 
     return () => { 
       mounted = false; 
+      clearTimeout(fetchTimeout);
       supabase.removeChannel(channel);
       if (bc) {
         try { bc.close(); } catch {}

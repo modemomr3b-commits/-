@@ -87,15 +87,20 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
     imageUrl: '',
   });
 
-  // Start with 5 product cards or 20, dynamically expandable by +5
+  // Quick publish locked to maximum 15 cards as requested
+  const MAX_CARDS = 15;
   const [products, setProducts] = useState<Partial<Product>[]>(Array.from({ length: 5 }).map(emptyProduct));
 
-  // Add 5 more cards
+  // Add more cards up to 15
   const handleAddFiveCards = () => {
-    setProducts(prev => [
-      ...prev,
-      ...Array.from({ length: 5 }).map(emptyProduct)
-    ]);
+    setProducts(prev => {
+      const remaining = MAX_CARDS - prev.length;
+      if (remaining <= 0) return prev;
+      return [
+        ...prev,
+        ...Array.from({ length: Math.min(5, remaining) }).map(emptyProduct)
+      ];
+    });
   };
 
   // Remove a single card
@@ -466,6 +471,11 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
       return;
     }
 
+    if (validProducts.length > MAX_CARDS) {
+      setAlertMessage(`تم قفل النشر السريع على ${MAX_CARDS} بطاقة كحد أقصى.`);
+      return;
+    }
+
     setIsSubmitting(true);
     
     try {
@@ -500,39 +510,45 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
 
       setIsSubmitting(true);
 
-      // 2. Parallel Processing: Upload/burn/save all valid products concurrently
+      // 2. Safe Throttled Processing: Upload/burn/save in small sequential batches of 3
       // Set isHidden: true so products are inactive by default until enabled by the admin
-      await Promise.all(
-        validProducts.map(async (product) => {
-          let finalImg = product.imageUrl;
-          if (product.imageUrl) {
-            try {
-              finalImg = await burnProductOverlay(product as Product, product.imageUrl);
-            } catch (err) {
-              console.error('Failed to generate burned image', err);
+      for (let i = 0; i < validProducts.length; i += 3) {
+        const batch = validProducts.slice(i, i + 3);
+        await Promise.all(
+          batch.map(async (product) => {
+            let finalImg = product.imageUrl;
+            if (product.imageUrl) {
+              try {
+                finalImg = await burnProductOverlay(product as Product, product.imageUrl);
+              } catch (err) {
+                console.error('Failed to generate burned image', err);
+              }
             }
-          }
 
-          const created = await api.createProduct({
-            ...product,
-            categoryId: product.categoryId || batchCategoryId,
-            subcategoryId: product.subcategoryId,
-            finalImageUrl: finalImg,
-            views: 0,
-            isArchived: false,
-            isHidden: true, // Non-active (غير مفعل) by default as requested!
-          } as any);
-          
-          api.logAction({
-            userId: user?.uid || '',
-            userName: user?.username || 'System',
-            action: 'إضافة منتج جديد (نشر سريع - غير مفعل تلقائياً)',
-            entityType: 'product',
-            entityId: created.id,
-            details: { name: product.name, code: product.productCode },
-          }).catch(() => {});
-        })
-      );
+            const created = await api.createProduct({
+              ...product,
+              categoryId: product.categoryId || batchCategoryId,
+              subcategoryId: product.subcategoryId,
+              finalImageUrl: finalImg,
+              views: 0,
+              isArchived: false,
+              isHidden: true, // Non-active (غير مفعل) by default as requested!
+            } as any);
+            
+            api.logAction({
+              userId: user?.uid || '',
+              userName: user?.username || 'System',
+              action: 'إضافة منتج جديد (نشر سريع - غير مفعل تلقائياً)',
+              entityType: 'product',
+              entityId: created.id,
+              details: { name: product.name, code: product.productCode },
+            }).catch(() => {});
+          })
+        );
+        if (i + 3 < validProducts.length) {
+          await new Promise(r => setTimeout(r, 100));
+        }
+      }
       
       setIsSuccess(true);
       onAdded();
@@ -597,22 +613,27 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
       <div className="flex flex-col gap-3 bg-black/40 p-4 rounded-xl border border-white/10" dir="rtl">
         <div className="flex flex-wrap justify-between items-center pb-2 border-b border-white/10 gap-2">
           <div className="flex items-center gap-2">
-            <h3 className="text-brq-gold font-bold text-base">النشر السريع للمنتجات ({products.length} بطاقة) ⚡</h3>
+            <h3 className="text-brq-gold font-bold text-base">النشر السريع للمنتجات ({products.length} من أصل {MAX_CARDS} بطاقة) ⚡</h3>
             <span className="text-xs text-white/50">
               (المنتجات تنشر تلقائياً كمنتجات غير مفعلة)
             </span>
           </div>
 
           <div className="flex items-center gap-2">
-            {/* The requested option: Add 5 Cards on every click */}
+            {/* The requested option: Add Cards up to 15 max */}
             <button
               type="button"
+              disabled={products.length >= MAX_CARDS}
               onClick={handleAddFiveCards}
-              className="flex items-center gap-1.5 py-1.5 px-3.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/40 rounded-xl font-bold text-xs transition-all shadow-[0_0_12px_rgba(16,185,129,0.15)] active:scale-95"
-              title="إضافة 5 بطاقات جديدة لإدخال منتجات أكثر"
+              className={`flex items-center gap-1.5 py-1.5 px-3.5 rounded-xl font-bold text-xs transition-all ${
+                products.length >= MAX_CARDS
+                  ? "bg-white/5 text-white/40 border border-white/10 cursor-not-allowed"
+                  : "bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/40 shadow-[0_0_12px_rgba(16,185,129,0.15)] active:scale-95"
+              }`}
+              title={products.length >= MAX_CARDS ? "تم الوصول للحد الأقصى (15 بطاقة)" : "إضافة بطاقات جديدة"}
             >
               <Plus size={16} />
-              <span>إضافة 5 بطاقات (+5)</span>
+              <span>{products.length >= MAX_CARDS ? "الحد الأقصى (15 بطاقة)" : `إضافة بطاقات (+${Math.min(5, MAX_CARDS - products.length)})`}</span>
             </button>
 
             <button onClick={onClose} className="text-white/50 hover:text-white p-1" title="إغلاق">
@@ -1034,11 +1055,16 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
       <div className="sticky bottom-0 bg-black/80 backdrop-blur-md p-4 border-t border-white/10 z-10 flex flex-col sm:flex-row gap-3 items-center justify-between mt-4 rounded-xl" dir="rtl">
           <button
             type="button"
+            disabled={products.length >= MAX_CARDS}
             onClick={handleAddFiveCards}
-            className="w-full sm:w-auto py-3 px-5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 font-bold rounded-xl flex items-center justify-center gap-2 transition-all active:scale-95 text-sm"
+            className={`w-full sm:w-auto py-3 px-5 font-bold rounded-xl flex items-center justify-center gap-2 transition-all text-sm ${
+              products.length >= MAX_CARDS
+                ? "bg-white/5 text-white/40 border border-white/10 cursor-not-allowed"
+                : "bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 active:scale-95"
+            }`}
           >
             <Plus size={18} />
-            <span>إضافة 5 بطاقات أخرى (+5)</span>
+            <span>{products.length >= MAX_CARDS ? "تم الوصول للحد الأقصى (15 بطاقة)" : `إضافة بطاقات (+${Math.min(5, MAX_CARDS - products.length)})`}</span>
           </button>
 
           <button

@@ -64,15 +64,25 @@ export default function AccessLogManager() {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 3000);
+
+    let debounceTimer: any = null;
+    const scheduleFetch = () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        fetchData();
+      }, 1500);
+    };
+
+    const interval = setInterval(fetchData, 20000);
 
     const channel = supabase
       .channel('access_log_realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => fetchData())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'settings' }, () => fetchData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => scheduleFetch())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'settings' }, () => scheduleFetch())
       .subscribe();
 
     return () => {
+      clearTimeout(debounceTimer);
       clearInterval(interval);
       supabase.removeChannel(channel);
     };

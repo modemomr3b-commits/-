@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { api } from "../../api";
+import { supabase } from "../../supabase";
 import { Order, OrderStatus } from "../../types";
 import { useStore } from "../../store";
 import ImageViewer from "../ImageViewer";
@@ -99,12 +100,18 @@ export default function OrderManager() {
       }
     };
     fetchOrders();
-    // In a real app we would use onSnapshot for immediate updates,
-    // but here we poll frequently like the prompt suggested immediate notifications.
-    const inv = setInterval(fetchOrders, 3000);
+    const channel = supabase
+      .channel('admin_orders_realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+        if (mounted) fetchOrders();
+      })
+      .subscribe();
+
+    const inv = setInterval(fetchOrders, 25000);
     return () => {
       mounted = false;
       clearInterval(inv);
+      supabase.removeChannel(channel);
     };
   }, []);
 

@@ -94,6 +94,31 @@ export const localCache = {
     }
   },
 
+  clearMatching: async (prefix: string): Promise<void> => {
+    try {
+      const db = await getDB();
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const req = store.openCursor();
+      req.onsuccess = (e: any) => {
+        const cursor = e.target.result;
+        if (cursor) {
+          if (String(cursor.key).startsWith(prefix)) {
+            cursor.delete();
+          }
+          cursor.continue();
+        }
+      };
+    } catch {}
+    try {
+      Object.keys(localStorage).forEach(k => {
+        if (k.startsWith(`brq_c_${prefix}`) || k.startsWith(prefix)) {
+          localStorage.removeItem(k);
+        }
+      });
+    } catch {}
+  },
+
   clearAll: async (): Promise<void> => {
     try {
       const db = await getDB();

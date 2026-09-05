@@ -75,30 +75,6 @@ export default function Products() {
   const [fullscreenIndex, setFullscreenIndex] = useState<number | null>(null);
   const [expandedProducts, setExpandedProducts] = useState<Record<string, boolean>>({});
 
-  // Real-time background sync polling every 10 seconds for current category/view
-  useEffect(() => {
-    const pollInterval = setInterval(async () => {
-      try {
-          if (categoryId) {
-          const fresh = await api.getProductsByCategoryDirect(categoryId);
-          if (fresh) {
-            const active: Product[] = fresh.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, allCategories));
-            setProducts(shuffleProductsForUser<Product>(active));
-          }
-        } else {
-          const fresh = await api.getProducts();
-          if (fresh) {
-            const active: Product[] = fresh.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, allCategories));
-            const shuffled = shuffleProductsForUser<Product>(active);
-            setProducts(shuffled);
-            setAllStoreProducts(shuffled);
-          }
-        }
-      } catch {}
-    }, 10000);
-    return () => clearInterval(pollInterval);
-  }, [categoryId, allCategories]);
-
   const [categoryName, setCategoryName] = useState("جميع المنتجات");
   const [downloadProgress, setDownloadProgress] = useState<{ progress: number, total: number } | null>(null);
   const [downloadChoiceDialog, setDownloadChoiceDialog] = useState<{ isOpen: boolean; message: string; onDownloadStudio: () => void; onDownloadZip: () => void; onDownloadAllElastic?: () => void } | null>(null);
@@ -194,7 +170,6 @@ export default function Products() {
 
   useEffect(() => {
     let mounted = true;
-    let fetchTimeout: any;
 
     // Instant local cache restoration so the user experiences NO wait time
     const cacheKey = categoryId ? `products_cat_${categoryId}` : 'all_products';
@@ -236,13 +211,20 @@ export default function Products() {
     init();
 
     // Instant local BroadcastChannel synchronization across tabs
+    let fetchTimeout: any = null;
+    const scheduleFetch = (delay = 1200) => {
+      clearTimeout(fetchTimeout);
+      fetchTimeout = setTimeout(() => {
+        if (mounted) fetchProducts();
+      }, delay);
+    };
+
     let bc: any = null;
     try {
       if (typeof window !== 'undefined' && (window as any).BroadcastChannel) {
         bc = new (window as any).BroadcastChannel('brq_products_sync');
         bc.onmessage = () => {
-          api.clearCache();
-          if (mounted) fetchProducts();
+          scheduleFetch(400);
         };
       }
     } catch {}
@@ -250,34 +232,22 @@ export default function Products() {
     const channel = supabase
       .channel('member_products_view')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
-        clearTimeout(fetchTimeout);
-        fetchTimeout = setTimeout(() => {
-          api.clearCache();
-          if (mounted) fetchProducts();
-        }, 300);
+        scheduleFetch(1200);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'categories' }, () => {
-        clearTimeout(fetchTimeout);
-        fetchTimeout = setTimeout(() => {
-          api.clearCache();
-          if (mounted) fetchProducts();
-        }, 300);
+        scheduleFetch(1200);
       })
       .on('broadcast', { event: 'bulk_updated' }, () => {
-        api.clearCache();
-        if (mounted) fetchProducts();
+        scheduleFetch(600);
       })
       .on('broadcast', { event: 'product_changed' }, () => {
-        api.clearCache();
-        if (mounted) fetchProducts();
+        scheduleFetch(600);
       })
       .on('broadcast', { event: 'product_created' }, () => {
-        api.clearCache();
-        if (mounted) fetchProducts();
+        scheduleFetch(600);
       })
       .on('broadcast', { event: 'bulk_deleted' }, () => {
-        api.clearCache();
-        if (mounted) fetchProducts();
+        scheduleFetch(600);
       })
       .subscribe();
 

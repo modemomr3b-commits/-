@@ -47,7 +47,7 @@ export default function ReportManager() {
     };
     
     fetchReports();
-    const inv = setInterval(fetchReports, 5000);
+    const inv = setInterval(fetchReports, 60000);
     return () => {
       mounted = false;
       clearInterval(inv);

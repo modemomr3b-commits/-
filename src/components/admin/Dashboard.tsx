@@ -44,7 +44,7 @@ export default function AdminDashboard() {
       }
     };
     fetchDashboard();
-    const inv = setInterval(fetchDashboard, 5000);
+    const inv = setInterval(fetchDashboard, 30000);
     return () => {
       mounted = false;
       clearInterval(inv);
