@@ -70,6 +70,7 @@ export default function Products() {
   
   const [loading, setLoading] = useState(true);
   const { addToCart, updateQuantity, removeFromCart, cart, user, showToast } = useStore();
+  const isAdminOrSales = user && (user.role === 'admin' || user.role === 'sales');
   const [historyProduct, setHistoryProduct] = useState<Product | null>(null);
   const [fullscreenImage, setFullscreenImage] = useState<{ src: string, alt: string } | null>(null);
   const [fullscreenIndex, setFullscreenIndex] = useState<number | null>(null);
@@ -674,27 +675,40 @@ export default function Products() {
           <div className="flex gap-2 overflow-x-auto py-2 mb-2 scrollbar-hide">
             <button
               onClick={() => { setActiveSub(null); setCurrentPage(1); setDisplayCountPerPage(50); }}
-              className={`whitespace-nowrap px-4 py-1.5 rounded-full text-xs font-bold transition-colors ${
+              className={`whitespace-nowrap px-4 py-1.5 rounded-full text-xs font-bold transition-colors flex items-center gap-1.5 ${
                 activeSub === null 
                   ? "bg-brq-gold text-black" 
                   : "bg-white/10 text-white/70 hover:bg-white/20"
               }`}
             >
-              الكل
+              <span>الكل</span>
+              {isAdminOrSales && (
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${activeSub === null ? 'bg-black/20 text-black' : 'bg-white/10 text-brq-gold'}`}>
+                  {products.length}
+                </span>
+              )}
             </button>
-            {subCategories.map((sub) => (
-              <button
-                key={sub.id}
-                onClick={() => { setActiveSub(sub.id); setCurrentPage(1); setDisplayCountPerPage(50); }}
-                className={`whitespace-nowrap px-4 py-1.5 rounded-full text-xs font-bold transition-colors ${
-                  activeSub === sub.id 
-                    ? "bg-brq-gold text-black" 
-                    : "bg-white/10 text-white/70 hover:bg-white/20"
-                }`}
-              >
-                {sub.name}
-              </button>
-            ))}
+            {subCategories.map((sub) => {
+              const subCount = products.filter(p => p.subcategoryId === sub.id || (p as any).subcategory === sub.name).length;
+              return (
+                <button
+                  key={sub.id}
+                  onClick={() => { setActiveSub(sub.id); setCurrentPage(1); setDisplayCountPerPage(50); }}
+                  className={`whitespace-nowrap px-4 py-1.5 rounded-full text-xs font-bold transition-colors flex items-center gap-1.5 ${
+                    activeSub === sub.id 
+                      ? "bg-brq-gold text-black" 
+                      : "bg-white/10 text-white/70 hover:bg-white/20"
+                  }`}
+                >
+                  <span>{sub.name}</span>
+                  {isAdminOrSales && (
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${activeSub === sub.id ? 'bg-black/20 text-black' : 'bg-white/10 text-brq-gold'}`}>
+                      {subCount}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         )}
 

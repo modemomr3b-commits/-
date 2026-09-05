@@ -38,7 +38,9 @@ const DEFAULT_ICONS = ["✨", "👟", "🇹🇷", "⭐", "🎒", "☀️", "🔥
 
 export default function Home() {
   const { user } = useStore();
+  const isAdminOrSales = user && (user.role === 'admin' || user.role === 'sales');
   const [categories, setCategories] = useState<any[]>([]);
+  const [productsCountMap, setProductsCountMap] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [showAbout, setShowAbout] = useState(false);
   const [showcaseSettings, setShowcaseSettings] = useState<any>({ showcaseEnabled: true });
@@ -70,8 +72,18 @@ export default function Home() {
       }
 
       if (prods && Array.isArray(prods)) {
-        const scCount = prods.filter((p: any) => p.isShowcase && !p.isArchived && !p.isHidden).length;
+        const scCount = prods.filter((p: any) => p.isShowcase && !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted).length;
         setShowcaseCount(scCount);
+
+        const counts: Record<string, number> = {};
+        prods.forEach((p: any) => {
+          if (!p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted) {
+            if (p.categoryId) {
+              counts[p.categoryId] = (counts[p.categoryId] || 0) + 1;
+            }
+          }
+        });
+        setProductsCountMap(counts);
       }
 
       if (settings) {
@@ -95,6 +107,20 @@ export default function Home() {
             .sort((a: any, b: any) => (a.order || 0) - (b.order || 0)),
         );
         setLoading(false);
+      }
+    });
+
+    localCache.get<any[]>('all_products').then((cachedProds) => {
+      if (mounted && cachedProds && cachedProds.length > 0) {
+        const counts: Record<string, number> = {};
+        cachedProds.forEach((p: any) => {
+          if (!p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted) {
+            if (p.categoryId) {
+              counts[p.categoryId] = (counts[p.categoryId] || 0) + 1;
+            }
+          }
+        });
+        setProductsCountMap(counts);
       }
     });
 
@@ -395,8 +421,14 @@ export default function Home() {
               >
                 <Link
                   to={`/category/${cat.id}`}
-                  className="glass-panel hover:bg-gradient-to-b hover:from-white/5 hover:to-brq-gold/5 p-6 rounded-3xl flex flex-col items-center justify-center gap-4 border border-white/5 hover:border-brq-gold/40 transition-all group h-full shadow-lg hover:shadow-xl hover:-translate-y-1 duration-300"
+                  className="glass-panel hover:bg-gradient-to-b hover:from-white/5 hover:to-brq-gold/5 p-6 rounded-3xl flex flex-col items-center justify-center gap-4 border border-white/5 hover:border-brq-gold/40 transition-all group h-full shadow-lg hover:shadow-xl hover:-translate-y-1 duration-300 relative"
                 >
+                  {isAdminOrSales && (
+                    <div className="absolute top-3 left-3 bg-black/60 border border-white/10 px-2.5 py-0.5 rounded-full text-[11px] font-bold text-brq-gold flex items-center gap-1 shadow-sm">
+                      <span>{productsCountMap[cat.id] || 0}</span>
+                      <span className="text-[10px] text-white/60">منتج</span>
+                    </div>
+                  )}
                   <CategoryIcon name={cat.name} className="group-hover:scale-110 transition-transform duration-300" />
                   <div className="text-center">
                     <h3 className="font-bold text-lg group-hover:text-brq-gold transition-colors">
