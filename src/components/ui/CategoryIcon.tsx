@@ -1,7 +1,8 @@
 import React from 'react';
 import { motion } from 'motion/react';
 import { Flame, Sun, Sparkles, ShoppingBag } from 'lucide-react';
-import halfShoesImg from '../../assets/images/half_shoes_footwear_1788633502369.jpg';
+import halfShoesHighHeelImg from '../../assets/images/half_shoes_high_heel_1788678547120.jpg';
+import wafaaHeelSandalImg from '../../assets/images/wafaa_heel_sandal_1788678559264.jpg';
 
 interface CategoryIconProps {
   name: string;
@@ -11,13 +12,29 @@ interface CategoryIconProps {
 export default function CategoryIcon({ name, className = '' }: CategoryIconProps) {
   const normalizedName = (name || '').trim().toLowerCase();
 
-  // Half Shoes / هالف شووز / نصف / شحاطة
-  if (normalizedName.includes('half') || normalizedName.includes('هالف') || normalizedName.includes('نصف') || normalizedName.includes('شحاطة')) {
+  // 1. الجديد شحاطة الوفاء / شحاطة الوفاء / شحاطة / شحاطات
+  if (normalizedName.includes('شحاطة الوفاء') || normalizedName.includes('شحاطة') || normalizedName.includes('شحاطات')) {
+    return (
+      <div className={`relative flex items-center justify-center ${className}`}>
+        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-pink-500/20 via-purple-600/25 to-brq-gold/30 border border-brq-gold/40 flex items-center justify-center shadow-lg relative overflow-hidden group">
+          <img 
+            src={wafaaHeelSandalImg} 
+            alt={name} 
+            className="w-full h-full object-cover rounded-full group-hover:scale-110 transition-transform duration-300"
+            referrerPolicy="no-referrer"
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // 2. Half Shoes / هالف شووز / نصف 
+  if (normalizedName.includes('half') || normalizedName.includes('هالف') || normalizedName.includes('نصف')) {
     return (
       <div className={`relative flex items-center justify-center ${className}`}>
         <div className="w-16 h-16 rounded-full bg-gradient-to-br from-amber-500/20 to-brq-gold/30 border border-brq-gold/40 flex items-center justify-center shadow-lg relative overflow-hidden group">
           <img 
-            src={halfShoesImg} 
+            src={halfShoesHighHeelImg} 
             alt={name} 
             className="w-full h-full object-cover rounded-full group-hover:scale-110 transition-transform duration-300"
             referrerPolicy="no-referrer"
