@@ -71,10 +71,21 @@ export function openWhatsAppDirectly(text: string): boolean {
 
   let launched = false;
 
+  if (isMobile) {
+    try {
+      // Force native app scheme on mobile browser to directly open WhatsApp app
+      window.location.href = waScheme;
+      launched = true;
+      return true; // Stop here if on mobile, forcing the app to open
+    } catch {
+      // ignore and fallback
+    }
+  }
+
   // Strategy 1: Dynamic anchor element with target="_blank" (best for bypass in iframes and desktop)
   try {
     const link = document.createElement('a');
-    link.href = isMobile ? waApiUrl : waApiUrl;
+    link.href = waApiUrl;
     link.target = '_blank';
     link.rel = 'noopener noreferrer';
     link.style.display = 'none';
@@ -89,23 +100,14 @@ export function openWhatsAppDirectly(text: string): boolean {
   }
 
   // Strategy 2: Direct window.open popup
-  try {
-    const win = window.open(waApiUrl, '_blank', 'noopener,noreferrer');
-    if (win) {
-      launched = true;
-    }
-  } catch (e) {
-    console.warn('window.open failed:', e);
-  }
-
-  // Strategy 3: On mobile standalone devices, try triggering native WhatsApp protocol
-  if (isMobile && !isIframe) {
+  if (!launched) {
     try {
-      // Trying native app scheme on mobile browser directly opens WhatsApp app
-      window.location.href = waScheme;
-      launched = true;
-    } catch {
-      // ignore
+      const win = window.open(waApiUrl, '_blank', 'noopener,noreferrer');
+      if (win) {
+        launched = true;
+      }
+    } catch (e) {
+      console.warn('window.open failed:', e);
     }
   }
 

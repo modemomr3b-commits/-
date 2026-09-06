@@ -7,6 +7,8 @@ import { api } from '../../api';
 import { useNavigate, Link } from 'react-router';
 import OptimizedImage from '../OptimizedImage';
 
+import { openWhatsAppDirectly } from '../../utils/whatsappShare';
+
 export default function Cart() {
   const { cart, removeFromCart, updateQuantity, clearCart, user, showToast } = useStore();
   const [notes, setNotes] = useState('');
@@ -140,7 +142,7 @@ export default function Cart() {
     
     // Fallback to standard WhatsApp link if Web Share API with files fails or is unsupported
     const textFallback = `*طلب جديد* 🛒\n\n*اسم الوكيل:* ${agentName}\n*اسم الزبون:* ${customerName || '---'}\n*النقليات:* ${transport || '---'}\n${notes ? `*الملاحظات:* ${notes}\n\n` : '\n'}*المنتجات:*\n${cart.map((item, index) => `${index+1}- ${item.product.name}\n  *الكود: ${item.product.productCode || '---'}*\n  الموديل: ${item.product.modelNumber || '---'}\n  *الكمية: ${item.quantity}*\n  الصورة: ${item.product.finalImageUrl || item.product.imageUrl || ''}`).join('\n\n')}`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(textFallback)}`, '_blank');
+    openWhatsAppDirectly(textFallback);
     clearCart();
     setSuccess(true);
     submissionLock.current = false;

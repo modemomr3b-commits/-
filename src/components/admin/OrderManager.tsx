@@ -140,7 +140,7 @@ export default function OrderManager() {
 
   const handleViewOrder = async (order: Order) => {
     let currentStatus = order.status;
-    if (currentStatus !== "completed" && currentStatus !== "cancelled") {
+    if (currentStatus === "new") {
       currentStatus = "completed";
       // Auto complete and notify
       await updateOrderStatus(order.id, "completed");
@@ -310,7 +310,8 @@ export default function OrderManager() {
                   return (
                     <tr
                       key={o.id}
-                      className="hover:bg-white/5 transition-colors"
+                      onClick={() => handleViewOrder(o)}
+                      className="hover:bg-white/10 transition-colors cursor-pointer group"
                     >
                       <td className="p-4 font-mono font-bold text-brq-gold">
                         <div className="flex items-center gap-2">
