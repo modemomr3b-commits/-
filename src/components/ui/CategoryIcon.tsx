@@ -1,8 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Flame, Sun, Sparkles, ShoppingBag } from 'lucide-react';
-import halfShoesHighHeelImg from '../../assets/images/half_shoes_high_heel_1788678547120.jpg';
-import wafaaHeelSandalImg from '../../assets/images/wafaa_heel_sandal_1788678559264.jpg';
+import { Flame, Sun, Sparkles, ShoppingBag, Award, Zap } from 'lucide-react';
 
 interface CategoryIconProps {
   name: string;
@@ -13,16 +11,19 @@ export default function CategoryIcon({ name, className = '' }: CategoryIconProps
   const normalizedName = (name || '').trim().toLowerCase();
 
   // 1. الجديد شحاطة الوفاء / شحاطة الوفاء / شحاطة / شحاطات
-  if (normalizedName.includes('شحاطة الوفاء') || normalizedName.includes('شحاطة') || normalizedName.includes('شحاطات')) {
+  if (normalizedName.includes('شحاطة الوفاء') || (normalizedName.includes('شحاطة') && normalizedName.includes('الوفاء'))) {
     return (
       <div className={`relative flex items-center justify-center ${className}`}>
-        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-pink-500/20 via-purple-600/25 to-brq-gold/30 border border-brq-gold/40 flex items-center justify-center shadow-lg relative overflow-hidden group">
-          <img 
-            src={wafaaHeelSandalImg} 
-            alt={name} 
-            className="w-full h-full object-cover rounded-full group-hover:scale-110 transition-transform duration-300"
-            referrerPolicy="no-referrer"
-          />
+        <motion.div 
+          animate={{ scale: [1, 1.12, 1], opacity: [0.4, 0.7, 0.4] }}
+          transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute inset-0 rounded-full bg-gradient-to-r from-pink-500/30 via-brq-gold/30 to-purple-500/30 blur-md"
+        />
+        <div className="relative w-16 h-16 rounded-full bg-gradient-to-br from-pink-500/30 via-purple-600/30 to-brq-gold/30 p-[2px] shadow-lg shadow-purple-500/20 border border-brq-gold/40">
+          <div className="w-full h-full rounded-full bg-slate-950/90 flex flex-col items-center justify-center relative overflow-hidden">
+            <span className="text-2xl filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)]">🩴</span>
+            <Sparkles size={10} className="text-brq-gold absolute top-1 right-2 animate-pulse" />
+          </div>
         </div>
       </div>
     );
@@ -32,13 +33,16 @@ export default function CategoryIcon({ name, className = '' }: CategoryIconProps
   if (normalizedName.includes('half') || normalizedName.includes('هالف') || normalizedName.includes('نصف')) {
     return (
       <div className={`relative flex items-center justify-center ${className}`}>
-        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-amber-500/20 to-brq-gold/30 border border-brq-gold/40 flex items-center justify-center shadow-lg relative overflow-hidden group">
-          <img 
-            src={halfShoesHighHeelImg} 
-            alt={name} 
-            className="w-full h-full object-cover rounded-full group-hover:scale-110 transition-transform duration-300"
-            referrerPolicy="no-referrer"
-          />
+        <motion.div 
+          animate={{ scale: [1, 1.15, 1], opacity: [0.4, 0.8, 0.4] }}
+          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute inset-0 rounded-full bg-gradient-to-r from-amber-500/30 via-brq-gold/40 to-yellow-600/30 blur-md"
+        />
+        <div className="relative w-16 h-16 rounded-full bg-gradient-to-br from-amber-400 via-brq-gold to-yellow-600 p-[2px] shadow-lg shadow-amber-500/20">
+          <div className="w-full h-full rounded-full bg-slate-950/90 flex flex-col items-center justify-center relative overflow-hidden">
+            <span className="text-2xl filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)]">👠</span>
+            <Zap size={10} className="text-amber-300 absolute top-1 left-2 animate-pulse" />
+          </div>
         </div>
       </div>
     );
