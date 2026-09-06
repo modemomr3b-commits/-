@@ -1262,6 +1262,27 @@ export default function ProductManager() {
     }
   };
 
+  const handleCleanShowcaseArchived = async () => {
+    setIsSubmitting(true);
+    try {
+      const targetProds = products.filter(p => (p.isArchived || p.isHidden) && p.isShowcase);
+      if (targetProds.length === 0) {
+        setAlertMessage("المعرض نظيف تماماً، ولا توجد أي مواد نافذة أو مخفية منشورة فيه.");
+        setIsSubmitting(false);
+        return;
+      }
+      const ids = targetProds.map(p => p.id!).filter(Boolean);
+      setProducts(prev => prev.map(p => ids.includes(p.id!) ? { ...p, isShowcase: false } : p));
+      await api.bulkUpdateProducts(ids, { isShowcase: false });
+      setAlertMessage(`تم بنجاح تنظيف المعرض وإزالة ${ids.length} مادة نافذة أو مخفية من العرض.`);
+    } catch (e: any) {
+      console.error(e);
+      setAlertMessage("فشل تنظيف المعرض: " + (e.message || e));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleBulkMoveCategory = async () => {
     if (selectedIds.size === 0 || !moveToCategoryId) return;
     const targetCatId = moveToCategoryId;
@@ -1505,7 +1526,7 @@ export default function ProductManager() {
       archived: products.filter(p => p.isArchived).length,
       locked: products.filter(p => p.isLocked).length,
       duplicates: products.filter(p => duplicatesSet.has(p.modelNumber || p.productCode)).length,
-      showcase: products.filter(p => p.isShowcase).length,
+      showcase: products.filter(p => p.isShowcase && !p.isArchived && !p.isHidden).length,
     };
   }, [products, duplicatesSet]);
 
@@ -1978,6 +1999,15 @@ export default function ProductManager() {
               className="pb-2 px-2.5 text-sm font-bold border-b-2 border-transparent text-brq-gold hover:text-white transition-colors flex items-center gap-1 whitespace-nowrap"
             >
               <Download size={14} /> تحميل جميع الصور (Zip)
+            </button>
+            <button
+              onClick={handleCleanShowcaseArchived}
+              disabled={isSubmitting}
+              className="pb-2 px-2.5 text-xs font-bold border-b-2 border-transparent text-amber-300 hover:text-white transition-colors flex items-center gap-1 whitespace-nowrap bg-amber-500/10 hover:bg-amber-500/20 rounded-t-lg px-3"
+              title="تنظيف المعرض: إزالة أي مادة نافذة أو مخفية من المعرض بضغطة واحدة"
+            >
+              {isSubmitting ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+              <span>تنظيف المعرض من المواد النافذة</span>
             </button>
           </div>
 
