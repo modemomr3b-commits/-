@@ -305,14 +305,6 @@ function UserManagerContent() {
   const onlineUsersCount = users.filter(isUserOnline).length;
   const activeUsersCount = users.filter(u => u.status === 'active').length;
 
-  if (loading) {
-    return (
-      <div className="flex-1 flex justify-center items-center h-[60vh]">
-        <Loader2 className="animate-spin text-brq-gold w-12 h-12" />
-      </div>
-    );
-  }
-
   const handleToggleBlockVisitor = async (visit: { visitorPhone?: string | null; visitorName: string; agentId?: string; agentName?: string }) => {
     const isCurrentlyBlocked = isVisitorInBlockedList(visit.visitorPhone, visit.visitorName, blockedVisitors);
     setIsBlockingLoading(true);
@@ -456,6 +448,14 @@ function UserManagerContent() {
       }))
       .sort((a, b) => b.latestTimestamp - a.latestTimestamp);
   }, [filteredShowcaseVisits, users]);
+
+  if (loading) {
+    return (
+      <div className="flex-1 flex justify-center items-center h-[60vh]">
+        <Loader2 className="animate-spin text-brq-gold w-12 h-12" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
