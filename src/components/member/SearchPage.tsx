@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Search, Lock, SlidersHorizontal, Archive, Download, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Search, Lock, SlidersHorizontal, Archive, Download, Loader2, CheckCircle2, AlertCircle, ShoppingCart } from 'lucide-react';
 import { Link } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
 import { api } from '../../api';
@@ -12,7 +12,7 @@ import { useStore } from '../../store';
 import { isWafaaUser } from '../../utils/wafaaHelper';
 
 export default function SearchPage() {
-  const { user, showToast } = useStore();
+  const { user, showToast, cart, addToCart, updateQuantity, removeFromCart } = useStore();
   const [products, setProducts] = useState<Product[]>([]);
   const [allCategories, setAllCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -382,6 +382,42 @@ export default function SearchPage() {
                                <span className="font-bold text-brq-blue text-xs font-mono">${p.dozenPriceUsd}</span>
                              )}
                            </div>
+                         </div>
+                         <div className="mt-2" onClick={(e) => e.preventDefault()}>
+                           {p.isArchived ? (
+                             <div className="w-full py-1.5 bg-red-950/50 border border-red-500/30 rounded-lg text-red-300 font-medium text-xs text-center cursor-not-allowed">
+                               مادة نافذة (غير قابلة للطلب)
+                             </div>
+                           ) : (() => {
+                             const cartItem = cart.find(item => item.product.id === p.id);
+                             if (cartItem) {
+                               return (
+                                 <div className="flex items-center justify-between w-full h-8 bg-blue-600/30 border border-blue-500/60 rounded-lg">
+                                   <button
+                                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); updateQuantity(p.id!, cartItem.quantity + 1); }}
+                                     className="h-full px-3 text-white hover:bg-blue-600/50 rounded-r-lg transition-colors font-bold cursor-pointer"
+                                   >
+                                     +
+                                   </button>
+                                   <span className="text-white font-bold text-xs">{cartItem.quantity}</span>
+                                   <button
+                                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); if(cartItem.quantity <= 1) { removeFromCart(p.id!); } else { updateQuantity(p.id!, cartItem.quantity - 1); } }}
+                                     className="h-full px-3 text-white hover:bg-blue-600/50 rounded-l-lg transition-colors font-bold cursor-pointer"
+                                   >
+                                     -
+                                   </button>
+                                 </div>
+                               );
+                             }
+                             return (
+                               <button
+                                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); addToCart(p, 1); }}
+                                 className="w-full py-1.5 bg-blue-600/30 hover:bg-blue-600 border border-blue-500/60 rounded-lg text-white font-medium text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                               >
+                                 <ShoppingCart size={14} /> إضافة للسلة
+                               </button>
+                             );
+                           })()}
                          </div>
                       </div>
                     </Link>
