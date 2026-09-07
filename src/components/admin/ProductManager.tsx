@@ -1262,6 +1262,35 @@ export default function ProductManager() {
     }
   };
 
+  const handleBulkToggleLock = async (lock: boolean) => {
+    if (selectedIds.size === 0) return;
+    const ids = Array.from(selectedIds);
+    const targetIdsSet = new Set(ids.map(id => String(id)));
+    setSelectedIds(new Set());
+    setIsSubmitting(true);
+
+    const updatePayload = { isLocked: lock };
+
+    setProducts((prev) =>
+      prev.map((prod) =>
+        targetIdsSet.has(String(prod.id))
+          ? { ...prod, ...updatePayload }
+          : prod
+      )
+    );
+
+    try {
+      await api.bulkUpdateProducts(ids, updatePayload);
+    } catch (e: any) {
+      console.error("Error bulk toggling lock:", e);
+      const updated = await api.getProducts();
+      setProducts(updated);
+      setAlertMessage("فشل التحديث المجمع للقفل: " + (e.message || e));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleCleanShowcaseArchived = async () => {
     setIsSubmitting(true);
     try {
@@ -2153,6 +2182,26 @@ export default function ProductManager() {
                       استرجاع من المواد النافذة
                     </button>
                   )}
+                  {selectedIds.size > 0 && filterStatus !== 'locked' && (
+                    <button
+                      onClick={() => handleBulkToggleLock(true)}
+                      disabled={isSubmitting}
+                      className="flex items-center gap-2 px-4 py-2 bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded-lg text-sm hover:bg-purple-500/30 transition-colors font-bold whitespace-nowrap disabled:opacity-50"
+                    >
+                      {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Lock size={16} />}
+                      نقل للمواد المقفلة
+                    </button>
+                  )}
+                  {selectedIds.size > 0 && filterStatus === 'locked' && (
+                    <button
+                      onClick={() => handleBulkToggleLock(false)}
+                      disabled={isSubmitting}
+                      className="flex items-center gap-2 px-4 py-2 bg-purple-500/20 text-purple-300 border border-purple-500/30 rounded-lg text-sm hover:bg-purple-500/30 transition-colors font-bold whitespace-nowrap disabled:opacity-50"
+                    >
+                      {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Unlock size={16} />}
+                      فك القفل / استرجاع من المقفلة
+                    </button>
+                  )}
                   {selectedIds.size > 0 && (
                     <button
                       onClick={() => handleBulkToggleShowcase(true)}
@@ -2553,6 +2602,7 @@ export default function ProductManager() {
                       }}
                       className="bg-transparent text-brq-gold font-bold text-xs focus:outline-none cursor-pointer"
                     >
+                      <option value={20} className="bg-neutral-900 text-white">20 بطاقة (عرض سريع)</option>
                       <option value={50} className="bg-neutral-900 text-white">50 منتج</option>
                       <option value={100} className="bg-neutral-900 text-white">100 منتج (الافتراضي)</option>
                       <option value={200} className="bg-neutral-900 text-white">200 منتج</option>

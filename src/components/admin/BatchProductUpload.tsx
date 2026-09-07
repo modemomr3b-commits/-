@@ -87,11 +87,11 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
     imageUrl: '',
   });
 
-  // Quick publish locked to maximum 15 cards as requested
-  const MAX_CARDS = 15;
+  // Quick publish locked to maximum 20 cards as requested
+  const MAX_CARDS = 20;
   const [products, setProducts] = useState<Partial<Product>[]>(Array.from({ length: 5 }).map(emptyProduct));
 
-  // Add more cards up to 15
+  // Add more cards up to 20
   const handleAddFiveCards = () => {
     setProducts(prev => {
       const remaining = MAX_CARDS - prev.length;
