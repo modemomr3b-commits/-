@@ -48,7 +48,7 @@ export function extractProductCodes(product: {
   const codes: string[] = [];
   const name = product.name || '';
 
-  // 1. Direct fields if present
+  // 1. Direct fields if present (highest priority)
   if (product.productCode) codes.push(product.productCode.trim());
   if (product.modelNumber) codes.push(product.modelNumber.trim());
   if (product.barcode) codes.push(product.barcode.trim());
@@ -56,33 +56,45 @@ export function extractProductCodes(product: {
   if (name) {
     const trimmed = name.trim();
 
+    // Check for explicit art/code keywords (e.g. "آرت 83649", "كود XD-83649", "رقم 1205")
+    const explicitRegex = /(?:آرت|كود|رقم|ارت|art|code|no|#)[:\s]*([A-Za-z0-9-_/]+)/gi;
+    let explicitMatch;
+    while ((explicitMatch = explicitRegex.exec(trimmed)) !== null) {
+      if (explicitMatch[1] && explicitMatch[1].length >= 2) {
+        codes.push(explicitMatch[1]);
+      }
+    }
+
     // Split words
     const words = trimmed.split(/\s+/);
 
     // Common pattern: The last word in name is often the Art Number (e.g. "رياضة رجالي XD-83649")
     if (words.length > 0) {
       const lastWord = words[words.length - 1];
-      // If last word contains digits or latin letters or hyphen
       if (/[0-9a-zA-Z]/.test(lastWord)) {
-        codes.push(lastWord);
+        // Exclude shoe sizes (36 to 46)
+        const isShoeSize = /^(3[6-9]|4[0-6])$/.test(lastWord);
+        if (!isShoeSize) {
+          codes.push(lastWord);
+        }
       }
     }
 
-    // Extract any token with letters+digits or digits (e.g. XD-83649, AB_12, 83649, M-100)
+    // Extract any token with letters+digits or digits
     const codeRegex = /[A-Za-z0-9]+(?:[-_/.][A-Za-z0-9]+)*/g;
     let match;
     while ((match = codeRegex.exec(trimmed)) !== null) {
       const token = match[0];
-      // Only consider if it has at least 2 chars and contains either a digit or isn't purely a common word
-      if (token.length >= 2 && (/\d/.test(token) || token.length >= 3)) {
-        codes.push(token);
-      }
-    }
+      const isPureDigits = /^\d+$/.test(token);
+      const isShoeSize = isPureDigits && /^(3[6-9]|4[0-6])$/.test(token);
 
-    // Check if there are standalone number sequences
-    const digitMatches = trimmed.match(/\b\d{2,}\b/g);
-    if (digitMatches) {
-      codes.push(...digitMatches);
+      if (!isShoeSize) {
+        if (isPureDigits && token.length >= 3) {
+          codes.push(token);
+        } else if (!isPureDigits && token.length >= 2) {
+          codes.push(token);
+        }
+      }
     }
   }
 
@@ -102,19 +114,15 @@ export function extractProductCodes(product: {
 }
 
 /**
- * Extracts potential Art Numbers / Model Codes from an image filename
- * Examples:
- * - "XD-83649.jpg" -> tokens: ["XD-83649", "XD83649", "83649"]
- * - "IMG_XD-83649_1.png" -> tokens: ["XD-83649", "XD83649"]
- * - "83649 (2).jpeg" -> tokens: ["83649"]
- * - "رياضة رجالي XD-83649.jpg" -> tokens: ["XD-83649", "XD83649", "83649"]
+ * Extracts potential Art Numbers / Model Codes from an image filename with high precision
  */
 export function extractImageCodes(filename: string): ExtractedProductCode {
   // Remove file extension
   const baseName = filename.replace(/\.[^/.]+$/, '').trim();
 
-  // Strip common camera/upload prefixes and suffixes like IMG_, DSC_, (1), (2), _1, _2
+  // Strip common camera prefixes and copy suffixes
   const cleaned = baseName
+    .replace(/^(IMG|DSC|PHOTO|IMAGE|PIC)[-_]/gi, '')
     .replace(/\(\d+\)/g, ' ')
     .replace(/[_-]\d+$/g, '')
     .trim();
@@ -131,19 +139,11 @@ export function extractImageCodes(filename: string): ExtractedProductCode {
     }
   }
 
-  // Extract standalone digits
-  const digitMatches = cleaned.match(/\b\d{2,}\b/g);
+  // Extract standalone digits (at least 3 digits)
+  const digitMatches = cleaned.match(/\b\d{3,}\b/g);
   if (digitMatches) {
     codes.push(...digitMatches);
   }
-
-  // Split words by space
-  const words = cleaned.split(/\s+/);
-  words.forEach(w => {
-    if (w && /[0-9a-zA-Z]/.test(w)) {
-      codes.push(w);
-    }
-  });
 
   const uniqueTokens = Array.from(new Set(codes.map(c => c.trim()).filter(Boolean)));
   const raw = uniqueTokens.join(' ');
@@ -159,8 +159,7 @@ export function extractImageCodes(filename: string): ExtractedProductCode {
 }
 
 /**
- * Checks whether an image matches a product by its Art Number / Code
- * Scoring from 0 to 100 with strict exact-code matching
+ * Checks whether an image matches a product by its Art Number / Code with high precision
  */
 export function calculateMatchScore(
   productCodeInfo: ExtractedProductCode,
@@ -174,7 +173,7 @@ export function calculateMatchScore(
   const pTokens = productCodeInfo.tokens;
   const iTokens = imageCodeInfo.tokens;
 
-  // 1. Exact raw token match (e.g. "YT-8368" === "YT-8368" or "8368" === "8368")
+  // 1. Exact raw token match
   for (const pt of pTokens) {
     for (const it of iTokens) {
       if (pt.toUpperCase() === it.toUpperCase() && pt.length >= 2) {
@@ -183,7 +182,7 @@ export function calculateMatchScore(
     }
   }
 
-  // 2. Exact normalized alphanumeric match (e.g. "YT-8368" === "YT8368" or "KK-8321" === "KK8321")
+  // 2. Exact normalized alphanumeric match (e.g. "XD-83649" === "XD83649")
   for (const pt of pTokens) {
     const normP = normalizeAlphaNumeric(pt);
     if (!normP || normP.length < 2) continue;
@@ -192,14 +191,13 @@ export function calculateMatchScore(
       const normI = normalizeAlphaNumeric(it);
       if (!normI || normI.length < 2) continue;
 
-      // STRICT EQUALITY: both must have the exact same alphanumeric content
       if (normP === normI) {
         return { isMatch: true, score: 98, matchedBy: `تطابق تام للآرت نمبر بدون فواصل: ${pt}` };
       }
     }
   }
 
-  // 3. Image with angle suffix (e.g. "YT-8368_1" or "YT-8368 (2)" matching "YT-8368")
+  // 3. Image with angle suffix (e.g. "XD-83649_1")
   for (const pt of pTokens) {
     const normP = normalizeAlphaNumeric(pt);
     if (!normP || normP.length < 3) continue;
@@ -208,25 +206,12 @@ export function calculateMatchScore(
       const normI = normalizeAlphaNumeric(it);
       if (!normI || normI.length < 3) continue;
 
-      // Check if image filename is exact code followed by angle/number suffix (e.g. YT83681 matching YT8368)
       if (normI.startsWith(normP) && (normI.length === normP.length + 1 || normI.length === normP.length + 2)) {
         return { isMatch: true, score: 92, matchedBy: `تطابق للآرت نمبر مع زاوية/تكرار: ${pt}` };
       }
     }
   }
 
-  // 4. Exact full filename inside product name (whole token boundary only)
-  const normProdName = normalizeCode(productName);
-  const normImgName = normalizeAlphaNumeric(imageCodeInfo.raw);
-  if (normProdName && normImgName && normImgName.length >= 3) {
-    // Check if the exact alphanumeric image name exists as a distinct token in the product name
-    const prodTokens = normProdName.split(/[^A-Z0-9]/).filter(Boolean);
-    if (prodTokens.includes(normImgName)) {
-      return { isMatch: true, score: 90, matchedBy: `تطابق كود الصورة في اسم المنتج: ${imageCodeInfo.raw}` };
-    }
-  }
-
-  // NOTE: Disallow loose partial substring or pure digit overlap (e.g. 8368 matching YT-8368) to prevent collisions
   return { isMatch: false, score: 0, matchedBy: '' };
 }
 
