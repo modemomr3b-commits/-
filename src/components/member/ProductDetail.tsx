@@ -314,6 +314,7 @@ export default function ProductDetail() {
 
   const handleAddToCart = () => {
     if (product) {
+      if (product.isArchived || product.isLocked) return;
       addToCart(product, 1);
     }
   };
@@ -611,7 +612,11 @@ export default function ProductDetail() {
 
               {/* Cart / Add to Order Section */}
               <div className="pt-1">
-                {cartItem ? (
+                {product.isArchived || product.isLocked ? (
+                  <div className="w-full py-3.5 px-4 bg-red-950/50 border border-red-500/30 rounded-xl text-red-300 font-bold text-sm text-center">
+                    مادة نافذة (غير قابلة للطلب)
+                  </div>
+                ) : cartItem ? (
                   <div className="flex items-center justify-between w-full h-13 bg-blue-600/20 border border-blue-500/40 rounded-xl px-3 shadow-lg">
                     <button
                       onClick={() => handleUpdateQuantity(cartItem.quantity + 1)}
@@ -834,7 +839,11 @@ export default function ProductDetail() {
             </div>
 
             {/* Mobile Cart Button */}
-            {cartItem ? (
+            {product.isArchived || product.isLocked ? (
+              <div className="w-full py-2 bg-red-950/50 border border-red-500/30 rounded-lg text-red-300 font-bold text-xs text-center">
+                مادة نافذة (غير قابلة للطلب)
+              </div>
+            ) : cartItem ? (
               <div className="flex items-center justify-between w-full h-10 bg-blue-600/20 border border-blue-500/40 rounded-lg px-2">
                 <button
                   onClick={() => handleUpdateQuantity(cartItem.quantity + 1)}
