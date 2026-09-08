@@ -1,4 +1,4 @@
-import { ShoppingBag, CheckCircle, Send, Plus, Minus, Trash2, ArrowRight, Loader2 } from 'lucide-react';
+import { ShoppingBag, CheckCircle, Send, Plus, Minus, Trash2, ArrowRight, Loader2, AlertCircle, X } from 'lucide-react';
 import { useStore } from '../../store';
 import { useState, useEffect, useRef } from 'react';
 import { compressImage } from '../../utils/compressImage';
@@ -18,6 +18,7 @@ export default function Cart() {
   const [isSharingWhatsapp, setIsSharingWhatsapp] = useState(false);
   const [success, setSuccess] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [errorModal, setErrorModal] = useState<{ isOpen: boolean; message: string }>({ isOpen: false, message: '' });
   const submissionLock = useRef(false);
   const navigate = useNavigate();
 
@@ -35,22 +36,23 @@ export default function Cart() {
     return acc + item.quantity;
   }, 0);
 
+  const checkCartAvailability = async () => {
+    try {
+      const freshProducts = await api.getProductsDirect();
+      const archivedIds = new Set(freshProducts.filter((p: any) => p.isArchived || p.isHidden || p.isLocked || p.isDeleted).map((p: any) => p.id));
+      if (archivedIds.size > 0) {
+        cart.forEach(item => {
+          if (archivedIds.has(item.product.id)) {
+            removeFromCart(item.product.id);
+            // Don't show toast if we're showing the error modal already
+          }
+        });
+      }
+    } catch (e) {}
+  };
+
   useEffect(() => {
     // Validate cart items against fresh store data on mount
-    const checkCartAvailability = async () => {
-      try {
-        const freshProducts = await api.getProductsDirect();
-        const archivedIds = new Set(freshProducts.filter((p: any) => p.isArchived || p.isHidden || p.isLocked || p.isDeleted).map((p: any) => p.id));
-        if (archivedIds.size > 0) {
-          cart.forEach(item => {
-            if (archivedIds.has(item.product.id)) {
-              removeFromCart(item.product.id);
-              showToast(`تمت إزالة المنتج (كود: ${item.product.productCode || item.product.modelNumber || '---'}) لأنه أصبح نافذاً وغير قابل للطلب.`, 'error');
-            }
-          });
-        }
-      } catch (e) {}
-    };
     checkCartAvailability();
   }, []);
 
@@ -103,7 +105,11 @@ export default function Cart() {
       });
     } catch (saveErr: any) {
       console.error("Failed to save order to database:", saveErr);
-      alert(saveErr.message || "عذراً، بعض المنتجات في السلة نافذة وغير قابلة للطلب.");
+      setErrorModal({ isOpen: true, message: saveErr.message || "عذراً، بعض المنتجات في السلة نافذة وغير قابلة للطلب." });
+      
+      // Auto-remove archived/hidden products from the cart
+      await checkCartAvailability();
+
       submissionLock.current = false;
       setIsSharingWhatsapp(false);
       return;
@@ -227,7 +233,11 @@ export default function Cart() {
       setSuccess(true);
     } catch(e: any) {
       console.error(e);
-      alert(e.message || 'حدث خطأ أثناء إرسال الطلبية، يرجى المحاولة مرة أخرى.');
+      setErrorModal({ isOpen: true, message: e.message || 'حدث خطأ أثناء إرسال الطلبية، يرجى المحاولة مرة أخرى.' });
+      
+      // Auto-remove archived/hidden products from the cart
+      await checkCartAvailability();
+
       submissionLock.current = false;
       setIsSubmitting(false);
     } finally {
@@ -392,6 +402,31 @@ export default function Cart() {
             )}
          </button>
       </div>
+
+      {/* Error Modal */}
+      {errorModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-[#141002] border-2 border-brq-gold/50 rounded-2xl p-6 w-full max-w-md shadow-2xl animate-in fade-in zoom-in duration-200">
+            <div className="flex justify-center mb-4 text-brq-gold">
+              <AlertCircle size={48} strokeWidth={1.5} />
+            </div>
+            
+            <h3 className="text-xl font-bold text-white text-center mb-4">تنبيه</h3>
+            
+            <p className="text-white/80 text-center leading-relaxed mb-8">
+              {errorModal.message}
+            </p>
+            
+            <button
+              onClick={() => setErrorModal({ isOpen: false, message: '' })}
+              className="w-full flex items-center justify-center py-3 bg-gradient-to-r from-brq-gold to-yellow-600 hover:from-yellow-500 hover:to-yellow-500 text-black rounded-xl font-bold transition-all"
+            >
+              حسناً
+            </button>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
