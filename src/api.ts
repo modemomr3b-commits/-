@@ -967,6 +967,23 @@ export const api = {
     });
   },
   createOrder: async (data: any) => { 
+    const rawItems = data.products || data.items || [];
+    for (const item of rawItems) {
+      const prodId = item.productId || item.product?.id;
+      if (prodId) {
+        const { data: dbProd } = await supabase.from('products').select('id, size, isArchived, productCode, modelNumber, name').match({ id: prodId }).single();
+        if (dbProd) {
+          const isArchived = dbProd.isArchived || dbProd.size?.isArchived;
+          const isLocked = dbProd.size?.isLocked;
+          const isHidden = dbProd.size?.isHidden;
+          const code = dbProd.productCode || dbProd.modelNumber || dbProd.name || prodId;
+          if (isArchived || isLocked || isHidden) {
+            throw new Error(`عذراً، المنتج (كود: ${code}) نافذ وغير قابل للطلب حالياً.`);
+          }
+        }
+      }
+    }
+
     const safeData: any = {};
     if (data.id) safeData.id = data.id;
     if (data.orderNumber !== undefined) safeData.orderNumber = data.orderNumber;

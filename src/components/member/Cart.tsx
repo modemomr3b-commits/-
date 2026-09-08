@@ -35,6 +35,25 @@ export default function Cart() {
     return acc + item.quantity;
   }, 0);
 
+  useEffect(() => {
+    // Validate cart items against fresh store data on mount
+    const checkCartAvailability = async () => {
+      try {
+        const freshProducts = await api.getProductsDirect();
+        const archivedIds = new Set(freshProducts.filter((p: any) => p.isArchived || p.isHidden || p.isLocked || p.isDeleted).map((p: any) => p.id));
+        if (archivedIds.size > 0) {
+          cart.forEach(item => {
+            if (archivedIds.has(item.product.id)) {
+              removeFromCart(item.product.id);
+              showToast(`تمت إزالة المنتج (كود: ${item.product.productCode || item.product.modelNumber || '---'}) لأنه أصبح نافذاً وغير قابل للطلب.`, 'error');
+            }
+          });
+        }
+      } catch (e) {}
+    };
+    checkCartAvailability();
+  }, []);
+
   const handleWhatsAppShare = async () => {
     if (cart.length === 0 || isSharingWhatsapp || isSubmitting || submissionLock.current) return;
     submissionLock.current = true;
@@ -82,8 +101,12 @@ export default function Cart() {
          message: `طلب واتساب جديد من: ${customerName || user?.fullName || user?.username || 'زبون'}`,
          type: 'order'
       });
-    } catch (saveErr) {
+    } catch (saveErr: any) {
       console.error("Failed to save order to database:", saveErr);
+      alert(saveErr.message || "عذراً، بعض المنتجات في السلة نافذة وغير قابلة للطلب.");
+      submissionLock.current = false;
+      setIsSharingWhatsapp(false);
+      return;
     }
 
     let filesArray: File[] = [];
@@ -202,9 +225,9 @@ export default function Cart() {
 
       clearCart();
       setSuccess(true);
-    } catch(e) {
+    } catch(e: any) {
       console.error(e);
-      alert('حدث خطأ أثناء إرسال الطلبية، يرجى المحاولة مرة أخرى.');
+      alert(e.message || 'حدث خطأ أثناء إرسال الطلبية، يرجى المحاولة مرة أخرى.');
       submissionLock.current = false;
       setIsSubmitting(false);
     } finally {
