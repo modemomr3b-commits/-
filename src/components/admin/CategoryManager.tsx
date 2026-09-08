@@ -229,29 +229,31 @@ export default function CategoryManager() {
 
     setUploadingImageId(id);
     try {
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const base64 = reader.result as string;
-        const uploadedUrl = await api.uploadImage(base64);
-        
-        await api.updateCategory(id, { imageUrl: uploadedUrl });
-        await api.logAction({
-          userId: user?.uid || "",
-          userName: user?.username || "System",
-          action: "تعديل صورة القسم",
-          entityType: "category",
-          entityId: id,
-        });
-        const updated = await api.getCategories();
-        setCategories(updated);
-        setUploadingImageId(null);
-        if (fileInputRef.current) fileInputRef.current.value = '';
-      };
-      reader.readAsDataURL(file);
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      const uploadedUrl = await api.uploadImage(base64);
+      
+      await api.updateCategory(id, { imageUrl: uploadedUrl });
+      await api.logAction({
+        userId: user?.uid || "",
+        userName: user?.username || "System",
+        action: "تعديل صورة القسم",
+        entityType: "category",
+        entityId: id,
+      });
+      const updated = await api.getCategories();
+      setCategories(updated);
     } catch (err: any) {
       console.error(err);
-      alert("حدث خطأ أثناء رفع الصورة");
+      alert("حدث خطأ أثناء رفع الصورة: " + (err.message || ""));
+    } finally {
       setUploadingImageId(null);
+      targetUploadIdRef.current = null;
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
