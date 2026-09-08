@@ -210,9 +210,20 @@ export default function CategoryManager() {
   const [editingCatId, setEditingCatId] = useState<string | null>(null);
   const [editCatName, setEditCatName] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const targetUploadIdRef = useRef<string | null>(null);
   const [uploadingImageId, setUploadingImageId] = useState<string | null>(null);
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, id: string) => {
+  const triggerImageUpload = (id: string) => {
+    targetUploadIdRef.current = id;
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+
+  const handleGlobalImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const id = targetUploadIdRef.current;
+    if (!id) return;
+
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -233,16 +244,15 @@ export default function CategoryManager() {
         });
         const updated = await api.getCategories();
         setCategories(updated);
+        setUploadingImageId(null);
+        if (fileInputRef.current) fileInputRef.current.value = '';
       };
       reader.readAsDataURL(file);
     } catch (err: any) {
       console.error(err);
       alert("حدث خطأ أثناء رفع الصورة");
-    } finally {
       setUploadingImageId(null);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -455,6 +465,13 @@ export default function CategoryManager() {
 
   return (
     <div className="space-y-6">
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        onChange={handleGlobalImageUpload} 
+        className="hidden" 
+        accept="image/*" 
+      />
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-white mb-1">إدارة الأقسام</h2>
@@ -536,18 +553,9 @@ export default function CategoryManager() {
                                 <Edit size={14} />
                             </button>
                             <div className="relative">
-                              <button onClick={() => { setUploadingImageId(c.id!); fileInputRef.current?.click(); }} className="text-white/30 hover:text-brq-gold transition-colors p-1" title="تعديل صورة القسم">
+                              <button onClick={() => triggerImageUpload(c.id!)} className="text-white/30 hover:text-brq-gold transition-colors p-1" title="تعديل صورة القسم">
                                   {uploadingImageId === c.id ? <Loader2 size={14} className="animate-spin text-brq-gold" /> : <ImageIcon size={14} />}
                               </button>
-                              {uploadingImageId === c.id && (
-                                <input 
-                                  type="file" 
-                                  ref={fileInputRef} 
-                                  onChange={(e) => handleImageUpload(e, c.id!)} 
-                                  className="hidden" 
-                                  accept="image/*" 
-                                />
-                              )}
                             </div>
                         </h3>
                     )}
@@ -679,7 +687,7 @@ export default function CategoryManager() {
                         
                         <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 z-10 relative">
                           <button
-                              onClick={() => { setUploadingImageId(sub.id!); fileInputRef.current?.click(); }} 
+                              onClick={() => triggerImageUpload(sub.id!)} 
                               className="text-brq-gold p-1 hover:bg-white/10 rounded" 
                               title="تعديل أيقونة القسم الفرعي"
                           >
