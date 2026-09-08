@@ -258,6 +258,35 @@ export const api = {
 
     return [];
   },
+
+  getProductsDirect: async () => {
+    delete memCache['all_products'];
+    await localCache.remove('all_products').catch(() => {});
+    const data = await getData('products');
+    if (!data) return [];
+    const mapProduct = (p: any) => ({
+      ...p,
+      packaging: p.packaging !== undefined && p.packaging !== null && p.packaging !== '' && p.packaging !== '---'
+        ? String(p.packaging)
+        : (p.size?.packaging || (p.piecesCount ? String(p.piecesCount) : (p.size?.piecesCount ? String(p.size.piecesCount) : ''))),
+      piecesCount: p.piecesCount !== undefined && p.piecesCount !== null
+        ? Number(p.piecesCount)
+        : (p.size?.piecesCount !== undefined ? Number(p.size.piecesCount) : undefined),
+      isHidden: p.size?.isHidden !== undefined ? Boolean(p.size.isHidden) : Boolean(p.isHidden),
+      isLocked: p.size?.isLocked !== undefined ? Boolean(p.size.isLocked) : Boolean(p.isLocked),
+      isArchived: p.isArchived !== undefined ? Boolean(p.isArchived) : (p.size?.isArchived !== undefined ? Boolean(p.size.isArchived) : false),
+      isDeleted: Boolean(p.isDeleted),
+      isShowcase: p.size?.isShowcase !== undefined ? Boolean(p.size.isShowcase) : Boolean(p.isShowcase),
+      showcaseCategory: p.size?.showcaseCategory || p.showcaseCategory || '',
+      oldPriceInfo: p.size?.oldPriceInfo || undefined,
+      forceStandardCrush: p.size?.forceStandardCrush ?? true,
+      updatedAt: p.size?.updatedAt || p.createdAt
+    });
+    const res = data.map(mapProduct).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    memCache['all_products'] = { data: res, timestamp: Date.now() };
+    localCache.set('all_products', res).catch(() => {});
+    return res;
+  },
   createProduct: async (data: any) => { 
     const serverTime = await getServerTime();
     const safeData = { ...data, createdAt: data.createdAt || serverTime, updatedAt: data.updatedAt || serverTime };

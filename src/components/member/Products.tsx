@@ -134,19 +134,19 @@ export default function Products() {
     setReadyFilesToShare(null);
   }, [selectedIds]);
 
-  const fetchProducts = async () => {
+  const fetchProducts = async (forceDirect = false) => {
     try {
       const cats = await api.getCategories();
       setAllCategories(cats);
       
-      const allStore = await api.getProducts();
+      const allStore = forceDirect ? await api.getProductsDirect() : await api.getProducts();
       const activeStore: Product[] = allStore.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, cats));
       const shuffledStore = shuffleProductsForUser<Product>(activeStore);
       setAllStoreProducts(shuffledStore);
       
       let allProducts = [];
       if (categoryId) {
-        allProducts = await api.getProductsByCategory(categoryId);
+        allProducts = forceDirect ? await api.getProductsByCategoryDirect(categoryId) : await api.getProductsByCategory(categoryId);
       } else {
         allProducts = activeStore;
       }
@@ -213,10 +213,10 @@ export default function Products() {
 
     // Instant local BroadcastChannel synchronization across tabs
     let fetchTimeout: any = null;
-    const scheduleFetch = (delay = 1200) => {
+    const scheduleFetch = (delay = 400) => {
       clearTimeout(fetchTimeout);
       fetchTimeout = setTimeout(() => {
-        if (mounted) fetchProducts();
+        if (mounted) fetchProducts(true);
       }, delay);
     };
 
