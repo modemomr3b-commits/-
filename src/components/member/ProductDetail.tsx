@@ -76,7 +76,7 @@ export default function ProductDetail() {
         const found = await api.getProductById(productId as string);
         if (mounted) {
           const isStaff = user?.role === 'admin' || user?.role === 'sales';
-          if (found && !isStaff && (found.isHidden || found.isDeleted)) {
+          if (found && !isStaff && (found.isHidden || found.isDeleted || found.isArchived || found.isLocked)) {
             setProduct(null);
             setLoading(false);
             return;
@@ -100,8 +100,47 @@ export default function ProductDetail() {
       }
     };
     fetchProductAndSiblings();
-    return () => { mounted = false; };
-  }, [productId]);
+
+    // Listen for real-time updates to this product
+    let bc: any = null;
+    try {
+      if (typeof window !== 'undefined' && (window as any).BroadcastChannel) {
+        bc = new (window as any).BroadcastChannel('brq_products_sync');
+        bc.onmessage = (event: MessageEvent) => {
+          if (event.data && (event.data.type === 'PRODUCT_UPDATED' || event.data.type === 'PRODUCTS_BULK_UPDATED')) {
+            if (event.data.id === productId || (event.data.ids && event.data.ids.includes(productId))) {
+              fetchProductAndSiblings();
+            }
+          }
+        };
+      }
+    } catch {}
+
+    const channel = supabase
+      .channel(`product_detail_${productId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'products', filter: `id=eq.${productId}` }, () => {
+        fetchProductAndSiblings();
+      })
+      .on('broadcast', { event: 'product_changed' }, ({ payload }) => {
+        if (payload && (payload.id === productId || payload.productId === productId)) {
+          fetchProductAndSiblings();
+        }
+      })
+      .on('broadcast', { event: 'bulk_updated' }, ({ payload }) => {
+        if (payload && payload.ids && payload.ids.includes(productId)) {
+          fetchProductAndSiblings();
+        }
+      })
+      .subscribe();
+
+    return () => {
+      mounted = false;
+      supabase.removeChannel(channel);
+      if (bc) {
+        try { bc.close(); } catch {}
+      }
+    };
+  }, [productId, user]);
 
   // Close helper that reliably returns the user to where they came from
   const handleClose = () => {
