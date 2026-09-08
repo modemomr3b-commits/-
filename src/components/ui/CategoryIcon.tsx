@@ -11,8 +11,24 @@ interface CategoryIconProps {
 export default function CategoryIcon({ name, icon, className = '' }: CategoryIconProps) {
   if (icon) {
     return (
-      <div className={`w-16 h-16 rounded-full overflow-hidden bg-black/40 border border-white/10 shadow-inner flex items-center justify-center ${className}`}>
-        <img src={icon} alt={name} className="w-full h-full object-cover" />
+      <div className={`relative flex items-center justify-center group ${className}`}>
+        {/* Subtle pulsating outer glow */}
+        <motion.div
+          animate={{ scale: [1, 1.15, 1], opacity: [0.2, 0.4, 0.2] }}
+          transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute inset-0 rounded-full bg-brq-gold/30 blur-md pointer-events-none"
+        />
+        {/* Rotating gradient border effect using a wrapper */}
+        <div className="relative w-16 h-16 rounded-full p-[2px] bg-gradient-to-br from-brq-gold/60 via-black to-brq-gold/30 shadow-[0_0_15px_rgba(212,175,55,0.2)] z-10 overflow-hidden">
+           {/* Inner container to hold the image and clip it to a circle */}
+           <div className="w-full h-full rounded-full overflow-hidden bg-[#111] relative border border-black/50">
+             <img src={icon} alt={name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+             {/* Glossy overlay */}
+             <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent pointer-events-none" />
+           </div>
+        </div>
+        {/* Tiny sparkling accessory */}
+        <Sparkles size={14} className="absolute -top-1 -right-1 text-brq-gold opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-20" />
       </div>
     );
   }
