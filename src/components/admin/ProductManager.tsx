@@ -2344,7 +2344,7 @@ export default function ProductManager() {
                   ) : (
                     paginatedProducts.map((p) => (
                       <tr
-                        key={p.id}
+                        key={`${p.id}-mgr`}
                         className={`hover:bg-white/5 transition-colors ${selectedIds.has(p.id!) ? "bg-brq-gold/5" : ""}`}
                       >
                         <td className="p-4">

@@ -272,7 +272,7 @@ export default function SearchPage() {
              ) : (
                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                  {filteredProducts.map(p => (
-                    <Link to={`/product/${p.id}`} state={{ product: p }} key={p.id} className="rounded-2xl overflow-hidden flex flex-col border-2 border-yellow-500/50 relative group hover:border-yellow-400 transition-all shadow-lg hover:shadow-[0_8px_30px_rgba(234,179,8,0.28)] bg-gradient-to-b from-[#2B2304] to-[#141002]"
+                    <Link to={`/product/${p.id}`} state={{ product: p }} key={`${p.id}-srch`} className="rounded-2xl overflow-hidden flex flex-col border-2 border-yellow-500/50 relative group hover:border-yellow-400 transition-all shadow-lg hover:shadow-[0_8px_30px_rgba(234,179,8,0.28)] bg-gradient-to-b from-[#2B2304] to-[#141002]"
                           onClick={() => {
                             sessionStorage.setItem('return_search', 'true');
                             sessionStorage.setItem('return_search_page', currentPage.toString());

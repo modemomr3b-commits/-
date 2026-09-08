@@ -1247,4 +1247,25 @@ export const api = {
 
     return merged;
   },
+
+  forceRefreshAll: async () => {
+    delete memCache['all_products'];
+    await localCache.remove('all_products').catch(() => {});
+    await localCache.remove('all_categories').catch(() => {});
+    try {
+      if (typeof window !== 'undefined' && (window as any).BroadcastChannel) {
+        const bc = new (window as any).BroadcastChannel('brq_products_sync');
+        bc.postMessage({ type: 'FORCE_REFRESH', timestamp: Date.now() });
+        bc.close();
+      }
+    } catch {}
+    try {
+      await supabase.channel('products_changes').send({
+        type: 'broadcast',
+        event: 'force_refresh',
+        payload: { timestamp: Date.now() }
+      });
+    } catch {}
+    return { success: true };
+  },
 };

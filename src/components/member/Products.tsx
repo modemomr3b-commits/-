@@ -948,12 +948,12 @@ export default function Products() {
         </div>
       ) : (
         <div className={`pb-24 transition-all duration-300 ${gridClass}`}>
-          {filteredProducts.map((p) => {
+          {filteredProducts.map((p, idx) => {
             const isWafaa = isWafaaUser(user);
             const isExpanded = isWafaa ? !!expandedProducts[p.id!] : true;
             return (
             <Link to={`/product/${p.id}`} state={{ product: p }}
-              key={p.id}
+              key={`${p.id}-${idx}`}
               className={`rounded-2xl overflow-hidden flex flex-col justify-between h-full relative group transition-all shadow-xl bg-gradient-to-b from-[#2B2304] to-[#141002] border-2 border-yellow-500/50 hover:border-yellow-400 hover:shadow-[0_8px_30px_rgba(234,179,8,0.28)] ${
                 selectedIds.has(p.id!) ? "ring-2 ring-blue-500" : ""
               }`}
