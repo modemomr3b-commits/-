@@ -188,11 +188,10 @@ export const api = {
   },
 
   getProducts: async () => {
-    const cacheKey = 'all_products';
-    if (memCache[cacheKey] && Date.now() - memCache[cacheKey].timestamp < MEM_CACHE_TTL) {
-      return memCache[cacheKey].data;
-    }
+    return api.getProductsDirect();
+  },
 
+  getProductsDirect: async () => {
     const mapProduct = (p: any) => ({
       ...p,
       packaging: p.packaging !== undefined && p.packaging !== null && p.packaging !== '' && p.packaging !== '---'
@@ -211,81 +210,30 @@ export const api = {
       forceStandardCrush: p.size?.forceStandardCrush ?? true,
       updatedAt: p.size?.updatedAt || p.createdAt
     });
-
-    // Check fast local cache
-    const localData = await localCache.get<any[]>(cacheKey, 1000 * 60 * 10);
-    if (localData && localData.length > 0) {
-      memCache[cacheKey] = { data: localData.map(mapProduct), timestamp: Date.now() };
-      // Background revalidation
-      setTimeout(async () => {
-        try {
-          const freshData = await getData('products');
-          if (freshData && freshData.length > 0) {
-            const res = freshData.map(mapProduct).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-            memCache[cacheKey] = { data: res, timestamp: Date.now() };
-            localCache.set(cacheKey, res).catch(() => {});
-          }
-        } catch (e) {
-          console.warn('Background products revalidation failed, keeping cache:', e);
-        }
-      }, 50);
-      return localData.map(mapProduct);
-    }
 
     try {
       const data = await getData('products');
       if (data && data.length > 0) {
         const res = data.map(mapProduct).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-        memCache[cacheKey] = { data: res, timestamp: Date.now() };
-        localCache.set(cacheKey, res).catch(() => {});
+        memCache['all_products'] = { data: res, timestamp: Date.now() };
+        localCache.set('all_products', res).catch(() => {});
         return res;
       }
-    } catch (fetchErr) {
-      console.warn('Direct fetch products failed, attempting persistent cache fallback:', fetchErr);
+    } catch (networkErr) {
+      console.warn('Network fetch failed, falling back to cached local storage version:', networkErr);
     }
 
-    // Fallback to localCache even if older than TTL
-    const fallbackLocal = await localCache.get<any[]>(cacheKey, Infinity);
+    // Fallback to cache if network fails (لا سامح الله صارت مشكلة)
+    const fallbackLocal = await localCache.get<any[]>('all_products', Infinity);
     if (fallbackLocal && fallbackLocal.length > 0) {
-      const res = fallbackLocal.map(mapProduct);
-      memCache[cacheKey] = { data: res, timestamp: Date.now() };
-      return res;
+      return fallbackLocal.map(mapProduct);
     }
 
-    if (memCache[cacheKey]?.data?.length) {
-      return memCache[cacheKey].data;
+    if (memCache['all_products']?.data?.length) {
+      return memCache['all_products'].data;
     }
 
     return [];
-  },
-
-  getProductsDirect: async () => {
-    delete memCache['all_products'];
-    await localCache.remove('all_products').catch(() => {});
-    const data = await getData('products');
-    if (!data) return [];
-    const mapProduct = (p: any) => ({
-      ...p,
-      packaging: p.packaging !== undefined && p.packaging !== null && p.packaging !== '' && p.packaging !== '---'
-        ? String(p.packaging)
-        : (p.size?.packaging || (p.piecesCount ? String(p.piecesCount) : (p.size?.piecesCount ? String(p.size.piecesCount) : ''))),
-      piecesCount: p.piecesCount !== undefined && p.piecesCount !== null
-        ? Number(p.piecesCount)
-        : (p.size?.piecesCount !== undefined ? Number(p.size.piecesCount) : undefined),
-      isHidden: p.size?.isHidden !== undefined ? Boolean(p.size.isHidden) : Boolean(p.isHidden),
-      isLocked: p.size?.isLocked !== undefined ? Boolean(p.size.isLocked) : Boolean(p.isLocked),
-      isArchived: p.isArchived !== undefined ? Boolean(p.isArchived) : (p.size?.isArchived !== undefined ? Boolean(p.size.isArchived) : false),
-      isDeleted: Boolean(p.isDeleted),
-      isShowcase: p.size?.isShowcase !== undefined ? Boolean(p.size.isShowcase) : Boolean(p.isShowcase),
-      showcaseCategory: p.size?.showcaseCategory || p.showcaseCategory || '',
-      oldPriceInfo: p.size?.oldPriceInfo || undefined,
-      forceStandardCrush: p.size?.forceStandardCrush ?? true,
-      updatedAt: p.size?.updatedAt || p.createdAt
-    });
-    const res = data.map(mapProduct).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-    memCache['all_products'] = { data: res, timestamp: Date.now() };
-    localCache.set('all_products', res).catch(() => {});
-    return res;
   },
   createProduct: async (data: any) => { 
     const serverTime = await getServerTime();

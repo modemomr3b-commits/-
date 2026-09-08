@@ -511,7 +511,6 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
       setIsSubmitting(true);
 
       // 2. Safe Throttled Processing: Upload/burn/save in small sequential batches of 3
-      // Set isHidden: true so products are inactive by default until enabled by the admin
       for (let i = 0; i < validProducts.length; i += 3) {
         const batch = validProducts.slice(i, i + 3);
         await Promise.all(
