@@ -700,6 +700,9 @@ export default function Products() {
                       : "bg-white/10 text-white/70 hover:bg-white/20"
                   }`}
                 >
+                  {sub.icon && (
+                    <img src={sub.icon} alt={sub.name} className="w-4 h-4 rounded-full object-cover shrink-0" />
+                  )}
                   <span>{sub.name}</span>
                   {isAdminOrSales && (
                     <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${activeSub === sub.id ? 'bg-black/20 text-black' : 'bg-white/10 text-brq-gold'}`}>

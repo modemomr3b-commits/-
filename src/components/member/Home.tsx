@@ -429,7 +429,7 @@ export default function Home() {
                       <span className="text-[10px] text-white/60">منتج</span>
                     </div>
                   )}
-                  <CategoryIcon name={cat.name} className="group-hover:scale-110 transition-transform duration-300" />
+                  <CategoryIcon name={cat.name} icon={cat.icon || (cat as any).imageUrl} className="group-hover:scale-110 transition-transform duration-300" />
                   <div className="text-center">
                     <h3 className="font-bold text-lg group-hover:text-brq-gold transition-colors">
                       {cat.name}

@@ -4,10 +4,19 @@ import { Flame, Sun, Sparkles, ShoppingBag, Award, Zap } from 'lucide-react';
 
 interface CategoryIconProps {
   name: string;
+  icon?: string | null;
   className?: string;
 }
 
-export default function CategoryIcon({ name, className = '' }: CategoryIconProps) {
+export default function CategoryIcon({ name, icon, className = '' }: CategoryIconProps) {
+  if (icon) {
+    return (
+      <div className={`w-16 h-16 rounded-full overflow-hidden bg-black/40 border border-white/10 shadow-inner flex items-center justify-center ${className}`}>
+        <img src={icon} alt={name} className="w-full h-full object-cover" />
+      </div>
+    );
+  }
+
   const normalizedName = (name || '').trim().toLowerCase();
 
   // 1. الجديد شحاطة الوفاء / شحاطة الوفاء / شحاطة / شحاطات
