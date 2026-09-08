@@ -723,29 +723,30 @@ export const api = {
   // CATEGORIES
   getCategories: async () => {
     const cacheKey = 'all_categories';
-    if (memCache[cacheKey] && Date.now() - memCache[cacheKey].timestamp < MEM_CACHE_TTL) {
-      return memCache[cacheKey].data;
+    
+    try {
+      const fresh = await getData('categories');
+      if (fresh && fresh.length > 0) {
+        memCache[cacheKey] = { data: fresh, timestamp: Date.now() };
+        localCache.set(cacheKey, fresh).catch(() => {});
+        return fresh;
+      }
+    } catch (networkErr) {
+      console.warn('Network fetch failed, falling back to cached local storage version:', networkErr);
     }
 
-    const localCats = await localCache.get<any[]>(cacheKey, 1000 * 60 * 15);
+    // Fallback to cache if network fails
+    const localCats = await localCache.get<any[]>(cacheKey, Infinity);
     if (localCats && localCats.length > 0) {
       memCache[cacheKey] = { data: localCats, timestamp: Date.now() };
-      setTimeout(async () => {
-        try {
-          const fresh = await getData('categories');
-          if (fresh && fresh.length > 0) {
-            memCache[cacheKey] = { data: fresh, timestamp: Date.now() };
-            localCache.set(cacheKey, fresh).catch(() => {});
-          }
-        } catch {}
-      }, 50);
       return localCats;
     }
 
-    const res = await getData('categories');
-    memCache[cacheKey] = { data: res, timestamp: Date.now() };
-    localCache.set(cacheKey, res).catch(() => {});
-    return res;
+    if (memCache[cacheKey]?.data?.length) {
+      return memCache[cacheKey].data;
+    }
+
+    return [];
   },
   createCategory: async (data: any) => { 
     const { data: r, error } = await supabase.from('categories').insert(data).select().single(); 
@@ -1197,10 +1198,9 @@ export const api = {
   },
 
   forceRefreshAll: async () => {
-    delete memCache['all_products'];
-    await localCache.remove('all_products').catch(() => {});
-    await localCache.remove('all_categories').catch(() => {});
     try {
+      await api.getProductsDirect();
+      await api.getCategories();
       if (typeof window !== 'undefined' && (window as any).BroadcastChannel) {
         const bc = new (window as any).BroadcastChannel('brq_products_sync');
         bc.postMessage({ type: 'FORCE_REFRESH', timestamp: Date.now() });
