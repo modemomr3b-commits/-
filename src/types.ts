@@ -33,6 +33,7 @@ export interface Category extends BaseEntity {
   order: number;
   parentId: string | null;
   isHidden?: boolean;
+  imageUrl?: string;
 }
 
 export interface Product extends BaseEntity {

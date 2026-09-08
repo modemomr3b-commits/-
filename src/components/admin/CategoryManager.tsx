@@ -12,8 +12,9 @@ import {
   Download,
   CheckCircle,
   AlertCircle,
+  Image as ImageIcon
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { api } from "../../api";
 import { supabase } from "../../supabase";
@@ -208,6 +209,42 @@ export default function CategoryManager() {
   const [newSubName, setNewSubName] = useState("");
   const [editingCatId, setEditingCatId] = useState<string | null>(null);
   const [editCatName, setEditCatName] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingImageId, setUploadingImageId] = useState<string | null>(null);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, id: string) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingImageId(id);
+    try {
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64 = reader.result as string;
+        const uploadedUrl = await api.uploadImage(base64);
+        
+        await api.updateCategory(id, { imageUrl: uploadedUrl });
+        await api.logAction({
+          userId: user?.uid || "",
+          userName: user?.username || "System",
+          action: "تعديل صورة القسم",
+          entityType: "category",
+          entityId: id,
+        });
+        const updated = await api.getCategories();
+        setCategories(updated);
+      };
+      reader.readAsDataURL(file);
+    } catch (err: any) {
+      console.error(err);
+      alert("حدث خطأ أثناء رفع الصورة");
+    } finally {
+      setUploadingImageId(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
 
   const handleSaveEdit = async (id: string, oldName: string) => {
     if (!editCatName.trim() || editCatName === oldName || isSubmitting) {
@@ -472,8 +509,12 @@ export default function CategoryManager() {
                   className={`flex flex-col md:flex-row justify-between md:items-center gap-4 ${c.isHidden ? "opacity-50" : ""}`}
                 >
                   <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-brq-gold font-bold">
-                      {c.order}
+                    <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center text-brq-gold font-bold overflow-hidden border border-white/10 shrink-0">
+                      {c.imageUrl ? (
+                        <img src={c.imageUrl} alt={c.name} className="w-full h-full object-cover" />
+                      ) : (
+                        c.order
+                      )}
                     </div>
                     <div>
                       {editingCatId === c.id ? (
@@ -491,9 +532,23 @@ export default function CategoryManager() {
                     ) : (
                         <h3 className="font-bold text-lg flex items-center gap-2">
                             {c.name}
-                            <button onClick={() => { setEditingCatId(c.id!); setEditCatName(c.name); }} className="text-white/30 hover:text-white/80 transition-colors p-1">
+                            <button onClick={() => { setEditingCatId(c.id!); setEditCatName(c.name); }} className="text-white/30 hover:text-white/80 transition-colors p-1" title="تعديل الاسم">
                                 <Edit size={14} />
                             </button>
+                            <div className="relative">
+                              <button onClick={() => { setUploadingImageId(c.id!); fileInputRef.current?.click(); }} className="text-white/30 hover:text-brq-gold transition-colors p-1" title="تعديل صورة القسم">
+                                  {uploadingImageId === c.id ? <Loader2 size={14} className="animate-spin text-brq-gold" /> : <ImageIcon size={14} />}
+                              </button>
+                              {uploadingImageId === c.id && (
+                                <input 
+                                  type="file" 
+                                  ref={fileInputRef} 
+                                  onChange={(e) => handleImageUpload(e, c.id!)} 
+                                  className="hidden" 
+                                  accept="image/*" 
+                                />
+                              )}
+                            </div>
                         </h3>
                     )}
                       <p className="text-xs text-white/50">
@@ -607,10 +662,29 @@ export default function CategoryManager() {
                             }}
                           ></div>
                         )}
-                        <span className="text-sm font-semibold z-10 relative">
-                          {sub.name}
-                        </span>
+                        <div className="flex items-center gap-2 z-10 relative">
+                          {sub.imageUrl ? (
+                            <div className="w-8 h-8 rounded-full overflow-hidden border border-white/10 shrink-0">
+                               <img src={sub.imageUrl} alt={sub.name} className="w-full h-full object-cover" />
+                            </div>
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-white/5 border border-white/10 shrink-0 flex items-center justify-center text-xs text-white/50">
+                               {sub.name.substring(0, 1)}
+                            </div>
+                          )}
+                          <span className="text-sm font-semibold">
+                            {sub.name}
+                          </span>
+                        </div>
+                        
                         <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 z-10 relative">
+                          <button
+                              onClick={() => { setUploadingImageId(sub.id!); fileInputRef.current?.click(); }} 
+                              className="text-brq-gold p-1 hover:bg-white/10 rounded" 
+                              title="تعديل أيقونة القسم الفرعي"
+                          >
+                              {uploadingImageId === sub.id ? <Loader2 size={14} className="animate-spin text-brq-gold" /> : <ImageIcon size={14} />}
+                          </button>
                           <button
                             onClick={() =>
                               handleDownloadCategory(sub.id!, sub.name, true)
