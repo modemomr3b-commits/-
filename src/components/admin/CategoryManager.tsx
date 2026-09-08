@@ -238,7 +238,7 @@ export default function CategoryManager() {
 
       const uploadedUrl = await api.uploadImage(base64);
       
-      await api.updateCategory(id, { imageUrl: uploadedUrl });
+      await api.updateCategory(id, { icon: uploadedUrl });
       await api.logAction({
         userId: user?.uid || "",
         userName: user?.username || "System",
@@ -529,8 +529,8 @@ export default function CategoryManager() {
                 >
                   <div className="flex items-center gap-4">
                     <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center text-brq-gold font-bold overflow-hidden border border-white/10 shrink-0">
-                      {c.imageUrl ? (
-                        <img src={c.imageUrl} alt={c.name} className="w-full h-full object-cover" />
+                      {c.icon ? (
+                        <img src={c.icon} alt={c.name} className="w-full h-full object-cover" />
                       ) : (
                         c.order
                       )}
@@ -673,9 +673,9 @@ export default function CategoryManager() {
                           ></div>
                         )}
                         <div className="flex items-center gap-2 z-10 relative">
-                          {sub.imageUrl ? (
+                          {sub.icon ? (
                             <div className="w-8 h-8 rounded-full overflow-hidden border border-white/10 shrink-0">
-                               <img src={sub.imageUrl} alt={sub.name} className="w-full h-full object-cover" />
+                               <img src={sub.icon} alt={sub.name} className="w-full h-full object-cover" />
                             </div>
                           ) : (
                             <div className="w-8 h-8 rounded-full bg-white/5 border border-white/10 shrink-0 flex items-center justify-center text-xs text-white/50">

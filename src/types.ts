@@ -33,7 +33,8 @@ export interface Category extends BaseEntity {
   order: number;
   parentId: string | null;
   isHidden?: boolean;
-  imageUrl?: string;
+  icon?: string; // We map this to the icon column in DB
+  imageUrl?: string; // Keep this for component logic compatibility
 }
 
 export interface Product extends BaseEntity {
