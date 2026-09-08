@@ -48,6 +48,23 @@ export default function App() {
     initialize();
   }, [initialize]);
 
+  // Global 15-minute forced sync & cache wipe interval for all users to guarantee out-of-stock / archived products never slip through
+  useEffect(() => {
+    const syncInterval = setInterval(async () => {
+      try {
+        await api.getProductsDirect();
+        await api.getCategories();
+        if (typeof window !== 'undefined' && (window as any).BroadcastChannel) {
+          const bc = new (window as any).BroadcastChannel('brq_products_sync');
+          bc.postMessage({ type: 'FORCE_REFRESH', timestamp: Date.now() });
+          bc.close();
+        }
+      } catch (e) {}
+    }, 15 * 60 * 1000); // 15 minutes
+
+    return () => clearInterval(syncInterval);
+  }, []);
+
   useEffect(() => {
     if (user && user.uid) {
       const pingStatus = async () => {
