@@ -23,6 +23,9 @@ export const useStore = create<AppState>()(
       user: null,
       loading: true,
       setUser: (user) => {
+        if (user) {
+          localStorage.setItem('brq_last_activity', Date.now().toString());
+        }
         set({ user });
       },
       initialize: () => {        set({ loading: false });      },

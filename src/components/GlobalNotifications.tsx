@@ -24,13 +24,6 @@ export default function GlobalNotifications() {
   const navigate = useNavigate();
   const { user, showToast } = useStore();
 
-  // 5-minute timer to prompt update
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setShowUpdateBanner(true);
-    }, 5 * 60 * 1000);
-    return () => clearInterval(timer);
-  }, []);
 
   useEffect(() => {
     // Check if notifications need prompting
@@ -58,7 +51,6 @@ export default function GlobalNotifications() {
       .on('broadcast', { event: 'new_product' }, (payload) => {
         const newProduct = payload.payload;
         setNotifications(prev => [...prev, newProduct]);
-        setShowUpdateBanner(true);
         setTimeout(() => {
           setNotifications(prev => prev.filter(n => n.id !== newProduct.id));
         }, 8000);
