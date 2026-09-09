@@ -35,23 +35,6 @@ export default function CategoryIcon({ name, icon, className = '' }: CategoryIco
              <div className="absolute inset-0 bg-gradient-to-tr from-black/20 via-white/20 to-transparent pointer-events-none" />
            </div>
         </div>
-
-        {/* Floating sparkling accessories */}
-        <motion.div
-          animate={{ y: [-2, 2, -2], opacity: [0.7, 1, 0.7] }}
-          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute -top-1 -right-1 text-brq-gold z-20 pointer-events-none"
-        >
-          <Sparkles size={16} className="filter drop-shadow-[0_0_6px_rgba(251,191,36,0.8)]" />
-        </motion.div>
-
-        <motion.div
-          animate={{ y: [2, -2, 2], opacity: [0.5, 0.9, 0.5] }}
-          transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute -bottom-1 -left-1 text-yellow-300 z-20 pointer-events-none"
-        >
-          <Sparkles size={12} className="filter drop-shadow-[0_0_4px_rgba(253,224,71,0.8)]" />
-        </motion.div>
       </div>
     );
   }
