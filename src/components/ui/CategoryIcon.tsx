@@ -12,23 +12,46 @@ export default function CategoryIcon({ name, icon, className = '' }: CategoryIco
   if (icon) {
     return (
       <div className={`relative flex items-center justify-center group ${className}`}>
-        {/* Subtle pulsating outer glow */}
+        {/* Rich multi-color ambient glow aura behind the image */}
         <motion.div
-          animate={{ scale: [1, 1.15, 1], opacity: [0.2, 0.4, 0.2] }}
-          transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute inset-0 rounded-full bg-brq-gold/30 blur-md pointer-events-none"
+          animate={{ scale: [1, 1.25, 1], rotate: [0, 180, 360], opacity: [0.3, 0.6, 0.3] }}
+          transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute -inset-2 rounded-full bg-gradient-to-r from-brq-gold/50 via-amber-500/40 to-yellow-300/50 blur-lg pointer-events-none"
         />
-        {/* Rotating gradient border effect using a wrapper */}
-        <div className="relative w-16 h-16 rounded-full p-[2px] bg-gradient-to-br from-brq-gold/60 via-black to-brq-gold/30 shadow-[0_0_15px_rgba(212,175,55,0.2)] z-10 overflow-hidden">
+
+        {/* Secondary pulsating shadow aura */}
+        <motion.div
+          animate={{ scale: [1.1, 1, 1.1], opacity: [0.2, 0.5, 0.2] }}
+          transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute inset-[-4px] rounded-full bg-brq-gold/40 blur-md pointer-events-none"
+        />
+
+        {/* Outer glowing border ring */}
+        <div className="relative w-16 h-16 rounded-full p-[2.5px] bg-gradient-to-tr from-brq-gold via-yellow-200 to-amber-600 shadow-[0_8px_25px_rgba(212,175,55,0.4)] z-10 overflow-hidden transform group-hover:scale-105 transition-transform duration-300">
            {/* Inner container to hold the image and clip it to a circle */}
-           <div className="w-full h-full rounded-full overflow-hidden bg-[#111] relative border border-black/50">
+           <div className="w-full h-full rounded-full overflow-hidden bg-black relative border border-white/20">
              <img src={icon} alt={name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-             {/* Glossy overlay */}
-             <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent pointer-events-none" />
+             {/* Glossy lighting overlay */}
+             <div className="absolute inset-0 bg-gradient-to-tr from-black/20 via-white/20 to-transparent pointer-events-none" />
            </div>
         </div>
-        {/* Tiny sparkling accessory */}
-        <Sparkles size={14} className="absolute -top-1 -right-1 text-brq-gold opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-20" />
+
+        {/* Floating sparkling accessories */}
+        <motion.div
+          animate={{ y: [-2, 2, -2], opacity: [0.7, 1, 0.7] }}
+          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute -top-1 -right-1 text-brq-gold z-20 pointer-events-none"
+        >
+          <Sparkles size={16} className="filter drop-shadow-[0_0_6px_rgba(251,191,36,0.8)]" />
+        </motion.div>
+
+        <motion.div
+          animate={{ y: [2, -2, 2], opacity: [0.5, 0.9, 0.5] }}
+          transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute -bottom-1 -left-1 text-yellow-300 z-20 pointer-events-none"
+        >
+          <Sparkles size={12} className="filter drop-shadow-[0_0_4px_rgba(253,224,71,0.8)]" />
+        </motion.div>
       </div>
     );
   }
