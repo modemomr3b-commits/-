@@ -266,6 +266,8 @@ export const api = {
     if (safeData.isShowcase !== undefined) safeData.size.isShowcase = safeData.isShowcase;
     if (safeData.showcaseCategory !== undefined) safeData.size.showcaseCategory = safeData.showcaseCategory;
     if (safeData.oldPriceInfo !== undefined) safeData.size.oldPriceInfo = safeData.oldPriceInfo;
+    if (safeData.lastEditDiffs !== undefined) safeData.size.lastEditDiffs = safeData.lastEditDiffs;
+    if (safeData.lastEditDate !== undefined) safeData.size.lastEditDate = safeData.lastEditDate;
     if (safeData.forceStandardCrush !== undefined) safeData.size.forceStandardCrush = safeData.forceStandardCrush;
     if (safeData.updatedAt !== undefined) { safeData.size.updatedAt = safeData.updatedAt; delete safeData.updatedAt; }
     delete safeData.isHidden;
@@ -273,6 +275,8 @@ export const api = {
     delete safeData.isShowcase;
     delete safeData.showcaseCategory;
     delete safeData.oldPriceInfo;
+    delete safeData.lastEditDiffs;
+    delete safeData.lastEditDate;
     delete safeData.forceStandardCrush;
 
     const { data: r, error } = await supabase.from('products').insert(safeData).select().single(); 
@@ -412,6 +416,8 @@ export const api = {
     if (safeData.isShowcase !== undefined) safeData.size.isShowcase = safeData.isShowcase;
     if (safeData.showcaseCategory !== undefined) safeData.size.showcaseCategory = safeData.showcaseCategory;
     if (safeData.oldPriceInfo !== undefined) safeData.size.oldPriceInfo = safeData.oldPriceInfo;
+    if (safeData.lastEditDiffs !== undefined) safeData.size.lastEditDiffs = safeData.lastEditDiffs;
+    if (safeData.lastEditDate !== undefined) safeData.size.lastEditDate = safeData.lastEditDate;
     if (safeData.forceStandardCrush !== undefined) safeData.size.forceStandardCrush = safeData.forceStandardCrush;
     if (safeData.updatedAt !== undefined) { safeData.size.updatedAt = safeData.updatedAt; delete safeData.updatedAt; }
     delete safeData.isHidden;
@@ -419,6 +425,8 @@ export const api = {
     delete safeData.isShowcase;
     delete safeData.showcaseCategory;
     delete safeData.oldPriceInfo;
+    delete safeData.lastEditDiffs;
+    delete safeData.lastEditDate;
     delete safeData.forceStandardCrush;
 
     const { data: r, error } = await supabase.from('products').update(safeData).match({ id }).select().single(); 

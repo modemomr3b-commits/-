@@ -62,6 +62,7 @@ export default function ProductManager() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [viewImage, setViewImage] = useState<{ src: string, alt: string, product?: Product, index?: number } | null>(null);
   const [historyProduct, setHistoryProduct] = useState<Product | null>(null);
+  const [lastEditProduct, setLastEditProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [usdRate, setUsdRate] = useState<number>(1500);
@@ -924,8 +925,13 @@ export default function ProductManager() {
       }
     }
 
-    // Open confirmation diff modal so user reviews full breakdown before saving
-    setShowDiffConfirmModal(true);
+    // Skip diff modal and proceed with instant update directly
+    const fullEditingProduct = {
+      ...editingProduct,
+      lastEditDiffs: diffs,
+      lastEditDate: Date.now()
+    };
+    proceedUpdate(fullEditingProduct, diffs);
   };
 
   const handleDelete = (id: string, name: string) => {
@@ -2504,19 +2510,16 @@ export default function ProductManager() {
                                 <History size={16} />
                               </button>
                             )}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setAiStudioProduct(p);
-                                setAiResultUrl(null);
-                                setAiError(null);
-                              }}
-                              className="p-1.5 hover:bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded transition-colors flex items-center gap-1 text-xs font-bold cursor-pointer"
-                              title="توليد خلفية وديكور بالذكاء الاصطناعي (AI Studio)"
-                            >
-                              <Sparkles size={16} />
-                              <span className="hidden sm:inline">AI</span>
-                            </button>
+                            {p.lastEditDiffs && p.lastEditDiffs.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => setLastEditProduct(p)}
+                                className="p-1.5 hover:bg-emerald-500/20 text-emerald-400 rounded transition-colors"
+                                title="تفاصيل التعديل"
+                              >
+                                <FileText size={16} />
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => handleToggleShowcase(p)}
@@ -2994,6 +2997,71 @@ export default function ProductManager() {
           hasNext={typeof viewImage.index === 'number' && viewImage.index < paginatedProducts.length - 1}
           hasPrev={typeof viewImage.index === 'number' && viewImage.index > 0}
         />
+      )}
+
+      {lastEditProduct && lastEditProduct.lastEditDiffs && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setLastEditProduct(null)} />
+          <div className="relative w-full max-w-2xl bg-[#0F172A] border border-white/10 rounded-2xl p-6 shadow-2xl flex flex-col max-h-[85vh] overflow-hidden text-white">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-black flex items-center gap-2 text-emerald-400">
+                <FileText size={24} />
+                تفاصيل آخر تعديل للمنتج ({lastEditProduct.name || lastEditProduct.productCode})
+              </h3>
+              <button
+                onClick={() => setLastEditProduct(null)}
+                className="p-2 text-white/50 hover:text-white rounded-full transition-colors bg-white/5"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            {lastEditProduct.lastEditDate && (
+              <p className="text-sm text-white/60 mb-4 bg-white/5 p-3 rounded-lg flex items-center gap-2">
+                <History size={16} />
+                <strong>تاريخ التعديل: </strong>
+                {new Date(lastEditProduct.lastEditDate).toLocaleString('ar-IQ')}
+              </p>
+            )}
+            <div className="overflow-y-auto flex-1 pr-2 space-y-4 custom-scrollbar">
+              {lastEditProduct.lastEditDiffs.map((diff: any, idx: number) => (
+                <div key={idx} className="bg-white/5 p-4 rounded-xl border border-white/10">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-md text-sm">
+                      {diff.label}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3">
+                      <div className="text-xs text-red-400 font-bold mb-1">البيانات السابقة</div>
+                      <div className="text-white/80 line-through text-sm font-bold truncate" title={diff.oldDisplay}>
+                        {diff.oldDisplay || 'فارغ'}
+                      </div>
+                    </div>
+                    <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3">
+                      <div className="text-xs text-emerald-400 font-bold mb-1">البيانات الجديدة</div>
+                      <div className="text-white font-bold text-sm truncate" title={diff.newDisplay}>
+                        {diff.newDisplay || 'فارغ'}
+                      </div>
+                    </div>
+                  </div>
+                  {diff.difference && (
+                    <div className={`mt-3 text-sm font-bold px-3 py-1.5 rounded-lg inline-block ${diff.isPositiveChange ? 'bg-amber-500/20 text-amber-300' : 'bg-blue-500/20 text-blue-300'}`}>
+                      مقدار التغيير: {diff.difference}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="pt-4 mt-2 border-t border-white/10 flex justify-end">
+              <button
+                onClick={() => setLastEditProduct(null)}
+                className="px-6 py-2 bg-white/10 hover:bg-white/20 text-white font-bold rounded-lg transition-colors cursor-pointer"
+              >
+                إغلاق
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {historyProduct && (
