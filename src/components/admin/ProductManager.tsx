@@ -2540,6 +2540,14 @@ export default function ProductManager() {
                             </button>
                             <button
                               type="button"
+                              onClick={() => setAiStudioProduct(p)}
+                              className="p-1.5 hover:bg-purple-500/20 text-purple-400 rounded transition-colors"
+                              title="توليد خلفية وديكور بالذكاء الاصطناعي (AI Studio)"
+                            >
+                              <Wand2 size={16} />
+                            </button>
+                            <button
+                              type="button"
                               onClick={() => handleToggleLock(p)}
                               className={`p-1.5 rounded transition-colors ${
                                 p.isLocked
