@@ -989,7 +989,6 @@ export default function ProductManager() {
 
   const handleToggleArchive = async (p: Product) => {
     if (p.isArchived) {
-      setAlertMessage("لا يمكن استرجاع المواد النافذة نهائياً، لقد أصبحت في المواد النافذة للأبد.");
       return;
     }
     const updates: any = { isArchived: true, isShowcase: false, isLocked: true };
@@ -1239,7 +1238,6 @@ export default function ProductManager() {
 
   const handleBulkToggleArchive = async (archive: boolean) => {
     if (!archive) {
-      setAlertMessage("لا يمكن استرجاع المواد النافذة نهائياً، لقد أصبحت في المواد النافذة للأبد.");
       return;
     }
     if (selectedIds.size === 0) return;
@@ -2554,6 +2552,7 @@ export default function ProductManager() {
                             </button>
                             <button
                               type="button"
+                              disabled={p.isArchived}
                               onClick={() => handleToggleArchive(p)}
                               className={`p-1.5 rounded transition-colors ${p.isArchived ? 'opacity-50 cursor-not-allowed text-red-400' : 'hover:bg-yellow-500/20 text-yellow-400'}`}
                               title={
