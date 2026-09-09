@@ -342,7 +342,7 @@ export default function ProductManager() {
           try {
             const { GoogleGenAI } = await import('@google/genai');
             const ai = new GoogleGenAI({ apiKey: customApiKey.trim() });
-            const combinedPrompt = `Professional commercial footwear advertisement photograph. ${finalPrompt || 'High-end footwear display photograph.'} Photorealistic studio shot, 8k resolution, crisp focus, cinematic lighting.`;
+            const combinedPrompt = `High-end luxury footwear commercial editorial catalog photoshoot, styled on a textured concrete studio floor with minimalist artistic decor, elegant prop styling like art books and soft warm accent lighting, ultra-realistic commercial advertisement style. ${finalPrompt || 'High-end footwear display photograph.'} Photorealistic studio shot, 8k resolution, crisp focus, cinematic lighting.`;
             
             const imageResponse = await ai.models.generateImages({
               model: 'imagen-3.0-generate-002',
@@ -360,7 +360,7 @@ export default function ProductManager() {
         // Option 2: Direct High-Quality Flux AI Generation via Pollinations
         if (!generatedImgUrl) {
           try {
-            const combinedPrompt = `Professional commercial footwear advertisement photograph. ${finalPrompt || 'High-end footwear display photograph.'} Photorealistic studio shot, 8k resolution, crisp focus, studio lighting, commercial product display.`;
+            const combinedPrompt = `High-end luxury footwear commercial editorial catalog photoshoot, styled on a textured concrete studio floor with minimalist artistic decor, elegant prop styling like art books and soft warm accent lighting, ultra-realistic commercial advertisement style. ${finalPrompt || 'High-end footwear display photograph.'} Photorealistic studio shot, 8k resolution, crisp focus, studio lighting, commercial product display.`;
             const encodedPrompt = encodeURIComponent(combinedPrompt);
             const seed = Math.floor(Math.random() * 1000000);
             const pollUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=800&height=800&seed=${seed}&nologo=true&model=flux`;
