@@ -46,17 +46,11 @@ export default function MandatoryUpdateModal() {
   }, []);
 
   const handleUpdateNow = async () => {
+    if (isUpdating) return;
     setIsUpdating(true);
     try {
       await api.forceRefreshAll();
-      const updates = await api.getUpdates();
-      if (updates && updates.length > 0) {
-        const latest = updates[0];
-        const latestTime = new Date(latest.createdAt || latest.updatedAt || Date.now()).getTime();
-        localStorage.setItem('brq_last_update_seen', latestTime.toString());
-      } else {
-        localStorage.setItem('brq_last_update_seen', Date.now().toString());
-      }
+      localStorage.setItem('brq_last_update_seen', Date.now().toString());
     } catch (e) {}
     window.location.reload();
   };
