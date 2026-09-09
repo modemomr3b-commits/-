@@ -206,7 +206,7 @@ Output a concise description in English specifying:
         ? `STRICT REQUIREMENT: Change ONLY the background studio environment or setting. The footwear product from the source image MUST be preserved 100% exactly as it is: maintain its exact colors, upper materials, logos, sole design, straps, and exact shape/angle without any modification to the shoe itself.`
         : `CRITICAL REQUIREMENT: The footwear in the photo MUST strictly match the exact style category (formal leather, sporty sneaker, or skechers/casual slip-on as in reference), exact colors, upper patterns, and sole design of the reference shoe. Do NOT generate a different type of shoe.`;
 
-      const combinedPrompt = `High-end luxury footwear commercial editorial catalog photoshoot, styled on a textured concrete studio floor with minimalist artistic decor, elegant prop styling like art books and soft warm accent lighting, ultra-realistic commercial advertisement style. 
+      const combinedPrompt = `Professional luxury commercial footwear studio background and setting, textured concrete floor, minimalist art books, decorative warm lighting, empty display stage, photorealistic 8k resolution, cinematic studio lighting, high-end catalog background, empty center space for product display. 
 ${shoeDescription ? `Reference shoe analysis: ${shoeDescription}.` : ''} 
 ${productContext ? `Shoe product name & category: ${productContext}.` : ''} 
 ${prompt || 'Commercial product display photograph.'} 
