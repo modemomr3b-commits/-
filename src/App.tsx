@@ -6,7 +6,6 @@ import { api } from './api';
 import SplashScreen from './components/SplashScreen';
 import GlobalNotifications from './components/GlobalNotifications';
 import GlobalToast from './components/GlobalToast';
-import MandatoryUpdateModal from './components/MandatoryUpdateModal';
 
 const Login = lazy(() => import('./components/Login'));
 const MemberLayout = lazy(() => import('./components/MemberLayout'));
@@ -63,6 +62,61 @@ export default function App() {
     return () => clearInterval(syncInterval);
   }, []);
 
+  // 15-minute inactivity logout tracker
+  useEffect(() => {
+    if (!user) return;
+
+    const INACTIVITY_LIMIT = 15 * 60 * 1000; // 15 minutes in ms
+    let lastActivityTime = Date.now();
+
+    const updateActivity = () => {
+      lastActivityTime = Date.now();
+      localStorage.setItem('brq_last_activity', lastActivityTime.toString());
+    };
+
+    // Check immediately if they were away for > 15 mins when reopening the app
+    const storedActivity = localStorage.getItem('brq_last_activity');
+    if (storedActivity) {
+      const parsed = parseInt(storedActivity, 10);
+      if (Date.now() - parsed > INACTIVITY_LIMIT) {
+        useStore.getState().setUser(null);
+        return;
+      } else {
+        lastActivityTime = Math.max(lastActivityTime, parsed);
+      }
+    } else {
+      updateActivity();
+    }
+
+    // Use a throttled update to avoid performance issues
+    let throttleTimer: any = null;
+    const throttledUpdateActivity = () => {
+      if (throttleTimer) return;
+      throttleTimer = setTimeout(() => {
+        updateActivity();
+        throttleTimer = null;
+      }, 5000); // Update at most every 5 seconds
+    };
+
+    const events = ['mousemove', 'keydown', 'scroll', 'touchstart', 'click'];
+    events.forEach(event => window.addEventListener(event, throttledUpdateActivity, { passive: true }));
+
+    const checkInterval = setInterval(() => {
+      const currentStoredActivity = parseInt(localStorage.getItem('brq_last_activity') || '0', 10);
+      const activityTime = Math.max(lastActivityTime, currentStoredActivity);
+      
+      if (Date.now() - activityTime > INACTIVITY_LIMIT) {
+        useStore.getState().setUser(null);
+      }
+    }, 30000); // Check every 30 seconds
+
+    return () => {
+      events.forEach(event => window.removeEventListener(event, throttledUpdateActivity));
+      clearInterval(checkInterval);
+      if (throttleTimer) clearTimeout(throttleTimer);
+    };
+  }, [user]);
+
   useEffect(() => {
     if (user && user.uid) {
       const pingStatus = async () => {
@@ -108,7 +162,6 @@ export default function App() {
     <BrowserRouter>
       <GlobalToast />
       <GlobalNotifications />
-      <MandatoryUpdateModal />
       <div dir="rtl" className="min-h-screen bg-brq-black text-brq-white antialiased">
         <Suspense fallback={<LoadingFallback />}>
           <Routes>

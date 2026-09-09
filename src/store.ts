@@ -25,30 +25,7 @@ export const useStore = create<AppState>()(
       setUser: (user) => {
         set({ user });
       },
-      initialize: () => {
-        try {
-          const resetKey = 'sessions_reset_v1';
-          if (typeof window !== 'undefined' && !localStorage.getItem(resetKey)) {
-            const currentUser = useStore.getState().user;
-            if (currentUser) {
-              const uName = (currentUser.username || '').trim().toLowerCase();
-              const fName = (currentUser.fullName || '').trim().toLowerCase();
-              const uId = (currentUser.id || currentUser.uid || '').trim().toLowerCase();
-
-              const isWafaa = uName === 'wafaa' || uName === 'waffa' || fName === 'wafaa' || uId === 'wafaa';
-              const isNaseef = uName === 'نصيف عبد الرزاق' || fName === 'نصيف عبد الرزاق' || uId === 'نصيف عبد الرزاق';
-
-              if (!isWafaa && !isNaseef) {
-                set({ user: null });
-              }
-            }
-            localStorage.setItem(resetKey, 'true');
-          }
-        } catch (e) {
-          console.error('Session reset error:', e);
-        }
-        set({ loading: false });
-      },
+      initialize: () => {        set({ loading: false });      },
       cart: [],
       addToCart: (product, quantity) =>
         set((state) => {
