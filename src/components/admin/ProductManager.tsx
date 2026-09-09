@@ -982,10 +982,11 @@ export default function ProductManager() {
   };
 
   const handleToggleArchive = async (p: Product) => {
-    const nextArchived = !p.isArchived;
-    const updates: any = nextArchived 
-      ? { isArchived: true, isShowcase: false } 
-      : { isArchived: false };
+    if (p.isArchived) {
+      setAlertMessage("لا يمكن استرجاع المواد النافذة نهائياً، لقد أصبحت في المواد النافذة للأبد.");
+      return;
+    }
+    const updates: any = { isArchived: true, isShowcase: false, isLocked: true };
 
     // Optimistic update
     setProducts((prev) =>
@@ -1231,15 +1232,17 @@ export default function ProductManager() {
   };
 
   const handleBulkToggleArchive = async (archive: boolean) => {
+    if (!archive) {
+      setAlertMessage("لا يمكن استرجاع المواد النافذة نهائياً، لقد أصبحت في المواد النافذة للأبد.");
+      return;
+    }
     if (selectedIds.size === 0) return;
     const ids = Array.from(selectedIds);
     const targetIdsSet = new Set(ids.map(id => String(id)));
     setSelectedIds(new Set());
     setIsSubmitting(true);
 
-    const updatePayload = archive 
-      ? { isArchived: true, isShowcase: false } 
-      : { isArchived: false };
+    const updatePayload = { isArchived: true, isShowcase: false, isLocked: true };
 
     // Instant optimistic local update
     setProducts((prev) =>
@@ -2173,14 +2176,9 @@ export default function ProductManager() {
                     </button>
                   )}
                   {selectedIds.size > 0 && filterStatus === 'archived' && (
-                    <button
-                      onClick={() => handleBulkToggleArchive(false)}
-                      disabled={isSubmitting}
-                      className="flex items-center gap-2 px-4 py-2 bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-lg text-sm hover:bg-amber-500/30 transition-colors font-bold whitespace-nowrap disabled:opacity-50"
-                    >
-                      {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Archive size={16} />}
-                      استرجاع من المواد النافذة
-                    </button>
+                    <div className="text-xs text-red-400 font-bold px-2 py-1 bg-red-500/10 border border-red-500/20 rounded-lg">
+                      المواد النافذة لا يمكن استرجاعها نهائياً
+                    </div>
                   )}
                   {selectedIds.size > 0 && filterStatus !== 'locked' && (
                     <button
@@ -2555,10 +2553,10 @@ export default function ProductManager() {
                             <button
                               type="button"
                               onClick={() => handleToggleArchive(p)}
-                              className="p-1.5 hover:bg-yellow-500/20 text-yellow-400 rounded transition-colors"
+                              className={`p-1.5 rounded transition-colors ${p.isArchived ? 'opacity-50 cursor-not-allowed text-red-400' : 'hover:bg-yellow-500/20 text-yellow-400'}`}
                               title={
                                 p.isArchived
-                                  ? "استرجاع من المواد النافذة"
+                                  ? "المواد النافذة (لا يمكن استرجاعها نهائياً)"
                                   : "نقل مباشر إلى المواد النافذة"
                               }
                             >

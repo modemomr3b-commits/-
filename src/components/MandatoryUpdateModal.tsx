@@ -27,8 +27,6 @@ export default function MandatoryUpdateModal() {
     };
 
     checkUpdates();
-    const interval = setInterval(checkUpdates, 30000); // Check every 30 seconds
-    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
