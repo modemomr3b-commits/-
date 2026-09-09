@@ -31,6 +31,7 @@ import {
   Hash
 } from 'lucide-react';
 import { api } from '../../api';
+import { supabase } from '../../supabase';
 import { Product } from '../../types';
 import { useStore } from '../../store';
 import { shuffleProductsForUser } from '../../utils/shuffle';
