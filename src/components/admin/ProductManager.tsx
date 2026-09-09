@@ -341,12 +341,26 @@ export default function ProductManager() {
             bgImg.src = generatedImgUrl;
           });
 
+          let shoeSrc = currentImg;
+          if (!shoeSrc.startsWith('data:')) {
+            try {
+              const shoeRes = await fetch(currentImg);
+              const shoeBlob = await shoeRes.blob();
+              shoeSrc = await new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result as string);
+                reader.readAsDataURL(shoeBlob);
+              });
+            } catch (e) {
+              console.warn('Could not convert shoe image to base64, using direct src:', e);
+            }
+          }
+
           const shoeImg = new Image();
-          shoeImg.crossOrigin = "anonymous";
           await new Promise((resolve, reject) => {
             shoeImg.onload = resolve;
             shoeImg.onerror = reject;
-            shoeImg.src = currentImg;
+            shoeImg.src = shoeSrc;
           });
 
           const canvas = document.createElement('canvas');
