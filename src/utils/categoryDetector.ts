@@ -210,22 +210,11 @@ export function autoDetectCategoryAndSubcategory(
       subcategoryId: currentSubcategoryId || ''
     };
   }
-
   const normName = normalizeArabic(name);
   const mainCategories = categories.filter(c => !c.parentId);
   const allSubcategories = categories.filter(c => Boolean(c.parentId));
 
-  // If user already chose a categoryId, KEEP it and just detect subcategory under it!
-  if (currentCategoryId) {
-    const detectedSub = autoSelectSubcategory(name, currentCategoryId, currentSubcategoryId, categories);
-    return {
-      categoryId: currentCategoryId,
-      subcategoryId: detectedSub
-    };
-  }
-
-  // If no categoryId is selected yet:
-  // 1. Check if any subcategory directly matches the name (e.g. 'روضة' matches subcategory 'روضة')
+  // 1. ALWAYS check if any subcategory directly matches the name globally (e.g. 'روضة', 'رجالي', 'نسائي')
   for (const sub of allSubcategories) {
     const normSub = normalizeArabic(sub.name);
     if (normSub && normName.includes(normSub)) {
@@ -236,7 +225,7 @@ export function autoDetectCategoryAndSubcategory(
     }
   }
 
-  // 2. Check keyword mappings against subcategories
+  // 2. ALWAYS check keyword mappings globally against all subcategories
   for (const entry of CATEGORY_KEYWORDS) {
     const hasKey = entry.keys.some(k => normName.includes(normalizeArabic(k)));
     if (hasKey) {
@@ -254,7 +243,16 @@ export function autoDetectCategoryAndSubcategory(
     }
   }
 
-  // 3. Check direct match on main categories
+  // 3. If user already chose a categoryId and no global keyword matched, fallback to detecting under currentCategoryId
+  if (currentCategoryId) {
+    const detectedSub = autoSelectSubcategory(name, currentCategoryId, currentSubcategoryId, categories);
+    return {
+      categoryId: currentCategoryId,
+      subcategoryId: detectedSub
+    };
+  }
+
+  // 4. Check direct match on main categories
   let detectedMainCatId = '';
   for (const mainCat of mainCategories) {
     const normMain = normalizeArabic(mainCat.name);
@@ -263,7 +261,6 @@ export function autoDetectCategoryAndSubcategory(
       break;
     }
   }
-
   if (detectedMainCatId) {
     const detectedSub = autoSelectSubcategory(name, detectedMainCatId, '', categories);
     return {
