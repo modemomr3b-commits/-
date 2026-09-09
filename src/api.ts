@@ -9,29 +9,40 @@ const getData = async (table: string) => {
   let from = 0;
   const limit = 1000;
   
-  while (true) {
-    const { data, error } = await supabase
-      .from(table)
-      .select('*')
-      .range(from, from + limit - 1);
+  try {
+    while (true) {
+      const { data, error } = await supabase
+        .from(table)
+        .select('*')
+        .range(from, from + limit - 1);
+        
+      if (error) {
+        throw error;
+      }
       
-    if (error) {
-      console.error('Error in getData for table', table, error);
-      throw error;
-    }
-    
-    if (data && data.length > 0) {
-      const activeData = data.filter((item: any) => item.isDeleted !== true);
-      allData = [...allData, ...activeData];
-      if (data.length < limit) {
+      if (data && data.length > 0) {
+        const activeData = data.filter((item: any) => item.isDeleted !== true);
+        allData = [...allData, ...activeData];
+        if (data.length < limit) {
+          break;
+        }
+        from += limit;
+      } else {
         break;
       }
-      from += limit;
-    } else {
-      break;
     }
+    if (allData.length > 0) {
+      localCache.set(`all_${table}`, allData).catch(() => {});
+    }
+    return allData;
+  } catch (err) {
+    console.warn(`Network error in getData for table ${table}, falling back to local cache:`, err);
+    const cached = await localCache.get<any[]>(`all_${table}`, Infinity);
+    if (cached && cached.length > 0) {
+      return cached;
+    }
+    return [];
   }
-  return allData;
 };
 
 const getDeletedData = async (table: string) => {

@@ -6,6 +6,7 @@ import { api } from './api';
 import SplashScreen from './components/SplashScreen';
 import GlobalNotifications from './components/GlobalNotifications';
 import GlobalToast from './components/GlobalToast';
+import MandatoryUpdateModal from './components/MandatoryUpdateModal';
 
 const Login = lazy(() => import('./components/Login'));
 const MemberLayout = lazy(() => import('./components/MemberLayout'));
@@ -107,6 +108,7 @@ export default function App() {
     <BrowserRouter>
       <GlobalToast />
       <GlobalNotifications />
+      <MandatoryUpdateModal />
       <div dir="rtl" className="min-h-screen bg-brq-black text-brq-white antialiased">
         <Suspense fallback={<LoadingFallback />}>
           <Routes>
