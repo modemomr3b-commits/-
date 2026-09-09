@@ -192,13 +192,12 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
       const product = { ...newProducts[index], [field]: value };
       
       if (field === 'name') {
-        const { categoryId: autoCat, subcategoryId: autoSub } = autoDetectCategoryAndSubcategory(
+        const autoSub = autoSelectSubcategory(
           product.name || '',
           product.categoryId,
           product.subcategoryId,
           categories
         );
-        if (autoCat) product.categoryId = autoCat;
         if (autoSub !== undefined) product.subcategoryId = autoSub;
       }
       

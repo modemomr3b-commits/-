@@ -1693,7 +1693,7 @@ export default function ProductManager() {
                 value={newProduct.name}
                 onChange={(e) => {
                   const newName = e.target.value;
-                  const { categoryId: detectedCat, subcategoryId: detectedSub } = autoDetectCategoryAndSubcategory(
+                  const detectedSub = autoSelectSubcategory(
                     newName,
                     newProduct.categoryId,
                     newProduct.subcategoryId,
@@ -1702,7 +1702,6 @@ export default function ProductManager() {
                   setNewProduct({
                     ...newProduct,
                     name: newName,
-                    categoryId: detectedCat || newProduct.categoryId,
                     subcategoryId: detectedSub !== undefined ? detectedSub : newProduct.subcategoryId
                   });
                 }}
@@ -2685,7 +2684,7 @@ export default function ProductManager() {
                   value={editingProduct.name}
                   onChange={(e) => {
                     const newName = e.target.value;
-                    const { categoryId: detectedCat, subcategoryId: detectedSub } = autoDetectCategoryAndSubcategory(
+                    const detectedSub = autoSelectSubcategory(
                       newName,
                       editingProduct.categoryId,
                       editingProduct.subcategoryId,
@@ -2694,7 +2693,6 @@ export default function ProductManager() {
                     setEditingProduct({
                       ...editingProduct,
                       name: newName,
-                      categoryId: detectedCat || editingProduct.categoryId,
                       subcategoryId: detectedSub !== undefined ? detectedSub : editingProduct.subcategoryId
                     });
                   }}
