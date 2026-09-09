@@ -212,7 +212,7 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
   };
 
   const getNormalizedRate = () => {
-    const r = usdRate || 1500;
+    const r = usdRate || 1580;
     if (r >= 50000) return Math.round(r / 100);
     if (r >= 50 && r <= 500) return Math.round(r * 10);
     return Math.round(r);

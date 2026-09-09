@@ -2,9 +2,10 @@ import React, { useRef, Suspense } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { useTexture, Environment, Sparkles, Html } from '@react-three/drei';
 import * as THREE from 'three';
+import logoSrc from '../../assets/logo.jpeg';
 
 function Logo3D({ isHovered, scale = 1 }: { isHovered: boolean, scale?: number }) {
-  const texture = useTexture('/logo.jpeg.jpeg'); 
+  const texture = useTexture(logoSrc); 
   
   const crystalRef = useRef<THREE.Group>(null);
   const torusGroupRef = useRef<THREE.Group>(null);
@@ -13,7 +14,10 @@ function Logo3D({ isHovered, scale = 1 }: { isHovered: boolean, scale?: number }
   useFrame((state, delta) => {
     if (!crystalRef.current || !torusGroupRef.current || !textGroupRef.current) return;
     
-    const t = state.clock.getElapsedTime();
+    // We accumulate delta to avoid using the deprecated clock
+    if (!crystalRef.current.userData.time) crystalRef.current.userData.time = 0;
+    crystalRef.current.userData.time += delta;
+    const t = crystalRef.current.userData.time;
     
     // Float up and down
     crystalRef.current.position.y = Math.sin(t * 1.5) * 0.12 * scale;
@@ -116,7 +120,7 @@ export default function Animated3DLogo({ isHovered = false, scale = 1 }: Props) 
   return (
     <ErrorBoundary fallback={
       <div className="w-full h-full flex items-center justify-center p-1">
-        <img src="/logo.jpeg.jpeg" alt="BRQ" className="max-w-full max-h-full object-contain drop-shadow-xl" />
+        <img src={logoSrc} alt="BRQ" className="max-w-full max-h-full object-contain drop-shadow-xl" />
       </div>
     }>
       <Canvas 

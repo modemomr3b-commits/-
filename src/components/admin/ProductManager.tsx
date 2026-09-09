@@ -65,7 +65,7 @@ export default function ProductManager() {
   const [lastEditProduct, setLastEditProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [usdRate, setUsdRate] = useState<number>(1500);
+  const [usdRate, setUsdRate] = useState<number>(1580);
 
   const [isAdding, setIsAdding] = useState(false);
   const [isBatchAdding, setIsBatchAdding] = useState(false);
@@ -555,7 +555,7 @@ export default function ProductManager() {
   }, []);
 
   const getNormalizedRate = () => {
-    const r = usdRate || 1500;
+    const r = usdRate || 1580;
     if (r >= 50000) return Math.round(r / 100);
     if (r >= 50 && r <= 500) return Math.round(r * 10);
     return Math.round(r);

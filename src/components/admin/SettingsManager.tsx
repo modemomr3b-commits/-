@@ -7,6 +7,7 @@ export default function SettingsManager() {
   const [loading, setLoading] = useState(false);
   const [initialLoad, setInitialLoad] = useState(true);
   const [updateProgress, setUpdateProgress] = useState<{current: number, total: number} | null>(null);
+  const [isUsdRateLocked, setIsUsdRateLocked] = useState(true);
   const [settings, setSettings] = useState({
     companyName: 'شركة الوفاء المتميز',
     phone: '07801359735',
@@ -16,7 +17,7 @@ export default function SettingsManager() {
     showcasePromptEnabled: true,
     maintenanceMode: false,
     openRegistration: true,
-    usdExchangeRate: 1500, // Default value
+    usdExchangeRate: 1580, // Default value
   });
   
   useEffect(() => {
@@ -109,18 +110,46 @@ export default function SettingsManager() {
             </div>
           </div>
           <div className="space-y-3">
-             <div>
-               <label className="text-xs text-white/70 mb-1.5 block font-bold">
-                 سعر صرف الدولار (لكل 1 دولار)
-               </label>
-               <input 
-                  type="number" 
-                  value={settings.usdExchangeRate || ''} 
-                  placeholder="مثال: 1500 أو 1530"
-                  onChange={e => setSettings({...settings, usdExchangeRate: Number(e.target.value)})}
-                  className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black font-mono font-bold placeholder:text-gray-400" 
-               />
-             </div>
+             {isUsdRateLocked ? (
+               <div>
+                 <label className="text-xs text-white/70 mb-1.5 block font-bold">
+                   سعر صرف الدولار (التكسيرة) - محمي برمز سري
+                 </label>
+                 <div className="flex gap-2">
+                   <input
+                     type="password"
+                     placeholder="أدخل الرمز السري لفك القفل"
+                     className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-400"
+                     onChange={(e) => {
+                        if (e.target.value === 'Mode') {
+                          setIsUsdRateLocked(false);
+                          e.target.value = '';
+                        }
+                     }}
+                   />
+                 </div>
+               </div>
+             ) : (
+               <div>
+                 <label className="text-xs text-white/70 mb-1.5 flex justify-between font-bold">
+                   <span>سعر صرف الدولار (لكل 1 دولار)</span>
+                   <button 
+                     onClick={() => setIsUsdRateLocked(true)} 
+                     className="text-brq-gold hover:underline"
+                     type="button"
+                   >
+                     قفل
+                   </button>
+                 </label>
+                 <input
+                     type="number"
+                     value={settings.usdExchangeRate || ''}
+                     placeholder="مثال: 1580 أو 1530"
+                    onChange={e => setSettings({...settings, usdExchangeRate: Number(e.target.value)})}
+                    className="w-full bg-white border border-black rounded-lg px-3 py-2 text-sm focus:border-brq-gold/50 outline-none text-black font-mono font-bold placeholder:text-gray-400"
+                  />
+               </div>
+             )}
 
              {/* Live calculation helper */}
              {settings.usdExchangeRate ? (

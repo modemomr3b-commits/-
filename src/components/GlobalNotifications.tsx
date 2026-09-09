@@ -20,7 +20,7 @@ export default function GlobalNotifications() {
   const [showPermissionPrompt, setShowPermissionPrompt] = useState(false);
   const [permissionGranted, setPermissionGranted] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [showUpdateBanner, setShowUpdateBanner] = useState(false);
+  
   const navigate = useNavigate();
   const { user, showToast } = useStore();
 
@@ -169,38 +169,6 @@ export default function GlobalNotifications() {
               </div>
             </motion.div>
           </div>
-        )}
-      </AnimatePresence>
-
-      {/* Update Available Floating Banner */}
-      <AnimatePresence>
-        {showUpdateBanner && (
-          <motion.div
-            initial={{ opacity: 0, y: -50, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -50, scale: 0.95 }}
-            className="fixed top-4 left-1/2 -translate-x-1/2 z-[99] bg-[#0a1128]/95 border border-brq-gold/60 shadow-[0_10px_30px_rgba(212,175,55,0.3)] backdrop-blur-md rounded-2xl px-5 py-3 flex items-center gap-4 max-w-md w-[90%] text-right pointer-events-auto"
-          >
-            <div className="w-10 h-10 rounded-xl bg-brq-gold/20 flex items-center justify-center text-brq-gold shrink-0 border border-brq-gold/30">
-              <Sparkles size={20} className="animate-spin" />
-            </div>
-            <div className="flex-1">
-              <h4 className="text-sm font-bold text-white mb-0.5">تتوفر منتجات وتحديثات جديدة! 🔥</h4>
-              <p className="text-xs text-white/70">اضغط لتحديث الصفحة وعرض أحدث الموديلات.</p>
-            </div>
-            <button
-              onClick={handleRefreshPage}
-              className="bg-gradient-to-r from-brq-gold to-amber-500 text-black font-bold text-xs px-4 py-2 rounded-xl shadow hover:brightness-110 transition-all shrink-0 flex items-center gap-1.5"
-            >
-              <span>تحديث الصفحة</span>
-            </button>
-            <button
-              onClick={() => setShowUpdateBanner(false)}
-              className="p-1 text-white/40 hover:text-white rounded-full"
-            >
-              <X size={16} />
-            </button>
-          </motion.div>
         )}
       </AnimatePresence>
 
