@@ -267,14 +267,32 @@ export default function ProductManager() {
         }
       });
       const prods = await api.getProducts();
-      setProducts(
-        prods
-          .map((p: any) => ({
-            ...p,
-            createdAt: p.createdAt ? new Date(p.createdAt).getTime() : Date.now(),
-          }))
-          .sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0)),
-      );
+      setProducts(prev => {
+        const prevMap = new Map(prev.map(p => [p.id, p]));
+        const now = Date.now();
+        return prods
+          .map((p: any) => {
+            const mapped = {
+              ...p,
+              createdAt: p.createdAt ? new Date(p.createdAt).getTime() : Date.now(),
+            };
+            const lastMod = recentlyModifiedRef.current[p.id];
+            if (lastMod && (now - lastMod < 8000)) {
+              const localProd = prevMap.get(p.id);
+              if (localProd) {
+                return {
+                  ...mapped,
+                  isArchived: localProd.isArchived,
+                  isLocked: localProd.isLocked,
+                  isHidden: localProd.isHidden,
+                  isShowcase: localProd.isShowcase,
+                };
+              }
+            }
+            return mapped;
+          })
+          .sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0));
+      });
     } catch (e) {
       console.error(e);
     }
@@ -783,6 +801,7 @@ export default function ProductManager() {
     if (!window.confirm(`هل أنت متأكد من استرجاع المنتج "${p.name}" من المواد النافذة وإعادته؟`)) {
       return;
     }
+    recentlyModifiedRef.current[p.id!] = Date.now();
     const updates: any = { isArchived: false, isLocked: false };
     setProducts((prev) =>
       prev.map((prod) =>
