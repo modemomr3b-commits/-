@@ -205,6 +205,7 @@ export default function ProductManager() {
     setShowDiffConfirmModal(false);
   };
 
+  const recentlyModifiedRef = useRef<Record<string, number>>({});
   const [deleteConfirm, setDeleteConfirm] = useState<{ isBulk: boolean; ids?: string[]; name?: string; count?: number; } | null>(null);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
   const [publishSuccess, setPublishSuccess] = useState(false);
