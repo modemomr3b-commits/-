@@ -29,6 +29,7 @@ import {
   FolderArchive,
   Lock,
   Unlock,
+  FileText,
 } from "lucide-react";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
