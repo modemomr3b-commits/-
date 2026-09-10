@@ -1397,6 +1397,7 @@ export default function ProductManager() {
     const dups = new Set<string>();
     const map = new Map<string, string[]>();
     products.forEach(p => {
+      if (p.isArchived || p.isHidden) return;
       const key = p.modelNumber || p.productCode;
       if (key) {
         if (map.has(key)) {
@@ -1418,7 +1419,7 @@ export default function ProductManager() {
       inactive: products.filter(p => p.isHidden && !p.isArchived).length,
       archived: products.filter(p => p.isArchived).length,
       locked: products.filter(p => p.isLocked).length,
-      duplicates: products.filter(p => duplicatesSet.has(p.modelNumber || p.productCode)).length,
+      duplicates: products.filter(p => !p.isHidden && !p.isArchived && duplicatesSet.has(p.modelNumber || p.productCode)).length,
       showcase: products.filter(p => p.isShowcase && !p.isArchived && !p.isHidden).length,
     };
   }, [products, duplicatesSet]);
@@ -1439,8 +1440,8 @@ export default function ProductManager() {
         // Only locked products
         if (!p.isLocked) return false;
       } else if (filterStatus === 'duplicates') {
-        // Only duplicates
-        if (!duplicatesSet.has(p.modelNumber || p.productCode)) return false;
+        // Only active duplicates
+        if (p.isHidden || p.isArchived || !duplicatesSet.has(p.modelNumber || p.productCode)) return false;
       } else if (filterStatus === 'showcase') {
         // Only showcase
         if (!p.isShowcase) return false;
