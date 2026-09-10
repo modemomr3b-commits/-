@@ -1971,9 +1971,14 @@ export default function ProductManager() {
                     </button>
                   )}
                   {selectedIds.size > 0 && filterStatus === 'archived' && (
-                    <div className="text-xs text-red-400 font-bold px-2 py-1 bg-red-500/10 border border-red-500/20 rounded-lg">
-                      المواد النافذة لا يمكن استرجاعها نهائياً
-                    </div>
+                    <button
+                      onClick={handleBulkRestoreArchive}
+                      disabled={isSubmitting}
+                      className="flex items-center gap-2 px-4 py-2 bg-orange-500/20 text-orange-300 border border-orange-500/30 rounded-lg text-sm hover:bg-orange-500/30 transition-colors font-bold whitespace-nowrap disabled:opacity-50 cursor-pointer"
+                    >
+                      {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Package size={16} />}
+                      استرجاع المحدد من المواد النافذة
+                    </button>
                   )}
                   {selectedIds.size > 0 && filterStatus !== 'locked' && (
                     <button
@@ -2345,12 +2350,21 @@ export default function ProductManager() {
                             </button>
                             <button
                               type="button"
-                              disabled={p.isArchived}
-                              onClick={() => handleToggleArchive(p)}
-                              className={`p-1.5 rounded transition-colors ${p.isArchived ? 'opacity-50 cursor-not-allowed text-red-400' : 'hover:bg-yellow-500/20 text-yellow-400'}`}
+                              onClick={() => {
+                                if (p.isArchived) {
+                                  handleRestoreArchive(p);
+                                } else {
+                                  handleToggleArchive(p);
+                                }
+                              }}
+                              className={`p-1.5 rounded transition-colors cursor-pointer ${
+                                p.isArchived 
+                                  ? 'bg-orange-500/20 text-orange-300 border border-orange-500/40 hover:bg-orange-500/30' 
+                                  : 'hover:bg-yellow-500/20 text-yellow-400'
+                              }`}
                               title={
                                 p.isArchived
-                                  ? "المواد النافذة (لا يمكن استرجاعها نهائياً)"
+                                  ? "استرجاع من المواد النافذة"
                                   : "نقل مباشر إلى المواد النافذة"
                               }
                             >
