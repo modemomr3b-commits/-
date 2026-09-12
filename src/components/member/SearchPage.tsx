@@ -166,7 +166,7 @@ export default function SearchPage() {
       result = result.filter(p => !isProductRestrictedFromSearch(p, allCategories));
     }
     
-    return filterProductsBySearch(result, query, allCategories);
+    return filterProductsBySearch(result, query, allCategories, { includeRestricted: searchArchived });
   }, [products, query, searchArchived, allCategories]);
 
   const totalPages = Math.ceil(filteredProductsAll.length / itemsPerPage);
