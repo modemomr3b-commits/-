@@ -146,15 +146,26 @@ export default function SearchPage() {
   const filteredProductsAll = useMemo(() => {
     if (!query) return [];
     
+    let archivedCat = allCategories.find(c => c.name.includes('النافذة') || c.name.includes('نافذة'));
+    const archivedCatId = archivedCat?.id;
+
     let result = products;
     if (searchArchived) {
-      result = result.filter(p => p.isArchived);
+      result = result.filter(p => p.isArchived || (archivedCatId && p.categoryId === archivedCatId));
     } else {
-      result = result.filter(p => !p.isArchived && !p.isHidden && !p.isLocked);
+      result = result.filter(p => !p.isArchived && (!archivedCatId || p.categoryId !== archivedCatId) && !p.isHidden && !p.isLocked);
     }
     
     // Always exclude products in restricted categories ("المواد المقفلة من قبل الادمن", "الموديلات متابعة")
-    result = result.filter(p => !isProductRestrictedFromSearch(p, allCategories));
+    if (searchArchived) {
+      result = result.filter(p => {
+        if (archivedCatId && p.categoryId === archivedCatId) return true;
+        if (p.isArchived) return true;
+        return !isProductRestrictedFromSearch(p, allCategories);
+      });
+    } else {
+      result = result.filter(p => !isProductRestrictedFromSearch(p, allCategories));
+    }
     
     return filterProductsBySearch(result, query, allCategories);
   }, [products, query, searchArchived, allCategories]);
