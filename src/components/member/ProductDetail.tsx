@@ -354,7 +354,7 @@ export default function ProductDetail() {
 
   const handleAddToCart = () => {
     if (product) {
-      if (product.isArchived || product.isLocked) return;
+      if (product.isArchived || product.isLocked || product.categoryId === 'be0a70a8-f9c6-430d-8416-11745f26576f') return;
       addToCart(product, 1);
     }
   };
@@ -652,7 +652,7 @@ export default function ProductDetail() {
 
               {/* Cart / Add to Order Section */}
               <div className="pt-1">
-                {product.isArchived || product.isLocked ? (
+                {product.isArchived || product.isLocked || product.categoryId === 'be0a70a8-f9c6-430d-8416-11745f26576f' ? (
                   <div className="w-full py-3.5 px-4 bg-red-950/50 border border-red-500/30 rounded-xl text-red-300 font-bold text-sm text-center">
                     مادة نافذة (غير قابلة للطلب)
                   </div>
@@ -879,7 +879,7 @@ export default function ProductDetail() {
             </div>
 
             {/* Mobile Cart Button */}
-            {product.isArchived || product.isLocked ? (
+            {product.isArchived || product.isLocked || product.categoryId === 'be0a70a8-f9c6-430d-8416-11745f26576f' ? (
               <div className="w-full py-2 bg-red-950/50 border border-red-500/30 rounded-lg text-red-300 font-bold text-xs text-center">
                 مادة نافذة (غير قابلة للطلب)
               </div>

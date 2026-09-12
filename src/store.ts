@@ -30,7 +30,10 @@ export const useStore = create<AppState>()(
       },
       initialize: () => {        set({ loading: false });      },
       cart: [],
-      addToCart: (product, quantity) =>
+      addToCart: (product, quantity) => {
+        if (product.isArchived || product.categoryId === 'be0a70a8-f9c6-430d-8416-11745f26576f') {
+          return;
+        }
         set((state) => {
           const existing = state.cart.find((item) => item.product.id === product.id);
           if (existing) {
@@ -43,7 +46,8 @@ export const useStore = create<AppState>()(
             };
           }
           return { cart: [...state.cart, { product, quantity }] };
-        }),
+        });
+      },
       removeFromCart: (productId) =>
         set((state) => ({ cart: state.cart.filter((item) => item.product.id !== productId) })),
       updateQuantity: (productId, quantity) =>

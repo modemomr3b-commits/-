@@ -1143,7 +1143,7 @@ export default function Products() {
                   </div>
                 )}
                 <div className="mt-2">
-                  {p.isArchived ? (
+                  {p.isArchived || p.categoryId === 'be0a70a8-f9c6-430d-8416-11745f26576f' ? (
                     <div className="w-full py-1.5 bg-red-950/50 border border-red-500/30 rounded-lg text-red-300 font-medium text-xs text-center">
                       مادة نافذة (غير قابلة للطلب)
                     </div>

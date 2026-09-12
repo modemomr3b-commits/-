@@ -627,35 +627,41 @@ export default function ImageViewer({
               <div className="space-y-2.5 pt-1">
                 {/* Add to Cart Button */}
                 {product && (
-                  <button
-                    onClick={() => {
-                      if (onAddToCart) {
-                        onAddToCart(product);
-                      } else if (store?.addToCart) {
-                        store.addToCart(product, 1);
-                        store.showToast?.(`تمت إضافة "${product.name}" إلى السلة`, 'success');
-                      }
-                      setAddedToCartSuccess(true);
-                      setTimeout(() => setAddedToCartSuccess(false), 2000);
-                    }}
-                    className={`w-full py-3.5 px-4 font-black rounded-xl text-sm transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer shadow-lg ${
-                      addedToCartSuccess
-                        ? "bg-emerald-500 text-white shadow-emerald-500/30"
-                        : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30"
-                    }`}
-                  >
-                    {addedToCartSuccess ? (
-                      <>
-                        <Check size={18} className="text-white animate-bounce" />
-                        <span>تمت الإضافة إلى السلة!</span>
-                      </>
-                    ) : (
-                      <>
-                        <ShoppingCart size={18} />
-                        <span>إضافة إلى السلة</span>
-                      </>
-                    )}
-                  </button>
+                  product.isArchived || product.isLocked || product.categoryId === 'be0a70a8-f9c6-430d-8416-11745f26576f' ? (
+                    <div className="w-full py-3.5 px-4 bg-red-950/50 border border-red-500/30 rounded-xl text-red-300 font-bold text-sm text-center">
+                      مادة نافذة (غير قابلة للطلب)
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        if (onAddToCart) {
+                          onAddToCart(product);
+                        } else if (store?.addToCart) {
+                          store.addToCart(product, 1);
+                          store.showToast?.(`تمت إضافة "${product.name}" إلى السلة`, 'success');
+                        }
+                        setAddedToCartSuccess(true);
+                        setTimeout(() => setAddedToCartSuccess(false), 2000);
+                      }}
+                      className={`w-full py-3.5 px-4 font-black rounded-xl text-sm transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer shadow-lg ${
+                        addedToCartSuccess
+                          ? "bg-emerald-500 text-white shadow-emerald-500/30"
+                          : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30"
+                      }`}
+                    >
+                      {addedToCartSuccess ? (
+                        <>
+                          <Check size={18} className="text-white animate-bounce" />
+                          <span>تمت الإضافة إلى السلة!</span>
+                        </>
+                      ) : (
+                        <>
+                          <ShoppingCart size={18} />
+                          <span>إضافة إلى السلة</span>
+                        </>
+                      )}
+                    </button>
+                  )
                 )}
 
                 {/* High Res Download Button */}
@@ -872,35 +878,41 @@ export default function ImageViewer({
               {/* Mobile Action Buttons */}
               <div className="grid grid-cols-2 gap-1.5 pt-0.5">
                 {product && (
-                  <button
-                    onClick={() => {
-                      if (onAddToCart) {
-                        onAddToCart(product);
-                      } else if (store?.addToCart) {
-                        store.addToCart(product, 1);
-                        store.showToast?.(`تمت إضافة "${product.name}" إلى السلة`, 'success');
-                      }
-                      setAddedToCartSuccess(true);
-                      setTimeout(() => setAddedToCartSuccess(false), 2000);
-                    }}
-                    className={`py-2 px-2 font-black rounded-lg text-xs flex items-center justify-center gap-1 shadow-lg active:scale-95 transition-all cursor-pointer ${
-                      addedToCartSuccess
-                        ? "bg-emerald-500 text-white shadow-emerald-500/30"
-                        : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30"
-                    }`}
-                  >
-                    {addedToCartSuccess ? (
-                      <>
-                        <Check size={14} className="text-white animate-bounce" />
-                        <span className="text-[10px] sm:text-xs">تمت الإضافة!</span>
-                      </>
-                    ) : (
-                      <>
-                        <ShoppingCart size={14} />
-                        <span className="text-[10px] sm:text-xs">إضافة للسلة</span>
-                      </>
-                    )}
-                  </button>
+                  product.isArchived || product.isLocked || product.categoryId === 'be0a70a8-f9c6-430d-8416-11745f26576f' ? (
+                    <div className="col-span-2 py-2 px-2 bg-red-950/50 border border-red-500/30 rounded-lg text-red-300 font-bold text-[10px] text-center">
+                      مادة نافذة (غير قابلة للطلب)
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        if (onAddToCart) {
+                          onAddToCart(product);
+                        } else if (store?.addToCart) {
+                          store.addToCart(product, 1);
+                          store.showToast?.(`تمت إضافة "${product.name}" إلى السلة`, 'success');
+                        }
+                        setAddedToCartSuccess(true);
+                        setTimeout(() => setAddedToCartSuccess(false), 2000);
+                      }}
+                      className={`py-2 px-2 font-black rounded-lg text-xs flex items-center justify-center gap-1 shadow-lg active:scale-95 transition-all cursor-pointer ${
+                        addedToCartSuccess
+                          ? "bg-emerald-500 text-white shadow-emerald-500/30"
+                          : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30"
+                      }`}
+                    >
+                      {addedToCartSuccess ? (
+                        <>
+                          <Check size={14} className="text-white animate-bounce" />
+                          <span className="text-[10px] sm:text-xs">تمت الإضافة!</span>
+                        </>
+                      ) : (
+                        <>
+                          <ShoppingCart size={14} />
+                          <span className="text-[10px] sm:text-xs">إضافة للسلة</span>
+                        </>
+                      )}
+                    </button>
+                  )
                 )}
                 <button
                   onClick={handleDownload}
