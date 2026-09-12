@@ -232,7 +232,7 @@ export default function ProductManager() {
     showcaseCategory: "رجالي",
   });
 
-  const [filterStatus, setFilterStatus] = useState<"all" | "active" | "archived" | "locked" | "inactive" | "duplicates" | "showcase" | null>("active");
+  const [filterStatus, setFilterStatus] = useState<"all" | "active" | "locked" | "inactive" | "duplicates" | "showcase" | null>("active");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [searchDate, setSearchDate] = useState("");
@@ -869,10 +869,14 @@ export default function ProductManager() {
   };
 
   const handleToggleArchive = async (p: Product) => {
-    if (p.isArchived) {
+    const archivedCat = categories.find(c => c.name.includes('النافذة') || c.name.includes('نافذة'));
+    const archivedCatId = archivedCat?.id;
+    if (!archivedCatId) {
+      setAlertMessage("❌ قسم المواد النافذة غير موجود!");
       return;
     }
-    const updates: any = { isArchived: true, isShowcase: false, isLocked: true };
+
+    const updates: any = { categoryId: archivedCatId, isArchived: false, isHidden: false, isLocked: false, isShowcase: false };
 
     // Optimistic update
     setProducts((prev) =>
@@ -884,12 +888,13 @@ export default function ProductManager() {
     );
     try {
       await api.updateProduct(p.id!, updates);
+      setAlertMessage(`تم نقل المنتج "${p.name || ''}" إلى قسم المواد النافذة بنجاح`);
     } catch (e) {
       console.error(e);
       // Revert optimistic update
       const updated = await api.getProducts();
       setProducts(updated);
-      setAlertMessage("فشل تغيير حالة المنتج");
+      setAlertMessage("فشل نقل المنتج إلى المواد النافذة");
     }
   };
 
@@ -1117,17 +1122,21 @@ export default function ProductManager() {
     }
   };
 
-  const handleBulkToggleArchive = async (archive: boolean) => {
-    if (!archive) {
+  const handleBulkToggleArchive = async () => {
+    if (selectedIds.size === 0) return;
+    const archivedCat = categories.find(c => c.name.includes('النافذة') || c.name.includes('نافذة'));
+    const archivedCatId = archivedCat?.id;
+    if (!archivedCatId) {
+      setAlertMessage("❌ قسم المواد النافذة غير موجود!");
       return;
     }
-    if (selectedIds.size === 0) return;
+
     const ids = Array.from(selectedIds);
     const targetIdsSet = new Set(ids.map(id => String(id)));
     setSelectedIds(new Set());
     setIsSubmitting(true);
 
-    const updatePayload = { isArchived: true, isShowcase: false, isLocked: true };
+    const updatePayload = { categoryId: archivedCatId, isArchived: false, isHidden: false, isLocked: false, isShowcase: false };
 
     // Instant optimistic local update
     setProducts((prev) =>
@@ -1140,11 +1149,12 @@ export default function ProductManager() {
 
     try {
       await api.bulkUpdateProducts(ids, updatePayload);
+      setAlertMessage(`تم نقل ${ids.length} منتج إلى قسم المواد النافذة بنجاح`);
     } catch (e: any) {
-      console.error("Error bulk toggling out of stock:", e);
+      console.error("Error bulk moving to archived category:", e);
       const updated = await api.getProducts();
       setProducts(updated);
-      setAlertMessage("فشل التحديث المجمع: " + (e.message || e));
+      setAlertMessage("فشل النقل المجمع: " + (e.message || e));
     } finally {
       setIsSubmitting(false);
     }
@@ -1437,45 +1447,57 @@ export default function ProductManager() {
 
   // Tab counts for clear visual counters
   const tabCounts = useMemo(() => {
+    const archivedCat = categories.find(c => c.name.includes('النافذة') || c.name.includes('نافذة'));
+    const archivedCatId = archivedCat?.id;
+    const nonArchivedProds = products.filter(p => !(archivedCatId ? p.categoryId === archivedCatId : p.isArchived));
+
     return {
-      all: products.length,
-      active: products.filter(p => !p.isHidden && !p.isArchived).length,
-      inactive: products.filter(p => p.isHidden && !p.isArchived).length,
-      archived: products.filter(p => p.isArchived).length,
-      locked: products.filter(p => p.isLocked).length,
-      duplicates: products.filter(p => !p.isHidden && !p.isArchived && duplicatesSet.has(p.modelNumber || p.productCode)).length,
-      showcase: products.filter(p => p.isShowcase && !p.isArchived && !p.isHidden).length,
+      all: nonArchivedProds.length,
+      active: nonArchivedProds.filter(p => !p.isHidden).length,
+      inactive: nonArchivedProds.filter(p => p.isHidden).length,
+      locked: nonArchivedProds.filter(p => p.isLocked).length,
+      duplicates: nonArchivedProds.filter(p => !p.isHidden && duplicatesSet.has(p.modelNumber || p.productCode)).length,
+      showcase: nonArchivedProds.filter(p => p.isShowcase && !p.isHidden).length,
     };
-  }, [products, duplicatesSet]);
+  }, [products, duplicatesSet, categories]);
 
   const filteredProducts = useMemo(() => {
+    const archivedCat = categories.find(c => c.name.includes('النافذة') || c.name.includes('نافذة'));
+    const archivedCatId = archivedCat?.id;
+
     return products.filter(p => {
-      // 1. Filter by Status Tab
-      if (filterStatus === 'active') {
-        // Only active: NOT hidden, NOT out of stock/archived
-        if (p.isHidden || p.isArchived) return false;
-      } else if (filterStatus === 'inactive') {
-        // Only inactive: isHidden is true, NOT out of stock/archived
-        if (!p.isHidden || p.isArchived) return false;
-      } else if (filterStatus === 'archived') {
-        // Only out of stock/archived
-        if (!p.isArchived) return false;
-      } else if (filterStatus === 'locked') {
-        // Only locked products
-        if (!p.isLocked) return false;
-      } else if (filterStatus === 'duplicates') {
-        // Only active duplicates
-        if (p.isHidden || p.isArchived || !duplicatesSet.has(p.modelNumber || p.productCode)) return false;
-      } else if (filterStatus === 'showcase') {
-        // Only showcase
-        if (!p.isShowcase) return false;
-      } else if (filterStatus === 'all') {
-        // All products regardless of active/inactive/archived!
-      } else if (filterStatus === null) {
-        // If null and no search, hide
-        if (!searchQuery && !searchDate && !filterCategoryId) return false;
-        // If search exists but no tab selected, default to active
-        if (p.isHidden || p.isArchived) return false;
+      const isArchivedProd = archivedCatId ? p.categoryId === archivedCatId : p.isArchived;
+
+      // If product belongs to archived category, it ONLY shows when filterCategoryId matches archivedCatId
+      if (filterCategoryId === archivedCatId) {
+        if (!isArchivedProd) return false;
+      } else {
+        if (isArchivedProd) return false;
+
+        // 1. Filter by Status Tab
+        if (filterStatus === 'active') {
+          // Only active: NOT hidden
+          if (p.isHidden) return false;
+        } else if (filterStatus === 'inactive') {
+          // Only inactive: isHidden is true
+          if (!p.isHidden) return false;
+        } else if (filterStatus === 'locked') {
+          // Only locked products
+          if (!p.isLocked) return false;
+        } else if (filterStatus === 'duplicates') {
+          // Only active duplicates
+          if (p.isHidden || !duplicatesSet.has(p.modelNumber || p.productCode)) return false;
+        } else if (filterStatus === 'showcase') {
+          // Only showcase
+          if (!p.isShowcase) return false;
+        } else if (filterStatus === 'all') {
+          // All non-archived products
+        } else if (filterStatus === null) {
+          // If null and no search, hide
+          if (!searchQuery && !searchDate && !filterCategoryId) return false;
+          // If search exists but no tab selected, default to active
+          if (p.isHidden) return false;
+        }
       }
 
       // 2. Filter by Category / Section
@@ -1873,15 +1895,7 @@ export default function ProductManager() {
                 {tabCounts.inactive}
               </span>
             </button>
-            <button
-              onClick={() => setFilterStatus("archived")}
-              className={`pb-2 px-2.5 text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 ${filterStatus === "archived" ? "border-red-400 text-red-400" : "border-transparent text-white/50 hover:text-white"}`}
-            >
-              المواد النافذة
-              <span className="text-[10px] bg-red-500/20 text-red-300 px-1.5 py-0.5 rounded-full font-mono font-bold">
-                {tabCounts.archived}
-              </span>
-            </button>
+
             <button
               onClick={() => setFilterStatus("locked")}
               className={`pb-2 px-2.5 text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 ${filterStatus === "locked" ? "border-purple-400 text-purple-400" : "border-transparent text-white/50 hover:text-white"}`}
@@ -2052,7 +2066,7 @@ export default function ProductManager() {
                   )}
                   {selectedIds.size > 0 && filterStatus !== 'archived' && (
                     <button
-                      onClick={() => handleBulkToggleArchive(true)}
+                      onClick={() => handleBulkToggleArchive()}
                       disabled={isSubmitting}
                       className="flex items-center gap-2 px-4 py-2 bg-orange-500/20 text-orange-400 border border-orange-500/30 rounded-lg text-sm hover:bg-orange-500/30 transition-colors font-bold whitespace-nowrap disabled:opacity-50"
                     >

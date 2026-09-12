@@ -151,16 +151,15 @@ export default function SearchPage() {
 
     let result = products;
     if (searchArchived) {
-      result = result.filter(p => p.isArchived || (archivedCatId && p.categoryId === archivedCatId));
+      result = result.filter(p => archivedCatId && p.categoryId === archivedCatId);
     } else {
-      result = result.filter(p => !p.isArchived && (!archivedCatId || p.categoryId !== archivedCatId) && !p.isHidden && !p.isLocked);
+      result = result.filter(p => (!archivedCatId || p.categoryId !== archivedCatId) && !p.isHidden && !p.isLocked);
     }
     
     // Always exclude products in restricted categories ("المواد المقفلة من قبل الادمن", "الموديلات متابعة")
     if (searchArchived) {
       result = result.filter(p => {
         if (archivedCatId && p.categoryId === archivedCatId) return true;
-        if (p.isArchived) return true;
         return !isProductRestrictedFromSearch(p, allCategories);
       });
     } else {

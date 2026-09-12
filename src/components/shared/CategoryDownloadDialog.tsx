@@ -93,8 +93,12 @@ export function CategoryDownloadDialog({ categories, products, onClose }: Catego
 
   // Filter products to ONLY include active ones (exclude out-of-stock / inactive / hidden / archived / deleted / restricted)
   const activeProducts = useMemo(() => {
+    const archivedCat = storeCategories.find(c => c.name.includes('النافذة') || c.name.includes('نافذة'));
+    const archivedCatId = archivedCat?.id;
     return storeProducts.filter(
-      p => !p.isHidden && !p.isArchived && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, storeCategories)
+      p => !p.isHidden && !p.isArchived && !p.isLocked && !p.isDeleted && 
+           (!archivedCatId || p.categoryId !== archivedCatId) &&
+           !isProductRestrictedFromSearch(p, storeCategories)
     );
   }, [storeProducts, storeCategories]);
 
