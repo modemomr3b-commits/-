@@ -1,3 +1,4 @@
+import { localCache } from '../../utils/localCache';
 import { formatDateTime, formatDate } from '../../utils/time';
 import {
   Plus,
@@ -303,6 +304,20 @@ export default function ProductManager() {
     let mounted = true;
     let fetchTimeout: any;
     const initialLoad = async () => {
+      // 1. Instantly load from local cache for 0ms delay display
+      try {
+        const cached = await localCache.get<any[]>('all_products', Infinity);
+        if (cached && cached.length > 0 && mounted && products.length === 0) {
+          const mappedCached = cached.map((p: any) => ({
+            ...p,
+            createdAt: p.createdAt ? new Date(p.createdAt).getTime() : Date.now(),
+          })).sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0));
+          setProducts(mappedCached);
+          setLoading(false);
+        }
+      } catch {}
+
+      // 2. Fetch fresh data in background
       await loadData();
       if (mounted) setLoading(false);
     };
@@ -628,14 +643,15 @@ export default function ProductManager() {
       updatedAt: Date.now()
     } : originalProduct?.oldPriceInfo;
 
-    const wasInactive = originalProduct && (originalProduct.isHidden || originalProduct.isArchived);
-    const isNowActive = !payloadToUpdate.isHidden && !payloadToUpdate.isArchived;
+    const wasInactive = originalProduct && originalProduct.isHidden;
+    const isNowActive = !payloadToUpdate.isHidden && !originalProduct?.isArchived;
     const autoShowcaseCat = (wasInactive && isNowActive)
       ? (payloadToUpdate.showcaseCategory || detectShowcaseCategory(payloadToUpdate, categories) || 'عام')
       : payloadToUpdate.showcaseCategory;
 
     const fullUpdatedProduct = {
       ...payloadToUpdate,
+      isArchived: originalProduct?.isArchived ? true : (payloadToUpdate.isArchived ?? false),
       ...(wasInactive && isNowActive ? { isShowcase: true, showcaseCategory: autoShowcaseCat } : {}),
       finalImageUrl: finalImg,
       oldPriceInfo: oldPriceInfo
@@ -799,7 +815,11 @@ export default function ProductManager() {
   };
 
   const handleRestoreArchive = async (p: Product) => {
-    if (!window.confirm(`هل أنت متأكد من استرجاع المنتج "${p.name}" من المواد النافذة وإعادته؟`)) {
+    const pin = window.prompt(`🔒 استرجاع المنتج "${p.name}" من المواد النافذة:\n\nالرجاء إدخال الرمز السري للإرجاع (mode):`);
+    if (pin !== 'mode') {
+      if (pin !== null) {
+        setAlertMessage("❌ الرمز السري غير صحيح! لا يمكن إرجاع المنتج النافذ.");
+      }
       return;
     }
     recentlyModifiedRef.current[p.id!] = Date.now();
@@ -824,7 +844,11 @@ export default function ProductManager() {
 
   const handleBulkRestoreArchive = async () => {
     if (selectedIds.size === 0) return;
-    if (!window.confirm(`هل أنت متأكد من استرجاع ${selectedIds.size} منتج من المواد النافذة؟`)) {
+    const pin = window.prompt(`🔒 استرجاع ${selectedIds.size} منتج من المواد النافذة:\n\nالرجاء إدخال الرمز السري للإرجاع (mode):`);
+    if (pin !== 'mode') {
+      if (pin !== null) {
+        setAlertMessage("❌ الرمز السري غير صحيح! لا يمكن إرجاع المنتجات النافذة.");
+      }
       return;
     }
     setIsSubmitting(true);

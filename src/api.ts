@@ -742,6 +742,9 @@ export const api = {
   // CATEGORIES
   getCategories: async () => {
     const cacheKey = 'all_categories';
+    if (memCache[cacheKey]?.data?.length && (Date.now() - (memCache[cacheKey].timestamp || 0) < 30000)) {
+      return memCache[cacheKey].data;
+    }
     
     try {
       const fresh = await getData('categories');
