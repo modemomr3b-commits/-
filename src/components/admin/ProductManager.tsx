@@ -1325,7 +1325,6 @@ export default function ProductManager() {
       setDownloadProgress({ progress, total });
     });
     setDownloadProgress(null);
-    setSelectedIds(new Set());
   };
   const handleBulkDownload = async () => {
     if (selectedIds.size === 0) return;
@@ -1359,7 +1358,6 @@ export default function ProductManager() {
     });
 
     setDownloadProgress(null);
-    setSelectedIds(new Set());
   };
 
   const handleDownloadInactiveImages = async () => {
