@@ -1192,7 +1192,10 @@ export default function ProductManager() {
   const handleCleanShowcaseArchived = async () => {
     setIsSubmitting(true);
     try {
-      const targetProds = products.filter(p => (p.isArchived || p.isHidden) && p.isShowcase);
+      const archivedCat = categories.find(c => c.name.includes('النافذة') || c.name.includes('نافذة'));
+      const archivedCatId = archivedCat?.id || 'be0a70a8-f9c6-430d-8416-11745f26576f';
+      
+      const targetProds = products.filter(p => (p.isArchived || p.isHidden || p.categoryId === archivedCatId) && p.isShowcase);
       if (targetProds.length === 0) {
         setAlertMessage("المعرض نظيف تماماً، ولا توجد أي مواد نافذة أو مخفية منشورة فيه.");
         setIsSubmitting(false);
