@@ -1055,7 +1055,7 @@ export default function Products() {
                 ) : (
                   <div className="text-white/30 text-3xl">👟</div>
                 )}
-                {(p.isArchived || p.isHidden || p.isLocked) && (
+                {(p.isArchived || p.isHidden || p.isLocked || p.categoryId === 'be0a70a8-f9c6-430d-8416-11745f26576f') && (
                   <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center p-2 z-10 pointer-events-none gap-1">
                     {(p.isArchived || p.categoryId === 'be0a70a8-f9c6-430d-8416-11745f26576f') && (
                       <span className="text-red-500 font-bold text-xl drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] tracking-wide bg-black/40 px-3 py-1 rounded-lg border border-red-500/30">
