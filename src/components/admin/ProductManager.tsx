@@ -657,6 +657,12 @@ export default function ProductManager() {
       oldPriceInfo: oldPriceInfo
     };
 
+    const archivedCat = categories.find(c => c.name.includes('النافذة') || c.name.includes('نافذة'));
+    const archivedCatId = archivedCat?.id || 'be0a70a8-f9c6-430d-8416-11745f26576f';
+    if (fullUpdatedProduct.categoryId === archivedCatId) {
+      fullUpdatedProduct.isShowcase = false;
+    }
+
     // Remove fields that are not editable in the form to prevent overwriting background toggles
     delete fullUpdatedProduct.isLocked;
     delete fullUpdatedProduct.isHidden;
@@ -1226,11 +1232,22 @@ export default function ProductManager() {
     const targetSubcatId = moveToSubcategoryId || null;
     const ids = Array.from(selectedIds);
     const targetIdsSet = new Set(ids.map(id => String(id)));
+
+    const archivedCat = categories.find(c => c.name.includes('النافذة') || c.name.includes('نافذة'));
+    const archivedCatId = archivedCat?.id || 'be0a70a8-f9c6-430d-8416-11745f26576f';
+    const isMovingToArchived = targetCatId === archivedCatId;
     
     // Instant optimistic update and close modal immediately
     setProducts((prev) =>
       prev.map((prod) =>
-        targetIdsSet.has(String(prod.id)) ? { ...prod, categoryId: targetCatId, subcategoryId: targetSubcatId || undefined } : prod
+        targetIdsSet.has(String(prod.id)) 
+          ? { 
+              ...prod, 
+              categoryId: targetCatId, 
+              subcategoryId: targetSubcatId || undefined,
+              ...(isMovingToArchived ? { isShowcase: false } : {})
+            } 
+          : prod
       )
     );
     setSelectedIds(new Set());
@@ -1240,7 +1257,11 @@ export default function ProductManager() {
     setIsSubmitting(true);
 
     try {
-      await api.bulkUpdateProducts(ids, { categoryId: targetCatId, subcategoryId: targetSubcatId });
+      await api.bulkUpdateProducts(ids, { 
+        categoryId: targetCatId, 
+        subcategoryId: targetSubcatId,
+        ...(isMovingToArchived ? { isShowcase: false } : {})
+      });
     } catch (e: any) {
       console.error("Error bulk moving categories:", e);
       const updated = await api.getProducts();
