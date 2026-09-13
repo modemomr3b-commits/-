@@ -629,7 +629,7 @@ export default function ImageViewer({
                 {product && (
                   product.isArchived || product.isLocked || product.categoryId === 'be0a70a8-f9c6-430d-8416-11745f26576f' ? (
                     <div className="w-full py-3.5 px-4 bg-red-950/50 border border-red-500/30 rounded-xl text-red-300 font-bold text-sm text-center">
-                      مادة نافذة (غير قابلة للطلب)
+                      منتج غير قابل للطلب
                     </div>
                   ) : (
                     <button
@@ -880,7 +880,7 @@ export default function ImageViewer({
                 {product && (
                   product.isArchived || product.isLocked || product.categoryId === 'be0a70a8-f9c6-430d-8416-11745f26576f' ? (
                     <div className="col-span-2 py-2 px-2 bg-red-950/50 border border-red-500/30 rounded-lg text-red-300 font-bold text-[10px] text-center">
-                      مادة نافذة (غير قابلة للطلب)
+                      منتج غير قابل للطلب
                     </div>
                   ) : (
                     <button

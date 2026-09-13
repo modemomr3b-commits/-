@@ -567,9 +567,9 @@ export default function ProductDetail() {
                     </span>
                   )}
 
-                  {product.isArchived && (
+                  {(product.isArchived || product.categoryId === 'be0a70a8-f9c6-430d-8416-11745f26576f') && (
                     <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-500/20 border border-red-500/40 text-red-300 text-xs font-bold">
-                      📦 مادة نافذة (أرشيف)
+                      📦 منتج نافذ
                     </span>
                   )}
 
@@ -654,7 +654,7 @@ export default function ProductDetail() {
               <div className="pt-1">
                 {product.isArchived || product.isLocked || product.categoryId === 'be0a70a8-f9c6-430d-8416-11745f26576f' ? (
                   <div className="w-full py-3.5 px-4 bg-red-950/50 border border-red-500/30 rounded-xl text-red-300 font-bold text-sm text-center">
-                    مادة نافذة (غير قابلة للطلب)
+                    منتج غير قابل للطلب
                   </div>
                 ) : cartItem ? (
                   <div className="flex items-center justify-between w-full h-13 bg-blue-600/20 border border-blue-500/40 rounded-xl px-3 shadow-lg">
@@ -881,7 +881,7 @@ export default function ProductDetail() {
             {/* Mobile Cart Button */}
             {product.isArchived || product.isLocked || product.categoryId === 'be0a70a8-f9c6-430d-8416-11745f26576f' ? (
               <div className="w-full py-2 bg-red-950/50 border border-red-500/30 rounded-lg text-red-300 font-bold text-xs text-center">
-                مادة نافذة (غير قابلة للطلب)
+                منتج غير قابل للطلب
               </div>
             ) : cartItem ? (
               <div className="flex items-center justify-between w-full h-10 bg-blue-600/20 border border-blue-500/40 rounded-lg px-2">

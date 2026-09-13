@@ -300,10 +300,10 @@ export default function SearchPage() {
                          )}
                          {(p.isArchived || p.isHidden || p.isLocked) && (
                            <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center p-2 z-10 pointer-events-none gap-1">
-                             {p.isArchived && (
-                               <span className="bg-red-600/90 text-white px-2.5 py-1 rounded-full text-[11px] font-bold border border-red-400 backdrop-blur-md shadow-md">
-                                 📦 مادة نافذة
-                               </span>
+                             {(p.isArchived || p.categoryId === 'be0a70a8-f9c6-430d-8416-11745f26576f') && (
+                               <span className="text-red-500 font-bold text-xl drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] tracking-wide bg-black/40 px-3 py-1 rounded-lg border border-red-500/30">
+                                منتج نافذ
+                              </span>
                              )}
                              {p.isLocked && (
                                <span className="bg-amber-600/90 text-white px-2.5 py-1 rounded-full text-[11px] font-bold border border-amber-400 backdrop-blur-md shadow-md">
@@ -394,9 +394,9 @@ export default function SearchPage() {
                            </div>
                          </div>
                          <div className="mt-2" onClick={(e) => e.preventDefault()}>
-                           {p.isArchived ? (
+                           {p.isArchived || p.isLocked || p.categoryId === 'be0a70a8-f9c6-430d-8416-11745f26576f' ? (
                              <div className="w-full py-1.5 bg-red-950/50 border border-red-500/30 rounded-lg text-red-300 font-medium text-xs text-center cursor-not-allowed">
-                               مادة نافذة (غير قابلة للطلب)
+                               منتج غير قابل للطلب
                              </div>
                            ) : (() => {
                              const cartItem = cart.find(item => item.product.id === p.id);
