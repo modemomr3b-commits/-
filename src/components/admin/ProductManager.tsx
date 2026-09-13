@@ -649,13 +649,20 @@ export default function ProductManager() {
       ? (payloadToUpdate.showcaseCategory || detectShowcaseCategory(payloadToUpdate, categories) || 'عام')
       : payloadToUpdate.showcaseCategory;
 
-    const fullUpdatedProduct = {
+    const fullUpdatedProduct: any = {
       ...payloadToUpdate,
       isArchived: originalProduct?.isArchived ? true : (payloadToUpdate.isArchived ?? false),
       ...(wasInactive && isNowActive ? { isShowcase: true, showcaseCategory: autoShowcaseCat } : {}),
       finalImageUrl: finalImg,
       oldPriceInfo: oldPriceInfo
     };
+
+    // Remove fields that are not editable in the form to prevent overwriting background toggles
+    delete fullUpdatedProduct.isLocked;
+    delete fullUpdatedProduct.isHidden;
+    delete fullUpdatedProduct.isArchived;
+    delete fullUpdatedProduct.views;
+    delete fullUpdatedProduct.isDeleted;
 
     // 1. INSTANT LOCAL UPDATE & CLOSE MODAL (Zero wait time for the user)
     setProducts(prev => prev.map(p => p.id === payloadToUpdate.id ? { ...p, ...fullUpdatedProduct } : p));
