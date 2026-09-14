@@ -36,7 +36,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { api } from "../../api";
 import { supabase } from "../../supabase";
-import { filterProductsBySearch, isProductRestrictedFromSearch } from '../../utils/search';
+import { filterProductsBySearch, isProductRestrictedFromSearch, isArchivedCategoryName } from '../../utils/search';
 import { Product, Category } from "../../types";
 import { 
   autoDetectCategoryAndSubcategory, 
@@ -244,13 +244,6 @@ export default function ProductManager() {
   const [itemsPerPage, setItemsPerPage] = useState<number>(100);
 
   // Debounce search input
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setSearchQuery(searchInput);
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [searchInput]);
-
   // Reset page on filter changes
   useEffect(() => {
     setCurrentPage(1);
@@ -657,7 +650,7 @@ export default function ProductManager() {
       oldPriceInfo: oldPriceInfo
     };
 
-    const archivedCat = categories.find(c => c.name.includes('النافذة') || c.name.includes('نافذة'));
+    const archivedCat = categories.find(c => isArchivedCategoryName(c.name));
     const archivedCatId = archivedCat?.id || 'be0a70a8-f9c6-430d-8416-11745f26576f';
     if (fullUpdatedProduct.categoryId === archivedCatId) {
       fullUpdatedProduct.isShowcase = false;
@@ -882,7 +875,7 @@ export default function ProductManager() {
   };
 
   const handleToggleArchive = async (p: Product) => {
-    const archivedCat = categories.find(c => c.name.includes('النافذة') || c.name.includes('نافذة'));
+    const archivedCat = categories.find(c => isArchivedCategoryName(c.name));
     const archivedCatId = archivedCat?.id;
     if (!archivedCatId) {
       setAlertMessage("❌ قسم المواد النافذة غير موجود!");
@@ -1137,7 +1130,7 @@ export default function ProductManager() {
 
   const handleBulkToggleArchive = async () => {
     if (selectedIds.size === 0) return;
-    const archivedCat = categories.find(c => c.name.includes('النافذة') || c.name.includes('نافذة'));
+    const archivedCat = categories.find(c => isArchivedCategoryName(c.name));
     const archivedCatId = archivedCat?.id;
     if (!archivedCatId) {
       setAlertMessage("❌ قسم المواد النافذة غير موجود!");
@@ -1205,7 +1198,7 @@ export default function ProductManager() {
   const handleCleanShowcaseArchived = async () => {
     setIsSubmitting(true);
     try {
-      const archivedCat = categories.find(c => c.name.includes('النافذة') || c.name.includes('نافذة'));
+      const archivedCat = categories.find(c => isArchivedCategoryName(c.name));
       const archivedCatId = archivedCat?.id || 'be0a70a8-f9c6-430d-8416-11745f26576f';
       
       const targetProds = products.filter(p => (p.isArchived || p.isHidden || p.categoryId === archivedCatId) && p.isShowcase);
@@ -1233,7 +1226,7 @@ export default function ProductManager() {
     const ids = Array.from(selectedIds);
     const targetIdsSet = new Set(ids.map(id => String(id)));
 
-    const archivedCat = categories.find(c => c.name.includes('النافذة') || c.name.includes('نافذة'));
+    const archivedCat = categories.find(c => isArchivedCategoryName(c.name));
     const archivedCatId = archivedCat?.id || 'be0a70a8-f9c6-430d-8416-11745f26576f';
     const isMovingToArchived = targetCatId === archivedCatId;
     
@@ -1476,7 +1469,7 @@ export default function ProductManager() {
 
   // Tab counts for clear visual counters
   const tabCounts = useMemo(() => {
-    const archivedCat = categories.find(c => c.name.includes('النافذة') || c.name.includes('نافذة'));
+    const archivedCat = categories.find(c => isArchivedCategoryName(c.name));
     const archivedCatId = archivedCat?.id;
     const nonArchivedProds = products.filter(p => !(archivedCatId ? p.categoryId === archivedCatId : p.isArchived));
 
@@ -1491,10 +1484,17 @@ export default function ProductManager() {
   }, [products, duplicatesSet, categories]);
 
   const filteredProducts = useMemo(() => {
-    const archivedCat = categories.find(c => c.name.includes('النافذة') || c.name.includes('نافذة'));
+    const archivedCat = categories.find(c => isArchivedCategoryName(c.name));
     const archivedCatId = archivedCat?.id;
 
     return products.filter(p => {
+      // If there is an active search query, evaluate it IMMEDIATELY and bypass other filters
+      if (searchQuery && searchQuery.trim()) {
+        const match = filterProductsBySearch([p], searchQuery, categories, { includeRestricted: true });
+        if (match.length > 0) return true;
+        return false;
+      }
+
       const isArchivedProd = archivedCatId ? p.categoryId === archivedCatId : p.isArchived;
 
       // If product belongs to archived category, it ONLY shows when filterCategoryId matches archivedCatId
@@ -1537,12 +1537,6 @@ export default function ProductManager() {
           const isChild = childIds.includes(p.categoryId) || (p.subcategoryId ? childIds.includes(p.subcategoryId) : false);
           if (!isChild) return false;
         }
-      }
-
-      // 3. Filter by Search Query (Name, Code, Model, etc.)
-      if (searchQuery && searchQuery.trim()) {
-        const match = filterProductsBySearch([p], searchQuery, categories, { includeRestricted: true });
-        if (match.length === 0) return false;
       }
 
       // 4. Filter by Date
@@ -1974,15 +1968,29 @@ export default function ProductManager() {
           <div className="glass-panel border border-white/5 rounded-2xl overflow-hidden p-1">
             <div className="p-4 border-b border-white/5 flex flex-col sm:flex-row gap-3 justify-between items-center">
               <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
-                <div className="relative w-full sm:w-64">
-                  <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 w-4 h-4" />
-                  <input
-                    type="text"
-                    value={searchInput}
-                    onChange={(e) => setSearchInput(e.target.value)}
-                    className="w-full bg-white border border-black rounded-lg pr-10 pl-4 py-2.5 text-base font-bold text-black placeholder:text-gray-500 focus:outline-none focus:border-brq-gold/50"
-                    placeholder="بحث بالاسم، الكود..."
-                  />
+                <div className="relative w-full sm:w-80 flex gap-2">
+                  <div className="relative flex-1">
+                    <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
+                    <input
+                      type="text"
+                      value={searchInput}
+                      onChange={(e) => setSearchInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          setSearchQuery(searchInput);
+                        }
+                      }}
+                      className="w-full bg-white border border-black rounded-lg pr-10 pl-4 py-2.5 text-base font-bold text-black placeholder:text-gray-500 focus:outline-none focus:border-brq-gold/50"
+                      placeholder="بحث بالاسم، الكود..."
+                    />
+                  </div>
+                  <button
+                    onClick={() => setSearchQuery(searchInput)}
+                    className="bg-brq-gold text-black px-4 py-2.5 rounded-lg font-bold shadow-md hover:bg-yellow-400 active:scale-95 transition-all whitespace-nowrap text-sm flex items-center gap-1"
+                  >
+                    <Search size={16} />
+                    بحث عن المنتج
+                  </button>
                 </div>
                 <div className="relative w-full sm:w-48">
                   <input

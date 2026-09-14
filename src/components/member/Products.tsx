@@ -28,13 +28,14 @@ export default function Products() {
   const [allStoreProducts, setAllStoreProducts] = useState<Product[]>([]);
   
   // Initialize state from return storage if matching category
-  const [searchTerm, setSearchTerm] = useState(() => {
+  const [searchInput, setSearchInput] = useState(() => {
     const returnCat = sessionStorage.getItem('return_category');
     if (returnCat === (categoryId || 'all')) {
       return sessionStorage.getItem('return_searchTerm') || "";
     }
     return "";
   });
+  const [searchTerm, setSearchTerm] = useState(searchInput);
   
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   
@@ -89,50 +90,6 @@ export default function Products() {
     }
     return 1;
   });
-
-  const [displayCountPerPage, setDisplayCountPerPage] = useState(() => {
-    const returnCat = sessionStorage.getItem('return_category');
-    if (returnCat === (categoryId || 'all')) {
-      const savedCount = sessionStorage.getItem('return_display_count');
-      return savedCount ? parseInt(savedCount, 10) : 50;
-    }
-    return 50;
-  });
-  const batchSize = 50; // 50 items per batch within the page
-  const isAndroid = /Android/i.test(navigator.userAgent || '');
-  const maxShareLimit = isAndroid ? 10 : 100;
-  const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false);
-
-  // Reset displayCountPerPage when search term, subcategory or currentPage changes
-  useEffect(() => {
-    setDisplayCountPerPage(50);
-  }, [activeSub, searchTerm, currentPage]);
-
-  // Infinite scroll listener to automatically load next 50 products on current page when scrolling down (up to 100 per page)
-  useEffect(() => {
-    const handleScroll = () => {
-      if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 600) {
-        setDisplayCountPerPage(prev => {
-          if (prev < 100) {
-            return Math.min(prev + batchSize, 100);
-          }
-          return prev;
-        });
-      }
-    };
-
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-
-  const [isSelectionMode, setIsSelectionMode] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [readyFilesToShare, setReadyFilesToShare] = useState<File[] | null>(null);
-  const [downloadingId, setDownloadingId] = useState<string | null>(null);
-
-  useEffect(() => {
-    setReadyFilesToShare(null);
-  }, [selectedIds]);
 
   const fetchProducts = async (forceDirect = false) => {
     try {
@@ -270,9 +227,9 @@ export default function Products() {
     if (returnCat !== (categoryId || 'all')) {
       window.scrollTo(0, 0);
       setCurrentPage(1);
-      setDisplayCountPerPage(50);
       setActiveSub(null);
       setSearchTerm('');
+      setSearchInput('');
     }
   }, [categoryId]);
 
@@ -283,14 +240,12 @@ export default function Products() {
         const savedPage = sessionStorage.getItem('return_page');
         if (savedPage) setCurrentPage(parseInt(savedPage, 10));
 
-        const savedCount = sessionStorage.getItem('return_display_count');
-        if (savedCount) setDisplayCountPerPage(parseInt(savedCount, 10));
         
         const savedSub = sessionStorage.getItem('return_sub');
         if (savedSub) setActiveSub(savedSub);
         
         const savedSearch = sessionStorage.getItem('return_searchTerm');
-        if (savedSearch) setSearchTerm(savedSearch);
+        if (savedSearch) { setSearchTerm(savedSearch); setSearchInput(savedSearch); }
 
         const savedScroll = sessionStorage.getItem('return_scroll');
         if (savedScroll) {
@@ -310,7 +265,6 @@ export default function Products() {
           sessionStorage.removeItem('return_category');
           sessionStorage.removeItem('return_searchTerm');
           sessionStorage.removeItem('return_page');
-          sessionStorage.removeItem('return_display_count');
           sessionStorage.removeItem('return_scroll');
           sessionStorage.removeItem('return_sub');
           
@@ -398,21 +352,17 @@ export default function Products() {
     }
     const cleanList = result.filter(isActive);
     
-    // Distribute products across pages with pageSize = 100
-    // so newly added or activated products are spread evenly across Page 1, Page 2, Page 3, etc.
-    return shuffleProductsForUser(cleanList, 100, `member_${categoryId || 'all'}_${activeSub || 'none'}`);
+    // Distribute products across pages with pageSize = 50
+    return shuffleProductsForUser(cleanList, 50, `member_${categoryId || 'all'}_${activeSub || 'none'}`);
   }, [activeSub, products, allStoreProducts, searchTerm, allCategories, categoryId]);
   
-  // Pagination & infinite loading per page sliced products
-  const totalPages = Math.ceil(filteredProductsAll.length / 100);
-  const startIndex = (currentPage - 1) * 100;
-  const pageProductsAll = useMemo(() => {
-    return filteredProductsAll.slice(startIndex, startIndex + 100);
-  }, [filteredProductsAll, startIndex]);
-
+  // Pagination: strict 50 items per page
+  const itemsPerPage = 50;
+  const totalPages = Math.ceil(filteredProductsAll.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
   const filteredProducts = useMemo(() => {
-    return pageProductsAll.slice(0, displayCountPerPage);
-  }, [pageProductsAll, displayCountPerPage]);
+    return filteredProductsAll.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredProductsAll, startIndex]);
 
 
   
@@ -650,31 +600,44 @@ export default function Products() {
           </div>
         </div>
         
-        <div className="relative mb-3 shrink-0">
-          <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-            <Search className="w-4 h-4 text-brq-gold" />
+        <div className="relative mb-3 shrink-0 flex gap-2">
+          <div className="relative flex-1">
+            <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+              <Search className="w-4 h-4 text-brq-gold" />
+            </div>
+            <input
+              type="text"
+              className="w-full bg-white/5 border border-white/10 text-white text-sm rounded-lg focus:ring-brq-gold focus:border-brq-gold block pl-8 pr-10 py-2.5 transition-colors placeholder:text-white/40"
+              placeholder="ابحث عن أي موديل، كود، أو اسم منتج..."
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  setSearchTerm(searchInput);
+                  setCurrentPage(1);
+                }
+              }}
+            />
+            {searchInput && (
+              <button
+                onClick={() => { setSearchInput(''); setSearchTerm(''); setCurrentPage(1); }}
+                className="absolute inset-y-0 left-0 flex items-center pl-3 text-white/50 hover:text-white"
+              >
+                ✕
+              </button>
+            )}
           </div>
-          <input
-            type="text"
-            className="w-full bg-white/5 border border-white/10 text-white text-sm rounded-lg focus:ring-brq-gold focus:border-brq-gold block pl-8 pr-10 py-2.5 transition-colors placeholder:text-white/40"
-            placeholder="ابحث عن أي موديل، كود، أو اسم منتج..."
-            value={searchTerm}
-            onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); setDisplayCountPerPage(50); }}
-          />
-          {searchTerm && (
-            <button
-              onClick={() => { setSearchTerm(''); setCurrentPage(1); setDisplayCountPerPage(50); }}
-              className="absolute inset-y-0 left-0 flex items-center pl-3 text-white/50 hover:text-white"
-            >
-              ✕
-            </button>
-          )}
+          <button
+            onClick={() => { setSearchTerm(searchInput); setCurrentPage(1); }}
+            className="bg-brq-gold text-black px-4 py-2.5 rounded-lg font-bold shadow-md hover:bg-yellow-400 active:scale-95 transition-all whitespace-nowrap text-sm flex items-center gap-1 shrink-0"
+          >
+            بحث عن المنتج
+          </button>
         </div>
 
         {subCategories.length > 0 && (
           <div className="flex gap-2 overflow-x-auto py-2 mb-2 scrollbar-hide">
             <button
-              onClick={() => { setActiveSub(null); setCurrentPage(1); setDisplayCountPerPage(50); }}
               className={`whitespace-nowrap px-4 py-1.5 rounded-full text-xs font-bold transition-colors flex items-center gap-1.5 ${
                 activeSub === null 
                   ? "bg-brq-gold text-black" 
@@ -693,7 +656,6 @@ export default function Products() {
               return (
                 <button
                   key={sub.id}
-                  onClick={() => { setActiveSub(sub.id); setCurrentPage(1); setDisplayCountPerPage(50); }}
                   className={`whitespace-nowrap px-4 py-1.5 rounded-full text-xs font-bold transition-colors flex items-center gap-1.5 ${
                     activeSub === sub.id 
                       ? "bg-brq-gold text-black" 
@@ -967,7 +929,6 @@ export default function Products() {
                 }
                 sessionStorage.setItem('return_category', categoryId || 'all');
                 sessionStorage.setItem('return_page', currentPage.toString());
-                sessionStorage.setItem('return_display_count', displayCountPerPage.toString());
                 sessionStorage.setItem('return_searchTerm', searchTerm);
                 if (activeSub) sessionStorage.setItem('return_sub', activeSub);
                 sessionStorage.setItem('return_scroll', window.scrollY.toString());
@@ -1204,7 +1165,6 @@ export default function Products() {
               key={pageNumber}
               onClick={() => {
                 setCurrentPage(pageNumber);
-                setDisplayCountPerPage(50);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
               className={`w-12 h-12 flex items-center justify-center rounded-xl font-bold text-lg transition-all ${

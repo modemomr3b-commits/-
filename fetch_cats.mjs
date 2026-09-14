@@ -1,0 +1,1 @@
+import { admin } from '../../skills/system_skills/firebase-skill/scripts/firebase-admin.mjs'; const db = admin.firestore(); const snapshot = await db.collection('categories').get(); snapshot.forEach(doc => { const d = doc.data(); console.log(d.name, d.isHidden); });

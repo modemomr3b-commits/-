@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { api } from '../../api';
 import { supabase } from '../../supabase';
 import { shuffleProductsForUser } from '../../utils/shuffle';
-import { filterProductsBySearch, isProductRestrictedFromSearch } from '../../utils/search';
+import { filterProductsBySearch, isProductRestrictedFromSearch, isArchivedCategoryName } from '../../utils/search';
 import { Product } from '../../types';
 import OptimizedImage from '../OptimizedImage';
 import { useStore } from '../../store';
@@ -107,12 +107,7 @@ export default function SearchPage() {
     };
   }, []);
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setQuery(searchInput);
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [searchInput]);
+  // Removed debounce hook
 
   useEffect(() => {
     if (!loading && products.length > 0) {
@@ -146,7 +141,7 @@ export default function SearchPage() {
   const filteredProductsAll = useMemo(() => {
     if (!query) return [];
     
-    let archivedCat = allCategories.find(c => c.name.includes('النافذة') || c.name.includes('نافذة'));
+    let archivedCat = allCategories.find(c => isArchivedCategoryName(c.name));
     const archivedCatId = archivedCat?.id;
 
     let result = products;
@@ -212,20 +207,38 @@ export default function SearchPage() {
     <div className="p-4 flex flex-col min-h-[calc(100vh-60px)]">
       <h1 className="text-xl font-bold mb-6 text-white">البحث الذكي</h1>
       
-      <div className="relative mb-6 shrink-0">
-        <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-          <Search className="w-5 h-5 text-brq-gold" />
+      <div className="relative mb-6 shrink-0 flex gap-2">
+        <div className="relative flex-1">
+          <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+            <Search className="w-5 h-5 text-brq-gold" />
+          </div>
+          <input 
+            type="text" 
+            value={searchInput}
+            onChange={e => { setSearchInput(e.target.value); setCurrentPage(1); }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                setQuery(searchInput);
+                setCurrentPage(1);
+              }
+            }}
+            className="w-full glass-card pl-12 pr-10 py-3.5 rounded-xl text-sm placeholder-white/40 focus:outline-none focus:border-brq-gold focus:ring-1 focus:ring-brq-gold transition-all text-white"
+            placeholder="ابحث عن منتج، موديل، كود..."
+            autoFocus
+          />
+          <button className="absolute inset-y-0 left-0 flex items-center pl-3">
+             <SlidersHorizontal className="w-5 h-5 text-white/50 hover:text-white transition-colors" />
+          </button>
         </div>
-        <input 
-          type="text" 
-          value={searchInput}
-          onChange={e => { setSearchInput(e.target.value); setCurrentPage(1); }}
-          className="w-full glass-card pl-12 pr-10 py-3.5 rounded-xl text-sm placeholder-white/40 focus:outline-none focus:border-brq-gold focus:ring-1 focus:ring-brq-gold transition-all text-white"
-          placeholder="ابحث عن منتج، موديل، كود..."
-          autoFocus
-        />
-        <button className="absolute inset-y-0 left-0 flex items-center pl-3">
-           <SlidersHorizontal className="w-5 h-5 text-white/50 hover:text-white transition-colors" />
+        <button
+          onClick={() => {
+            setQuery(searchInput);
+            setCurrentPage(1);
+          }}
+          className="bg-brq-gold text-black px-4 py-3.5 rounded-xl font-bold shadow-md hover:bg-yellow-400 active:scale-95 transition-all whitespace-nowrap text-sm flex items-center gap-1.5"
+        >
+          <Search size={16} />
+          بحث عن المنتج
         </button>
       </div>
 

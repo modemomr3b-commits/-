@@ -70,6 +70,12 @@ export function isRestrictedCategoryName(categoryName: string): boolean {
   return false;
 }
 
+export function isArchivedCategoryName(categoryName: string): boolean {
+  if (!categoryName) return false;
+  const norm = normalizeArabic(categoryName);
+  return norm.includes('نافذ') || norm.includes('نفاذ') || norm.includes('نافد');
+}
+
 /**
  * Checks if a product belongs to a restricted or hidden category
  */
