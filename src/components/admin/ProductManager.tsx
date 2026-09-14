@@ -244,9 +244,10 @@ export default function ProductManager() {
   const [itemsPerPage, setItemsPerPage] = useState<number>(100);
 
   // Debounce search input
-  // Reset page on filter changes
+  // Reset page and selection on filter changes
   useEffect(() => {
     setCurrentPage(1);
+    setSelectedIds(new Set());
   }, [searchQuery, searchDate, filterCategoryId, filterStatus]);
 
   const handleAutoSelectSubcategory = (name: string, categoryId: string, currentSubcategoryId?: string) => {
