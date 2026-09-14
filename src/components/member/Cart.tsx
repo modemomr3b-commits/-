@@ -51,6 +51,28 @@ export default function Cart() {
     } catch (e) {}
   };
 
+  const validateCartAvailabilityBeforeSubmit = async () => {
+    try {
+      const freshProducts = await api.getProductsDirect();
+      const unavailableItems = cart.filter(item => {
+        const p = freshProducts.find((fp: any) => fp.id === item.product.id);
+        if (!p) return true;
+        return p.isArchived || p.isHidden || p.isLocked || p.isDeleted;
+      });
+
+      if (unavailableItems.length > 0) {
+        unavailableItems.forEach(item => removeFromCart(item.product.id));
+        setErrorModal({
+          isOpen: true,
+          message: `عذراً، بعض الموديلات في طلبيتك تحولت إلى قسم "النافذة" أو أصبحت غير متوفرة، وتم إزالتها تلقائياً من الطلبية:\n\n` +
+            unavailableItems.map(i => `• ${i.product.productCode || i.product.modelNumber || i.product.name || 'منتج'}`).join('\n')
+        });
+        return false;
+      }
+    } catch (e) {}
+    return true;
+  };
+
   useEffect(() => {
     // Validate cart items against fresh store data on mount
     checkCartAvailability();
@@ -60,6 +82,13 @@ export default function Cart() {
     if (cart.length === 0 || isSharingWhatsapp || isSubmitting || submissionLock.current) return;
     submissionLock.current = true;
     setIsSharingWhatsapp(true);
+
+    const isValid = await validateCartAvailabilityBeforeSubmit();
+    if (!isValid) {
+      submissionLock.current = false;
+      setIsSharingWhatsapp(false);
+      return;
+    }
 
     // First, save the order into the database so it appears in Order History
     try {
@@ -184,6 +213,13 @@ export default function Cart() {
     // Lock submission immediately to prevent duplicate sends
     submissionLock.current = true;
     setIsSubmitting(true);
+
+    const isValid = await validateCartAvailabilityBeforeSubmit();
+    if (!isValid) {
+      submissionLock.current = false;
+      setIsSubmitting(false);
+      return;
+    }
     
     try {
       const orderNumber = `BRQ-${Math.floor(1000 + Math.random() * 9000)}`;
