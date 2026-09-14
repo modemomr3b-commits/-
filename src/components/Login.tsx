@@ -100,7 +100,12 @@ export default function Login() {
       }
 
       setUser(finalUser);
-      
+
+      // Force fetch latest database updates immediately upon login
+      try {
+        await api.forceRefreshAll();
+      } catch (e) {}
+
       if (finalUser.role === 'admin' || finalUser.role === 'sales') {
         navigate('/admin');
       } else {

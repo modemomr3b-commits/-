@@ -110,17 +110,15 @@ export default function Products() {
       const shuffledStore = shuffleProductsForUser<Product>(activeStore);
       setAllStoreProducts(shuffledStore);
       
-      let allProducts = [];
+      let fetchedProducts: Product[] = activeStore;
       if (categoryId) {
-        allProducts = forceDirect ? await api.getProductsByCategoryDirect(categoryId) : await api.getProductsByCategory(categoryId);
-      } else {
-        allProducts = activeStore;
-      }
-      
-      let fetchedProducts: Product[] = allProducts.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, cats));
-      fetchedProducts = shuffleProductsForUser<Product>(fetchedProducts);
-      
-      if (categoryId) {
+        const childIds = cats.filter(c => c.parentId === categoryId).map(c => c.id);
+        fetchedProducts = activeStore.filter((p: any) => 
+          p.categoryId === categoryId || 
+          p.subcategoryId === categoryId || 
+          childIds.includes(p.categoryId) || 
+          (p.subcategoryId ? childIds.includes(p.subcategoryId) : false)
+        );
         const cat = cats.find((c: any) => c.id === categoryId);
         setCategoryName(cat ? cat.name : `القسم ${categoryId}`);
         const subs = cats
@@ -128,7 +126,8 @@ export default function Products() {
           .sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
         setSubCategories(subs);
       }
-
+      
+      fetchedProducts = shuffleProductsForUser<Product>(fetchedProducts);
       setProducts(fetchedProducts);
     } catch (err) {
       console.error(err);
