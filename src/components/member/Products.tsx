@@ -647,6 +647,7 @@ export default function Products() {
         {subCategories.length > 0 && (
           <div className="flex gap-2 overflow-x-auto py-2 mb-2 scrollbar-hide">
             <button
+              onClick={() => { setActiveSub(null); setCurrentPage(1); }}
               className={`whitespace-nowrap px-4 py-1.5 rounded-full text-xs font-bold transition-colors flex items-center gap-1.5 ${
                 activeSub === null 
                   ? "bg-brq-gold text-black" 
@@ -665,6 +666,7 @@ export default function Products() {
               return (
                 <button
                   key={sub.id}
+                  onClick={() => { setActiveSub(sub.id); setCurrentPage(1); }}
                   className={`whitespace-nowrap px-4 py-1.5 rounded-full text-xs font-bold transition-colors flex items-center gap-1.5 ${
                     activeSub === sub.id 
                       ? "bg-brq-gold text-black" 
@@ -1153,16 +1155,6 @@ export default function Products() {
             </Link>
             );
           })}
-        </div>
-      )}
-
-      {/* Auto Load Indicator for second 50 products on this page */}
-      {displayCountPerPage < 100 && pageProductsAll.length > 50 && !loading && filteredProducts.length > 0 && (
-        <div className="flex justify-center items-center py-6">
-          <div className="flex items-center gap-2.5 text-brq-gold text-sm bg-brq-card/80 backdrop-blur-md px-6 py-3 rounded-full border border-brq-border shadow-[0_0_20px_rgba(212,175,55,0.2)] animate-pulse">
-            <Loader2 size={18} className="animate-spin text-brq-gold" />
-            <span>جاري تحميل المزيد تلقائياً ({displayCountPerPage} من {pageProductsAll.length} في هذه الصفحة)...</span>
-          </div>
         </div>
       )}
 

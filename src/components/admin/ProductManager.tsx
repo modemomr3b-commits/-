@@ -1488,14 +1488,30 @@ export default function ProductManager() {
     const archivedCatId = archivedCat?.id;
 
     return products.filter(p => {
+      const isArchivedProd = archivedCatId ? p.categoryId === archivedCatId : p.isArchived;
+
       // If there is an active search query, evaluate it IMMEDIATELY and bypass other filters
       if (searchQuery && searchQuery.trim()) {
+        if (isArchivedProd && filterCategoryId !== archivedCatId) {
+          return false;
+        }
+        if (!isArchivedProd && filterCategoryId === archivedCatId) {
+          return false;
+        }
+        if (filterCategoryId && filterCategoryId !== archivedCatId) {
+          const isDirect = p.categoryId === filterCategoryId || p.subcategoryId === filterCategoryId;
+          let isChild = false;
+          if (!isDirect) {
+            const childIds = categories.filter(c => c.parentId === filterCategoryId).map(c => c.id);
+            isChild = childIds.includes(p.categoryId) || (p.subcategoryId ? childIds.includes(p.subcategoryId) : false);
+          }
+          if (!isDirect && !isChild) return false;
+        }
+
         const match = filterProductsBySearch([p], searchQuery, categories, { includeRestricted: true });
         if (match.length > 0) return true;
         return false;
       }
-
-      const isArchivedProd = archivedCatId ? p.categoryId === archivedCatId : p.isArchived;
 
       // If product belongs to archived category, it ONLY shows when filterCategoryId matches archivedCatId
       if (filterCategoryId === archivedCatId) {
