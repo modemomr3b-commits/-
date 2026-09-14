@@ -38,6 +38,15 @@ export default function Products() {
   const [searchTerm, setSearchTerm] = useState(searchInput);
   
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [readyFilesToShare, setReadyFilesToShare] = useState<File[] | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false);
+  const isAndroid = /Android/i.test(navigator.userAgent || '');
+  const maxShareLimit = isAndroid ? 10 : 100;
+  const displayCountPerPage = 50;
+  const pageProductsAll = products;
   
   // Grid Column & Zoom management with Ctrl + Mouse Wheel support
   const {
