@@ -145,6 +145,35 @@ export interface SearchOptions {
  * - Supports Arabic/English digits normalization.
  * - Supports searching by category and subcategory names.
  */
+const searchCache = new WeakMap<Product, { code: string; model: string; barcode: string; name: string; nameDigits: string; codeDigits: string; modelDigits: string; barcodeDigits: string; fullText: string }>();
+
+function getProductSearchMeta(p: Product, categoryMap: Map<string, string>) {
+  let meta = searchCache.get(p);
+  if (!meta) {
+    const code = normalizeDigits(p.productCode || '').toLowerCase().trim();
+    const model = normalizeDigits(p.modelNumber || '').toLowerCase().trim();
+    const barcode = normalizeDigits(p.barcode || '').toLowerCase().trim();
+    const rawName = p.name || '';
+    const name = normalizeDigits(rawName).toLowerCase().trim();
+    const catName = p.categoryId ? (categoryMap.get(p.categoryId) || '').toLowerCase() : '';
+    const subCatName = p.subcategoryId ? (categoryMap.get(p.subcategoryId) || '').toLowerCase() : '';
+    
+    meta = {
+      code,
+      model,
+      barcode,
+      name,
+      nameDigits: name.replace(/\D/g, ''),
+      codeDigits: code.replace(/\D/g, ''),
+      modelDigits: model.replace(/\D/g, ''),
+      barcodeDigits: barcode.replace(/\D/g, ''),
+      fullText: [name, code, model, barcode, catName, subCatName].filter(Boolean).join(' ').replace(/[-_]/g, ' ')
+    };
+    searchCache.set(p, meta);
+  }
+  return meta;
+}
+
 export function filterProductsBySearch(
   products: Product[],
   rawQuery: string,
@@ -152,7 +181,7 @@ export function filterProductsBySearch(
   options: SearchOptions = {}
 ): Product[] {
   if (!products || products.length === 0) return [];
-
+  
   // Filter out restricted products unless explicitly requested (e.g. for admin management)
   const candidateProducts = options.includeRestricted
     ? products
@@ -179,13 +208,8 @@ export function filterProductsBySearch(
   const generalMatches: Product[] = [];
 
   for (const p of candidateProducts) {
-    const code = normalizeDigits(p.productCode || '').toLowerCase().trim();
-    const model = normalizeDigits(p.modelNumber || '').toLowerCase().trim();
-    const barcode = normalizeDigits(p.barcode || '').toLowerCase().trim();
-    const rawName = p.name || '';
-    const name = normalizeDigits(rawName).toLowerCase().trim();
-    const catName = p.categoryId ? (categoryMap.get(p.categoryId) || '').toLowerCase() : '';
-    const subCatName = p.subcategoryId ? (categoryMap.get(p.subcategoryId) || '').toLowerCase() : '';
+    const meta = getProductSearchMeta(p, categoryMap);
+    const { code, model, barcode, name, nameDigits, codeDigits, modelDigits, barcodeDigits, fullText } = meta;
 
     // 1. Exact code / model / barcode match
     if (
@@ -209,11 +233,6 @@ export function filterProductsBySearch(
 
     // 3. If query has specific numbers (e.g. "551" or "ارت 551"), check if product name or code contains that number sequence
     if (digitsInQuery && digitsInQuery.length >= 2) {
-      const nameDigits = name.replace(/\D/g, '');
-      const codeDigits = code.replace(/\D/g, '');
-      const modelDigits = model.replace(/\D/g, '');
-      const barcodeDigits = barcode.replace(/\D/g, '');
-
       if (
         name.includes(digitsInQuery) ||
         code.includes(digitsInQuery) ||
@@ -225,9 +244,7 @@ export function filterProductsBySearch(
         barcodeDigits.includes(digitsInQuery)
       ) {
         const nonDigitTokens = queryTokens.filter(t => !/^\d+$/.test(t) && t !== 'ارت' && t !== 'art');
-        const fullText = [name, code, model, barcode, catName, subCatName].join(' ');
         const matchesNonDigits = nonDigitTokens.every(t => fullText.includes(t));
-
         if (matchesNonDigits) {
           partialMatches.push(p);
           continue;
@@ -236,18 +253,6 @@ export function filterProductsBySearch(
     }
 
     // 4. Token-based general matching across all text fields
-    const fullText = [
-      name,
-      code,
-      model,
-      barcode,
-      catName,
-      subCatName
-    ]
-      .filter(Boolean)
-      .join(' ')
-      .replace(/[-_]/g, ' ');
-
     const matchesAllTokens = queryTokens.every(token => fullText.includes(token));
     if (matchesAllTokens) {
       generalMatches.push(p);

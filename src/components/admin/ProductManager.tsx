@@ -1476,7 +1476,7 @@ export default function ProductManager() {
     return {
       all: nonArchivedProds.length,
       active: nonArchivedProds.filter(p => !p.isHidden && !p.isLocked && !isProductRestrictedFromSearch(p, categories)).length,
-      inactive: nonArchivedProds.filter(p => p.isHidden || isProductRestrictedFromSearch(p, categories)).length,
+      inactive: nonArchivedProds.filter(p => p.isHidden).length,
       locked: nonArchivedProds.filter(p => p.isLocked).length,
       duplicates: nonArchivedProds.filter(p => !p.isHidden && !p.isLocked && !isProductRestrictedFromSearch(p, categories) && duplicatesSet.has(p.modelNumber || p.productCode)).length,
       showcase: nonArchivedProds.filter(p => p.isShowcase && !p.isHidden && !p.isLocked && !isProductRestrictedFromSearch(p, categories)).length,
@@ -1524,8 +1524,8 @@ export default function ProductManager() {
           // Only active: NOT hidden, NOT locked, NOT restricted
           if (p.isHidden || p.isLocked || isProductRestrictedFromSearch(p, categories)) return false;
         } else if (filterStatus === 'inactive') {
-          // Only inactive: isHidden is true OR restricted
-          if (!p.isHidden && !isProductRestrictedFromSearch(p, categories)) return false;
+          // Only inactive: isHidden is true
+          if (!p.isHidden) return false;
         } else if (filterStatus === 'locked') {
           // Only locked products
           if (!p.isLocked) return false;
