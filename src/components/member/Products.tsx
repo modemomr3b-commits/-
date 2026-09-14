@@ -344,13 +344,10 @@ export default function Products() {
       !p.isDeleted &&
       !isProductRestrictedFromSearch(p, allCategories);
 
-    // Only active products (never archived, hidden, locked, or in restricted categories)
+    // Only active products (never archived, hidden, locked, or in restricted categories) - Global search when searchTerm exists
     if (searchTerm && searchTerm.trim()) {
       const source = (allStoreProducts.length > 0 ? allStoreProducts : products).filter(isActive);
-      let result = filterProductsBySearch(source, searchTerm, allCategories);
-      if (activeSub) {
-        result = result.filter((p) => p.subcategoryId === activeSub || (p.categoryId === activeSub && !p.subcategoryId));
-      }
+      const result = filterProductsBySearch(source, searchTerm, allCategories);
       return result.filter(isActive);
     }
 
