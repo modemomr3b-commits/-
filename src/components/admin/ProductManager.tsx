@@ -36,7 +36,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { api } from "../../api";
 import { supabase } from "../../supabase";
-import { filterProductsBySearch } from '../../utils/search';
+import { filterProductsBySearch, isProductRestrictedFromSearch } from '../../utils/search';
 import { Product, Category } from "../../types";
 import { 
   autoDetectCategoryAndSubcategory, 
@@ -1482,11 +1482,11 @@ export default function ProductManager() {
 
     return {
       all: nonArchivedProds.length,
-      active: nonArchivedProds.filter(p => !p.isHidden).length,
-      inactive: nonArchivedProds.filter(p => p.isHidden).length,
+      active: nonArchivedProds.filter(p => !p.isHidden && !p.isLocked && !isProductRestrictedFromSearch(p, categories)).length,
+      inactive: nonArchivedProds.filter(p => p.isHidden || isProductRestrictedFromSearch(p, categories)).length,
       locked: nonArchivedProds.filter(p => p.isLocked).length,
-      duplicates: nonArchivedProds.filter(p => !p.isHidden && duplicatesSet.has(p.modelNumber || p.productCode)).length,
-      showcase: nonArchivedProds.filter(p => p.isShowcase && !p.isHidden).length,
+      duplicates: nonArchivedProds.filter(p => !p.isHidden && !p.isLocked && !isProductRestrictedFromSearch(p, categories) && duplicatesSet.has(p.modelNumber || p.productCode)).length,
+      showcase: nonArchivedProds.filter(p => p.isShowcase && !p.isHidden && !p.isLocked && !isProductRestrictedFromSearch(p, categories)).length,
     };
   }, [products, duplicatesSet, categories]);
 
@@ -1505,27 +1505,27 @@ export default function ProductManager() {
 
         // 1. Filter by Status Tab
         if (filterStatus === 'active') {
-          // Only active: NOT hidden
-          if (p.isHidden) return false;
+          // Only active: NOT hidden, NOT locked, NOT restricted
+          if (p.isHidden || p.isLocked || isProductRestrictedFromSearch(p, categories)) return false;
         } else if (filterStatus === 'inactive') {
-          // Only inactive: isHidden is true
-          if (!p.isHidden) return false;
+          // Only inactive: isHidden is true OR restricted
+          if (!p.isHidden && !isProductRestrictedFromSearch(p, categories)) return false;
         } else if (filterStatus === 'locked') {
           // Only locked products
           if (!p.isLocked) return false;
         } else if (filterStatus === 'duplicates') {
           // Only active duplicates
-          if (p.isHidden || !duplicatesSet.has(p.modelNumber || p.productCode)) return false;
+          if (p.isHidden || p.isLocked || isProductRestrictedFromSearch(p, categories) || !duplicatesSet.has(p.modelNumber || p.productCode)) return false;
         } else if (filterStatus === 'showcase') {
-          // Only showcase
-          if (!p.isShowcase) return false;
+          // Only showcase (active)
+          if (!p.isShowcase || p.isHidden || p.isLocked || isProductRestrictedFromSearch(p, categories)) return false;
         } else if (filterStatus === 'all') {
           // All non-archived products
         } else if (filterStatus === null) {
           // If null and no search, hide
           if (!searchQuery && !searchDate && !filterCategoryId) return false;
           // If search exists but no tab selected, default to active
-          if (p.isHidden) return false;
+          if (p.isHidden || p.isLocked || isProductRestrictedFromSearch(p, categories)) return false;
         }
       }
 
@@ -2331,6 +2331,10 @@ export default function ProductManager() {
                                 <span className="px-2 py-0.5 rounded text-[10px] bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
                                   غير فعال
                                 </span>
+                              ) : isProductRestrictedFromSearch(p, categories) ? (
+                                <span className="px-2 py-0.5 rounded text-[10px] bg-orange-500/20 text-orange-400 border border-orange-500/30">
+                                  قسم مقفل/مخفي
+                                </span>
                               ) : (
                                 <span className="px-2 py-0.5 rounded text-[10px] bg-green-500/20 text-green-400 border border-green-500/30">
                                   فعال
@@ -2341,6 +2345,11 @@ export default function ProductManager() {
                           {!searchQuery && p.isHidden && (
                             <span className="px-2 py-0.5 rounded text-[10px] bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
                               غير فعال
+                            </span>
+                          )}
+                          {!searchQuery && !p.isHidden && isProductRestrictedFromSearch(p, categories) && (
+                            <span className="px-2 py-0.5 rounded text-[10px] bg-orange-500/20 text-orange-400 border border-orange-500/30">
+                              القسم مقفل/مخفي
                             </span>
                           )}
                           {p.isShowcase && (

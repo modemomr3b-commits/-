@@ -32,7 +32,7 @@ import { copyTextToClipboard, openWhatsAppDirectly } from "../../utils/whatsappS
 import { WhatsAppShareDialog } from "../shared/WhatsAppShareDialog";
 import CategoryIcon from "../ui/CategoryIcon";
 import { localCache } from "../../utils/localCache";
-import { isRestrictedCategoryName } from "../../utils/search";
+import { isRestrictedCategoryName, isProductRestrictedFromSearch } from "../../utils/search";
 
 const DEFAULT_ICONS = ["✨", "👟", "🇹🇷", "⭐", "🎒", "☀️", "🔥"];
 
@@ -72,12 +72,12 @@ export default function Home() {
       }
 
       if (prods && Array.isArray(prods)) {
-        const scCount = prods.filter((p: any) => p.isShowcase && !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted).length;
+        const scCount = prods.filter((p: any) => p.isShowcase && !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, cats)).length;
         setShowcaseCount(scCount);
 
         const counts: Record<string, number> = {};
         prods.forEach((p: any) => {
-          if (!p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted) {
+          if (!p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, cats)) {
             if (p.categoryId) {
               counts[p.categoryId] = (counts[p.categoryId] || 0) + 1;
             }
@@ -99,8 +99,12 @@ export default function Home() {
     let fetchTimeout: any;
 
     // Instant local cache check to prevent loading spinners
-    localCache.get<any[]>('all_categories').then((cachedCats) => {
-      if (mounted && cachedCats && cachedCats.length > 0) {
+    Promise.all([
+      localCache.get<any[]>('all_categories'),
+      localCache.get<any[]>('all_products')
+    ]).then(([cachedCats, cachedProds]) => {
+      if (!mounted) return;
+      if (cachedCats && cachedCats.length > 0) {
         setCategories(
           cachedCats
             .filter((c) => !c.isHidden && !c.parentId && !isRestrictedCategoryName(c.name))
@@ -108,13 +112,10 @@ export default function Home() {
         );
         setLoading(false);
       }
-    });
-
-    localCache.get<any[]>('all_products').then((cachedProds) => {
-      if (mounted && cachedProds && cachedProds.length > 0) {
+      if (cachedProds && cachedProds.length > 0 && cachedCats) {
         const counts: Record<string, number> = {};
         cachedProds.forEach((p: any) => {
-          if (!p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted) {
+          if (!p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, cachedCats)) {
             if (p.categoryId) {
               counts[p.categoryId] = (counts[p.categoryId] || 0) + 1;
             }
@@ -298,10 +299,12 @@ export default function Home() {
 
             {/* Actions */}
             <div className="space-y-2.5 pt-3 border-t border-white/10">
-              <div className="flex items-center justify-between text-xs text-white/50 px-1 font-mono">
-                <span>الموديلات المنشورة:</span>
-                <span className="text-brq-gold font-bold">{showcaseCount} موديل</span>
-              </div>
+              {isAdminOrSales && (
+                <div className="flex items-center justify-between text-xs text-white/50 px-1 font-mono">
+                  <span>الموديلات المنشورة:</span>
+                  <span className="text-brq-gold font-bold">{showcaseCount} موديل</span>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-2">
                 <Link

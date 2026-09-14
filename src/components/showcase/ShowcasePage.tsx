@@ -67,6 +67,7 @@ export const SHOWCASE_CATEGORIES = [
 export default function ShowcasePage() {
   const navigate = useNavigate();
   const { user } = useStore();
+  const isAdminOrSales = user && (user.role === 'admin' || user.role === 'sales');
   
   const [isLinkExpired, setIsLinkExpired] = useState(false);
   const [expiredReason, setExpiredReason] = useState('');
@@ -864,11 +865,13 @@ export default function ShowcasePage() {
                     <span className="w-6 h-6 flex items-center justify-center bg-black/20 rounded-full text-[11px]">{cat.icon}</span>
                   )}
                   <span>{cat.name}</span>
-                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-                    isSelected ? 'bg-black/20 text-black' : 'bg-white/10 text-white/50'
-                  }`}>
-                    {count}
-                  </span>
+                  {isAdminOrSales && (
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                      isSelected ? 'bg-black/20 text-black' : 'bg-white/10 text-white/50'
+                    }`}>
+                      {count}
+                    </span>
+                  )}
                 </button>
               );
             })}
