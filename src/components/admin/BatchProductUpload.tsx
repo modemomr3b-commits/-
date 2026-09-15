@@ -972,17 +972,7 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
                     <option value="yes">نعم</option>
                   </select>
                 </div>
-                {!product.forceStandardCrush && (
-                  <div>
-                    <label className="text-[10px] text-white/50 block mb-0.5">عدد القطع</label>
-                    <input
-                      type="number"
-                      value={product.piecesCount || ""}
-                      onChange={(e) => handlePiecesCountChange(idx, parseInt(e.target.value) || 1)}
-                      className="w-full bg-white border border-black rounded-lg px-2 py-1.5 text-base font-bold focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
-                    />
-                  </div>
-                )}
+
 
                 {product.piecesCount ? (
                   <div className="bg-white/5 p-1.5 rounded border border-white/10 mt-1 text-center flex justify-between items-center">

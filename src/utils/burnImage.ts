@@ -85,68 +85,96 @@ export const burnProductOverlay = async (product: any, rawImageUrl: string): Pro
         // --- ROW 2: Prices ---
         ctx.textAlign = 'right';
         const boxY = topH + (115 * scale);
-        
-        // Dozen Box (Right Side)
-        const doxW = 380 * scale;
-        const doxH = 90 * scale;
-        const doxX = CANVAS_W - (40 * scale) - doxW;
+        const isCrushEnabled = product.forceStandardCrush ?? true;
 
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
-        ctx.strokeStyle = 'rgba(212, 175, 55, 0.4)';
-        ctx.lineWidth = 2 * scale;
-        
-        if (ctx.roundRect) {
-            ctx.beginPath();
-            ctx.roundRect(doxX, boxY, doxW, doxH, 12 * scale);
-            ctx.fill();
-            ctx.stroke();
+        if (isCrushEnabled) {
+          // Dozen Box (Right Side)
+          const doxW = 380 * scale;
+          const doxH = 90 * scale;
+          const doxX = CANVAS_W - (40 * scale) - doxW;
+
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+          ctx.strokeStyle = 'rgba(212, 175, 55, 0.4)';
+          ctx.lineWidth = 2 * scale;
+          
+          if (ctx.roundRect) {
+              ctx.beginPath();
+              ctx.roundRect(doxX, boxY, doxW, doxH, 12 * scale);
+              ctx.fill();
+              ctx.stroke();
+          } else {
+              ctx.fillRect(doxX, boxY, doxW, doxH);
+          }
+
+          // 'دم الغزال' Crimson Red for Wholesale Label
+          ctx.fillStyle = '#dc2626';
+          ctx.font = `bold ${24 * scale}px Cairo, sans-serif`;
+          ctx.fillText('سعر الجملة (الدرزن)', doxX + doxW - (20 * scale), boxY + (15 * scale));
+          ctx.fillStyle = '#ffd700';
+          ctx.font = `bold ${36 * scale}px Cairo, sans-serif`;
+          ctx.fillText(Number(product.price || 0).toLocaleString("en-US") + ' د.ع', doxX + doxW - (20 * scale), boxY + (45 * scale));
+
+          // Piece Box (Left Side)
+          const pceW = 380 * scale;
+          const pceH = 90 * scale;
+          const pceX = 40 * scale;
+
+          ctx.fillStyle = '#d4af37'; // Ensure piece box is solid gold
+          ctx.strokeStyle = '#d4af37';
+          
+          if (ctx.roundRect) {
+              ctx.beginPath();
+              ctx.roundRect(pceX, boxY, pceW, pceH, 12 * scale);
+              ctx.fill();
+              ctx.stroke();
+          } else {
+              ctx.fillRect(pceX, boxY, pceW, pceH);
+          }
+
+          const calcPieces = 12;
+          const finalPiecePrice = product.piecePriceIqd || (product.price ? Math.round(product.price / calcPieces) : 0);
+
+          // 'دم الغزال' Deep Burgundy / Oxblood Red for Retail Label on Gold
+          ctx.fillStyle = '#800020';
+          ctx.font = `bold ${24 * scale}px Cairo, sans-serif`;
+          ctx.fillText('سعر المفرد (القطعة)', pceX + pceW - (20 * scale), boxY + (15 * scale));
+          ctx.fillStyle = '#000000'; // Black text for price
+          ctx.font = `bold ${36 * scale}px Cairo, sans-serif`;
+          ctx.fillText((finalPiecePrice ? Number(finalPiecePrice).toLocaleString("en-US") : '---') + ' د.ع', pceX + pceW - (20 * scale), boxY + (45 * scale));
+
+          // --- Middle BRQ Text inside ribbon ---
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillStyle = 'rgba(212, 175, 55, 0.8)';
+          ctx.font = `${80 * scale}px Cairo, sans-serif`;
+          ctx.fillText('𝓑𝓡𝓠', CANVAS_W / 2, boxY + (doxH / 2));
         } else {
-            ctx.fillRect(doxX, boxY, doxW, doxH);
+          // Crush is disabled ("لا"): Draw ONLY Wholesale Box centered, WITHOUT piece price box
+          const doxW = 680 * scale;
+          const doxH = 90 * scale;
+          const doxX = (CANVAS_W - doxW) / 2;
+
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+          ctx.strokeStyle = 'rgba(212, 175, 55, 0.6)';
+          ctx.lineWidth = 2 * scale;
+          
+          if (ctx.roundRect) {
+              ctx.beginPath();
+              ctx.roundRect(doxX, boxY, doxW, doxH, 12 * scale);
+              ctx.fill();
+              ctx.stroke();
+          } else {
+              ctx.fillRect(doxX, boxY, doxW, doxH);
+          }
+
+          ctx.textAlign = 'center';
+          ctx.fillStyle = '#dc2626';
+          ctx.font = `bold ${24 * scale}px Cairo, sans-serif`;
+          ctx.fillText('السعر', CANVAS_W / 2, boxY + (15 * scale));
+          ctx.fillStyle = '#ffd700';
+          ctx.font = `bold ${38 * scale}px Cairo, sans-serif`;
+          ctx.fillText(Number(product.price || 0).toLocaleString("en-US") + ' د.ع', CANVAS_W / 2, boxY + (48 * scale));
         }
-
-        // 'دم الغزال' Crimson Red for Wholesale Label
-        ctx.fillStyle = '#dc2626';
-        ctx.font = `bold ${24 * scale}px Cairo, sans-serif`;
-        ctx.fillText('سعر الجملة (الدرزن)', doxX + doxW - (20 * scale), boxY + (15 * scale));
-        ctx.fillStyle = '#ffd700';
-        ctx.font = `bold ${36 * scale}px Cairo, sans-serif`;
-        ctx.fillText(Number(product.price || 0).toLocaleString("en-US") + ' د.ع', doxX + doxW - (20 * scale), boxY + (45 * scale));
-
-        // Piece Box (Left Side)
-        const pceW = 380 * scale;
-        const pceH = 90 * scale;
-        const pceX = 40 * scale;
-
-        ctx.fillStyle = '#d4af37'; // Ensure piece box is solid gold
-        ctx.strokeStyle = '#d4af37';
-        
-        if (ctx.roundRect) {
-            ctx.beginPath();
-            ctx.roundRect(pceX, boxY, pceW, pceH, 12 * scale);
-            ctx.fill();
-            ctx.stroke();
-        } else {
-            ctx.fillRect(pceX, boxY, pceW, pceH);
-        }
-
-        const calcPieces = (product.forceStandardCrush ?? true) ? 12 : (Number(product.piecesCount) || (parseInt(product.packaging) > 0 ? parseInt(product.packaging) : 12));
-        const finalPiecePrice = product.piecePriceIqd || (product.price && calcPieces > 0 ? Math.round(product.price / calcPieces) : 0);
-
-        // 'دم الغزال' Deep Burgundy / Oxblood Red for Retail Label on Gold
-        ctx.fillStyle = '#800020';
-        ctx.font = `bold ${24 * scale}px Cairo, sans-serif`;
-        // In Arabic, we're writing rtl but the text origin is right for fillText because of ctx.textAlign = 'right'
-        ctx.fillText('سعر المفرد (القطعة)', pceX + pceW - (20 * scale), boxY + (15 * scale));
-        ctx.fillStyle = '#000000'; // Black text for price
-        ctx.font = `bold ${36 * scale}px Cairo, sans-serif`;
-        ctx.fillText((finalPiecePrice ? Number(finalPiecePrice).toLocaleString("en-US") : '---') + ' د.ع', pceX + pceW - (20 * scale), boxY + (45 * scale));
-
-        // --- Middle BRQ Text inside ribbon ---
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillStyle = 'rgba(212, 175, 55, 0.8)';
-        ctx.font = `${80 * scale}px Cairo, sans-serif`;
-        ctx.fillText('𝓑𝓡𝓠', CANVAS_W / 2, boxY + (doxH / 2));
 
         resolve(canvas.toDataURL('image/jpeg', 0.95));
       } catch (err) {

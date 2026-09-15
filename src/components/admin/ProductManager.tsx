@@ -1711,19 +1711,7 @@ export default function ProductManager() {
                 <option value="yes">نعم</option>
               </select>
             </div>
-            {!(newProduct.forceStandardCrush ?? true) && (
-              <div className="md:col-span-2">
-                <label className="text-xs text-white/50 block mb-1">
-                  عدد القطع للتقسيم (بما أن التكسير التلقائي مغلق)
-                </label>
-                <input
-                  type="number"
-                  value={newProduct.piecesCount || ""}
-                  onChange={(e) => handlePiecesCountChange(parseInt(e.target.value) || 1, false)}
-                  className="w-full bg-white border border-black rounded-lg px-3 py-2 text-base font-bold focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
-                />
-              </div>
-            )}
+
             {newProduct.piecePriceIqd ? (
               <div className="md:col-span-2 bg-white/5 p-3 rounded-lg border border-white/10 mt-2 flex items-center justify-around text-center">
                 <div>
@@ -2721,19 +2709,7 @@ export default function ProductManager() {
                   <option value="yes">نعم</option>
                 </select>
               </div>
-              {!(editingProduct.forceStandardCrush ?? true) && (
-                <div className="md:col-span-2">
-                  <label className="text-xs text-white/50 block mb-1">
-                    عدد القطع للتقسيم (بما أن التكسير التلقائي مغلق)
-                  </label>
-                  <input
-                    type="number"
-                    value={editingProduct.piecesCount || ""}
-                    onChange={(e) => handlePiecesCountChange(parseInt(e.target.value) || 1, true)}
-                    className="w-full bg-white border border-black rounded-lg px-3 py-2 text-base font-bold focus:border-brq-gold/50 outline-none text-black font-mono placeholder:text-gray-500"
-                  />
-                </div>
-              )}
+
               {editingProduct.piecePriceIqd ? (
                 <div className="md:col-span-2 bg-white/5 p-3 rounded-lg border border-white/10 mt-2 flex items-center justify-around text-center">
                   <div>
