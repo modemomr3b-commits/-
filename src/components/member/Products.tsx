@@ -630,12 +630,7 @@ export default function Products() {
               </button>
             )}
           </div>
-          <button
-            onClick={() => { setSearchTerm(searchInput); setCurrentPage(1); }}
-            className="bg-brq-gold text-black px-4 py-2.5 rounded-lg font-bold shadow-md hover:bg-yellow-400 active:scale-95 transition-all whitespace-nowrap text-sm flex items-center gap-1 shrink-0"
-          >
-            بحث عن المنتج
-          </button>
+
         </div>
 
         {subCategories.length > 0 && (
