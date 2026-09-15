@@ -66,7 +66,7 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
 
-    const INACTIVITY_LIMIT = 15 * 60 * 1000; // 15 minutes in ms
+    const INACTIVITY_LIMIT = 2 * 60 * 1000; // 2 minutes in ms
     let lastActivityTime = Date.now();
 
     const updateActivity = () => {
