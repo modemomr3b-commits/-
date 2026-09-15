@@ -1985,29 +1985,20 @@ export default function ProductManager() {
           <div className="glass-panel border border-white/5 rounded-2xl overflow-hidden p-1">
             <div className="p-4 border-b border-white/5 flex flex-col sm:flex-row gap-3 justify-between items-center">
               <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
-                <div className="relative w-full sm:w-80 flex gap-2">
-                  <div className="relative flex-1">
+                <div className="relative w-full sm:w-80">
+                  <div className="relative w-full">
                     <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
                     <input
                       type="text"
                       value={searchInput}
-                      onChange={(e) => setSearchInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          setSearchQuery(searchInput);
-                        }
+                      onChange={(e) => {
+                        setSearchInput(e.target.value);
+                        setSearchQuery(e.target.value);
                       }}
                       className="w-full bg-white border border-black rounded-lg pr-10 pl-4 py-2.5 text-base font-bold text-black placeholder:text-gray-500 focus:outline-none focus:border-brq-gold/50"
                       placeholder="بحث بالاسم، الكود..."
                     />
                   </div>
-                  <button
-                    onClick={() => setSearchQuery(searchInput)}
-                    className="bg-brq-gold text-black px-4 py-2.5 rounded-lg font-bold shadow-md hover:bg-yellow-400 active:scale-95 transition-all whitespace-nowrap text-sm flex items-center gap-1"
-                  >
-                    <Search size={16} />
-                    بحث عن المنتج
-                  </button>
                 </div>
                 <div className="relative w-full sm:w-48">
                   <input
