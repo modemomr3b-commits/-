@@ -615,12 +615,10 @@ export default function Products() {
               className="w-full bg-white/5 border border-white/10 text-white text-sm rounded-lg focus:ring-brq-gold focus:border-brq-gold block pl-8 pr-10 py-2.5 transition-colors placeholder:text-white/40"
               placeholder="ابحث عن أي موديل، كود، أو اسم منتج..."
               value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  setSearchTerm(searchInput);
-                  setCurrentPage(1);
-                }
+              onChange={(e) => {
+                setSearchInput(e.target.value);
+                setSearchTerm(e.target.value);
+                setCurrentPage(1);
               }}
             />
             {searchInput && (

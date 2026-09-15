@@ -215,13 +215,7 @@ export default function SearchPage() {
           <input 
             type="text" 
             value={searchInput}
-            onChange={e => { setSearchInput(e.target.value); setCurrentPage(1); }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                setQuery(searchInput);
-                setCurrentPage(1);
-              }
-            }}
+            onChange={e => { setSearchInput(e.target.value); setQuery(e.target.value); setCurrentPage(1); }}
             className="w-full glass-card pl-12 pr-10 py-3.5 rounded-xl text-sm placeholder-white/40 focus:outline-none focus:border-brq-gold focus:ring-1 focus:ring-brq-gold transition-all text-white"
             placeholder="ابحث عن منتج، موديل، كود..."
             autoFocus
