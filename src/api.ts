@@ -203,6 +203,11 @@ export const api = {
   },
 
   getProductsDirect: async () => {
+    // Return in-memory cache instantly if fresh (under 60 seconds)
+    if (memCache['all_products'] && (Date.now() - memCache['all_products'].timestamp < MEM_CACHE_TTL)) {
+      return memCache['all_products'].data;
+    }
+
     const mapProduct = (p: any) => ({
       ...p,
       packaging: p.packaging !== undefined && p.packaging !== null && p.packaging !== '' && p.packaging !== '---'
