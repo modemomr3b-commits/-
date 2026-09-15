@@ -1490,7 +1490,7 @@ export default function ProductManager() {
     return products.filter(p => {
       const isArchivedProd = archivedCatId ? p.categoryId === archivedCatId : p.isArchived;
 
-      // If there is an active search query, evaluate it IMMEDIATELY and bypass other filters
+      // If there is an active search query, evaluate it alongside tab filters
       if (searchQuery && searchQuery.trim()) {
         if (isArchivedProd && filterCategoryId !== archivedCatId) {
           return false;
@@ -1506,6 +1506,19 @@ export default function ProductManager() {
             isChild = childIds.includes(p.categoryId) || (p.subcategoryId ? childIds.includes(p.subcategoryId) : false);
           }
           if (!isDirect && !isChild) return false;
+        }
+
+        // Apply tab status filter during search
+        if (filterStatus === 'active') {
+          if (p.isHidden || p.isLocked || isProductRestrictedFromSearch(p, categories)) return false;
+        } else if (filterStatus === 'inactive') {
+          if (!p.isHidden) return false;
+        } else if (filterStatus === 'locked') {
+          if (!p.isLocked) return false;
+        } else if (filterStatus === 'duplicates') {
+          if (p.isHidden || p.isLocked || isProductRestrictedFromSearch(p, categories) || !duplicatesSet.has(p.modelNumber || p.productCode)) return false;
+        } else if (filterStatus === 'showcase') {
+          if (!p.isShowcase || p.isHidden || p.isLocked || isProductRestrictedFromSearch(p, categories)) return false;
         }
 
         const match = filterProductsBySearch([p], searchQuery, categories, { includeRestricted: true });
