@@ -68,9 +68,9 @@ export interface Product extends BaseEntity {
     dozenPriceUsd?: number;
     finalImageUrl: string;
     updatedAt: number;
+  };
   lastEditDiffs?: any[];
   lastEditDate?: number;
-  };
 }
 
 export interface OrderItem {

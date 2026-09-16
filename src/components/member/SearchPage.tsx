@@ -6,6 +6,7 @@ import { api } from '../../api';
 import { supabase } from '../../supabase';
 import { shuffleProductsForUser } from '../../utils/shuffle';
 import { filterProductsBySearch, isProductRestrictedFromSearch, isArchivedCategoryName } from '../../utils/search';
+import { localCache } from '../../utils/localCache';
 import { Product } from '../../types';
 import OptimizedImage from '../OptimizedImage';
 import { useStore } from '../../store';
@@ -39,6 +40,32 @@ export default function SearchPage() {
       setSearchArchived(sessionStorage.getItem('return_search_archived') === 'true');
     }
     
+    // Instant local cache restoration
+    Promise.all([
+      localCache.get<any[]>('all_categories'),
+      localCache.get<any[]>('all_products')
+    ]).then(([cachedCats, cachedProds]) => {
+      if (!mounted) return;
+      if (cachedCats && cachedCats.length > 0) {
+        setAllCategories(cachedCats);
+      }
+      if (cachedProds && cachedProds.length > 0) {
+        const isStaff = user?.role === 'admin' || user?.role === 'sales';
+        const archivedCatId = cachedCats?.find(c => isArchivedCategoryName(c.name))?.id;
+        const visibleProducts = isStaff
+          ? cachedProds
+          : cachedProds.filter(p => 
+              !p.isHidden && 
+              !p.isDeleted && 
+              !p.isArchived &&
+              (archivedCatId ? p.categoryId !== archivedCatId : true) &&
+              !isProductRestrictedFromSearch(p, cachedCats || [])
+            );
+        setProducts(shuffleProductsForUser(visibleProducts));
+        setLoading(false);
+      }
+    });
+
     const fetchProducts = async () => {
       try {
          const cats = await api.getCategories();

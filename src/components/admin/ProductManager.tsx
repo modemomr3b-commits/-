@@ -232,7 +232,7 @@ export default function ProductManager() {
     showcaseCategory: "رجالي",
   });
 
-  const [filterStatus, setFilterStatus] = useState<"all" | "active" | "locked" | "inactive" | "duplicates" | "showcase" | null>("active");
+  const [filterStatus, setFilterStatus] = useState<"all" | "active" | "locked" | "inactive" | "duplicates" | "showcase" | "archived" | null>("active");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [searchDate, setSearchDate] = useState("");

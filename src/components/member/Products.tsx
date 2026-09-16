@@ -109,7 +109,8 @@ export default function Products() {
       
       // Auto-retry if empty on the very first load to prevent showing "No products" prematurely
       if (allStore.length === 0 && !isRetry) {
-        setTimeout(() => fetchProducts(true, true), 1000);
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        await fetchProducts(true, true);
         return;
       }
 
@@ -151,10 +152,9 @@ export default function Products() {
     let mounted = true;
 
     // Instant local cache restoration so the user experiences NO wait time
-    const cacheKey = categoryId ? `products_cat_${categoryId}` : 'all_products';
     Promise.all([
       localCache.get<any[]>('all_categories'),
-      localCache.get<any[]>(cacheKey)
+      localCache.get<any[]>('all_products')
     ]).then(([cachedCats, cachedProds]) => {
       if (!mounted) return;
       if (cachedCats && cachedCats.length > 0) {
