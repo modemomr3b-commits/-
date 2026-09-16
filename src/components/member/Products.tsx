@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { compressImage } from '../../utils/compressImage';
 import { api } from "../../api";
 import { supabase } from "../../supabase";
-import { filterProductsBySearch, isProductRestrictedFromSearch } from '../../utils/search';
+import { filterProductsBySearch, isProductRestrictedFromSearch, isArchivedCategoryName } from '../../utils/search';
 import { Product, Category } from "../../types";
 import { useStore } from "../../store";
 import OptimizedImage from "../OptimizedImage";

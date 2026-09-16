@@ -1498,27 +1498,29 @@ export default function ProductManager() {
         if (!isArchivedProd && filterCategoryId === archivedCatId) {
           return false;
         }
-        if (filterCategoryId && filterCategoryId !== archivedCatId) {
-          const isDirect = p.categoryId === filterCategoryId || p.subcategoryId === filterCategoryId;
-          let isChild = false;
-          if (!isDirect) {
-            const childIds = categories.filter(c => c.parentId === filterCategoryId).map(c => c.id);
-            isChild = childIds.includes(p.categoryId) || (p.subcategoryId ? childIds.includes(p.subcategoryId) : false);
+        if (filterCategoryId !== archivedCatId) {
+          if (filterCategoryId) {
+            const isDirect = p.categoryId === filterCategoryId || p.subcategoryId === filterCategoryId;
+            let isChild = false;
+            if (!isDirect) {
+              const childIds = categories.filter(c => c.parentId === filterCategoryId).map(c => c.id);
+              isChild = childIds.includes(p.categoryId) || (p.subcategoryId ? childIds.includes(p.subcategoryId) : false);
+            }
+            if (!isDirect && !isChild) return false;
           }
-          if (!isDirect && !isChild) return false;
-        }
 
-        // Apply tab status filter during search
-        if (filterStatus === 'active') {
-          if (p.isHidden || p.isLocked || isProductRestrictedFromSearch(p, categories)) return false;
-        } else if (filterStatus === 'inactive') {
-          if (!p.isHidden) return false;
-        } else if (filterStatus === 'locked') {
-          if (!p.isLocked) return false;
-        } else if (filterStatus === 'duplicates') {
-          if (p.isHidden || p.isLocked || isProductRestrictedFromSearch(p, categories) || !duplicatesSet.has(p.modelNumber || p.productCode)) return false;
-        } else if (filterStatus === 'showcase') {
-          if (!p.isShowcase || p.isHidden || p.isLocked || isProductRestrictedFromSearch(p, categories)) return false;
+          // Apply tab status filter during search
+          if (filterStatus === 'active') {
+            if (p.isHidden || p.isLocked || isProductRestrictedFromSearch(p, categories)) return false;
+          } else if (filterStatus === 'inactive') {
+            if (!p.isHidden) return false;
+          } else if (filterStatus === 'locked') {
+            if (!p.isLocked) return false;
+          } else if (filterStatus === 'duplicates') {
+            if (p.isHidden || p.isLocked || isProductRestrictedFromSearch(p, categories) || !duplicatesSet.has(p.modelNumber || p.productCode)) return false;
+          } else if (filterStatus === 'showcase') {
+            if (!p.isShowcase || p.isHidden || p.isLocked || isProductRestrictedFromSearch(p, categories)) return false;
+          }
         }
 
         const match = filterProductsBySearch([p], searchQuery, categories, { includeRestricted: true });
