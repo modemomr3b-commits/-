@@ -57,9 +57,8 @@ export default function Home() {
 
   const fetchCats = async () => {
     try {
-      const [cats, prods, settings] = await Promise.all([
+      const [cats, settings] = await Promise.all([
         api.getCategories(),
-        api.getProducts(),
         api.getSettings()
       ]);
       
@@ -71,24 +70,28 @@ export default function Home() {
         );
       }
 
-      if (prods && Array.isArray(prods)) {
-        const scCount = prods.filter((p: any) => p.isShowcase && !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, cats)).length;
-        setShowcaseCount(scCount);
-
-        const counts: Record<string, number> = {};
-        prods.forEach((p: any) => {
-          if (!p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, cats)) {
-            if (p.categoryId) {
-              counts[p.categoryId] = (counts[p.categoryId] || 0) + 1;
-            }
-          }
-        });
-        setProductsCountMap(counts);
-      }
-
       if (settings) {
         setShowcaseSettings(settings);
       }
+
+      // Fetch products asynchronously in the background so it doesn't block the Home page from loading quickly
+      api.getProducts().then(prods => {
+        if (prods && Array.isArray(prods)) {
+          const scCount = prods.filter((p: any) => p.isShowcase && !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, cats)).length;
+          setShowcaseCount(scCount);
+  
+          const counts: Record<string, number> = {};
+          prods.forEach((p: any) => {
+            if (!p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, cats)) {
+              if (p.categoryId) {
+                counts[p.categoryId] = (counts[p.categoryId] || 0) + 1;
+              }
+            }
+          });
+          setProductsCountMap(counts);
+        }
+      }).catch(console.error);
+
     } catch (e) {
       console.error(e);
     }

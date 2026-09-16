@@ -113,7 +113,13 @@ export default function Products() {
         return;
       }
 
-      const activeStore: Product[] = allStore.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, cats));
+      const archivedCatId = cats.find((c: any) => isArchivedCategoryName(c.name))?.id;
+      const isArchivedProd = (p: any) => p.isArchived || (archivedCatId && p.categoryId === archivedCatId);
+
+      const activeStore: Product[] = allStore.filter((p: any) => 
+        !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, cats) &&
+        (categoryId === archivedCatId ? isArchivedProd(p) : !isArchivedProd(p))
+      );
       const shuffledStore = shuffleProductsForUser<Product>(activeStore);
       setAllStoreProducts(shuffledStore);
       
@@ -163,7 +169,24 @@ export default function Products() {
         }
       }
       if (cachedProds && cachedProds.length > 0) {
-        let fetchedProducts = cachedProds.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted);
+        const archivedCatId = cachedCats?.find((c: any) => isArchivedCategoryName(c.name))?.id;
+        const isArchivedProd = (p: any) => p.isArchived || (archivedCatId && p.categoryId === archivedCatId);
+        
+        let fetchedProducts = cachedProds.filter((p: any) => 
+          !p.isHidden && !p.isLocked && !p.isDeleted &&
+          (categoryId === archivedCatId ? isArchivedProd(p) : !isArchivedProd(p))
+        );
+        
+        if (categoryId) {
+          const childIds = cachedCats?.filter((c: any) => c.parentId === categoryId).map((c: any) => c.id) || [];
+          fetchedProducts = fetchedProducts.filter((p: any) => 
+            p.categoryId === categoryId || 
+            p.subcategoryId === categoryId || 
+            childIds.includes(p.categoryId) || 
+            (p.subcategoryId ? childIds.includes(p.subcategoryId) : false)
+          );
+        }
+        
         setProducts(shuffleProductsForUser(fetchedProducts));
         setLoading(false);
         setInitialLoading(false);
@@ -346,12 +369,15 @@ export default function Products() {
   };
 
   const filteredProductsAll = useMemo(() => {
+    const archivedCatId = allCategories.find((c: any) => isArchivedCategoryName(c.name))?.id;
+    const isArchivedProd = (p: any) => p.isArchived || (archivedCatId && p.categoryId === archivedCatId);
+
     const isActive = (p: any) =>
-      !p.isArchived &&
       !p.isHidden &&
       !p.isLocked &&
       !p.isDeleted &&
-      !isProductRestrictedFromSearch(p, allCategories);
+      !isProductRestrictedFromSearch(p, allCategories) &&
+      (categoryId === archivedCatId ? isArchivedProd(p) : !isArchivedProd(p));
 
     // Only active products (never archived, hidden, locked, or in restricted categories) - Global search when searchTerm exists
     if (searchTerm && searchTerm.trim()) {

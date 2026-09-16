@@ -46,9 +46,16 @@ export default function SearchPage() {
          if (mounted) {
             setAllCategories(cats);
             const isStaff = user?.role === 'admin' || user?.role === 'sales';
+            const archivedCatId = cats.find(c => isArchivedCategoryName(c.name))?.id;
             const visibleProducts = isStaff
               ? allProducts
-              : allProducts.filter(p => !p.isHidden && !p.isDeleted && !isProductRestrictedFromSearch(p, cats));
+              : allProducts.filter(p => 
+                  !p.isHidden && 
+                  !p.isDeleted && 
+                  !p.isArchived &&
+                  (archivedCatId ? p.categoryId !== archivedCatId : true) &&
+                  !isProductRestrictedFromSearch(p, cats)
+                );
             setProducts(shuffleProductsForUser(visibleProducts));
          }
       } catch (e) {

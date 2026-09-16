@@ -50,10 +50,11 @@ export default function App() {
 
   // Global 5-minute forced sync & cache wipe interval for all users to guarantee out-of-stock / archived products never slip through
   useEffect(() => {
-    // Immediate forced refresh & Pre-warming on mount for all users
-    // This loads the products into memory BEFORE the user clicks any category
-    api.forceRefreshAll().catch(() => {});
-    api.getProductsDirect().catch(() => {}); // Pre-warm the cache immediately
+    // Delay immediate forced refresh & pre-warming to avoid network lag on initial app load
+    // It will silently fetch all products into memory in the background after 3 seconds
+    const warmupTimer = setTimeout(() => {
+      api.forceRefreshAll().catch(() => {});
+    }, 3000);
 
     const syncInterval = setInterval(async () => {
       try {
@@ -61,7 +62,10 @@ export default function App() {
       } catch (e) {}
     }, 5 * 60 * 1000); // 5 minutes
 
-    return () => clearInterval(syncInterval);
+    return () => {
+      clearTimeout(warmupTimer);
+      clearInterval(syncInterval);
+    };
   }, []);
 
   // 15-minute inactivity logout tracker
