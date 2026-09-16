@@ -5,32 +5,61 @@ import { parseOrderDetails } from './utils/orderUtils';
 import { localCache } from './utils/localCache';
 
 const getData = async (table: string) => {
-  let allData: any[] = [];
-  let from = 0;
-  const limit = 1000;
-  
   try {
-    while (true) {
-      const { data, error } = await supabase
-        .from(table)
-        .select('*')
-        .range(from, from + limit - 1);
+    const { count, error: countErr } = await supabase
+      .from(table)
+      .select('*', { count: 'exact', head: true });
+
+    const limit = 1000;
+
+    // For small tables (categories, settings) or if count query is unavailable
+    if (countErr || count === null || count <= limit) {
+      let allData: any[] = [];
+      let from = 0;
+      while (true) {
+        const { data, error } = await supabase
+          .from(table)
+          .select('*')
+          .range(from, from + limit - 1);
+          
+        if (error) {
+          throw error;
+        }
         
-      if (error) {
-        throw error;
-      }
-      
-      if (data && data.length > 0) {
-        const activeData = data.filter((item: any) => item.isDeleted !== true);
-        allData = [...allData, ...activeData];
-        if (data.length < limit) {
+        if (data && data.length > 0) {
+          const activeData = data.filter((item: any) => item.isDeleted !== true);
+          allData = [...allData, ...activeData];
+          if (data.length < limit) {
+            break;
+          }
+          from += limit;
+        } else {
           break;
         }
-        from += limit;
-      } else {
-        break;
+      }
+      if (allData.length > 0) {
+        localCache.set(`all_${table}`, allData).catch(() => {});
+      }
+      return allData;
+    }
+
+    // High-speed parallel chunk fetching for large tables (like products: 7000+ items)
+    const chunks = [];
+    for (let from = 0; from < count; from += limit) {
+      chunks.push(
+        supabase.from(table).select('*').range(from, from + limit - 1)
+      );
+    }
+
+    const results = await Promise.all(chunks);
+    let allData: any[] = [];
+    for (const res of results) {
+      if (res.error) throw res.error;
+      if (res.data) {
+        allData.push(...res.data.filter((item: any) => item.isDeleted !== true));
       }
     }
+
     if (allData.length > 0) {
       localCache.set(`all_${table}`, allData).catch(() => {});
     }
@@ -79,6 +108,10 @@ const getDeletedData = async (table: string) => {
 // Fast in-memory and persistent IndexedDB cache
 const memCache: Record<string, { data: any, timestamp: number }> = {};
 const MEM_CACHE_TTL = 60000; // 1 minute in-memory
+
+// Deduplicate concurrent requests so parallel callers share the same active network promise
+let inFlightProductsPromise: Promise<any[]> | null = null;
+let inFlightCategoriesPromise: Promise<any[]> | null = null;
 
 export const api = {
   clearCache: () => { 
@@ -198,14 +231,19 @@ export const api = {
     };
   },
 
-  getProducts: async () => {
-    return api.getProductsDirect();
+  getProducts: async (forceNetwork = false) => {
+    return api.getProductsDirect(forceNetwork);
   },
 
-  getProductsDirect: async () => {
-    // Return in-memory cache instantly if fresh (under 60 seconds)
-    if (memCache['all_products'] && (Date.now() - memCache['all_products'].timestamp < MEM_CACHE_TTL)) {
+  getProductsDirect: async (forceNetwork = false): Promise<any[]> => {
+    // Return in-memory cache instantly if fresh (under 60 seconds) unless forceNetwork
+    if (!forceNetwork && memCache['all_products'] && (Date.now() - memCache['all_products'].timestamp < MEM_CACHE_TTL)) {
       return memCache['all_products'].data;
+    }
+
+    // Deduplicate active in-flight fetch so parallel requests share the exact same network promise
+    if (inFlightProductsPromise) {
+      return inFlightProductsPromise;
     }
 
     const mapProduct = (p: any) => ({
@@ -227,29 +265,35 @@ export const api = {
       updatedAt: p.size?.updatedAt || p.createdAt
     });
 
-    try {
-      const data = await getData('products');
-      if (data && data.length > 0) {
-        const res = data.map(mapProduct).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-        memCache['all_products'] = { data: res, timestamp: Date.now() };
-        localCache.set('all_products', res).catch(() => {});
-        return res;
+    inFlightProductsPromise = (async () => {
+      try {
+        const data = await getData('products');
+        if (data && data.length > 0) {
+          const res = data.map(mapProduct).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+          memCache['all_products'] = { data: res, timestamp: Date.now() };
+          localCache.set('all_products', res).catch(() => {});
+          return res;
+        }
+      } catch (networkErr) {
+        console.warn('Network fetch failed, falling back to cached local storage version:', networkErr);
       }
-    } catch (networkErr) {
-      console.warn('Network fetch failed, falling back to cached local storage version:', networkErr);
-    }
 
-    // Fallback to cache if network fails (لا سامح الله صارت مشكلة)
-    const fallbackLocal = await localCache.get<any[]>('all_products', Infinity);
-    if (fallbackLocal && fallbackLocal.length > 0) {
-      return fallbackLocal.map(mapProduct);
-    }
+      // Fallback to cache if network fails (لا سامح الله صارت مشكلة)
+      const fallbackLocal = await localCache.get<any[]>('all_products', Infinity);
+      if (fallbackLocal && fallbackLocal.length > 0) {
+        return fallbackLocal.map(mapProduct);
+      }
 
-    if (memCache['all_products']?.data?.length) {
-      return memCache['all_products'].data;
-    }
+      if (memCache['all_products']?.data?.length) {
+        return memCache['all_products'].data;
+      }
 
-    return [];
+      return [];
+    })().finally(() => {
+      inFlightProductsPromise = null;
+    });
+
+    return inFlightProductsPromise;
   },
   createProduct: async (data: any) => { 
     const serverTime = await getServerTime();
@@ -745,35 +789,45 @@ export const api = {
   },
 
   // CATEGORIES
-  getCategories: async () => {
+  getCategories: async (forceNetwork = false): Promise<any[]> => {
     const cacheKey = 'all_categories';
-    if (memCache[cacheKey]?.data?.length && (Date.now() - (memCache[cacheKey].timestamp || 0) < 30000)) {
+    if (!forceNetwork && memCache[cacheKey]?.data?.length && (Date.now() - (memCache[cacheKey].timestamp || 0) < 30000)) {
       return memCache[cacheKey].data;
+    }
+
+    if (inFlightCategoriesPromise) {
+      return inFlightCategoriesPromise;
     }
     
-    try {
-      const fresh = await getData('categories');
-      if (fresh && fresh.length > 0) {
-        memCache[cacheKey] = { data: fresh, timestamp: Date.now() };
-        localCache.set(cacheKey, fresh).catch(() => {});
-        return fresh;
+    inFlightCategoriesPromise = (async () => {
+      try {
+        const fresh = await getData('categories');
+        if (fresh && fresh.length > 0) {
+          memCache[cacheKey] = { data: fresh, timestamp: Date.now() };
+          localCache.set(cacheKey, fresh).catch(() => {});
+          return fresh;
+        }
+      } catch (networkErr) {
+        console.warn('Network fetch failed, falling back to cached local storage version:', networkErr);
       }
-    } catch (networkErr) {
-      console.warn('Network fetch failed, falling back to cached local storage version:', networkErr);
-    }
 
-    // Fallback to cache if network fails
-    const localCats = await localCache.get<any[]>(cacheKey, Infinity);
-    if (localCats && localCats.length > 0) {
-      memCache[cacheKey] = { data: localCats, timestamp: Date.now() };
-      return localCats;
-    }
+      // Fallback to cache if network fails
+      const localCats = await localCache.get<any[]>(cacheKey, Infinity);
+      if (localCats && localCats.length > 0) {
+        memCache[cacheKey] = { data: localCats, timestamp: Date.now() };
+        return localCats;
+      }
 
-    if (memCache[cacheKey]?.data?.length) {
-      return memCache[cacheKey].data;
-    }
+      if (memCache[cacheKey]?.data?.length) {
+        return memCache[cacheKey].data;
+      }
 
-    return [];
+      return [];
+    })().finally(() => {
+      inFlightCategoriesPromise = null;
+    });
+
+    return inFlightCategoriesPromise;
   },
   createCategory: async (data: any) => { 
     const { data: r, error } = await supabase.from('categories').insert(data).select().single(); 
@@ -1224,23 +1278,37 @@ export const api = {
     return merged;
   },
 
-  forceRefreshAll: async () => {
+  forceRefreshAll: async (forceNetwork = true) => {
     try {
-      await api.getProductsDirect();
-      await api.getCategories();
+      if (forceNetwork) {
+        delete memCache['all_products'];
+        delete memCache['all_categories'];
+      }
+
+      // Fetch products and categories in parallel directly from Supabase
+      const [prods, cats] = await Promise.all([
+        api.getProductsDirect(forceNetwork),
+        api.getCategories(forceNetwork)
+      ]);
+
       if (typeof window !== 'undefined' && (window as any).BroadcastChannel) {
         const bc = new (window as any).BroadcastChannel('brq_products_sync');
         bc.postMessage({ type: 'FORCE_REFRESH', timestamp: Date.now() });
         bc.close();
       }
-    } catch {}
-    try {
-      await supabase.channel('products_changes').send({
-        type: 'broadcast',
-        event: 'force_refresh',
-        payload: { timestamp: Date.now() }
-      });
-    } catch {}
-    return { success: true };
+
+      try {
+        await supabase.channel('products_changes').send({
+          type: 'broadcast',
+          event: 'force_refresh',
+          payload: { timestamp: Date.now() }
+        });
+      } catch {}
+
+      return { success: true, count: prods?.length || 0, categoriesCount: cats?.length || 0 };
+    } catch (e) {
+      console.warn("forceRefreshAll error:", e);
+      return { success: false };
+    }
   },
 };

@@ -102,10 +102,10 @@ export default function Products() {
 
   const fetchProducts = async (forceDirect = false, isRetry = false) => {
     try {
-      const cats = await api.getCategories();
+      const cats = await api.getCategories(forceDirect);
       setAllCategories(cats);
       
-      const allStore = forceDirect ? await api.getProductsDirect() : await api.getProducts();
+      const allStore = await api.getProductsDirect(forceDirect);
       
       // Auto-retry if empty on the very first load to prevent showing "No products" prematurely
       if (allStore.length === 0 && !isRetry) {
@@ -195,7 +195,7 @@ export default function Products() {
 
     const init = async () => {
       try {
-        await fetchProducts();
+        await fetchProducts(true);
       } finally {
         if (mounted) {
           setLoading(false);

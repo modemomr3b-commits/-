@@ -66,10 +66,10 @@ export default function SearchPage() {
       }
     });
 
-    const fetchProducts = async () => {
+    const fetchProducts = async (forceNetwork = false) => {
       try {
-         const cats = await api.getCategories();
-         const allProducts = await api.getProducts();
+         const cats = await api.getCategories(forceNetwork);
+         const allProducts = await api.getProductsDirect(forceNetwork);
          if (mounted) {
             setAllCategories(cats);
             const isStaff = user?.role === 'admin' || user?.role === 'sales';
@@ -91,14 +91,14 @@ export default function SearchPage() {
          if (mounted) setLoading(false);
       }
     };
-    fetchProducts();
+    fetchProducts(true);
 
     // Instant local BroadcastChannel synchronization across tabs
     let fetchTimeout: any = null;
     const scheduleFetch = (delay = 1200) => {
       clearTimeout(fetchTimeout);
       fetchTimeout = setTimeout(() => {
-        if (mounted) fetchProducts();
+        if (mounted) fetchProducts(true);
       }, delay);
     };
 

@@ -55,10 +55,10 @@ export default function Home() {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const fetchCats = async () => {
+  const fetchCats = async (forceNetwork = false) => {
     try {
       const [cats, settings] = await Promise.all([
-        api.getCategories(),
+        api.getCategories(forceNetwork),
         api.getSettings()
       ]);
       
@@ -75,7 +75,7 @@ export default function Home() {
       }
 
       // Fetch products asynchronously in the background so it doesn't block the Home page from loading quickly
-      api.getProducts().then(prods => {
+      api.getProductsDirect(forceNetwork).then(prods => {
         if (prods && Array.isArray(prods)) {
           const scCount = prods.filter((p: any) => p.isShowcase && !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, cats)).length;
           setShowcaseCount(scCount);
@@ -130,7 +130,7 @@ export default function Home() {
 
     const initialFetch = async () => {
       try {
-        await fetchCats();
+        await fetchCats(true);
       } finally {
         if (mounted) setLoading(false);
       }
@@ -138,12 +138,23 @@ export default function Home() {
 
     initialFetch();
 
+    // Instant local BroadcastChannel sync across tabs/logins
+    let bc: any = null;
+    try {
+      if (typeof window !== 'undefined' && (window as any).BroadcastChannel) {
+        bc = new (window as any).BroadcastChannel('brq_products_sync');
+        bc.onmessage = () => {
+          if (mounted) fetchCats(true);
+        };
+      }
+    } catch {}
+
     const channel = supabase
       .channel('home_categories')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'categories' }, () => {
         clearTimeout(fetchTimeout);
         fetchTimeout = setTimeout(() => {
-          if (mounted) fetchCats();
+          if (mounted) fetchCats(true);
         }, 1500);
       })
       .on('broadcast', { event: 'settings_updated' }, ({ payload }) => {
@@ -156,6 +167,7 @@ export default function Home() {
     return () => {
       mounted = false;
       clearTimeout(fetchTimeout);
+      if (bc) bc.close();
       supabase.removeChannel(channel);
     };
   }, []);

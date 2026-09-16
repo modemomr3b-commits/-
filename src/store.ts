@@ -25,6 +25,8 @@ export const useStore = create<AppState>()(
       setUser: (user) => {
         if (user) {
           localStorage.setItem('brq_last_activity', Date.now().toString());
+        } else {
+          localStorage.removeItem('brq_last_activity');
         }
         set({ user });
       },

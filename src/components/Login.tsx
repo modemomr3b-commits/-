@@ -101,9 +101,13 @@ export default function Login() {
 
       setUser(finalUser);
 
-      // Force fetch latest database updates immediately upon login
+      // Force fetch latest database updates immediately upon login with high-speed parallel sync
+      api.clearCache();
       try {
-        await api.forceRefreshAll();
+        await Promise.race([
+          api.forceRefreshAll(true),
+          new Promise((resolve) => setTimeout(resolve, 1200))
+        ]);
       } catch (e) {}
 
       navigate('/');

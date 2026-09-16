@@ -68,11 +68,11 @@ export default function App() {
     };
   }, []);
 
-  // 15-minute inactivity logout tracker
+  // 10-minute inactivity logout tracker
   useEffect(() => {
     if (!user) return;
 
-    const INACTIVITY_LIMIT = 2 * 60 * 1000; // 2 minutes in ms
+    const INACTIVITY_LIMIT = 10 * 60 * 1000; // 10 minutes in ms
     let lastActivityTime = Date.now();
 
     const updateActivity = () => {
@@ -80,7 +80,7 @@ export default function App() {
       localStorage.setItem('brq_last_activity', lastActivityTime.toString());
     };
 
-    // Check immediately if they were away for > 15 mins when reopening the app
+    // Check immediately if they were away for > 10 mins when reopening the app
     const storedActivity = localStorage.getItem('brq_last_activity');
     if (storedActivity) {
       const parsed = parseInt(storedActivity, 10);
