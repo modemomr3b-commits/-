@@ -15,7 +15,7 @@ const getData = async (table: string) => {
         .from(table)
         .select('*', { count: 'exact', head: true });
 
-      const limit = 2000; // Increased chunk size for ultra-fast parallel fetch
+      const limit = 1000; // Strict Supabase PostgREST limit per request
 
       // For small tables (categories, settings) or if count query is unavailable
       if (countErr || count === null || count <= limit) {
