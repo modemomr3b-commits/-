@@ -15,7 +15,7 @@ const getData = async (table: string) => {
         .from(table)
         .select('*', { count: 'exact', head: true });
 
-      const limit = 1000; // Strict Supabase PostgREST limit per request
+      const limit = 1000;
 
       // For small tables (categories, settings) or if count query is unavailable
       if (countErr || count === null || count <= limit) {
@@ -44,14 +44,6 @@ const getData = async (table: string) => {
         }
         if (allData.length > 0) {
           localCache.set(`all_${table}`, allData).catch(() => {});
-          // Broadcast fast background sync completion
-          if (typeof window !== 'undefined' && (window as any).BroadcastChannel) {
-            try {
-              const bc = new (window as any).BroadcastChannel('brq_products_sync');
-              bc.postMessage({ type: 'FORCE_REFRESH', table, timestamp: Date.now() });
-              bc.close();
-            } catch {}
-          }
         }
         return allData;
       }
@@ -74,20 +66,6 @@ const getData = async (table: string) => {
 
       if (allData.length > 0) {
         localCache.set(`all_${table}`, allData).catch(() => {});
-        // In-memory cache update
-        if (table === 'products') {
-          delete memCache['all_products'];
-        } else if (table === 'categories') {
-          delete memCache['all_categories'];
-        }
-        // Broadcast fast background sync completion
-        if (typeof window !== 'undefined' && (window as any).BroadcastChannel) {
-          try {
-            const bc = new (window as any).BroadcastChannel('brq_products_sync');
-            bc.postMessage({ type: 'FORCE_REFRESH', table, timestamp: Date.now() });
-            bc.close();
-          } catch {}
-        }
       }
       return allData;
     } catch (err) {
