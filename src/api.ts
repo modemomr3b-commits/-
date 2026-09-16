@@ -5,73 +5,110 @@ import { parseOrderDetails } from './utils/orderUtils';
 import { localCache } from './utils/localCache';
 
 const getData = async (table: string) => {
-  try {
-    const { count, error: countErr } = await supabase
-      .from(table)
-      .select('*', { count: 'exact', head: true });
+  // Try local cache first for instant response (0ms load time)
+  const cached = await localCache.get<any[]>(`all_${table}`, Infinity);
 
-    const limit = 1000;
+  // Background network fetch function
+  const fetchFromNetwork = async () => {
+    try {
+      const { count, error: countErr } = await supabase
+        .from(table)
+        .select('*', { count: 'exact', head: true });
 
-    // For small tables (categories, settings) or if count query is unavailable
-    if (countErr || count === null || count <= limit) {
-      let allData: any[] = [];
-      let from = 0;
-      while (true) {
-        const { data, error } = await supabase
-          .from(table)
-          .select('*')
-          .range(from, from + limit - 1);
+      const limit = 2000; // Increased chunk size for ultra-fast parallel fetch
+
+      // For small tables (categories, settings) or if count query is unavailable
+      if (countErr || count === null || count <= limit) {
+        let allData: any[] = [];
+        let from = 0;
+        while (true) {
+          const { data, error } = await supabase
+            .from(table)
+            .select('*')
+            .range(from, from + limit - 1);
           
-        if (error) {
-          throw error;
-        }
-        
-        if (data && data.length > 0) {
-          const activeData = data.filter((item: any) => item.isDeleted !== true);
-          allData = [...allData, ...activeData];
-          if (data.length < limit) {
+          if (error) {
             break;
           }
-          from += limit;
-        } else {
-          break;
+          
+          if (data && data.length > 0) {
+            const activeData = data.filter((item: any) => item.isDeleted !== true);
+            allData = [...allData, ...activeData];
+            if (data.length < limit) {
+              break;
+            }
+            from += limit;
+          } else {
+            break;
+          }
+        }
+        if (allData.length > 0) {
+          localCache.set(`all_${table}`, allData).catch(() => {});
+          // Broadcast fast background sync completion
+          if (typeof window !== 'undefined' && (window as any).BroadcastChannel) {
+            try {
+              const bc = new (window as any).BroadcastChannel('brq_products_sync');
+              bc.postMessage({ type: 'FORCE_REFRESH', table, timestamp: Date.now() });
+              bc.close();
+            } catch {}
+          }
+        }
+        return allData;
+      }
+
+      // High-speed parallel chunk fetching for large tables (like products: 7000+ items)
+      const chunks = [];
+      for (let from = 0; from < count; from += limit) {
+        chunks.push(
+          supabase.from(table).select('*').range(from, from + limit - 1)
+        );
+      }
+
+      const results = await Promise.all(chunks);
+      let allData: any[] = [];
+      for (const res of results) {
+        if (res.data) {
+          allData.push(...res.data.filter((item: any) => item.isDeleted !== true));
         }
       }
+
       if (allData.length > 0) {
         localCache.set(`all_${table}`, allData).catch(() => {});
+        // In-memory cache update
+        if (table === 'products') {
+          delete memCache['all_products'];
+        } else if (table === 'categories') {
+          delete memCache['all_categories'];
+        }
+        // Broadcast fast background sync completion
+        if (typeof window !== 'undefined' && (window as any).BroadcastChannel) {
+          try {
+            const bc = new (window as any).BroadcastChannel('brq_products_sync');
+            bc.postMessage({ type: 'FORCE_REFRESH', table, timestamp: Date.now() });
+            bc.close();
+          } catch {}
+        }
       }
       return allData;
+    } catch (err) {
+      console.warn(`Background network fetch failed for ${table}:`, err);
+      return null;
     }
+  };
 
-    // High-speed parallel chunk fetching for large tables (like products: 7000+ items)
-    const chunks = [];
-    for (let from = 0; from < count; from += limit) {
-      chunks.push(
-        supabase.from(table).select('*').range(from, from + limit - 1)
-      );
-    }
-
-    const results = await Promise.all(chunks);
-    let allData: any[] = [];
-    for (const res of results) {
-      if (res.error) throw res.error;
-      if (res.data) {
-        allData.push(...res.data.filter((item: any) => item.isDeleted !== true));
-      }
-    }
-
-    if (allData.length > 0) {
-      localCache.set(`all_${table}`, allData).catch(() => {});
-    }
-    return allData;
-  } catch (err) {
-    console.warn(`Network error in getData for table ${table}, falling back to local cache:`, err);
-    const cached = await localCache.get<any[]>(`all_${table}`, Infinity);
-    if (cached && cached.length > 0) {
-      return cached;
-    }
-    return [];
+  // If we have cached data, return it instantly and trigger background sync
+  if (cached && cached.length > 0) {
+    fetchFromNetwork().catch(() => {});
+    return cached;
   }
+
+  // If no cache exists at all, fetch synchronously from network
+  const netData = await fetchFromNetwork();
+  if (netData && netData.length > 0) {
+    return netData;
+  }
+
+  return cached || [];
 };
 
 const getDeletedData = async (table: string) => {
