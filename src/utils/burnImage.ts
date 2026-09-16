@@ -7,14 +7,28 @@ export const burnProductOverlay = async (product: any, rawImageUrl: string): Pro
     // Ignore font ready check failure if unsupported
   }
 
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
+    let isResolved = false;
+    const timeout = setTimeout(() => {
+      if (!isResolved) {
+        isResolved = true;
+        resolve(rawImageUrl);
+      }
+    }, 4000);
+
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
+      if (isResolved) return;
       try {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
-        if (!ctx) throw new Error('No context');
+        if (!ctx) {
+          isResolved = true;
+          clearTimeout(timeout);
+          resolve(rawImageUrl);
+          return;
+        }
 
         // Use natural image width for canvas, and scale the ribbon accordingly
         const baseWidth = 1080;
@@ -176,12 +190,24 @@ export const burnProductOverlay = async (product: any, rawImageUrl: string): Pro
           ctx.fillText(Number(product.price || 0).toLocaleString("en-US") + ' د.ع', CANVAS_W / 2, boxY + (48 * scale));
         }
 
+        isResolved = true;
+        clearTimeout(timeout);
         resolve(canvas.toDataURL('image/jpeg', 0.95));
       } catch (err) {
-        reject(err);
+        if (!isResolved) {
+          isResolved = true;
+          clearTimeout(timeout);
+          resolve(rawImageUrl);
+        }
       }
     };
-    img.onerror = () => reject('Failed to load image for burning');
+    img.onerror = () => {
+      if (!isResolved) {
+        isResolved = true;
+        clearTimeout(timeout);
+        resolve(rawImageUrl);
+      }
+    };
     img.src = rawImageUrl;
   });
 };
