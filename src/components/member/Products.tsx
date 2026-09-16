@@ -100,12 +100,19 @@ export default function Products() {
     return 1;
   });
 
-  const fetchProducts = async (forceDirect = false) => {
+  const fetchProducts = async (forceDirect = false, isRetry = false) => {
     try {
       const cats = await api.getCategories();
       setAllCategories(cats);
       
       const allStore = forceDirect ? await api.getProductsDirect() : await api.getProducts();
+      
+      // Auto-retry if empty on the very first load to prevent showing "No products" prematurely
+      if (allStore.length === 0 && !isRetry) {
+        setTimeout(() => fetchProducts(true, true), 1000);
+        return;
+      }
+
       const activeStore: Product[] = allStore.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, cats));
       const shuffledStore = shuffleProductsForUser<Product>(activeStore);
       setAllStoreProducts(shuffledStore);
@@ -285,17 +292,20 @@ export default function Products() {
   // Hardware back button support for overlays
   const isAnyOverlayOpen = fullscreenIndex !== null || fullscreenImage !== null || historyProduct !== null || isFilterModalOpen || downloadChoiceDialog !== null;
   const prevOverlayState = useRef(false);
-
+  
   useEffect(() => {
+    // Prevent auto-redirects/reloads on initial category entry by carefully managing history states
     if (isAnyOverlayOpen && !prevOverlayState.current) {
-      // Overlay just opened -> Push a dummy state
       window.history.pushState({ overlay: true }, '');
       prevOverlayState.current = true;
     } else if (!isAnyOverlayOpen && prevOverlayState.current) {
-      // Overlay just closed programmatically (e.g. by Close button)
-      // Pop the dummy state if it's there
+      // Safely pop only if the current state explicitly marks an overlay
       if (window.history.state && window.history.state.overlay) {
-        window.history.back();
+        try {
+          window.history.back();
+        } catch (e) {
+          // Ignore history traversal errors to prevent accidental returns to start
+        }
       }
       prevOverlayState.current = false;
     }
