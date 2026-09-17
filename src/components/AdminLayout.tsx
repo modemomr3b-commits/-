@@ -70,7 +70,6 @@ export default function AdminLayout() {
   };
 
   const menu = [
-    { icon: LayoutDashboard, path: '/admin', label: 'لوحة القيادة' },
     { icon: Eye, path: '/', label: 'تصفح التطبيق' },
     { icon: Package, path: '/admin/products', label: 'إدارة المنتجات' },
     { icon: Tags, path: '/admin/categories', label: 'إدارة الأقسام' },

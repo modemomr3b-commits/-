@@ -187,7 +187,7 @@ export default function App() {
               path="/admin" 
               element={user && (user.role === 'admin' || user.role === 'sales') ? <AdminLayout /> : <Navigate to="/login" />}
             >
-              <Route index element={<AdminDashboard />} />
+              <Route index element={<Navigate to="products" replace />} />
               <Route path="products" element={<ProductManager />} />
               <Route path="categories" element={<CategoryManager />} />
               <Route path="orders" element={<OrderManager />} />
