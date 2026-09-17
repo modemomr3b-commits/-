@@ -395,7 +395,7 @@ export async function verifyShowcaseInvite(token?: string, fallbackAgentId?: str
     if (targetLookup) {
       const { data: users } = await supabase
         .from('users')
-        .select('id, username, uid, fullName, password');
+        .select('*');
       
       if (users && users.length > 0) {
         const matchedUser = users.find(u => 
@@ -588,7 +588,7 @@ export async function loginShowcase(params: {
     } else {
       const { data: users } = await supabase
         .from('users')
-        .select('id, username, uid, fullName, password')
+        .select('*')
         .or(`username.eq.${cleanUsername},fullName.eq.${cleanUsername}`);
 
       if (users && users.length > 0) {

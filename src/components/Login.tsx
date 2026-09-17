@@ -64,7 +64,7 @@ export default function Login() {
            } else if (cleanUsername === 'wafaa' && password === 'brq') {
                finalUser = { id: 'wafaa', uid: 'admin_user_wafaa', username: 'wafaa', fullName: 'مدير النظام', role: 'admin', status: 'active' };
            } else {
-               const { data: snapshot, error: sbError } = await supabase.from('users').select('id, username, password, fullName, role, balance, isLocked, isDeleted, lastActive, isOnline, status, isActive, createdAt').eq('username', cleanUsername);
+               const { data: snapshot, error: sbError } = await supabase.from('users').select('*').eq('username', cleanUsername);
                if (sbError || !snapshot || snapshot.length === 0) {
                    throw new Error('بيانات الدخول غير صحيحة');
                }

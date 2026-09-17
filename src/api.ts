@@ -90,7 +90,7 @@ const getData = async (table: string, forceNetwork = false) => {
         } else if (table === 'categories') {
           selectColumns = 'id, name, parentId, image, description, orderIndex, isDeleted, createdAt';
         } else if (table === 'users') {
-          selectColumns = 'id, uid, username, password, fullName, phone, userNumber, role, status, allowedDevice, lastActive, currentPage, isOnline, allowedPages, isDeleted, deletedAt, deletedBy, createdAt, updatedAt';
+          selectColumns = '*';
         } else if (table === 'activity_logs') {
           selectColumns = 'id, userId, username, action, details, createdAt';
         } else if (table === 'notifications') {
@@ -183,7 +183,7 @@ const getDeletedData = async (table: string) => {
   } else if (table === 'categories') {
     selectColumns = 'id, name, parentId, image, description, orderIndex, isDeleted, createdAt';
   } else if (table === 'users') {
-    selectColumns = 'id, uid, username, password, fullName, phone, userNumber, role, status, allowedDevice, lastActive, currentPage, isOnline, allowedPages, isDeleted, deletedAt, deletedBy, createdAt, updatedAt';
+    selectColumns = '*';
   }
 
   while (true) {
@@ -1131,7 +1131,7 @@ export const api = {
   // USERS
   getUsers: async () => {
     try {
-      const { data, error } = await supabase.from('users').select('id, uid, username, password, fullName, phone, userNumber, role, status, allowedDevice, lastActive, currentPage, isOnline, allowedPages, isDeleted, deletedAt, deletedBy, createdAt, updatedAt');
+      const { data, error } = await supabase.from('users').select('*');
       if (error) { console.error('Error fetching users:', error); throw error; }
       const activeUsers = (data || []).filter((u: any) => u.isDeleted !== true);
       return activeUsers;
@@ -1142,7 +1142,7 @@ export const api = {
   },
   getUser: async (id: string) => { 
     try {
-      const { data, error } = await supabase.from('users').select('id, uid, username, password, fullName, phone, userNumber, role, status, allowedDevice, lastActive, currentPage, isOnline, allowedPages, isDeleted, deletedAt, deletedBy, createdAt, updatedAt').eq('id', id).maybeSingle();
+      const { data, error } = await supabase.from('users').select('*').eq('id', id).maybeSingle();
       if (error) return null;
       return data;
     } catch (e) {
