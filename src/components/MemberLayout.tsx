@@ -43,10 +43,8 @@ export default function MemberLayout() {
     };
 
     checkCustomerOrders();
-    const interval = setInterval(checkCustomerOrders, 15000); // Check every 15s
     return () => {
       isMounted = false;
-      clearInterval(interval);
     };
   }, [user, location.pathname]);
 

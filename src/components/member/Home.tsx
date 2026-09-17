@@ -432,7 +432,7 @@ export default function Home() {
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
             {categories.map((cat, i) => (
               <motion.div
-                key={cat.id}
+                key={`${cat.id}-${i}`}
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.05 * (i % 8) }}

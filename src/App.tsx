@@ -48,24 +48,14 @@ export default function App() {
     initialize();
   }, [initialize]);
 
-  // Global 5-minute forced sync & cache wipe interval for all users to guarantee out-of-stock / archived products never slip through
+  // Initial warmup removed to avoid massive network requests on startup
   useEffect(() => {
-    // Delay immediate forced refresh & pre-warming to avoid network lag on initial app load
-    // It will silently fetch all products into memory in the background after 3 seconds
-    const warmupTimer = setTimeout(() => {
-      api.forceRefreshAll().catch(() => {});
-    }, 3000);
+    // No-op
+  }, []);
 
-    const syncInterval = setInterval(async () => {
-      try {
-        await api.forceRefreshAll();
-      } catch (e) {}
-    }, 5 * 60 * 1000); // 5 minutes
-
-    return () => {
-      clearTimeout(warmupTimer);
-      clearInterval(syncInterval);
-    };
+  // Smart background sync on visibility change / window focus removed as it causes heavy load
+  useEffect(() => {
+    // No-op
   }, []);
 
   // 10-minute inactivity logout tracker

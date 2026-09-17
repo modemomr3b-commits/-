@@ -88,8 +88,6 @@ function UserManagerContent() {
       }, 1000);
     };
 
-    const inv = setInterval(fetchUsers, 30000);
-
     const channel = supabase
       .channel('public:users_manager_changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => {
@@ -103,7 +101,6 @@ function UserManagerContent() {
     return () => {
       mounted = false;
       clearTimeout(debounceTimer);
-      clearInterval(inv);
       supabase.removeChannel(channel);
     };
   }, []);

@@ -12,6 +12,26 @@ export function shuffleProductsForUser<T = any>(
 ): T[] {
   if (!products || products.length <= 1) return products;
 
+  // Defensive deduplication to guarantee no duplicates reach the UI
+  const seenIds = new Set<string>();
+  const uniqueItems: T[] = [];
+  for (let i = 0; i < products.length; i++) {
+    const item = products[i] as any;
+    const key = item?.id !== undefined && item?.id !== null 
+      ? String(item.id) 
+      : (item?.productCode ? String(item.productCode) : null);
+    if (key) {
+      if (!seenIds.has(key)) {
+        seenIds.add(key);
+        uniqueItems.push(item);
+      }
+    } else {
+      uniqueItems.push(item);
+    }
+  }
+
+  if (uniqueItems.length <= 1) return uniqueItems;
+
   // 1. Maintain a persistent session seed so pagination doesn't jump or reshuffle on navigation
   let baseSeedStr: string | null = null;
   try {
@@ -43,12 +63,12 @@ export function shuffleProductsForUser<T = any>(
   };
 
   const safePageSize = Math.max(1, pageSize);
-  const total = products.length;
+  const total = uniqueItems.length;
   const numPages = Math.ceil(total / safePageSize);
 
   // If all products fit on 1 single page, deterministic shuffle is sufficient
   if (numPages <= 1) {
-    return [...products].sort((a, b) => getHash(a) - getHash(b));
+    return [...uniqueItems].sort((a, b) => getHash(a) - getHash(b));
   }
 
   // Helper to extract the most accurate timestamp for recency (creation, update, or activation)
@@ -64,7 +84,7 @@ export function shuffleProductsForUser<T = any>(
   };
 
   // 2. Sort all products strictly by recency (newest / most recently activated first)
-  const sortedByRecency = [...products].sort((a, b) => {
+  const sortedByRecency = [...uniqueItems].sort((a, b) => {
     const timeA = getRecency(a);
     const timeB = getRecency(b);
     if (timeA !== timeB) return timeB - timeA;

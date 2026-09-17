@@ -4,84 +4,166 @@ import { ActivityLog } from './types';
 import { parseOrderDetails } from './utils/orderUtils';
 import { localCache } from './utils/localCache';
 import { isArchivedCategoryName } from './utils/search';
+import { compressImage } from './utils/compressImage';
 
-const getData = async (table: string) => {
-  // Try local cache first for instant response (0ms load time)
-  const cached = await localCache.get<any[]>(`all_${table}`, Infinity);
+// Helper to strictly deduplicate database records by id to guarantee zero duplicate keys across React renders
+const deduplicateItems = <T extends { id?: any; [key: string]: any }>(items: T[]): T[] => {
+  if (!items || !Array.isArray(items)) return [];
+  const seen = new Set<string>();
+  const unique: T[] = [];
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    if (!item) continue;
+    const id = item.id !== undefined && item.id !== null ? String(item.id) : null;
+    if (id) {
+      if (!seen.has(id)) {
+        seen.add(id);
+        unique.push(item);
+      }
+    } else {
+      unique.push(item);
+    }
+  }
+  return unique;
+};
 
-  // Background network fetch function
-  const fetchFromNetwork = async () => {
-    try {
-      const { count, error: countErr } = await supabase
-        .from(table)
-        .select('*', { count: 'exact', head: true });
+const sanitizeOrderProducts = (raw: any[]) => {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((item: any) => {
+    const prod = item.product || item;
+    return {
+      productId: item.productId || prod.id || prod.productId,
+      quantity: Number(item.quantity) || 1,
+      product: {
+        id: prod.id || prod.productId,
+        name: prod.name || 'منتج',
+        productCode: prod.productCode || prod.code || '',
+        modelNumber: prod.modelNumber || '',
+        imageUrl: prod.imageUrl || '',
+        finalImageUrl: prod.finalImageUrl || prod.imageUrl || '',
+        sellingPrice: Number(prod.sellingPrice || prod.price) || 0,
+        costPrice: Number(prod.costPrice) || 0,
+      }
+    };
+  });
+};
 
-      const limit = 1000;
+// Global tracking to prevent duplicate in-flight requests and database connection throttling
+const inFlightTableFetches: Record<string, Promise<any[]> | null> = {};
+const lastTableFetchTimestamps: Record<string, number> = {};
+const MIN_BACKGROUND_FETCH_INTERVAL = 30000; // 30s cooldown between full background network fetches
 
-      // For small tables (categories, settings) or if count query is unavailable
-      if (countErr || count === null || count <= limit) {
+const getData = async (table: string, forceNetwork = false) => {
+  // Try local cache first for instant response (0ms load time), sanitized for unique IDs
+  const rawCached = await localCache.get<any[]>(`all_${table}`, Infinity);
+  const cached = rawCached ? deduplicateItems(rawCached) : null;
+  if (rawCached && cached && rawCached.length !== cached.length) {
+    // Purge stale duplicate entries from storage if found
+    localCache.set(`all_${table}`, cached).catch(() => {});
+  }
+
+  // Background network fetch function with deduplication and sequential paging
+  const fetchFromNetwork = async (): Promise<any[]> => {
+    // If an in-flight network request for this table is already running, reuse that exact promise
+    if (inFlightTableFetches[table]) {
+      return inFlightTableFetches[table]!;
+    }
+
+    // Unless forced, respect cooldown if we already have valid cached data
+    const now = Date.now();
+    const lastFetch = lastTableFetchTimestamps[table] || 0;
+    if (!forceNetwork && cached && cached.length > 0 && (now - lastFetch < MIN_BACKGROUND_FETCH_INTERVAL)) {
+      return cached;
+    }
+
+    const fetchPromise = (async () => {
+      try {
+        const limit = 1000;
         let allData: any[] = [];
+        const seenIds = new Set<string>();
         let from = 0;
-        while (true) {
+        let hasMore = true;
+
+        let selectColumns = 'id, name, productCode, modelNumber, categoryId, subcategoryId, size, stock, costPrice, sellingPrice, oldPriceInfo, imageUrl, finalImageUrl, qrCode, isHidden, isLocked, isArchived, isDeleted, isShowcase, showcaseCategory, createdAt, updatedAt, packaging, piecesCount, price, barcode, views, description';
+        if (table === 'orders') {
+          selectColumns = 'id, orderNumber, status, userId, username, fullName, customerName, customerPhone, transport, notes, total, products, items, totalQuantity, createdAt, completedAt, isDeleted, deletedAt, deletedBy, agentId, agentName';
+        } else if (table === 'categories') {
+          selectColumns = 'id, name, parentId, image, description, orderIndex, isDeleted, createdAt';
+        } else if (table === 'users') {
+          selectColumns = 'id, username, password, fullName, role, balance, isLocked, isDeleted, lastActive, isOnline, status, isActive, createdAt';
+        } else if (table === 'activity_logs') {
+          selectColumns = 'id, userId, username, action, details, createdAt';
+        } else if (table === 'notifications') {
+          selectColumns = 'id, userId, title, message, read, isDeleted, createdAt';
+        } else if (table === 'settings') {
+          selectColumns = 'id, data';
+        }
+
+        // Fetch sequentially in moderate batches to eliminate statement timeouts (Error 57014)
+        // Order by id guarantees deterministic pagination without row shifting or repetition
+        while (hasMore) {
           const { data, error } = await supabase
             .from(table)
-            .select('*')
+            .select(selectColumns)
+            .order('id', { ascending: true })
             .range(from, from + limit - 1);
-          
+
           if (error) {
+            console.warn(`Error fetching batch from ${table} [${from}-${from + limit - 1}]:`, error.message);
             break;
           }
-          
+
           if (data && data.length > 0) {
-            const activeData = data.filter((item: any) => item.isDeleted !== true);
-            allData = [...allData, ...activeData];
+            for (let i = 0; i < data.length; i++) {
+              const item = data[i] as any;
+              if (item.isDeleted === true) continue;
+              const id = item.id !== undefined && item.id !== null ? String(item.id) : null;
+              if (id) {
+                if (!seenIds.has(id)) {
+                  seenIds.add(id);
+                  allData.push(item);
+                }
+              } else {
+                allData.push(item);
+              }
+            }
             if (data.length < limit) {
+              hasMore = false;
               break;
             }
             from += limit;
           } else {
+            hasMore = false;
             break;
           }
         }
+
         if (allData.length > 0) {
+          lastTableFetchTimestamps[table] = Date.now();
           localCache.set(`all_${table}`, allData).catch(() => {});
+          return allData;
         }
-        return allData;
-      }
 
-      // High-speed parallel chunk fetching for large tables (like products: 7000+ items)
-      const chunks = [];
-      for (let from = 0; from < count; from += limit) {
-        chunks.push(
-          supabase.from(table).select('*').range(from, from + limit - 1)
-        );
+        return cached || [];
+      } catch (err) {
+        console.warn(`Background network fetch failed for ${table}:`, err);
+        return cached || [];
+      } finally {
+        inFlightTableFetches[table] = null;
       }
+    })();
 
-      const results = await Promise.all(chunks);
-      let allData: any[] = [];
-      for (const res of results) {
-        if (res.data) {
-          allData.push(...res.data.filter((item: any) => item.isDeleted !== true));
-        }
-      }
-
-      if (allData.length > 0) {
-        localCache.set(`all_${table}`, allData).catch(() => {});
-      }
-      return allData;
-    } catch (err) {
-      console.warn(`Background network fetch failed for ${table}:`, err);
-      return null;
-    }
+    inFlightTableFetches[table] = fetchPromise;
+    return fetchPromise;
   };
 
-  // If we have cached data, return it instantly and trigger background sync
-  if (cached && cached.length > 0) {
+  // If we have cached data, return it instantly and trigger throttled background sync
+  if (cached && cached.length > 0 && !forceNetwork) {
     fetchFromNetwork().catch(() => {});
     return cached;
   }
 
-  // If no cache exists at all, fetch synchronously from network
+  // If forceNetwork or no cache exists at all, fetch synchronously from network
   const netData = await fetchFromNetwork();
   if (netData && netData.length > 0) {
     return netData;
@@ -95,10 +177,19 @@ const getDeletedData = async (table: string) => {
   let from = 0;
   const limit = 1000;
   
+  let selectColumns = 'id, name, productCode, modelNumber, categoryId, subcategoryId, size, stock, costPrice, sellingPrice, oldPriceInfo, imageUrl, finalImageUrl, qrCode, isHidden, isLocked, isArchived, isDeleted, isShowcase, showcaseCategory, createdAt, updatedAt, packaging, piecesCount, price, barcode, views, description';
+  if (table === 'orders') {
+    selectColumns = 'id, orderNumber, status, userId, username, fullName, customerName, customerPhone, transport, notes, total, products, items, totalQuantity, createdAt, completedAt, isDeleted, deletedAt, deletedBy, agentId, agentName';
+  } else if (table === 'categories') {
+    selectColumns = 'id, name, parentId, image, description, orderIndex, isDeleted, createdAt';
+  } else if (table === 'users') {
+    selectColumns = 'id, username, password, fullName, role, balance, isLocked, isDeleted, lastActive, isOnline, status, isActive, createdAt';
+  }
+
   while (true) {
     const { data, error } = await supabase
       .from(table)
-      .select('*')
+      .select(selectColumns)
       .eq('isDeleted', true)
       .range(from, from + limit - 1);
       
@@ -139,7 +230,14 @@ export const api = {
       if (!base64Str || !base64Str.startsWith('data:image')) return base64Str;
       
       const res = await fetch(base64Str);
-      const blob = await res.blob();
+      let blob = await res.blob();
+      
+      try {
+        blob = await compressImage(blob, 1200, 0.75);
+      } catch (compErr) {
+        console.warn('Image compression warning:', compErr);
+      }
+
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`;
       
       const { data, error } = await supabase.storage.from('products').upload(fileName, blob, {
@@ -226,7 +324,7 @@ export const api = {
   },
 
   getProductById: async (id: string) => {
-    const { data, error } = await supabase.from('products').select('*').eq('id', id).single();
+    const { data, error } = await supabase.from('products').select('id, name, productCode, modelNumber, categoryId, subcategoryId, size, stock, costPrice, sellingPrice, oldPriceInfo, imageUrl, finalImageUrl, qrCode, isHidden, isLocked, isArchived, isDeleted, isShowcase, showcaseCategory, createdAt, updatedAt, packaging, piecesCount, price, barcode, views, description').eq('id', id).single();
     if (error || !data) return null;
     return {
       ...data,
@@ -252,16 +350,6 @@ export const api = {
   },
 
   getProductsDirect: async (forceNetwork = false): Promise<any[]> => {
-    // Return in-memory cache instantly if fresh (under 60 seconds) unless forceNetwork
-    if (!forceNetwork && memCache['all_products'] && (Date.now() - memCache['all_products'].timestamp < MEM_CACHE_TTL)) {
-      return memCache['all_products'].data;
-    }
-
-    // Deduplicate active in-flight fetch so parallel requests share the exact same network promise
-    if (inFlightProductsPromise) {
-      return inFlightProductsPromise;
-    }
-
     const mapProduct = (p: any) => ({
       ...p,
       packaging: p.packaging !== undefined && p.packaging !== null && p.packaging !== '' && p.packaging !== '---'
@@ -281,27 +369,61 @@ export const api = {
       updatedAt: p.size?.updatedAt || p.createdAt
     });
 
+    // 1. Return memory cache instantly if fresh
+    if (!forceNetwork && memCache['all_products'] && (Date.now() - memCache['all_products'].timestamp < MEM_CACHE_TTL)) {
+      return deduplicateItems(memCache['all_products'].data);
+    }
+
+    // 2. Try fast return from local cache instantly (0ms load for instant UI render)
+    const localCached = await localCache.get<any[]>('all_products', Infinity);
+    if (!forceNetwork && localCached && localCached.length > 0) {
+      const processed = deduplicateItems(localCached).map(mapProduct);
+      memCache['all_products'] = { data: processed, timestamp: Date.now() };
+      
+      // Trigger background silent sync to fetch any new models or depleted changes without blocking
+      setTimeout(async () => {
+        try {
+          const freshData = await getData('products', true);
+          if (freshData && freshData.length > 0) {
+            const clean = deduplicateItems(freshData);
+            const freshRes = clean.map(mapProduct).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+            memCache['all_products'] = { data: freshRes, timestamp: Date.now() };
+            localCache.set('all_products', freshRes).catch(() => {});
+          }
+        } catch (e) {
+          // silent background sync error ignore
+        }
+      }, 50);
+
+      return processed;
+    }
+
+    // Deduplicate active in-flight fetch
+    if (inFlightProductsPromise) {
+      return inFlightProductsPromise;
+    }
+
     inFlightProductsPromise = (async () => {
       try {
-        const data = await getData('products');
+        const data = await getData('products', forceNetwork);
         if (data && data.length > 0) {
-          const res = data.map(mapProduct).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+          const cleanData = deduplicateItems(data);
+          const res = cleanData.map(mapProduct).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
           memCache['all_products'] = { data: res, timestamp: Date.now() };
           localCache.set('all_products', res).catch(() => {});
           return res;
         }
       } catch (networkErr) {
-        console.warn('Network fetch failed, falling back to cached local storage version:', networkErr);
+        console.warn('Network fetch failed, falling back to local cache:', networkErr);
       }
 
-      // Fallback to cache if network fails (لا سامح الله صارت مشكلة)
       const fallbackLocal = await localCache.get<any[]>('all_products', Infinity);
       if (fallbackLocal && fallbackLocal.length > 0) {
-        return fallbackLocal.map(mapProduct);
+        return deduplicateItems(fallbackLocal).map(mapProduct);
       }
 
       if (memCache['all_products']?.data?.length) {
-        return memCache['all_products'].data;
+        return deduplicateItems(memCache['all_products'].data);
       }
 
       return [];
@@ -682,20 +804,21 @@ export const api = {
       hasDirectUpdates = true;
     }
 
-    const chunkSize = 100;
+    const chunkSize = 50;
     const chunks: string[][] = [];
     for (let i = 0; i < ids.length; i += chunkSize) {
       chunks.push(ids.slice(i, i + chunkSize));
     }
     
     if (hasDirectUpdates && !hasSizeUpdates) {
-      // Direct SQL bulk update on Supabase table sequentially per chunk
+      // Direct SQL bulk update on Supabase table sequentially per chunk with small pacing
       for (const chunk of chunks) {
         const { error } = await supabase.from('products').update(directUpdates).in('id', chunk);
         if (error) {
           console.error('Bulk direct update error:', error);
           throw error;
         }
+        await new Promise(r => setTimeout(r, 50));
       }
     } else {
       // Direct updates and size JSON column updates sequentially per chunk
@@ -703,6 +826,7 @@ export const api = {
         if (hasDirectUpdates) {
           const { error: directErr } = await supabase.from('products').update(directUpdates).in('id', chunk);
           if (directErr) console.warn('Bulk direct update partial error:', directErr);
+          await new Promise(r => setTimeout(r, 50));
         }
 
         const { data: existingRows, error: fetchErr } = await supabase
@@ -725,14 +849,16 @@ export const api = {
             };
             return supabase.from('products').update(itemUpdate).eq('id', row.id);
           });
-          // Process in smaller safe batches of 15 to avoid overloading database connection limits
-          for (let j = 0; j < updatePromises.length; j += 15) {
-            const batchRes = await Promise.all(updatePromises.slice(j, j + 15));
+          // Process in smaller safe batches of 10 with delay to prevent overloading database connection limits
+          for (let j = 0; j < updatePromises.length; j += 10) {
+            const batchRes = await Promise.all(updatePromises.slice(j, j + 10));
             for (const r of batchRes) {
               if (r.error) throw r.error;
             }
+            await new Promise(r => setTimeout(r, 50));
           }
         }
+        await new Promise(r => setTimeout(r, 100));
       }
     }
 
@@ -852,7 +978,7 @@ export const api = {
   getCategories: async (forceNetwork = false): Promise<any[]> => {
     const cacheKey = 'all_categories';
     if (!forceNetwork && memCache[cacheKey]?.data?.length && (Date.now() - (memCache[cacheKey].timestamp || 0) < 30000)) {
-      return memCache[cacheKey].data;
+      return deduplicateItems(memCache[cacheKey].data);
     }
 
     if (inFlightCategoriesPromise) {
@@ -861,11 +987,12 @@ export const api = {
     
     inFlightCategoriesPromise = (async () => {
       try {
-        const fresh = await getData('categories');
+        const fresh = await getData('categories', forceNetwork);
         if (fresh && fresh.length > 0) {
-          memCache[cacheKey] = { data: fresh, timestamp: Date.now() };
-          localCache.set(cacheKey, fresh).catch(() => {});
-          return fresh;
+          const cleanCats = deduplicateItems(fresh);
+          memCache[cacheKey] = { data: cleanCats, timestamp: Date.now() };
+          localCache.set(cacheKey, cleanCats).catch(() => {});
+          return cleanCats;
         }
       } catch (networkErr) {
         console.warn('Network fetch failed, falling back to cached local storage version:', networkErr);
@@ -874,12 +1001,13 @@ export const api = {
       // Fallback to cache if network fails
       const localCats = await localCache.get<any[]>(cacheKey, Infinity);
       if (localCats && localCats.length > 0) {
-        memCache[cacheKey] = { data: localCats, timestamp: Date.now() };
-        return localCats;
+        const cleanCats = deduplicateItems(localCats);
+        memCache[cacheKey] = { data: cleanCats, timestamp: Date.now() };
+        return cleanCats;
       }
 
       if (memCache[cacheKey]?.data?.length) {
-        return memCache[cacheKey].data;
+        return deduplicateItems(memCache[cacheKey].data);
       }
 
       return [];
@@ -1003,7 +1131,7 @@ export const api = {
   // USERS
   getUsers: async () => {
     try {
-      const { data, error } = await supabase.from('users').select('*');
+      const { data, error } = await supabase.from('users').select('id, username, fullName, role, balance, isLocked, isDeleted, lastActive, isOnline, createdAt');
       if (error) { console.error('Error fetching users:', error); throw error; }
       const activeUsers = (data || []).filter((u: any) => u.isDeleted !== true);
       return activeUsers;
@@ -1014,7 +1142,7 @@ export const api = {
   },
   getUser: async (id: string) => { 
     try {
-      const { data, error } = await supabase.from('users').select('*').eq('id', id).single();
+      const { data, error } = await supabase.from('users').select('id, username, fullName, role, balance, isLocked, isDeleted, lastActive, isOnline, createdAt').eq('id', id).maybeSingle();
       if (error) return null;
       return data;
     } catch (e) {
@@ -1022,11 +1150,11 @@ export const api = {
     }
   },
   createUser: async (data: any) => { 
-    const { data: r, error } = await supabase.from('users').insert({ id: data.id || data.uid, ...data }).select().single(); 
+    const { data: r, error } = await supabase.from('users').insert({ id: data.id || data.uid, ...data }).select().maybeSingle(); 
     if (error) throw error; return r; 
   },
   updateUser: async (id: string, data: any, silent?: boolean) => { 
-    const { data: r, error } = await supabase.from('users').update(data).match({ id }).select().single(); 
+    const { data: r, error } = await supabase.from('users').update(data).match({ id }).select().maybeSingle(); 
     if (error && !silent) throw error; return r; 
   },
   deleteUser: async (id: string, deletedBy?: string) => { 
@@ -1045,10 +1173,35 @@ export const api = {
   // ORDERS
   getOrders: async () => {
     const data = await getData('orders');
-    return data.map((o: any) => {
-      const parsed = parseOrderDetails(o);
+    const now = Date.now();
+    const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+    const activeOrders: any[] = [];
 
-      return {
+    for (const o of (data || [])) {
+      const parsed = parseOrderDetails(o);
+      const completedAt = o.completedAt || parsed.completedAt || undefined;
+      
+      if (o.status === 'completed' && completedAt && (now - Number(completedAt) >= TWENTY_FOUR_HOURS)) {
+        try {
+          await supabase.from('orders').delete().match({ id: o.id });
+        } catch (err) {
+          // ignore
+        }
+        continue;
+      }
+
+      const THREE_DAYS = 3 * 24 * 60 * 60 * 1000;
+      const orderCreatedAt = Number(o.createdAt || 0);
+      if ((o.status === 'cancelled' || o.status === 'rejected') && orderCreatedAt && (now - orderCreatedAt >= THREE_DAYS)) {
+        try {
+          await supabase.from('orders').delete().match({ id: o.id });
+        } catch (err) {
+          // ignore
+        }
+        continue;
+      }
+
+      activeOrders.push({
         ...o,
         items: o.products || o.items || [],
         totalQuantity: o.total || o.totalQuantity || 0,
@@ -1062,9 +1215,10 @@ export const api = {
         notes: parsed.notes,
         displayNotes: parsed.displayNotes,
         rawNotes: o.notes || '',
-        completedAt: o.completedAt || parsed.completedAt || undefined,
-      };
-    });
+        completedAt,
+      });
+    }
+    return activeOrders;
   },
   // Real-time validation of order items to filter out any sold-out/depleted items
   validateOrderItemsAvailability: async (items: Array<{ productId?: string; product?: any; quantity?: number }>): Promise<{
@@ -1211,9 +1365,9 @@ export const api = {
     safeData.notes = notesArray.join('\n').trim();
 
     if (data.products !== undefined) {
-      safeData.products = data.products;
+      safeData.products = sanitizeOrderProducts(data.products);
     } else if (data.items !== undefined) {
-      safeData.products = data.items;
+      safeData.products = sanitizeOrderProducts(data.items);
     } else {
       safeData.products = [];
     }
@@ -1320,9 +1474,9 @@ export const api = {
     }
 
     if (data.products !== undefined) {
-      safeData.products = data.products;
+      safeData.products = sanitizeOrderProducts(data.products);
     } else if (data.items !== undefined) {
-      safeData.products = data.items;
+      safeData.products = sanitizeOrderProducts(data.items);
     }
 
     if (data.total !== undefined) {
@@ -1364,6 +1518,16 @@ export const api = {
       }
     }).catch(() => {});
     return { success: true }; 
+  },
+  deleteAllCompletedOrders: async () => {
+    const { error } = await supabase.from('orders').delete().eq('status', 'completed');
+    if (error) throw error;
+    localCache.get<any[]>('all_orders', Infinity).then(cached => {
+      if (cached && Array.isArray(cached)) {
+        localCache.set('all_orders', cached.filter((o: any) => o.status !== 'completed')).catch(() => {});
+      }
+    }).catch(() => {});
+    return { success: true };
   },
   hardDeleteOrder: async (id: string) => { 
     const { error } = await supabase.from('orders').delete().match({ id }); 
@@ -1420,7 +1584,14 @@ export const api = {
 
   // ACTIVITY LOGS
   getLogs: async () => {
-    const { data, error } = await supabase.from('activity_logs').select('*').order('createdAt', { ascending: false }).limit(200);
+    try {
+      const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+      await supabase.from('activity_logs').delete().lt('createdAt', thirtyDaysAgo);
+    } catch (e) {
+      // ignore
+    }
+
+    const { data, error } = await supabase.from('activity_logs').select('id, userId, username, action, details, createdAt').order('createdAt', { ascending: false }).limit(200);
     if (error) { console.error(error); return []; }
     return data;
   },
@@ -1436,7 +1607,7 @@ export const api = {
   // NOTIFICATIONS
   getNotifications: async () => await getData('notifications'),
   getUnreadNotifications: async () => {
-    const { data, error } = await supabase.from('notifications').select('*').eq('read', false).neq('isDeleted', true).order('createdAt', { ascending: false });
+    const { data, error } = await supabase.from('notifications').select('id, userId, title, message, read, isDeleted, createdAt').eq('read', false).neq('isDeleted', true).order('createdAt', { ascending: false });
     if (error) { console.error(error); return []; }
     return data;
   },
@@ -1466,7 +1637,7 @@ export const api = {
   // SETTINGS
   getSettings: async () => { 
     try {
-      const { data, error } = await supabase.from('settings').select('*').match({ id: 'global' }).maybeSingle(); 
+      const { data, error } = await supabase.from('settings').select('id, data').match({ id: 'global' }).maybeSingle(); 
       if (data && !error) {
         const parsed = data.data ? { id: data.id, ...data.data } : data;
         const complete = {

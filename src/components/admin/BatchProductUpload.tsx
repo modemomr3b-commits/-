@@ -17,7 +17,9 @@ import {
   FileCheck,
   UploadCloud,
   HelpCircle,
-  Eye
+  Eye,
+  ImageOff,
+  Camera
 } from 'lucide-react';
 import { api } from '../../api';
 import { burnProductOverlay } from '../../utils/burnImage';
@@ -54,6 +56,14 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
   const [isSuccess, setIsSuccess] = useState(false);
   const [uploadSessionId, setUploadSessionId] = useState(Date.now());
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
+  const [missingImageNotice, setMissingImageNotice] = useState<{
+    totalPublished: number;
+    unpostedProducts: Array<{
+      name: string;
+      atNumber?: string;
+      productCode?: string;
+    }>;
+  } | null>(null);
   
   // Bulk Image Upload & Auto-Match by Art Number States
   const [isMatchingImages, setIsMatchingImages] = useState(false);
@@ -464,26 +474,43 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
 
   // Ultra-Fast Parallel Publishing (Automatically created as inactive isHidden: true)
   const handleSubmitAll = async () => {
-    const validProducts = products.filter(p => p.name && p.price);
+    const validCandidates = products.filter(p => Boolean(p.name && String(p.name).trim() && p.price && Number(p.price) > 0));
     
-    if (validProducts.length === 0) {
-      setAlertMessage('الرجاء تعبئة منتج واحد على الأقل (الاسم والسعر مطلوبان)');
+    if (validCandidates.length === 0) {
+      setAlertMessage('الرجاء تعبئة منتج واحد على الأقل مع تحديد اسم المنتج وسعر البيع بالدينار.');
       return;
     }
 
-    if (validProducts.length > MAX_CARDS) {
+    if (validCandidates.length > MAX_CARDS) {
       setAlertMessage(`تم قفل النشر السريع على ${MAX_CARDS} بطاقة كحد أقصى.`);
+      return;
+    }
+
+    // Segregate products into ready (with image) and missing image
+    const readyProducts = validCandidates.filter(p => Boolean(p.imageUrl && typeof p.imageUrl === 'string' && p.imageUrl.trim() !== ''));
+    const missingImageProducts = validCandidates.filter(p => !p.imageUrl || typeof p.imageUrl !== 'string' || p.imageUrl.trim() === '');
+
+    // Case 1: None of the products have an image!
+    if (readyProducts.length === 0) {
+      setMissingImageNotice({
+        totalPublished: 0,
+        unpostedProducts: missingImageProducts.map(p => ({
+          name: p.name || '',
+          atNumber: extractAtNumber(p.name || '') || undefined,
+          productCode: p.productCode || undefined,
+        }))
+      });
       return;
     }
 
     setIsSubmitting(true);
     
     try {
-      // 1. Quick Duplication Check
+      // 1. Quick Duplication Check on ready products only
       const existingProducts = await api.getProducts();
       const seenAtNumbers = new Set<string>();
 
-      for (const product of validProducts) {
+      for (const product of readyProducts) {
         const atNumber = extractAtNumber(product.name || "");
         if (atNumber) {
           if (seenAtNumbers.has(atNumber)) {
@@ -511,8 +538,8 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
       setIsSubmitting(true);
 
       // 2. Safe Throttled Processing: Upload/burn/save in small sequential batches of 3
-      for (let i = 0; i < validProducts.length; i += 3) {
-        const batch = validProducts.slice(i, i + 3);
+      for (let i = 0; i < readyProducts.length; i += 3) {
+        const batch = readyProducts.slice(i, i + 3);
         await Promise.all(
           batch.map(async (product) => {
             let finalImg = product.imageUrl;
@@ -549,13 +576,35 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
             }).catch(() => {});
           })
         );
-        if (i + 3 < validProducts.length) {
+        if (i + 3 < readyProducts.length) {
           await new Promise(r => setTimeout(r, 100));
         }
       }
       
-      setIsSuccess(true);
       onAdded();
+
+      if (missingImageProducts.length > 0) {
+        // KEEP unposted products with all details intact in cards!
+        setProducts(missingImageProducts);
+        setSelectedCards(new Set());
+        setAutoMatchedCards({});
+        setUploadSessionId(Date.now());
+        setIsSubmitting(false);
+
+        // Show branded alert notice for excluded products
+        setMissingImageNotice({
+          totalPublished: readyProducts.length,
+          unpostedProducts: missingImageProducts.map(p => ({
+            name: p.name || '',
+            atNumber: extractAtNumber(p.name || '') || undefined,
+            productCode: p.productCode || undefined,
+          }))
+        });
+      } else {
+        // All products were published!
+        setIsSuccess(true);
+        setIsSubmitting(false);
+      }
       
     } catch (error: any) {
       console.error('Error creating products:', error);
@@ -839,6 +888,8 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
         {products.map((product, idx) => {
           const isSelected = selectedCards.has(idx);
           const currentCat = categories.find(c => c.id === product.categoryId);
+          const hasDetails = Boolean((product.name && String(product.name).trim() !== '') || (product.price && Number(product.price) > 0));
+          const isMissingImage = hasDetails && (!product.imageUrl || typeof product.imageUrl !== 'string' || product.imageUrl.trim() === '');
 
           return (
             <div 
@@ -846,7 +897,9 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
               className={`glass-panel p-4 rounded-xl border transition-all relative ${
                 isSelected 
                   ? 'border-brq-gold/80 bg-brq-gold/5 shadow-[0_0_15px_rgba(212,175,55,0.15)]' 
-                  : 'border-white/10'
+                  : isMissingImage
+                    ? 'border-amber-400/60 bg-amber-500/[0.04] shadow-[0_0_15px_rgba(245,158,11,0.15)]'
+                    : 'border-white/10'
               }`}
             >
               {/* Card Header with Checkbox, Card Number and Delete button */}
@@ -881,6 +934,18 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
                   )}
                 </div>
               </div>
+
+              {isMissingImage && (
+                <div className="mb-2.5 bg-gradient-to-r from-amber-500/20 to-brq-gold/15 border border-amber-400/40 rounded-lg px-2.5 py-1.5 flex items-center justify-between text-xs text-amber-300 font-bold shadow-sm">
+                  <div className="flex items-center gap-1.5">
+                    <ImageOff size={14} className="text-amber-400 shrink-0 animate-pulse" />
+                    <span>مطلوب رفع صورة لإتمام النشر</span>
+                  </div>
+                  <span className="text-[10px] text-white/70 bg-black/40 px-1.5 py-0.5 rounded font-mono">
+                    البيانات محفوظة
+                  </span>
+                </div>
+              )}
               
               <div className="flex flex-col gap-2">
                 <div>
@@ -1061,17 +1126,33 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
             <span>{products.length >= MAX_CARDS ? "تم الوصول للحد الأقصى (15 بطاقة)" : `إضافة بطاقات (+${Math.min(5, MAX_CARDS - products.length)})`}</span>
           </button>
 
-          <button
-            onClick={handleSubmitAll}
-            disabled={isSubmitting}
-            className="w-full sm:flex-1 py-4 text-base sm:text-lg bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 transition-colors shadow-lg shadow-emerald-500/20"
-          >
-            {isSubmitting ? (
-              <><Loader2 className="w-6 h-6 animate-spin" /> جاري النشر بأقصى سرعة...</>
-            ) : (
-              <><Upload className="w-6 h-6" /> نشر جميع المنتجات ({products.filter(p => p.name && p.price).length} منتج جاهز)</>
-            )}
-          </button>
+          {(() => {
+            const filledCandidates = products.filter(p => Boolean(p.name && String(p.name).trim() && p.price && Number(p.price) > 0));
+            const readyWithImage = filledCandidates.filter(p => Boolean(p.imageUrl && typeof p.imageUrl === 'string' && p.imageUrl.trim() !== ''));
+            const missingCount = filledCandidates.length - readyWithImage.length;
+
+            return (
+              <button
+                onClick={handleSubmitAll}
+                disabled={isSubmitting || filledCandidates.length === 0}
+                className="w-full sm:flex-1 py-4 text-base sm:text-lg bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 transition-colors shadow-lg shadow-emerald-500/20 cursor-pointer"
+              >
+                {isSubmitting ? (
+                  <><Loader2 className="w-6 h-6 animate-spin" /> جاري النشر بأقصى سرعة...</>
+                ) : (
+                  <div className="flex items-center gap-2 flex-wrap justify-center">
+                    <Upload className="w-6 h-6 shrink-0" />
+                    <span>نشر المنتجات الجاهزة ({readyWithImage.length})</span>
+                    {missingCount > 0 && (
+                      <span className="text-xs bg-black/40 text-amber-300 border border-amber-400/40 px-2 py-0.5 rounded-full font-bold">
+                        ({missingCount} بدون صورة ستبقى بالبطاقات)
+                      </span>
+                    )}
+                  </div>
+                )}
+              </button>
+            );
+          })()}
       </div>
 
       {/* Match Result Summary Modal */}
@@ -1190,21 +1271,121 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
         </div>
       )}
 
+      {/* Branded Missing Image Alert Modal */}
+      {missingImageNotice && (
+        <div className="fixed inset-0 bg-black/85 flex items-center justify-center p-4 z-[350] backdrop-blur-md" dir="rtl">
+          <div className="bg-brq-card border-2 border-brq-gold/60 rounded-2xl p-6 sm:p-7 max-w-lg w-full relative overflow-hidden shadow-[0_0_50px_rgba(212,175,55,0.25)] flex flex-col items-center text-center">
+            {/* Top Brand Accent Bar */}
+            <div className="absolute top-0 right-0 w-full h-1.5 bg-gradient-to-r from-brq-gold via-amber-400 to-brq-royal"></div>
+
+            {/* Close Button */}
+            <button
+              onClick={() => setMissingImageNotice(null)}
+              className="absolute top-3 left-3 p-2 text-white/50 hover:text-white rounded-full hover:bg-white/10 transition-colors cursor-pointer"
+              title="إغلاق"
+            >
+              <X size={18} />
+            </button>
+
+            {/* Brand Glow Icon */}
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-brq-gold/20 to-brq-royal/20 border border-brq-gold/50 flex items-center justify-center text-brq-gold shadow-[0_0_25px_rgba(212,175,55,0.3)] mb-4">
+              <ImageOff size={32} className="text-brq-gold" />
+            </div>
+
+            {/* Title */}
+            <h3 className="text-xl sm:text-2xl font-bold text-white mb-2 tracking-wide">
+              {missingImageNotice.totalPublished > 0
+                ? "تنبيه: تم استثناء موديلات لعدم توفر صور!"
+                : "تنبيه: لا يمكن نشر المنتجات بدون صورة!"}
+            </h3>
+
+            {/* Published Success Badge if any */}
+            {missingImageNotice.totalPublished > 0 && (
+              <div className="flex items-center gap-2 mb-3 bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 px-3.5 py-1.5 rounded-xl font-bold text-xs">
+                <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+                <span>تم نشر {missingImageNotice.totalPublished} منتج بنجاح إلى النظام ✅</span>
+              </div>
+            )}
+
+            {/* Explanation */}
+            <p className="text-white/80 text-sm leading-relaxed mb-3 text-right w-full">
+              {missingImageNotice.totalPublished > 0 ? (
+                <>
+                  تم نشر المنتجات التي تحتوي على صور فقط، بينما تم <span className="text-amber-400 font-bold">استثناء الموديلات التالية ({missingImageNotice.unpostedProducts.length})</span> لعدم وجود صورة لها:
+                </>
+              ) : (
+                <>
+                  تم إيقاف النشر لأن الموديلات التالية <span className="text-amber-400 font-bold">لا تحتوي على صور</span>:
+                </>
+              )}
+            </p>
+
+            {/* List of Models */}
+            <div className="w-full bg-black/40 border border-white/10 rounded-xl p-3 mb-4 max-h-48 overflow-y-auto space-y-2 text-right">
+              {missingImageNotice.unpostedProducts.map((item, idx) => (
+                <div 
+                  key={idx} 
+                  className="flex items-center justify-between bg-white/5 border border-white/5 hover:border-brq-gold/30 rounded-lg px-3 py-2 text-xs transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center text-[10px] font-bold shrink-0">
+                      {idx + 1}
+                    </span>
+                    <span className="font-bold text-white truncate max-w-[200px]" title={item.name}>
+                      {item.name || "موديل غير مسمى"}
+                    </span>
+                  </div>
+                  {item.atNumber ? (
+                    <span className="font-mono font-bold text-brq-gold bg-black/50 px-2 py-0.5 rounded border border-brq-gold/30 text-[11px] shrink-0">
+                      {item.atNumber}
+                    </span>
+                  ) : item.productCode ? (
+                    <span className="font-mono text-white/70 bg-black/30 px-2 py-0.5 rounded text-[10px] shrink-0">
+                      {item.productCode}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-amber-400 font-bold">بدون صورة 📷</span>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Reassurance Callout Box */}
+            <div className="w-full bg-gradient-to-br from-brq-gold/15 to-brq-royal/10 border border-brq-gold/30 rounded-xl p-3.5 mb-5 text-right flex items-start gap-2.5">
+              <Sparkles size={18} className="text-brq-gold shrink-0 mt-0.5" />
+              <div className="text-xs text-white/90 leading-relaxed">
+                <span className="font-bold text-brq-gold block mb-1">تفاصيل المنتجات محفوظة بالكامل ولن تضيع!</span>
+                تم الاحتفاظ بكافة بطاقات هذه الموديلات مع كامل تفاصيلها (الأسعار، الأقسام، الأكواد، التعبئة) في الصفحة. كل ما عليك فعله الآن هو رفع الصور الخاصة بها والضغط على نشر مباشرة دون الحاجة لإعادة إدخال أي بيانات من جديد.
+              </div>
+            </div>
+
+            {/* Primary Action Button */}
+            <button
+              onClick={() => setMissingImageNotice(null)}
+              className="w-full py-3.5 px-6 rounded-xl font-bold text-black bg-gradient-to-r from-brq-gold via-amber-400 to-yellow-500 hover:from-yellow-400 hover:to-yellow-500 transition-all shadow-[0_4px_25px_rgba(212,175,55,0.35)] flex items-center justify-center gap-2 text-sm active:scale-98 cursor-pointer"
+            >
+              <Camera size={18} className="shrink-0" />
+              <span>فهمت، سأقوم برفع الصور للموديلات المتبقية</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {alertMessage && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[300] backdrop-blur-sm">
-          <div className="bg-brq-card border border-brq-border rounded-xl p-6 max-w-sm w-full relative overflow-hidden" dir="rtl">
-            <div className="absolute top-0 right-0 w-full h-1 bg-gradient-to-r from-red-500 to-red-700"></div>
+          <div className="bg-brq-card border-2 border-brq-gold/50 rounded-xl p-6 max-w-sm w-full relative overflow-hidden shadow-[0_0_40px_rgba(212,175,55,0.2)]" dir="rtl">
+            <div className="absolute top-0 right-0 w-full h-1.5 bg-gradient-to-r from-brq-gold to-brq-royal"></div>
             <h3 className="text-xl font-bold text-white mb-3 flex items-center gap-2">
-              <AlertCircle className="w-6 h-6 text-red-500" />
+              <AlertCircle className="w-6 h-6 text-brq-gold" />
               تنبيه
             </h3>
-            <p className="text-white/80 mb-6 leading-relaxed whitespace-pre-wrap">
+            <p className="text-white/90 mb-6 leading-relaxed whitespace-pre-wrap text-sm font-medium">
               {alertMessage}
             </p>
             <div className="flex justify-end">
               <button 
                 onClick={() => setAlertMessage(null)}
-                className="px-6 py-2 bg-red-500/20 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/50 hover:border-red-500 rounded-lg transition-all font-bold text-sm"
+                className="px-6 py-2.5 bg-gradient-to-r from-brq-gold to-yellow-600 hover:from-yellow-400 hover:to-yellow-500 text-black rounded-lg transition-all font-bold text-sm shadow-[0_2px_12px_rgba(212,175,55,0.3)] cursor-pointer"
               >
                 حسناً
               </button>

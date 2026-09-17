@@ -188,9 +188,9 @@ export default function TrashManager() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5 text-white/90">
-                {items.map((item) => (
+                {items.map((item, idx) => (
                   <tr
-                    key={item.id}
+                    key={`${item.id}-${idx}`}
                     className={`transition-colors ${selectedItems.has(item.id) ? "bg-brq-gold/5" : "hover:bg-white/5"}`}
                   >
                     <td className="p-4 text-center">

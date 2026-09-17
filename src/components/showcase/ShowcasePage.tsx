@@ -256,7 +256,6 @@ export default function ShowcasePage() {
     };
 
     checkBlocked();
-    const interval = setInterval(checkBlocked, 60000);
 
     const channel = supabase
       .channel('public:showcase_blocked_sub')
@@ -267,7 +266,6 @@ export default function ShowcasePage() {
 
     return () => {
       isMounted = false;
-      clearInterval(interval);
       supabase.removeChannel(channel);
     };
   }, [authData]);
@@ -283,10 +281,10 @@ export default function ShowcasePage() {
     // Send immediate heartbeat
     heartbeatShowcaseVisit(agentId, agentName, visitorName, visitorPhone);
 
-    // Periodic heartbeat every 15 seconds while browsing
+    // Periodic heartbeat every 5 minutes while browsing
     const hbInterval = setInterval(() => {
       heartbeatShowcaseVisit(agentId, agentName, visitorName, visitorPhone);
-    }, 15000);
+    }, 300000);
 
     const onFocus = () => {
       heartbeatShowcaseVisit(agentId, agentName, visitorName, visitorPhone);
@@ -382,8 +380,18 @@ export default function ShowcasePage() {
       ]);
       
       // Filter products that are designated for showcase AND not archived/hidden/locked/restricted
+      const seen = new Set<string>();
       const showcaseProds = (allProds || []).filter(
-        p => p.isShowcase && !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, allCats || [])
+        p => {
+          if (!p.isShowcase || p.isArchived || p.isHidden || p.isLocked || p.isDeleted || isProductRestrictedFromSearch(p, allCats || [])) {
+            return false;
+          }
+          if (p.id) {
+            if (seen.has(p.id)) return false;
+            seen.add(p.id);
+          }
+          return true;
+        }
       );
       setProducts(showcaseProds);
       setSettings(appSettings || {});
@@ -398,15 +406,25 @@ export default function ShowcasePage() {
   useEffect(() => {
     let mounted = true;
 
-    // Instant local cache restore
+    // Instant local cache restore with duplicate protection
     Promise.all([
       localCache.get<any[]>('all_products'),
       localCache.get<any[]>('all_categories')
     ]).then(([cachedProds, cachedCats]) => {
       if (!mounted) return;
       if (cachedProds && cachedProds.length > 0) {
+        const seen = new Set<string>();
         const showcaseProds = cachedProds.filter(
-          p => p.isShowcase && !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, cachedCats || [])
+          p => {
+            if (!p.isShowcase || p.isArchived || p.isHidden || p.isLocked || p.isDeleted || isProductRestrictedFromSearch(p, cachedCats || [])) {
+              return false;
+            }
+            if (p.id) {
+              if (seen.has(p.id)) return false;
+              seen.add(p.id);
+            }
+            return true;
+          }
         );
         setProducts(showcaseProds);
         setLoading(false);
@@ -838,12 +856,12 @@ export default function ShowcasePage() {
 
           {/* Categories Tab Pills */}
           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-2 text-xs">
-            {SHOWCASE_CATEGORIES.map((cat) => {
+            {SHOWCASE_CATEGORIES.map((cat, catIdx) => {
               const isSelected = selectedCategory === cat.id;
               const count = categoryCounts[cat.id] || 0;
               return (
                 <button
-                  key={cat.id}
+                  key={`${cat.id}-${catIdx}`}
                   onClick={() => handleCategorySelect(cat.id)}
                   className={`flex items-center gap-2 pr-4 pl-1.5 py-1.5 rounded-full whitespace-nowrap transition-all border shrink-0 ${
                     isSelected
@@ -916,7 +934,7 @@ export default function ShowcasePage() {
           <div className={`transition-all duration-300 ${gridClass}`}>
             {paginatedProducts.map((p, idx) => (
               <div
-                key={p.id}
+                key={`${p.id}-${idx}`}
                 onClick={() => {
                   if (p.finalImageUrl || p.imageUrl) {
                     setFullscreenImage({

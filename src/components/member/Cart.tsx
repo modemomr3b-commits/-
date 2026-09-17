@@ -393,8 +393,8 @@ export default function Cart() {
       </div>
       
       <div className="flex-1 space-y-4">
-         {paginatedCart.map((item) => (
-             <div key={item.product.id} className="glass-card p-3 rounded-2xl flex gap-3 relative">
+         {paginatedCart.map((item, idx) => (
+             <div key={`${item.product.id}-${idx}`} className="glass-card p-3 rounded-2xl flex gap-3 relative">
                 <Link to={`/product/${item.product.id}`} className="shrink-0">
                   {item.product.finalImageUrl || item.product.imageUrl ? (
                      <OptimizedImage src={item.product.finalImageUrl || item.product.imageUrl} alt={item.product.name} size="thumbnail" className="w-24 h-24 rounded-xl bg-black/40 border border-white/5" imgClassName="object-contain" />

@@ -44,10 +44,8 @@ export default function AdminDashboard() {
       }
     };
     fetchDashboard();
-    const inv = setInterval(fetchDashboard, 30000);
     return () => {
       mounted = false;
-      clearInterval(inv);
     };
   }, []);
 
@@ -85,8 +83,6 @@ export default function AdminDashboard() {
         } catch(e) {}
       };
       fetchOnline();
-      const intv = setInterval(fetchOnline, 10000);
-      return () => clearInterval(intv);
     }, []);
 
     if (onlineUsers.length === 0) {
@@ -95,8 +91,8 @@ export default function AdminDashboard() {
 
     return (
       <>
-        {onlineUsers.map((u: any) => (
-          <div key={u.id} className="flex justify-between items-center p-2 rounded-lg bg-white/5 border border-white/5">
+        {onlineUsers.map((u: any, uIdx: number) => (
+          <div key={`${u.id || u.username || 'user'}-${uIdx}`} className="flex justify-between items-center p-2 rounded-lg bg-white/5 border border-white/5">
              <div className="flex gap-2 items-center">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
                 <div>
@@ -182,7 +178,7 @@ export default function AdminDashboard() {
                {logs.length === 0 ? (
                   <p className="text-xs text-white/50 text-center py-4">النشاطات ستظهر هنا تلقائياً عند قيام المستخدمين بأي إجراء...</p>
                ) : (
-                  logs.map((log) => {
+                  logs.map((log, lIdx) => {
                      let Icon = Server;
                      let color = "text-emerald-400";
                      if (log.entityType === 'order') { Icon = ShoppingCart; color = "text-blue-400"; }
@@ -196,7 +192,7 @@ export default function AdminDashboard() {
                      if (diff > 3600000) timeText = `منذ ${Math.floor(diff/3600000)} ساعة`;
 
                      return (
-                     <div key={log.id} className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
+                     <div key={`${log.id}-${lIdx}`} className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
                         <div className="flex items-center gap-3">
                            <div className={`w-10 h-10 rounded-full bg-white/5 flex items-center justify-center ${color}`}>
                               <Icon size={18} />

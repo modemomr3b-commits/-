@@ -58,10 +58,8 @@ export default function AdminLayout() {
       })
       .subscribe();
 
-    const inv = setInterval(fetchOrdersForNotifications, 30000); 
     return () => {
       mounted = false;
-      clearInterval(inv);
       supabase.removeChannel(channel);
     };
   }, []);

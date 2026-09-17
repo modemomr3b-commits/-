@@ -134,8 +134,8 @@ export default function ShowcaseCartModal({ cart, setCart, onClose, authData, sh
               السلة فارغة حالياً
             </div>
           ) : (
-            cart.map(item => (
-              <div key={item.product.id} className="flex gap-3 bg-white/5 border border-white/5 rounded-xl p-3">
+            cart.map((item, idx) => (
+              <div key={`${item.product.id}-${idx}`} className="flex gap-3 bg-white/5 border border-white/5 rounded-xl p-3">
                 {item.product.finalImageUrl || item.product.imageUrl ? (
                    <img src={item.product.finalImageUrl || item.product.imageUrl} alt={item.product.name} className="w-16 h-16 rounded-lg object-cover" />
                 ) : (

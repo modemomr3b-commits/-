@@ -107,10 +107,8 @@ export default function OrderManager() {
       })
       .subscribe();
 
-    const inv = setInterval(fetchOrders, 25000);
     return () => {
       mounted = false;
-      clearInterval(inv);
       supabase.removeChannel(channel);
     };
   }, []);
@@ -255,6 +253,18 @@ export default function OrderManager() {
     }
   };
 
+  const handleDeleteAllCompleted = async () => {
+    if (!window.confirm("هل أنت متأكد من حذف جميع الطلبيات المكتملة الحالية؟")) return;
+    try {
+      await api.deleteAllCompletedOrders();
+      setOrders(prev => prev.filter(o => o.status !== 'completed'));
+      showToast("تم حذف جميع الطلبيات المكتملة بنجاح.");
+    } catch (e) {
+      console.error(e);
+      alert("حدث خطأ أثناء حذف الطلبيات المكتملة");
+    }
+  };
+
   const handlePrintOrder = (order: Order) => {
     printOrderInvoice(order);
   };
@@ -331,19 +341,30 @@ export default function OrderManager() {
         </div>
       </div>
 
-      <div className="flex gap-4 border-b border-white/10 pb-0">
-        <button
-          onClick={() => setActiveTab("new")}
-          className={`pb-2 px-2 text-sm font-bold border-b-2 transition-colors ${activeTab === "new" ? "border-brq-gold text-brq-gold" : "border-transparent text-white/50 hover:text-white"}`}
-        >
-          الطلبات الجديدة
-        </button>
-        <button
-          onClick={() => setActiveTab("completed")}
-          className={`pb-2 px-2 text-sm font-bold border-b-2 transition-colors ${activeTab === "completed" ? "border-brq-gold text-brq-gold" : "border-transparent text-white/50 hover:text-white"}`}
-        >
-          الطلبات المكتملة
-        </button>
+      <div className="flex justify-between items-center border-b border-white/10 pb-0">
+        <div className="flex gap-4">
+          <button
+            onClick={() => setActiveTab("new")}
+            className={`pb-2 px-2 text-sm font-bold border-b-2 transition-colors ${activeTab === "new" ? "border-brq-gold text-brq-gold" : "border-transparent text-white/50 hover:text-white"}`}
+          >
+            الطلبات الجديدة
+          </button>
+          <button
+            onClick={() => setActiveTab("completed")}
+            className={`pb-2 px-2 text-sm font-bold border-b-2 transition-colors ${activeTab === "completed" ? "border-brq-gold text-brq-gold" : "border-transparent text-white/50 hover:text-white"}`}
+          >
+            الطلبات المكتملة
+          </button>
+        </div>
+        {activeTab === "completed" && orders.some(o => o.status === 'completed') && (
+          <button
+            onClick={handleDeleteAllCompleted}
+            className="mb-2 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5"
+          >
+            <Trash2 size={14} />
+            حذف جميع الطلبيات المكتملة
+          </button>
+        )}
       </div>
 
       <div className="glass-panel border border-white/5 rounded-2xl overflow-hidden p-1">
@@ -382,18 +403,18 @@ export default function OrderManager() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-right">
-              <thead className="bg-black/40 text-white/60">
+              <thead className="bg-black/40 text-white/60 text-xs">
                 <tr>
-                  <th className="p-4 font-medium rounded-tr-lg">رقم الطلب</th>
-                  <th className="p-4 font-medium">اسم الزبون / الوكيل</th>
-                  <th className="p-4 font-medium">الملاحظات</th>
-                  <th className="p-4 font-medium">عدد المنتجات</th>
-                  <th className="p-4 font-medium">التاريخ والوقت</th>
-                  <th className="p-4 font-medium">الحالة</th>
-                  <th className="p-4 font-medium rounded-tl-lg">التفاصيل</th>
+                  <th className="px-4 py-3 font-medium rounded-tr-lg">رقم الطلب</th>
+                  <th className="px-4 py-3 font-medium">اسم الزبون / الوكيل</th>
+                  <th className="px-4 py-3 font-medium">الملاحظات</th>
+                  <th className="px-4 py-3 font-medium">عدد المنتجات</th>
+                  <th className="px-4 py-3 font-medium">التاريخ والوقت</th>
+                  <th className="px-4 py-3 font-medium">الحالة</th>
+                  <th className="px-4 py-3 font-medium rounded-tl-lg">التفاصيل</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5 text-white/90">
+              <tbody className="divide-y divide-white/5 text-white/90 text-sm">
                 {filteredOrders.map((o) => {
                   const info = parseOrderDetails(o);
                   return (
@@ -402,7 +423,7 @@ export default function OrderManager() {
                       onClick={() => handleViewOrder(o)}
                       className="hover:bg-white/10 transition-colors cursor-pointer group"
                     >
-                      <td className="p-4 font-mono font-bold text-brq-gold">
+                      <td className="px-4 py-2.5 font-mono font-bold text-brq-gold">
                         <div className="flex items-center gap-2">
                           {o.status === "new" && (
                             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -410,55 +431,52 @@ export default function OrderManager() {
                           {o.orderNumber || o.id.slice(0, 8).toUpperCase()}
                         </div>
                       </td>
-                      <td className="p-4">
-                        <div className="flex flex-col gap-1 items-start">
+                      <td className="px-4 py-2.5">
+                        <div className="flex flex-col gap-0.5 items-start">
                           {info.customerName ? (
                             <>
-                              <span className="text-[11px] text-white/50 font-bold">
-                                اسم الزبون:
-                              </span>
-                              <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-300 border border-amber-400 text-black shadow-md">
-                                <UserCircle size={17} className="text-black flex-shrink-0" />
-                                <span className="text-base font-black text-black tracking-wide leading-tight">
+                              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-300 border border-amber-400 text-black shadow-sm">
+                                <UserCircle size={15} className="text-black flex-shrink-0" />
+                                <span className="text-sm font-black text-black tracking-wide leading-tight">
                                   {info.customerName}
                                 </span>
                               </div>
-                              <div className="text-xs text-white/60 flex items-center gap-1 mt-0.5">
-                                <span className="text-white/40">حساب الوكيل:</span>
+                              <div className="text-[11px] text-white/60 flex items-center gap-1 mt-0.5">
+                                <span className="text-white/40">الوكيل:</span>
                                 <span className="font-semibold text-white/90">{info.agentName}</span>
                               </div>
                             </>
                           ) : (
                             <div className="flex flex-col gap-0.5">
                               <div className="inline-flex items-center gap-1.5 text-white">
-                                <UserCircle size={17} className="text-brq-gold flex-shrink-0" />
+                                <UserCircle size={15} className="text-brq-gold flex-shrink-0" />
                                 <span className="font-bold text-sm text-white">
                                   {info.agentName}
                                 </span>
                               </div>
-                              <span className="text-[11px] text-white/40 font-normal">طلب مباشر من الوكيل</span>
+                              <span className="text-[10px] text-white/40 font-normal">طلب مباشر</span>
                             </div>
                           )}
                         </div>
                       </td>
-                      <td className="p-4">
+                      <td className="px-4 py-2.5">
                         {info.displayNotes ? (
-                          <div className="p-2.5 rounded-lg bg-white/90 border border-gray-300 text-black shadow-sm text-xs font-bold whitespace-pre-wrap max-w-[220px] break-words leading-relaxed">
+                          <div className="p-2 rounded-lg bg-white/90 border border-gray-300 text-black shadow-sm text-xs font-bold whitespace-pre-wrap max-w-[200px] break-words leading-relaxed">
                             {info.displayNotes}
                           </div>
                         ) : (
                           <span className="text-white/25 text-xs font-mono">—</span>
                         )}
                       </td>
-                      <td className="p-4 font-mono">
+                      <td className="px-4 py-2.5 font-mono text-xs">
                         {o.totalQuantity ||
                           o.items?.reduce((acc, i) => acc + i.quantity, 0)}{" "}
-                        قطعة/علبة
+                        قطعة
                       </td>
-                      <td className="p-4 text-white/60 text-xs" dir="ltr">
+                      <td className="px-4 py-2.5 text-white/60 text-xs" dir="ltr">
                         {formatDateTime(o.createdAt)}
                       </td>
-                      <td className="p-4">
+                      <td className="px-4 py-2.5">
                         <div className="group relative w-fit">
                           <select
                             onClick={(e) => e.stopPropagation()}
@@ -469,7 +487,7 @@ export default function OrderManager() {
                                 e.target.value as OrderStatus,
                               )
                             }
-                            className={`px-3 py-1 rounded-lg border text-xs font-bold appearance-none bg-transparent outline-none cursor-pointer pr-4 pl-6 ${statusMap[o.status || "new"]?.color}`}
+                            className={`px-2.5 py-1 rounded-lg border text-xs font-bold appearance-none bg-transparent outline-none cursor-pointer pr-4 pl-6 ${statusMap[o.status || "new"]?.color}`}
                           >
                             <option
                               value="new"
@@ -504,7 +522,7 @@ export default function OrderManager() {
                           </select>
                         </div>
                       </td>
-                      <td className="p-4">
+                      <td className="px-4 py-2.5">
                         <div className="flex gap-2">
                           <button
                             onClick={(e) => {

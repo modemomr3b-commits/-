@@ -316,13 +316,20 @@ export default function ProductManager() {
     };
     initialLoad();
 
+    const scheduleLoad = (delay = 1200) => {
+      clearTimeout(fetchTimeout);
+      fetchTimeout = setTimeout(() => {
+        if (mounted) loadData();
+      }, delay);
+    };
+
     // Instant local BroadcastChannel synchronization across tabs
     let bc: any = null;
     try {
       if (typeof window !== 'undefined' && (window as any).BroadcastChannel) {
         bc = new (window as any).BroadcastChannel('brq_products_sync');
         bc.onmessage = () => {
-          if (mounted) loadData();
+          scheduleLoad(800);
         };
       }
     } catch {}
@@ -333,33 +340,27 @@ export default function ProductManager() {
         "postgres_changes",
         { event: "*", schema: "public", table: "products" },
         () => {
-          clearTimeout(fetchTimeout);
-          fetchTimeout = setTimeout(() => {
-             if (mounted) loadData();
-          }, 300);
+          scheduleLoad(1500);
         },
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "settings" },
         () => {
-          clearTimeout(fetchTimeout);
-          fetchTimeout = setTimeout(() => {
-             if (mounted) loadData();
-          }, 300);
+          scheduleLoad(1000);
         },
       )
       .on('broadcast', { event: 'bulk_updated' }, () => {
-        if (mounted) loadData();
+        scheduleLoad(800);
       })
       .on('broadcast', { event: 'product_changed' }, () => {
-        if (mounted) loadData();
+        scheduleLoad(800);
       })
       .on('broadcast', { event: 'product_created' }, () => {
-        if (mounted) loadData();
+        scheduleLoad(800);
       })
       .on('broadcast', { event: 'bulk_deleted' }, () => {
-        if (mounted) loadData();
+        scheduleLoad(800);
       })
       .subscribe();
 
@@ -595,6 +596,11 @@ export default function ProductManager() {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newProduct.name || !newProduct.price || isSubmitting) return;
+
+    if (!newProduct.imageUrl || !newProduct.imageUrl.trim()) {
+      setAlertMessage("⚠️ لا يمكن نشر المنتج بدون صورة! يرجى رفع صورة للموديل أولاً لإتمام النشر. جميع بيانات وتفاصيل المنتج محفوظة في النموذج ولن تضيع.");
+      return;
+    }
 
     const atNumber = extractAtNumber(newProduct.name);
     if (atNumber) {

@@ -37,10 +37,8 @@ export default function NotificationManager() {
       }
     };
     fetchData();
-    const inv = setInterval(fetchData, 30000);
     return () => {
       mounted = false;
-      clearInterval(inv);
     };
   }, []);
 
@@ -177,8 +175,8 @@ export default function NotificationManager() {
                   <div className="p-8 text-center text-white/50">لا توجد إشعارات حتى الآن</div>
                ) : (
                   <div className="divide-y divide-white/5">
-                     {adminNotifications.map((notif) => (
-                        <div key={notif.id} onClick={() => notif.id && markAsRead(notif.id, notif.read)} className={`p-4 flex gap-4 transition-colors cursor-pointer ${notif.read ? 'hover:bg-white/5' : 'bg-brq-gold/5 border-r-2 border-brq-gold hover:bg-brq-gold/10'}`}>
+                     {adminNotifications.map((notif, nIdx) => (
+                        <div key={`${notif.id || 'notif'}-${nIdx}`} onClick={() => notif.id && markAsRead(notif.id, notif.read)} className={`p-4 flex gap-4 transition-colors cursor-pointer ${notif.read ? 'hover:bg-white/5' : 'bg-brq-gold/5 border-r-2 border-brq-gold hover:bg-brq-gold/10'}`}>
                            <div className={`p-2 rounded-full h-fit flex-shrink-0 ${notif.type === 'order' ? 'bg-blue-500/20 text-blue-400' : 'bg-white/10 text-white/60'}`}>
                               {notif.type === 'order' ? <ShoppingCart size={20} /> : <AlertCircle size={20} />}
                            </div>
@@ -243,8 +241,8 @@ export default function NotificationManager() {
                   <div className="p-8 text-center text-white/50">لا توجد إعلانات نشطة</div>
                ) : (
                   <div className="divide-y divide-white/5">
-                     {announcements.map((a) => (
-                        <div key={a.id} className="p-4 flex gap-4 hover:bg-white/5 transition-colors">
+                     {announcements.map((a, aIdx) => (
+                        <div key={`${a.id || 'ann'}-${aIdx}`} className="p-4 flex gap-4 hover:bg-white/5 transition-colors">
                            <div className="p-2 rounded-full h-fit flex-shrink-0 bg-brq-navy text-brq-gold">
                               <Bell size={20} />
                            </div>
