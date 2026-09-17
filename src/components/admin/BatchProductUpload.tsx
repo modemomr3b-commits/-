@@ -32,6 +32,7 @@ import {
   autoSelectSubcategory,
   autoDetectCategoryAndSubcategory
 } from '../../utils/categoryDetector';
+import { isArchivedCategoryName } from '../../utils/search';
 
 export { autoSelectSubcategory };
 
@@ -523,10 +524,15 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
               }
             }
 
+            const cleanCat = (product.categoryId || batchCategoryId);
+            const isTargetArchived = cleanCat === 'be0a70a8-f9c6-430d-8416-11745f26576f' ||
+              isArchivedCategoryName(categories.find(c => c.id === cleanCat)?.name || '');
+            const cleanSubcat = isTargetArchived ? null : (product.subcategoryId && String(product.subcategoryId).trim() !== '' ? product.subcategoryId : null);
+
             const created = await api.createProduct({
               ...product,
-              categoryId: product.categoryId || batchCategoryId,
-              subcategoryId: product.subcategoryId,
+              categoryId: cleanCat && String(cleanCat).trim() !== '' ? cleanCat : null,
+              subcategoryId: cleanSubcat,
               finalImageUrl: finalImg,
               views: 0,
               isArchived: false,

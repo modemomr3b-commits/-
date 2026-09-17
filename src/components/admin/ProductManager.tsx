@@ -644,6 +644,8 @@ export default function ProductManager() {
 
     const fullUpdatedProduct: any = {
       ...payloadToUpdate,
+      categoryId: payloadToUpdate.categoryId && String(payloadToUpdate.categoryId).trim() !== '' ? payloadToUpdate.categoryId : null,
+      subcategoryId: payloadToUpdate.subcategoryId && String(payloadToUpdate.subcategoryId).trim() !== '' ? payloadToUpdate.subcategoryId : null,
       isArchived: originalProduct?.isArchived ? true : (payloadToUpdate.isArchived ?? false),
       ...(wasInactive && isNowActive ? { isShowcase: true, showcaseCategory: autoShowcaseCat } : {}),
       finalImageUrl: finalImg,
@@ -652,8 +654,12 @@ export default function ProductManager() {
 
     const archivedCat = categories.find(c => isArchivedCategoryName(c.name));
     const archivedCatId = archivedCat?.id || 'be0a70a8-f9c6-430d-8416-11745f26576f';
-    if (fullUpdatedProduct.categoryId === archivedCatId) {
+    const isTargetArchived = fullUpdatedProduct.categoryId === archivedCatId ||
+      fullUpdatedProduct.categoryId === 'be0a70a8-f9c6-430d-8416-11745f26576f' ||
+      isArchivedCategoryName(categories.find(c => c.id === fullUpdatedProduct.categoryId)?.name || '');
+    if (isTargetArchived) {
       fullUpdatedProduct.isShowcase = false;
+      fullUpdatedProduct.subcategoryId = null;
     }
 
     // Remove fields that are not editable in the form to prevent overwriting background toggles
@@ -876,13 +882,16 @@ export default function ProductManager() {
 
   const handleToggleArchive = async (p: Product) => {
     const archivedCat = categories.find(c => isArchivedCategoryName(c.name));
-    const archivedCatId = archivedCat?.id;
-    if (!archivedCatId) {
-      setAlertMessage("❌ قسم المواد النافذة غير موجود!");
-      return;
-    }
+    const archivedCatId = archivedCat?.id || 'be0a70a8-f9c6-430d-8416-11745f26576f';
 
-    const updates: any = { categoryId: archivedCatId, isArchived: false, isHidden: false, isLocked: false, isShowcase: false };
+    const updates: any = { 
+      categoryId: archivedCatId, 
+      subcategoryId: null, 
+      isArchived: false, 
+      isHidden: false, 
+      isLocked: false, 
+      isShowcase: false 
+    };
 
     // Optimistic update
     setProducts((prev) =>
@@ -895,12 +904,12 @@ export default function ProductManager() {
     try {
       await api.updateProduct(p.id!, updates);
       setAlertMessage(`تم نقل المنتج "${p.name || ''}" إلى قسم المواد النافذة بنجاح`);
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
       // Revert optimistic update
       const updated = await api.getProducts();
       setProducts(updated);
-      setAlertMessage("فشل نقل المنتج إلى المواد النافذة");
+      setAlertMessage("فشل نقل المنتج إلى المواد النافذة: " + (e?.message || ""));
     }
   };
 
@@ -1131,18 +1140,21 @@ export default function ProductManager() {
   const handleBulkToggleArchive = async () => {
     if (selectedIds.size === 0) return;
     const archivedCat = categories.find(c => isArchivedCategoryName(c.name));
-    const archivedCatId = archivedCat?.id;
-    if (!archivedCatId) {
-      setAlertMessage("❌ قسم المواد النافذة غير موجود!");
-      return;
-    }
+    const archivedCatId = archivedCat?.id || 'be0a70a8-f9c6-430d-8416-11745f26576f';
 
     const ids = Array.from(selectedIds);
     const targetIdsSet = new Set(ids.map(id => String(id)));
     setSelectedIds(new Set());
     setIsSubmitting(true);
 
-    const updatePayload = { categoryId: archivedCatId, isArchived: false, isHidden: false, isLocked: false, isShowcase: false };
+    const updatePayload = { 
+      categoryId: archivedCatId, 
+      subcategoryId: null, 
+      isArchived: false, 
+      isHidden: false, 
+      isLocked: false, 
+      isShowcase: false 
+    };
 
     // Instant optimistic local update
     setProducts((prev) =>
@@ -1228,8 +1240,14 @@ export default function ProductManager() {
 
     const archivedCat = categories.find(c => isArchivedCategoryName(c.name));
     const archivedCatId = archivedCat?.id || 'be0a70a8-f9c6-430d-8416-11745f26576f';
-    const isMovingToArchived = targetCatId === archivedCatId;
+    const isMovingToArchived = targetCatId === archivedCatId ||
+      targetCatId === 'be0a70a8-f9c6-430d-8416-11745f26576f' ||
+      isArchivedCategoryName(categories.find(c => c.id === targetCatId)?.name || '');
     
+    const cleanSubcat = isMovingToArchived 
+      ? null 
+      : (targetSubcatId && String(targetSubcatId).trim() !== '' ? targetSubcatId : null);
+
     // Instant optimistic update and close modal immediately
     setProducts((prev) =>
       prev.map((prod) =>
@@ -1237,7 +1255,7 @@ export default function ProductManager() {
           ? { 
               ...prod, 
               categoryId: targetCatId, 
-              subcategoryId: targetSubcatId || undefined,
+              subcategoryId: cleanSubcat || undefined,
               ...(isMovingToArchived ? { isShowcase: false } : {})
             } 
           : prod
@@ -1252,7 +1270,7 @@ export default function ProductManager() {
     try {
       await api.bulkUpdateProducts(ids, { 
         categoryId: targetCatId, 
-        subcategoryId: targetSubcatId,
+        subcategoryId: cleanSubcat,
         ...(isMovingToArchived ? { isShowcase: false } : {})
       });
     } catch (e: any) {
@@ -1274,7 +1292,7 @@ export default function ProductManager() {
       if (selectedIds.has(prod.id!)) {
         const matchedCatId = smartDetectMainCategoryId(prod, categories);
         updates.push({ id: prod.id!, categoryId: matchedCatId });
-        return { ...prod, categoryId: matchedCatId, subcategoryId: '' };
+        return { ...prod, categoryId: matchedCatId, subcategoryId: undefined as any };
       }
       return prod;
     });
@@ -1294,7 +1312,7 @@ export default function ProductManager() {
         catGroups[u.categoryId].push(u.id);
       });
       for (const [catId, groupIds] of Object.entries(catGroups)) {
-        await api.bulkUpdateProducts(groupIds, { categoryId: catId, subcategoryId: '' });
+        await api.bulkUpdateProducts(groupIds, { categoryId: catId, subcategoryId: null });
       }
     } catch (e: any) {
       console.error(e);
@@ -2757,11 +2775,13 @@ export default function ProductManager() {
                   value={editingProduct.categoryId}
                   onChange={(e) => {
                     const newCat = e.target.value;
-                    const autoSub = autoSelectSubcategory(editingProduct.name || "", newCat, "", categories);
+                    const isArchived = newCat === 'be0a70a8-f9c6-430d-8416-11745f26576f' ||
+                      isArchivedCategoryName(categories.find(c => c.id === newCat)?.name || '');
+                    const autoSub = isArchived ? null : autoSelectSubcategory(editingProduct.name || "", newCat, "", categories);
                     setEditingProduct({
                       ...editingProduct,
                       categoryId: newCat,
-                      subcategoryId: autoSub || "",
+                      subcategoryId: (autoSub && String(autoSub).trim() !== '') ? autoSub : (null as any),
                     });
                   }}
                   className="w-full bg-white border border-black rounded-lg px-3 py-2 text-base font-bold focus:border-brq-gold/50 outline-none text-black placeholder:text-gray-500"
@@ -2782,14 +2802,15 @@ export default function ProductManager() {
                 </label>
                 <select
                   value={editingProduct.subcategoryId || ""}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    const val = e.target.value;
                     setEditingProduct({
                       ...editingProduct,
-                      subcategoryId: e.target.value,
-                    })
-                  }
+                      subcategoryId: val && val.trim() !== '' ? val : (null as any),
+                    });
+                  }}
+                  disabled={!editingProduct.categoryId || categories.filter((c) => c.parentId === editingProduct.categoryId).length === 0}
                   className="w-full bg-white border border-black rounded-lg px-3 py-2 text-base font-bold focus:border-brq-gold/50 outline-none text-black disabled:opacity-50 placeholder:text-gray-500"
-                  disabled={!editingProduct.categoryId}
                 >
                   <option value="">-- إختر القسم الفرعي --</option>
                   {categories

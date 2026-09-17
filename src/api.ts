@@ -315,6 +315,24 @@ export const api = {
     const serverTime = await getServerTime();
     const safeData = { ...data, createdAt: data.createdAt || serverTime, updatedAt: data.updatedAt || serverTime };
     
+    // Sanitize UUID fields: PostgreSQL uuid columns fail with empty string ""
+    if (safeData.id && String(safeData.id).trim() === '') {
+      delete safeData.id;
+    }
+    if ('subcategoryId' in safeData) {
+      safeData.subcategoryId = (safeData.subcategoryId && String(safeData.subcategoryId).trim() !== '') 
+        ? safeData.subcategoryId 
+        : null;
+    }
+    if ('categoryId' in safeData) {
+      safeData.categoryId = (safeData.categoryId && String(safeData.categoryId).trim() !== '') 
+        ? safeData.categoryId 
+        : null;
+    }
+    if (safeData.categoryId === 'be0a70a8-f9c6-430d-8416-11745f26576f') {
+      safeData.subcategoryId = null;
+    }
+
     // Upload images if they are base64
     if (safeData.imageUrl?.startsWith('data:image')) {
         safeData.imageUrl = await api.uploadImage(safeData.imageUrl);
@@ -464,6 +482,22 @@ export const api = {
 
     const serverTime = await getServerTime();
     const safeData = { ...data, updatedAt: serverTime };
+
+    // Prevent UUID casting error for empty strings: PostgreSQL requires valid UUID or NULL
+    delete safeData.id;
+    if ('subcategoryId' in safeData) {
+      safeData.subcategoryId = (safeData.subcategoryId && String(safeData.subcategoryId).trim() !== '') 
+        ? safeData.subcategoryId 
+        : null;
+    }
+    if ('categoryId' in safeData) {
+      safeData.categoryId = (safeData.categoryId && String(safeData.categoryId).trim() !== '') 
+        ? safeData.categoryId 
+        : null;
+    }
+    if (safeData.categoryId === 'be0a70a8-f9c6-430d-8416-11745f26576f') {
+      safeData.subcategoryId = null;
+    }
 
     if (safeData.imageUrl?.startsWith('data:image')) {
         safeData.imageUrl = await api.uploadImage(safeData.imageUrl);
@@ -629,7 +663,11 @@ export const api = {
     
     Object.keys(data).forEach(key => {
       if (directKeys.includes(key)) {
-        directUpdates[key] = (key === 'subcategoryId' || key === 'categoryId') && (data[key] === '' || data[key] === undefined) ? null : data[key];
+        if (key === 'subcategoryId' || key === 'categoryId') {
+          directUpdates[key] = (data[key] && String(data[key]).trim() !== '') ? data[key] : null;
+        } else {
+          directUpdates[key] = data[key];
+        }
         hasDirectUpdates = true;
       }
       if (sizeKeys.includes(key)) {
@@ -637,6 +675,12 @@ export const api = {
         hasSizeUpdates = true;
       }
     });
+
+    // If moving to the depleted category, always clear subcategoryId to null
+    if (directUpdates.categoryId === 'be0a70a8-f9c6-430d-8416-11745f26576f') {
+      directUpdates.subcategoryId = null;
+      hasDirectUpdates = true;
+    }
 
     const chunkSize = 100;
     const chunks: string[][] = [];
@@ -846,7 +890,11 @@ export const api = {
     return inFlightCategoriesPromise;
   },
   createCategory: async (data: any) => { 
-    const { data: r, error } = await supabase.from('categories').insert(data).select().single(); 
+    const safeData = { ...data };
+    if ('parentId' in safeData) {
+      safeData.parentId = (safeData.parentId && String(safeData.parentId).trim() !== '') ? safeData.parentId : null;
+    }
+    const { data: r, error } = await supabase.from('categories').insert(safeData).select().single(); 
     if (error) throw error; 
     
     // Invalidate categories cache
@@ -872,7 +920,12 @@ export const api = {
     return r; 
   },
   updateCategory: async (id: string, data: any) => { 
-    const { data: r, error } = await supabase.from('categories').update(data).match({ id }).select().single(); 
+    const safeData = { ...data };
+    delete safeData.id;
+    if ('parentId' in safeData) {
+      safeData.parentId = (safeData.parentId && String(safeData.parentId).trim() !== '') ? safeData.parentId : null;
+    }
+    const { data: r, error } = await supabase.from('categories').update(safeData).match({ id }).select().single(); 
     if (error) throw error; 
     
     // Invalidate categories cache
