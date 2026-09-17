@@ -52,7 +52,7 @@ const statusMap: Record<OrderStatus, { label: string; color: string }> = {
 };
 
 export default function OrderManager() {
-  const { user } = useStore();
+  const { user, showToast } = useStore();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -130,15 +130,24 @@ export default function OrderManager() {
       )
     );
     if (selectedOrder?.id === id) {
-      setSelectedOrder((prev) =>
-        prev
-          ? {
-              ...prev,
-              status,
-              ...(completedTime ? { completedAt: prev.completedAt || completedTime } : {}),
-            }
-          : null
-      );
+      if (status === "completed") {
+        // Immediately close modal when marked completed
+        setSelectedOrder(null);
+      } else {
+        setSelectedOrder((prev) =>
+          prev
+            ? {
+                ...prev,
+                status,
+                ...(completedTime ? { completedAt: prev.completedAt || completedTime } : {}),
+              }
+            : null
+        );
+      }
+    }
+
+    if (status === "completed") {
+      showToast("تم إكمال الطلبية ونقلها للطلبات المكتملة بنجاح.");
     }
 
     try {
@@ -168,15 +177,16 @@ export default function OrderManager() {
     setSelectedOrder(order);
   };
 
-  // Closing the order modal: if it was "new", automatically complete it and move to completed tab
+  // Closing the order modal: automatically complete order and move to completed tab with zero delay!
   const handleCloseOrderModal = async () => {
     if (!selectedOrder) return;
     const current = selectedOrder;
     setSelectedOrder(null);
 
-    if (current.status === "new") {
+    // If order was not already completed or cancelled, auto-complete it upon closing
+    if (current.status !== "completed" && current.status !== "cancelled") {
       const completedTime = Date.now();
-      // Instant optimistic local update
+      // Instant optimistic local update (0ms delay)
       setOrders((prev) =>
         prev.map((o) =>
           o.id === current.id
@@ -184,6 +194,7 @@ export default function OrderManager() {
             : o
         )
       );
+      showToast(`تم إكمال الطلبية رقم ${current.orderNumber || ''} ونقلها للطلبات المكتملة بنجاح.`);
 
       // Save to database & notify in background
       try {

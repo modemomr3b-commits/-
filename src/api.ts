@@ -3,6 +3,7 @@ import { supabase } from './supabase';
 import { ActivityLog } from './types';
 import { parseOrderDetails } from './utils/orderUtils';
 import { localCache } from './utils/localCache';
+import { isArchivedCategoryName } from './utils/search';
 
 const getData = async (table: string) => {
   // Try local cache first for instant response (0ms load time)
@@ -1012,21 +1013,106 @@ export const api = {
       };
     });
   },
+  // Real-time validation of order items to filter out any sold-out/depleted items
+  validateOrderItemsAvailability: async (items: Array<{ productId?: string; product?: any; quantity?: number }>): Promise<{
+    availableItems: any[];
+    depletedItems: Array<{ id: string; name: string; code: string }>;
+    hasDepleted: boolean;
+  }> => {
+    if (!items || items.length === 0) {
+      return { availableItems: [], depletedItems: [], hasDepleted: false };
+    }
+
+    const itemProductIds = items
+      .map(item => item.productId || item.product?.id)
+      .filter(Boolean)
+      .map(id => String(id));
+
+    if (itemProductIds.length === 0) {
+      return { availableItems: items, depletedItems: [], hasDepleted: false };
+    }
+
+    try {
+      // 1. Fetch categories to identify all archived/depleted category IDs in real time
+      const { data: categories } = await supabase.from('categories').select('id, name, isDeleted');
+      const archivedCatIds = new Set<string>();
+      (categories || []).forEach((c: any) => {
+        if (isArchivedCategoryName(c.name)) {
+          archivedCatIds.add(String(c.id));
+        }
+      });
+
+      // 2. Fetch fresh real-time status of these products directly from Supabase
+      const { data: dbProducts } = await supabase
+        .from('products')
+        .select('id, name, productCode, modelNumber, categoryId, subcategoryId, isArchived, isDeleted, size')
+        .in('id', itemProductIds);
+
+      const dbProdMap = new Map<string, any>();
+      (dbProducts || []).forEach((p: any) => dbProdMap.set(String(p.id), p));
+
+      const availableItems: any[] = [];
+      const depletedItems: Array<{ id: string; name: string; code: string }> = [];
+
+      for (const item of items) {
+        const prodId = String(item.productId || item.product?.id);
+        const dbP = dbProdMap.get(prodId);
+
+        // Product is depleted if:
+        // - Missing from DB (deleted)
+        // - isDeleted is true
+        // - isArchived is true (or in size?.isArchived)
+        // - size?.isLocked is true
+        // - size?.isHidden is true
+        // - categoryId belongs to any archived/depleted category (e.g. "المواد النافذة")
+        const isDepleted =
+          !dbP ||
+          Boolean(dbP.isDeleted) ||
+          Boolean(dbP.isArchived) ||
+          Boolean(dbP.size?.isArchived) ||
+          Boolean(dbP.size?.isLocked) ||
+          Boolean(dbP.size?.isHidden) ||
+          Boolean(dbP.categoryId && archivedCatIds.has(String(dbP.categoryId)));
+
+        if (isDepleted) {
+          const code = (dbP?.productCode || dbP?.modelNumber || item.product?.productCode || item.product?.modelNumber || '---').toString();
+          const name = (dbP?.name || item.product?.name || 'منتج غير معروف').toString();
+          depletedItems.push({ id: prodId, name, code });
+        } else {
+          availableItems.push(item);
+        }
+      }
+
+      return {
+        availableItems,
+        depletedItems,
+        hasDepleted: depletedItems.length > 0
+      };
+    } catch (err) {
+      console.error('Error in validateOrderItemsAvailability:', err);
+      return { availableItems: items, depletedItems: [], hasDepleted: false };
+    }
+  },
+
   createOrder: async (data: any) => { 
     const rawItems = data.products || data.items || [];
-    for (const item of rawItems) {
-      const prodId = item.productId || item.product?.id;
-      if (prodId) {
-        const { data: dbProd } = await supabase.from('products').select('id, size, isArchived, productCode, modelNumber, name').match({ id: prodId }).single();
-        if (dbProd) {
-          const isArchived = dbProd.isArchived || dbProd.size?.isArchived;
-          const isLocked = dbProd.size?.isLocked;
-          const isHidden = dbProd.size?.isHidden;
-          const code = dbProd.productCode || dbProd.modelNumber || dbProd.name || prodId;
-          if (isArchived || isLocked || isHidden) {
-            throw new Error(`عذراً، المنتج (كود: ${code}) نافذ وغير قابل للطلب حالياً.`);
-          }
+    if (rawItems.length > 0) {
+      const validation = await api.validateOrderItemsAvailability(rawItems);
+      if (validation.hasDepleted) {
+        if (validation.availableItems.length === 0) {
+          const names = validation.depletedItems.map(d => `كود: ${d.code} (${d.name})`).join('، ');
+          throw new Error(`عذراً، جميع المنتجات في الطلبية نافذة وغير متوفرة: ${names}`);
         }
+        // Filter out depleted items automatically
+        data.products = validation.availableItems;
+        data.items = validation.availableItems;
+        const newTotal = validation.availableItems.reduce((sum: number, it: any) => sum + (Number(it.quantity) || 1), 0);
+        data.total = newTotal;
+        data.totalQuantity = newTotal;
+
+        const excludedSummary = validation.depletedItems.map(d => d.code).join(', ');
+        const excludedNote = `[تم تلقائياً استبعاد مواد نافذة: ${excludedSummary}]`;
+        data.notes = data.notes ? `${data.notes}\n${excludedNote}` : excludedNote;
       }
     }
 
@@ -1131,7 +1217,16 @@ export const api = {
     }
 
     const { data: r, error } = await supabase.from('orders').insert(safeData).select().single(); 
-    if (error) throw error; return r; 
+    if (error) throw error; 
+
+    // Update local cache immediately
+    localCache.get<any[]>('all_orders', Infinity).then(cached => {
+      if (cached && Array.isArray(cached)) {
+        localCache.set('all_orders', [r, ...cached]).catch(() => {});
+      }
+    }).catch(() => {});
+
+    return r; 
   },
   updateOrder: async (id: string, data: any) => { 
     const safeData: any = {};
@@ -1184,19 +1279,53 @@ export const api = {
     }
 
     const { data: r, error } = await supabase.from('orders').update(safeData).match({ id }).select().single(); 
-    if (error) throw error; return r; 
+    if (error) throw error; 
+
+    // Synchronously update local cache so any immediate getOrders() call sees the update without lag
+    localCache.get<any[]>('all_orders', Infinity).then(cached => {
+      if (cached && Array.isArray(cached)) {
+        const updated = cached.map((o: any) => {
+          if (o.id === id) {
+            return {
+              ...o,
+              ...safeData,
+              notes: safeData.notes !== undefined ? safeData.notes : o.notes,
+              status: safeData.status !== undefined ? safeData.status : o.status,
+              completedAt: data.completedAt || o.completedAt
+            };
+          }
+          return o;
+        });
+        localCache.set('all_orders', updated).catch(() => {});
+      }
+    }).catch(() => {});
+
+    return r; 
   },
   deleteOrder: async (id: string, deletedBy?: string) => { 
     const { error } = await supabase.from('orders').delete().match({ id }); 
-    if (error) throw error; return { success: true }; 
+    if (error) throw error; 
+    localCache.get<any[]>('all_orders', Infinity).then(cached => {
+      if (cached && Array.isArray(cached)) {
+        localCache.set('all_orders', cached.filter((o: any) => o.id !== id)).catch(() => {});
+      }
+    }).catch(() => {});
+    return { success: true }; 
   },
   hardDeleteOrder: async (id: string) => { 
     const { error } = await supabase.from('orders').delete().match({ id }); 
-    if (error) throw error; return { success: true }; 
+    if (error) throw error; 
+    localCache.get<any[]>('all_orders', Infinity).then(cached => {
+      if (cached && Array.isArray(cached)) {
+        localCache.set('all_orders', cached.filter((o: any) => o.id !== id)).catch(() => {});
+      }
+    }).catch(() => {});
+    return { success: true }; 
   },
   restoreOrder: async (id: string) => { 
     const { error } = await supabase.from('orders').update({ isDeleted: false, deletedAt: null, deletedBy: null }).match({ id }); 
-    if (error) throw error; return { success: true }; 
+    if (error) throw error; 
+    return { success: true }; 
   },
 
   // UPDATES

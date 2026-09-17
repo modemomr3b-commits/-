@@ -39,6 +39,32 @@ export default function ShowcaseCartModal({ cart, setCart, onClose, authData, sh
       const agentName = (authData.agent?.fullName || 'الوكيل المعتمد').toString().trim();
       const visitorName = (authData.visitorName || 'زبون المعرض').toString().trim();
 
+      // Validate availability
+      const validation = await api.validateOrderItemsAvailability(
+        cart.map(item => ({
+          productId: item.product.id,
+          quantity: item.quantity,
+          product: item.product,
+        }))
+      );
+
+      if (validation.hasDepleted) {
+        const depletedSet = new Set(validation.depletedItems.map(d => d.id));
+        setCart(prev => prev.filter(it => !depletedSet.has(it.product.id)));
+
+        const depletedList = validation.depletedItems.map(d => `• كود: ${d.code} (${d.name})`).join('\n');
+        if (validation.availableItems.length === 0) {
+          alert(`عذراً، المواد التالية نافذة وغير متوفرة:\n\n${depletedList}\n\nتم استبعادها من السلة تلقائياً.`);
+          submissionLock.current = false;
+          setIsSubmitting(false);
+          return;
+        }
+        alert(`تنبيه: المواد التالية نافذة وغير متوفرة وتم استبعادها تلقائياً:\n\n${depletedList}\n\nسيتم إرسال المواد المتوفرة فقط!`);
+      }
+
+      const itemsToSend = validation.availableItems;
+      const piecesToSend = itemsToSend.reduce((acc, item) => acc + (Number(item.quantity) || 1), 0);
+
       const noteParts: string[] = [];
       noteParts.push(`الوكيل: ${agentName}`);
       noteParts.push(`معرف الوكيل: ${agentId}`);
@@ -48,6 +74,10 @@ export default function ShowcaseCartModal({ cart, setCart, onClose, authData, sh
       }
       if (visitorNotes.trim()) {
         noteParts.push(`ملاحظات الزبون: ${visitorNotes.trim()}`);
+      }
+      if (validation.hasDepleted) {
+        const excludedSummary = validation.depletedItems.map(d => d.code).join(', ');
+        noteParts.push(`[تم تلقائياً استبعاد مواد نافذة: ${excludedSummary}]`);
       }
 
       await api.createOrder({
@@ -61,12 +91,12 @@ export default function ShowcaseCartModal({ cart, setCart, onClose, authData, sh
         customerPhone: visitorPhone.trim() || undefined,
         orderNumber,
         status: 'pending_agent',
-        items: cart.map(item => ({
-             productId: item.product.id,
+        items: itemsToSend.map(item => ({
+             productId: item.productId || item.product?.id,
              quantity: item.quantity,
              product: item.product,
         })),
-        totalQuantity: totalQuantity,
+        totalQuantity: piecesToSend,
         notes: noteParts.join('\n').trim(),
         createdAt: Date.now()
       });
