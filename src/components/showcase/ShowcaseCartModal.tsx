@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { X, Minus, Plus, ShoppingCart, Loader2 } from 'lucide-react';
 import { Product } from '../../types';
 import { api } from '../../api';
@@ -13,6 +13,7 @@ interface ShowcaseCartModalProps {
 
 export default function ShowcaseCartModal({ cart, setCart, onClose, authData, showToast }: ShowcaseCartModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const submissionLock = useRef(false);
   const [visitorNotes, setVisitorNotes] = useState('');
   const [visitorPhone, setVisitorPhone] = useState('');
 
@@ -29,7 +30,8 @@ export default function ShowcaseCartModal({ cart, setCart, onClose, authData, sh
   };
 
   const handleSubmit = async () => {
-    if (cart.length === 0) return;
+    if (cart.length === 0 || isSubmitting || submissionLock.current) return;
+    submissionLock.current = true;
     setIsSubmitting(true);
     try {
       const orderNumber = `BRQ-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -72,6 +74,7 @@ export default function ShowcaseCartModal({ cart, setCart, onClose, authData, sh
       setCart([]);
       onClose();
     } catch (err: any) {
+      submissionLock.current = false;
       alert('حدث خطأ أثناء إرسال الطلبية: ' + err.message);
     } finally {
       setIsSubmitting(false);

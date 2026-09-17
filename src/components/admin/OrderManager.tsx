@@ -80,7 +80,7 @@ export default function OrderManager() {
         const dbOrders = await api.getOrders();
         if (mounted) {
           const sortedOrders = dbOrders.sort(
-            (a: any, b: any) => b.createdAt - a.createdAt,
+            (a: any, b: any) => (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0),
           );
           setOrders(sortedOrders);
           setLoading(false);
@@ -116,20 +116,45 @@ export default function OrderManager() {
   }, []);
 
   const updateOrderStatus = async (id: string, status: OrderStatus) => {
+    const completedTime = status === "completed" ? Date.now() : undefined;
     // Optimistic update
-    setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, status } : o)));
+    setOrders((prev) =>
+      prev.map((o) =>
+        o.id === id
+          ? {
+              ...o,
+              status,
+              ...(completedTime ? { completedAt: o.completedAt || completedTime } : {}),
+            }
+          : o
+      )
+    );
     if (selectedOrder?.id === id) {
-      setSelectedOrder({ ...selectedOrder, status });
+      setSelectedOrder((prev) =>
+        prev
+          ? {
+              ...prev,
+              status,
+              ...(completedTime ? { completedAt: prev.completedAt || completedTime } : {}),
+            }
+          : null
+      );
     }
 
     try {
-      await api.updateOrder(id, { status });
+      await api.updateOrder(id, {
+        status,
+        ...(completedTime ? { completedAt: completedTime } : {}),
+      });
     } catch (e) {
       console.error("فشل تحديث حالة الطلب", e);
       // Revert on failure
       const updatedOrders = await api.getOrders();
       setOrders(
-        updatedOrders.sort((a: any, b: any) => b.createdAt - a.createdAt),
+        updatedOrders.sort(
+          (a: any, b: any) =>
+            (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0),
+        )
       );
       if (selectedOrder?.id === id) {
         const original = updatedOrders.find((o: any) => o.id === id);
@@ -138,25 +163,56 @@ export default function OrderManager() {
     }
   };
 
-  const handleViewOrder = async (order: Order) => {
-    let currentStatus = order.status;
-    if (currentStatus === "new") {
-      currentStatus = "completed";
-      // Auto complete and notify
-      await updateOrderStatus(order.id, "completed");
+  // Instant opening of orders with 0ms delay!
+  const handleViewOrder = (order: Order) => {
+    setSelectedOrder(order);
+  };
+
+  // Closing the order modal: if it was "new", automatically complete it and move to completed tab
+  const handleCloseOrderModal = async () => {
+    if (!selectedOrder) return;
+    const current = selectedOrder;
+    setSelectedOrder(null);
+
+    if (current.status === "new") {
+      const completedTime = Date.now();
+      // Instant optimistic local update
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.id === current.id
+            ? { ...o, status: "completed", completedAt: completedTime }
+            : o
+        )
+      );
+
+      // Save to database & notify in background
       try {
+        await api.updateOrder(current.id, {
+          status: "completed",
+          completedAt: completedTime,
+        });
         await api.createNotification({
-          userId: order.userId,
+          userId: current.userId,
           type: "order",
-          message: `تم قبول وتأكيد طلبيتك رقم ${order.orderNumber || order.id.slice(0, 8)}`,
+          message: `تم قبول وتأكيد طلبيتك رقم ${current.orderNumber || current.id.slice(0, 8)}`,
           read: false,
         });
       } catch (e) {
-        console.error("Failed to send notification", e);
+        console.error("فشل تحديث الطلب كمكتمل بالخلفية", e);
       }
     }
-    setSelectedOrder({ ...order, status: currentStatus as OrderStatus });
   };
+
+  // Close modal on Escape key press
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && selectedOrder) {
+        handleCloseOrderModal();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedOrder]);
 
   const handleDelete = async (id: string, orderNumber: string) => {
     // Optimistic update
@@ -169,14 +225,20 @@ export default function OrderManager() {
       await api.deleteOrder(id, user?.username);
       const updatedOrders = await api.getOrders();
       setOrders(
-        updatedOrders.sort((a: any, b: any) => b.createdAt - a.createdAt),
+        updatedOrders.sort(
+          (a: any, b: any) =>
+            (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0),
+        ),
       );
     } catch (e) {
       console.error(e);
       // Revert initial UI change
       const updatedOrders = await api.getOrders();
       setOrders(
-        updatedOrders.sort((a: any, b: any) => b.createdAt - a.createdAt),
+        updatedOrders.sort(
+          (a: any, b: any) =>
+            (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0),
+        ),
       );
       alert("حدث خطأ أثناء الحذف");
     }
@@ -186,35 +248,51 @@ export default function OrderManager() {
     printOrderInvoice(order);
   };
 
-  const filteredOrders = orders.filter((o) => {
-    if (o.status === 'pending_agent') return false;
-    const info = parseOrderDetails(o);
-    const matchesSearch =
-      (o.orderNumber &&
-        o.orderNumber.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (info.agentName &&
-        info.agentName.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (info.customerName &&
-        info.customerName.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (info.transport &&
-        info.transport.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (info.notes &&
-        info.notes.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (info.displayNotes &&
-        info.displayNotes.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredOrders = orders
+    .filter((o) => {
+      if (o.status === 'pending_agent') return false;
+      const info = parseOrderDetails(o);
+      const matchesSearch =
+        (o.orderNumber &&
+          o.orderNumber.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (info.agentName &&
+          info.agentName.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (info.customerName &&
+          info.customerName.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (info.transport &&
+          info.transport.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (info.notes &&
+          info.notes.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (info.displayNotes &&
+          info.displayNotes.toLowerCase().includes(searchQuery.toLowerCase()));
 
-    const matchesStatus = filterStatus === "all" || o.status === filterStatus;
+      const matchesStatus = filterStatus === "all" || o.status === filterStatus;
 
-    const matchesTab =
-      activeTab === "new"
-        ? o.status === "new"
-        : o.status === "completed" ||
-          o.status === "cancelled" ||
-          o.status === "contacted" ||
-          o.status === "reviewing";
+      const matchesTab =
+        activeTab === "new"
+          ? o.status === "new"
+          : o.status === "completed" ||
+            o.status === "cancelled" ||
+            o.status === "contacted" ||
+            o.status === "reviewing";
 
-    return matchesSearch && matchesStatus && matchesTab;
-  });
+      return matchesSearch && matchesStatus && matchesTab;
+    })
+    .sort((a, b) => {
+      if (activeTab === "completed") {
+        // Completed orders:
+        // Most recently completed on top, earliest completed at the bottom!
+        // ("تكون محمد تحت وبعدها ياسر فوقها وبعدها حيدر فوقها وبعدها حسين فوقها")
+        const timeB = Number(b.completedAt || b.createdAt || 0);
+        const timeA = Number(a.completedAt || a.createdAt || 0);
+        return timeB - timeA;
+      } else {
+        // New orders: newest arrival on top
+        const timeB = Number(b.createdAt || 0);
+        const timeA = Number(a.createdAt || 0);
+        return timeB - timeA;
+      }
+    });
 
   const newOrdersCount = orders.filter((o) => o.status === "new").length;
 
@@ -372,6 +450,7 @@ export default function OrderManager() {
                       <td className="p-4">
                         <div className="group relative w-fit">
                           <select
+                            onClick={(e) => e.stopPropagation()}
                             value={o.status}
                             onChange={(e) =>
                               updateOrderStatus(
@@ -417,20 +496,29 @@ export default function OrderManager() {
                       <td className="p-4">
                         <div className="flex gap-2">
                           <button
-                            onClick={() => handlePrintOrder(o)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handlePrintOrder(o);
+                            }}
                             className="p-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-lg transition-colors flex items-center gap-2 text-xs font-bold"
                             title="طباعة الطلب"
                           >
                             <Printer size={14} /> طباعة
                           </button>
                           <button
-                            onClick={() => handleViewOrder(o)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleViewOrder(o);
+                            }}
                             className="p-2 bg-brq-gold/10 hover:bg-brq-gold/20 text-brq-gold rounded-lg transition-colors flex items-center gap-2 text-xs font-bold"
                           >
                             <Eye size={14} /> عرض
                           </button>
                           <button
-                            onClick={() => handleDelete(o.id, o.orderNumber)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDelete(o.id, o.orderNumber);
+                            }}
                             className="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg transition-colors flex items-center gap-2 text-xs font-bold"
                             title="حذف الطلب"
                           >
@@ -448,8 +536,14 @@ export default function OrderManager() {
       </div>
 
       {selectedOrder && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-5">
-          <div className="glass-panel w-full max-w-5xl rounded-2xl flex flex-col max-h-[92vh] border border-white/10 shadow-2xl overflow-hidden">
+        <div
+          onClick={handleCloseOrderModal}
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-5"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="glass-panel w-full max-w-5xl rounded-2xl flex flex-col max-h-[92vh] border border-white/10 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+          >
             {/* Modal Header */}
             <div className="flex justify-between items-center p-5 border-b border-white/10 bg-black/40">
               <div className="flex items-center gap-4">
@@ -479,7 +573,14 @@ export default function OrderManager() {
                   <Printer size={16} /> طباعة
                 </button>
                 <button
-                  onClick={() => setSelectedOrder(null)}
+                  onClick={handleCloseOrderModal}
+                  className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-colors flex items-center gap-1.5 text-xs font-bold shadow-md"
+                  title="إنهاء الطلب ونقله للمكتملة وإغلاق"
+                >
+                  <Check size={16} /> إنهاء وإغلاق
+                </button>
+                <button
+                  onClick={handleCloseOrderModal}
                   className="text-white/50 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors"
                   title="إغلاق"
                 >

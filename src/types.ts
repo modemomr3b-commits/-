@@ -115,6 +115,9 @@ export interface Order extends BaseEntity {
   items: OrderItem[];
   totalQuantity: number;
   notes?: string;
+  displayNotes?: string;
+  rawNotes?: string;
+  completedAt?: number;
   createdAt: number;
   updatedAt?: number;
 }

@@ -1008,6 +1008,7 @@ export const api = {
         notes: parsed.notes,
         displayNotes: parsed.displayNotes,
         rawNotes: o.notes || '',
+        completedAt: o.completedAt || parsed.completedAt || undefined,
       };
     });
   },
@@ -1070,7 +1071,6 @@ export const api = {
     }
     safeData.notes = notesArray.join('\n').trim();
 
-
     if (data.products !== undefined) {
       safeData.products = data.products;
     } else if (data.items !== undefined) {
@@ -1085,6 +1085,49 @@ export const api = {
       safeData.total = Number(data.totalQuantity) || 0;
     } else {
       safeData.total = 0;
+    }
+
+    // ----------------------------------------------------
+    // Duplicate Order Prevention (Idempotency Guard)
+    // ----------------------------------------------------
+    try {
+      const checkWindow = Date.now() - 120000; // 2 minutes window
+      const targetCustomer = (safeData.customerName || agentName || '').trim();
+      
+      const { data: recentOrders } = await supabase
+        .from('orders')
+        .select('id, orderNumber, customerName, total, products, createdAt')
+        .gte('createdAt', checkWindow)
+        .order('createdAt', { ascending: false })
+        .limit(10);
+
+      if (recentOrders && recentOrders.length > 0) {
+        const newSummary = (safeData.products || [])
+          .map((p: any) => `${p.productId || p.product?.id}:${p.quantity}`)
+          .sort()
+          .join('|');
+
+        for (const prev of recentOrders) {
+          const prevCust = (prev.customerName || '').trim();
+          const custMatches = 
+            prevCust === targetCustomer ||
+            (prevCust && targetCustomer && (prevCust.includes(targetCustomer) || targetCustomer.includes(prevCust)));
+
+          if (custMatches && Number(prev.total) === Number(safeData.total)) {
+            const prevSummary = (prev.products || [])
+              .map((p: any) => `${p.productId || p.product?.id}:${p.quantity}`)
+              .sort()
+              .join('|');
+
+            if (newSummary && prevSummary && newSummary === prevSummary) {
+              console.warn(`[Deduplication] Prevented duplicate order creation for ${targetCustomer}. Returning existing order: ${prev.orderNumber}`);
+              return prev; // Return existing order without creating a duplicate!
+            }
+          }
+        }
+      }
+    } catch (dedupErr) {
+      console.warn('Deduplication check error:', dedupErr);
     }
 
     const { data: r, error } = await supabase.from('orders').insert(safeData).select().single(); 
@@ -1104,8 +1147,24 @@ export const api = {
       safeData.customerName = data.customerName || data.fullName || data.username;
     }
 
-    if (data.notes !== undefined) {
-      let combinedNotes = data.notes;
+    // Handle completedAt timestamp seamlessly
+    let finalNotes = data.notes;
+    if (data.status === 'completed' || data.completedAt !== undefined) {
+      const ts = data.completedAt || Date.now();
+      if (finalNotes === undefined) {
+        try {
+          const { data: cur } = await supabase.from('orders').select('notes').eq('id', id).single();
+          finalNotes = cur?.notes || '';
+        } catch (e) {
+          finalNotes = '';
+        }
+      }
+      const cleaned = (finalNotes || '').replace(/\n?\[completedAt:\d+\]/gi, '').trim();
+      finalNotes = `${cleaned}\n[completedAt:${ts}]`.trim();
+    }
+
+    if (finalNotes !== undefined) {
+      let combinedNotes = finalNotes;
       if (data.transport && !combinedNotes.includes(data.transport)) {
         combinedNotes = `${combinedNotes}\nالنقليات: ${data.transport}`;
       }
