@@ -386,14 +386,17 @@ export const api = {
       const startTime = Date.now();
       try {
         const categories = await api.getCategories();
-        const currentCat = categories.find((c: any) => c.id === categoryId);
-        const isMainCat = !currentCat?.parentId;
-        
-        let catIds = [categoryId];
-        if (isMainCat) {
-          const subCats = categories.filter((c: any) => c.parentId === categoryId);
-          catIds = [categoryId, ...subCats.map((c: any) => c.id)];
-        }
+        const getAllDescendantIds = (catId: string, cats: any[]): string[] => {
+          const children = cats.filter((c: any) => c.parentId === catId);
+          let ids: string[] = [];
+          for (const child of children) {
+            ids.push(child.id);
+            ids.push(...getAllDescendantIds(child.id, cats));
+          }
+          return ids;
+        };
+        const descendantIds = getAllDescendantIds(categoryId, categories);
+        const catIds = [categoryId, ...descendantIds];
 
         logDev('SUPABASE REQUEST', { categoryId, catIds });
 
@@ -468,13 +471,17 @@ export const api = {
 
     try {
       const categories = await api.getCategories();
-      const currentCat = categories.find((c: any) => c.id === categoryId);
-      const isMainCat = !currentCat?.parentId;
-      let catIds = [categoryId];
-      if (isMainCat) {
-        const subCats = categories.filter((c: any) => c.parentId === categoryId);
-        catIds = [categoryId, ...subCats.map((c: any) => c.id)];
-      }
+      const getAllDescendantIds = (catId: string, cats: any[]): string[] => {
+        const children = cats.filter((c: any) => c.parentId === catId);
+        let ids: string[] = [];
+        for (const child of children) {
+          ids.push(child.id);
+          ids.push(...getAllDescendantIds(child.id, cats));
+        }
+        return ids;
+      };
+      const descendantIds = getAllDescendantIds(categoryId, categories);
+      const catIds = [categoryId, ...descendantIds];
 
       const catFilter = catIds.length === 1
         ? `categoryId.eq.${catIds[0]},subcategoryId.eq.${catIds[0]}`

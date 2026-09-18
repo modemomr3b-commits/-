@@ -184,13 +184,21 @@ export default function Products() {
           (categoryId === archivedCatId ? isArchivedProd(p) : !isArchivedProd(p))
         );
         
-        if (categoryId) {
-          const childIds = cachedCats?.filter((c: any) => c.parentId === categoryId).map((c: any) => c.id) || [];
+        if (categoryId && cachedCats) {
+          const getAllDescendantIds = (catId: string, cats: any[]): string[] => {
+            const children = cats.filter((c: any) => c.parentId === catId);
+            let ids: string[] = [];
+            for (const child of children) {
+              ids.push(child.id);
+              ids.push(...getAllDescendantIds(child.id, cats));
+            }
+            return ids;
+          };
+          const descendantIds = getAllDescendantIds(categoryId, cachedCats);
+          const validCatIds = [categoryId, ...descendantIds];
           fetchedProducts = fetchedProducts.filter((p: any) => 
-            p.categoryId === categoryId || 
-            p.subcategoryId === categoryId || 
-            childIds.includes(p.categoryId) || 
-            (p.subcategoryId ? childIds.includes(p.subcategoryId) : false)
+            validCatIds.includes(p.categoryId) || 
+            (p.subcategoryId && validCatIds.includes(p.subcategoryId))
           );
         }
         
