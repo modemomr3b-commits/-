@@ -400,12 +400,12 @@ export default function Products() {
     }
     const cleanList = result.filter(isActive);
     
-    // Distribute products across pages with pageSize = 50
-    return shuffleProductsForUser(cleanList, 50, `member_${categoryId || 'all'}_${activeSub || 'none'}`);
+    // Distribute products across pages with pageSize = 35
+    return shuffleProductsForUser(cleanList, 35, `member_${categoryId || 'all'}_${activeSub || 'none'}`);
   }, [activeSub, products, allStoreProducts, searchTerm, allCategories, categoryId]);
   
-  // Pagination: strict 50 items per page
-  const itemsPerPage = 50;
+  // Pagination: strict 35 items per page
+  const itemsPerPage = 35;
   const totalPages = Math.ceil(filteredProductsAll.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const filteredProducts = useMemo(() => {

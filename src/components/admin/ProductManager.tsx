@@ -241,7 +241,7 @@ export default function ProductManager() {
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
   const [moveToCategoryId, setMoveToCategoryId] = useState("");
   const [moveToSubcategoryId, setMoveToSubcategoryId] = useState("");
-  const [itemsPerPage, setItemsPerPage] = useState<number>(100);
+  const itemsPerPage = 35;
 
   // Debounce search input
   // Reset page on filter changes (preserve selection)
@@ -2580,33 +2580,16 @@ export default function ProductManager() {
                   <span>
                     عرض <strong className="text-brq-gold">{startIndex + 1}</strong> إلى <strong className="text-brq-gold">{Math.min(startIndex + itemsPerPage, filteredProducts.length)}</strong> من أصل <strong className="text-white">{filteredProducts.length}</strong> منتج
                   </span>
-                  
-                  {/* Page Size Selector */}
-                  <div className="flex items-center gap-1.5 bg-white/5 border border-white/10 px-2 py-1 rounded-lg">
-                    <span className="text-white/40 text-xs">عرض:</span>
-                    <select
-                      value={itemsPerPage}
-                      onChange={(e) => {
-                        setItemsPerPage(Number(e.target.value));
-                        setCurrentPage(1);
-                      }}
-                      className="bg-transparent text-brq-gold font-bold text-xs focus:outline-none cursor-pointer"
-                    >
-                      <option value={20} className="bg-neutral-900 text-white">20 بطاقة (عرض سريع)</option>
-                      <option value={50} className="bg-neutral-900 text-white">50 منتج</option>
-                      <option value={100} className="bg-neutral-900 text-white">100 منتج (الافتراضي)</option>
-                      <option value={200} className="bg-neutral-900 text-white">200 منتج</option>
-                      <option value={500} className="bg-neutral-900 text-white">500 منتج</option>
-                      <option value={1000} className="bg-neutral-900 text-white">1000 منتج (أقصى عرض)</option>
-                    </select>
-                  </div>
                 </div>
 
                 {totalPages > 1 && (
                   <div className="flex items-center gap-2">
                     <button
                       disabled={currentPage === 1}
-                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      onClick={() => {
+                        setCurrentPage(p => Math.max(1, p - 1));
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
                       className="p-2 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-white"
                       title="الصفحة السابقة"
                     >
@@ -2617,7 +2600,10 @@ export default function ProductManager() {
                     </span>
                     <button
                       disabled={currentPage === totalPages}
-                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      onClick={() => {
+                        setCurrentPage(p => Math.min(totalPages, p + 1));
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
                       className="p-2 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-white"
                       title="الصفحة التالية"
                     >
