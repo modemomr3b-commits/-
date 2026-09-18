@@ -84,17 +84,17 @@ const getData = async (table: string, forceNetwork = false) => {
         let from = 0;
         let hasMore = true;
 
-        let selectColumns = 'id, name, productCode, modelNumber, categoryId, subcategoryId, size, stock, costPrice, sellingPrice, oldPriceInfo, imageUrl, finalImageUrl, qrCode, isHidden, isLocked, isArchived, isDeleted, isShowcase, showcaseCategory, createdAt, updatedAt, packaging, piecesCount, price, barcode, views, description';
+        let selectColumns = 'id, name, description, category, size, costPrice, sellingPrice, imageUrl, stock, minStock, qrCode, isArchived, isDeleted, deletedAt, deletedBy, createdAt, categoryId, subcategoryId, price, dozenPriceUsd, piecePriceUsd, piecePriceIqd, packaging, piecesCount, modelNumber, productCode, barcode, finalImageUrl, views';
         if (table === 'orders') {
-          selectColumns = 'id, orderNumber, status, userId, username, fullName, customerName, customerPhone, transport, notes, total, products, items, totalQuantity, createdAt, completedAt, isDeleted, deletedAt, deletedBy, agentId, agentName';
+          selectColumns = 'id, orderNumber, customerName, customerPhone, address, status, notes, total, products, isDeleted, deletedAt, deletedBy, createdAt';
         } else if (table === 'categories') {
-          selectColumns = 'id, name, parentId, image, description, orderIndex, isDeleted, createdAt';
+          selectColumns = 'id, name, description, icon, isDeleted, deletedAt, deletedBy, createdAt, order, parentId, isHidden';
         } else if (table === 'users') {
           selectColumns = '*';
         } else if (table === 'activity_logs') {
-          selectColumns = 'id, userId, username, action, details, createdAt';
+          selectColumns = 'id, userId, userName, action, entityType, entityId, details, createdAt';
         } else if (table === 'notifications') {
-          selectColumns = 'id, userId, title, message, read, isDeleted, createdAt';
+          selectColumns = 'id, userId, message, type, read, createdAt, isDeleted, deletedAt, deletedBy';
         } else if (table === 'settings') {
           selectColumns = 'id, data';
         }
@@ -102,7 +102,7 @@ const getData = async (table: string, forceNetwork = false) => {
         // Fetch sequentially in moderate batches to eliminate statement timeouts (Error 57014)
         // Order by id guarantees deterministic pagination without row shifting or repetition
         while (hasMore) {
-          const { data, error } = await supabase
+          let { data, error } = await supabase
             .from(table)
             .select(selectColumns)
             .order('id', { ascending: true })
@@ -110,7 +110,22 @@ const getData = async (table: string, forceNetwork = false) => {
 
           if (error) {
             console.warn(`Error fetching batch from ${table} [${from}-${from + limit - 1}]:`, error.message);
-            break;
+            // Automatic safe fallback: if any column mismatch or query syntax error happens, fallback to select('*')
+            if (error.code === '42703' || error.message?.includes('does not exist')) {
+              console.warn(`Column mismatch detected for ${table}, attempting safe fallback select('*')...`);
+              const fallback = await supabase
+                .from(table)
+                .select('*')
+                .order('id', { ascending: true })
+                .range(from, from + limit - 1);
+              if (!fallback.error && fallback.data) {
+                data = fallback.data;
+                error = null;
+              }
+            }
+            if (error) {
+              break;
+            }
           }
 
           if (data && data.length > 0) {
@@ -177,25 +192,38 @@ const getDeletedData = async (table: string) => {
   let from = 0;
   const limit = 1000;
   
-  let selectColumns = 'id, name, productCode, modelNumber, categoryId, subcategoryId, size, stock, costPrice, sellingPrice, oldPriceInfo, imageUrl, finalImageUrl, qrCode, isHidden, isLocked, isArchived, isDeleted, isShowcase, showcaseCategory, createdAt, updatedAt, packaging, piecesCount, price, barcode, views, description';
+  let selectColumns = 'id, name, description, category, size, costPrice, sellingPrice, imageUrl, stock, minStock, qrCode, isArchived, isDeleted, deletedAt, deletedBy, createdAt, categoryId, subcategoryId, price, dozenPriceUsd, piecePriceUsd, piecePriceIqd, packaging, piecesCount, modelNumber, productCode, barcode, finalImageUrl, views';
   if (table === 'orders') {
-    selectColumns = 'id, orderNumber, status, userId, username, fullName, customerName, customerPhone, transport, notes, total, products, items, totalQuantity, createdAt, completedAt, isDeleted, deletedAt, deletedBy, agentId, agentName';
+    selectColumns = 'id, orderNumber, customerName, customerPhone, address, status, notes, total, products, isDeleted, deletedAt, deletedBy, createdAt';
   } else if (table === 'categories') {
-    selectColumns = 'id, name, parentId, image, description, orderIndex, isDeleted, createdAt';
+    selectColumns = 'id, name, description, icon, isDeleted, deletedAt, deletedBy, createdAt, order, parentId, isHidden';
   } else if (table === 'users') {
     selectColumns = '*';
   }
 
   while (true) {
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from(table)
       .select(selectColumns)
       .eq('isDeleted', true)
       .range(from, from + limit - 1);
       
     if (error) {
-      console.error(error);
-      throw error;
+      if (error.code === '42703' || error.message?.includes('does not exist')) {
+        const fallback = await supabase
+          .from(table)
+          .select('*')
+          .eq('isDeleted', true)
+          .range(from, from + limit - 1);
+        if (!fallback.error && fallback.data) {
+          data = fallback.data;
+          error = null;
+        }
+      }
+      if (error) {
+        console.error(error);
+        throw error;
+      }
     }
     
     if (data && data.length > 0) {
@@ -324,7 +352,13 @@ export const api = {
   },
 
   getProductById: async (id: string) => {
-    const { data, error } = await supabase.from('products').select('id, name, productCode, modelNumber, categoryId, subcategoryId, size, stock, costPrice, sellingPrice, oldPriceInfo, imageUrl, finalImageUrl, qrCode, isHidden, isLocked, isArchived, isDeleted, isShowcase, showcaseCategory, createdAt, updatedAt, packaging, piecesCount, price, barcode, views, description').eq('id', id).single();
+    const prodCols = 'id, name, description, category, size, costPrice, sellingPrice, imageUrl, stock, minStock, qrCode, isArchived, isDeleted, deletedAt, deletedBy, createdAt, categoryId, subcategoryId, price, dozenPriceUsd, piecePriceUsd, piecePriceIqd, packaging, piecesCount, modelNumber, productCode, barcode, finalImageUrl, views';
+    let { data, error } = await supabase.from('products').select(prodCols).eq('id', id).single();
+    if (error && (error.code === '42703' || error.message?.includes('does not exist'))) {
+      const fb = await supabase.from('products').select('*').eq('id', id).single();
+      data = fb.data;
+      error = fb.error;
+    }
     if (error || !data) return null;
     return {
       ...data,
@@ -1591,7 +1625,7 @@ export const api = {
       // ignore
     }
 
-    const { data, error } = await supabase.from('activity_logs').select('id, userId, username, action, details, createdAt').order('createdAt', { ascending: false }).limit(200);
+    const { data, error } = await supabase.from('activity_logs').select('id, userId, userName, action, entityType, entityId, details, createdAt').order('createdAt', { ascending: false }).limit(200);
     if (error) { console.error(error); return []; }
     return data;
   },
@@ -1607,7 +1641,7 @@ export const api = {
   // NOTIFICATIONS
   getNotifications: async () => await getData('notifications'),
   getUnreadNotifications: async () => {
-    const { data, error } = await supabase.from('notifications').select('id, userId, title, message, read, isDeleted, createdAt').eq('read', false).neq('isDeleted', true).order('createdAt', { ascending: false });
+    const { data, error } = await supabase.from('notifications').select('id, userId, message, type, read, createdAt, isDeleted').eq('read', false).neq('isDeleted', true).order('createdAt', { ascending: false });
     if (error) { console.error(error); return []; }
     return data;
   },
