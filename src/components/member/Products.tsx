@@ -104,45 +104,49 @@ export default function Products() {
     try {
       const cats = await api.getCategories(forceDirect);
       setAllCategories(cats);
-      
-      const allStore = await api.getProductsDirect(forceDirect);
-      
-      // Auto-retry if empty on the very first load to prevent showing "No products" prematurely
-      if (allStore.length === 0 && !isRetry) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        await fetchProducts(true, true);
-        return;
-      }
 
       const archivedCatId = cats.find((c: any) => isArchivedCategoryName(c.name))?.id;
       const isArchivedProd = (p: any) => p.isArchived || (archivedCatId && p.categoryId === archivedCatId);
 
-      const activeStore: Product[] = allStore.filter((p: any) => 
+      const isActive = (p: any) => 
         !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, cats) &&
-        (categoryId === archivedCatId ? isArchivedProd(p) : !isArchivedProd(p))
-      );
-      const shuffledStore = shuffleProductsForUser<Product>(activeStore);
-      setAllStoreProducts(shuffledStore);
-      
-      let fetchedProducts: Product[] = activeStore;
+        (categoryId === archivedCatId ? isArchivedProd(p) : !isArchivedProd(p));
+
       if (categoryId) {
-        const childIds = cats.filter(c => c.parentId === categoryId).map(c => c.id);
-        fetchedProducts = activeStore.filter((p: any) => 
-          p.categoryId === categoryId || 
-          p.subcategoryId === categoryId || 
-          childIds.includes(p.categoryId) || 
-          (p.subcategoryId ? childIds.includes(p.subcategoryId) : false)
-        );
+        // Fast targeted category fetch: only downloads products belonging to this category
+        const catProds = await api.getProductsByCategory(categoryId, forceDirect);
+        
+        if (catProds.length === 0 && !isRetry) {
+          await new Promise(resolve => setTimeout(resolve, 800));
+          await fetchProducts(true, true);
+          return;
+        }
+
         const cat = cats.find((c: any) => c.id === categoryId);
         setCategoryName(cat ? cat.name : `القسم ${categoryId}`);
         const subs = cats
           .filter((c: any) => c.parentId === categoryId && !c.isHidden)
           .sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
         setSubCategories(subs);
+
+        const activeCatProds = catProds.filter(isActive);
+        const shuffled = shuffleProductsForUser<Product>(activeCatProds);
+        setProducts(shuffled);
+        setAllStoreProducts(shuffled);
+      } else {
+        // All products view fallback
+        const allStore = await api.getProductsDirect(forceDirect);
+        if (allStore.length === 0 && !isRetry) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          await fetchProducts(true, true);
+          return;
+        }
+
+        const activeStore: Product[] = allStore.filter(isActive);
+        const shuffledStore = shuffleProductsForUser<Product>(activeStore);
+        setAllStoreProducts(shuffledStore);
+        setProducts(shuffledStore);
       }
-      
-      fetchedProducts = shuffleProductsForUser<Product>(fetchedProducts);
-      setProducts(fetchedProducts);
     } catch (err) {
       console.error(err);
     }
@@ -151,11 +155,12 @@ export default function Products() {
   useEffect(() => {
     let mounted = true;
 
-    // Instant local cache restoration so the user experiences NO wait time
+    // Instant local cache restoration so the user experiences 0ms wait time
+    const catCacheKey = categoryId ? `products_cat_${categoryId}` : 'all_products';
     Promise.all([
       localCache.get<any[]>('all_categories'),
-      localCache.get<any[]>('all_products')
-    ]).then(([cachedCats, cachedProds]) => {
+      localCache.get<any>(catCacheKey)
+    ]).then(([cachedCats, cachedProdsRaw]) => {
       if (!mounted) return;
       if (cachedCats && cachedCats.length > 0) {
         setAllCategories(cachedCats);
@@ -168,6 +173,8 @@ export default function Products() {
           setSubCategories(subs);
         }
       }
+
+      const cachedProds = Array.isArray(cachedProdsRaw) ? cachedProdsRaw : (cachedProdsRaw?.products || null);
       if (cachedProds && cachedProds.length > 0) {
         const archivedCatId = cachedCats?.find((c: any) => isArchivedCategoryName(c.name))?.id;
         const isArchivedProd = (p: any) => p.isArchived || (archivedCatId && p.categoryId === archivedCatId);
@@ -195,7 +202,7 @@ export default function Products() {
 
     const init = async () => {
       try {
-        await fetchProducts(true);
+        await fetchProducts(false);
       } finally {
         if (mounted) {
           setLoading(false);

@@ -91,7 +91,7 @@ export default function SearchPage() {
          if (mounted) setLoading(false);
       }
     };
-    fetchProducts(true);
+    fetchProducts(false);
 
     // Instant local BroadcastChannel synchronization across tabs
     let fetchTimeout: any = null;

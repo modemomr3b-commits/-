@@ -18,9 +18,9 @@ export default function AdminDashboard() {
     let mounted = true;
     const fetchDashboard = async () => {
       try {
-        const [usersRes, productsRes, categoriesRes, ordersRes, logsRes] = await Promise.all([
+        const [usersRes, productsCount, categoriesRes, ordersRes, logsRes] = await Promise.all([
           api.getUsers(),
-          api.getProducts(),
+          api.getProductsCount(),
           api.getCategories(),
           api.getOrders(),
           api.getLogs()
@@ -31,7 +31,7 @@ export default function AdminDashboard() {
           setStats({
             users: usersRes.length,
             onlineUsers: onlineCount,
-            products: productsRes.length,
+            products: productsCount,
             categories: categoriesRes.length,
             orders: realOrders.length
           });

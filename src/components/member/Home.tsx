@@ -75,21 +75,11 @@ export default function Home() {
         setShowcaseSettings(settings);
       }
 
-      // Fetch products asynchronously in the background so it doesn't block the Home page from loading quickly
-      api.getProductsDirect(forceNetwork).then(prods => {
-        if (prods && Array.isArray(prods)) {
-          const scCount = prods.filter((p: any) => p.isShowcase && !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, cats)).length;
-          setShowcaseCount(scCount);
-  
-          const counts: Record<string, number> = {};
-          prods.forEach((p: any) => {
-            if (!p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, cats)) {
-              if (p.categoryId) {
-                counts[p.categoryId] = (counts[p.categoryId] || 0) + 1;
-              }
-            }
-          });
-          setProductsCountMap(counts);
+      // Fetch lightweight counts projection instead of downloading all store products
+      api.getCategoryProductCounts(forceNetwork).then(result => {
+        if (result) {
+          setShowcaseCount(result.showcaseCount || 0);
+          setProductsCountMap(result.counts || {});
         }
       }).catch(console.error);
 
@@ -105,8 +95,8 @@ export default function Home() {
     // Instant local cache check to prevent loading spinners
     Promise.all([
       localCache.get<any[]>('all_categories'),
-      localCache.get<any[]>('all_products')
-    ]).then(([cachedCats, cachedProds]) => {
+      localCache.get<any>('category_product_counts')
+    ]).then(([cachedCats, cachedCounts]) => {
       if (!mounted) return;
       if (cachedCats && cachedCats.length > 0) {
         const uniqueCachedCats = deduplicateCategories(cachedCats);
@@ -117,22 +107,15 @@ export default function Home() {
         );
         setLoading(false);
       }
-      if (cachedProds && cachedProds.length > 0 && cachedCats) {
-        const counts: Record<string, number> = {};
-        cachedProds.forEach((p: any) => {
-          if (!p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, cachedCats)) {
-            if (p.categoryId) {
-              counts[p.categoryId] = (counts[p.categoryId] || 0) + 1;
-            }
-          }
-        });
-        setProductsCountMap(counts);
+      if (cachedCounts && cachedCounts.counts) {
+        setProductsCountMap(cachedCounts.counts);
+        setShowcaseCount(cachedCounts.showcaseCount || 0);
       }
     });
 
     const initialFetch = async () => {
       try {
-        await fetchCats(true);
+        await fetchCats(false);
       } finally {
         if (mounted) setLoading(false);
       }
