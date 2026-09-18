@@ -22,7 +22,7 @@ import {
 import { Link, useNavigate } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
 import { useState, useEffect } from "react";
-import { api } from "../../api";
+import { api, deduplicateCategories } from "../../api";
 import { supabase } from "../../supabase";
 import { useStore } from "../../store";
 import Animated3DLogo from "../ui/Animated3DLogo";
@@ -63,8 +63,9 @@ export default function Home() {
       ]);
       
       if (cats && Array.isArray(cats)) {
+        const uniqueCats = deduplicateCategories(cats);
         setCategories(
-          cats
+          uniqueCats
             .filter((c) => !c.isHidden && !c.parentId && !isRestrictedCategoryName(c.name))
             .sort((a: any, b: any) => (a.order || 0) - (b.order || 0)),
         );
@@ -108,8 +109,9 @@ export default function Home() {
     ]).then(([cachedCats, cachedProds]) => {
       if (!mounted) return;
       if (cachedCats && cachedCats.length > 0) {
+        const uniqueCachedCats = deduplicateCategories(cachedCats);
         setCategories(
-          cachedCats
+          uniqueCachedCats
             .filter((c) => !c.isHidden && !c.parentId && !isRestrictedCategoryName(c.name))
             .sort((a: any, b: any) => (a.order || 0) - (b.order || 0)),
         );

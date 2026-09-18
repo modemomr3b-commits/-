@@ -27,6 +27,35 @@ const deduplicateItems = <T extends { id?: any; [key: string]: any }>(items: T[]
   return unique;
 };
 
+// Helper to deduplicate categories by ID as well as normalized name & parentId to guarantee no duplicate categories appear
+export const deduplicateCategories = (cats: any[]): any[] => {
+  if (!cats || !Array.isArray(cats)) return [];
+  const seenIds = new Set<string>();
+  const seenNameKeys = new Set<string>();
+  const unique: any[] = [];
+  
+  for (let i = 0; i < cats.length; i++) {
+    const cat = cats[i];
+    if (!cat || cat.isDeleted) continue;
+    const id = cat.id !== undefined && cat.id !== null ? String(cat.id) : null;
+    if (id && seenIds.has(id)) continue;
+    
+    // Group by parentId + normalized trimmed name
+    const parentKey = cat.parentId ? String(cat.parentId) : 'root';
+    const normName = (cat.name || '').trim().replace(/\s+/g, ' ');
+    const compositeKey = `${parentKey}___${normName}`;
+    
+    if (normName && seenNameKeys.has(compositeKey)) {
+      continue;
+    }
+    
+    if (id) seenIds.add(id);
+    if (normName) seenNameKeys.add(compositeKey);
+    unique.push(cat);
+  }
+  return unique;
+};
+
 const sanitizeOrderProducts = (raw: any[]) => {
   if (!Array.isArray(raw)) return [];
   return raw.map((item: any) => {
@@ -360,22 +389,23 @@ export const api = {
       error = fb.error;
     }
     if (error || !data) return null;
+    const rawProd = data as any;
     return {
-      ...data,
-      packaging: data.packaging !== undefined && data.packaging !== null && data.packaging !== '' && data.packaging !== '---'
-        ? String(data.packaging)
-        : (data.size?.packaging || (data.piecesCount ? String(data.piecesCount) : (data.size?.piecesCount ? String(data.size.piecesCount) : ''))),
-      piecesCount: data.piecesCount !== undefined && data.piecesCount !== null
-        ? Number(data.piecesCount)
-        : (data.size?.piecesCount !== undefined ? Number(data.size.piecesCount) : undefined),
-      isHidden: data.size?.isHidden !== undefined ? Boolean(data.size.isHidden) : Boolean(data.isHidden),
-      isLocked: data.size?.isLocked !== undefined ? Boolean(data.size.isLocked) : Boolean(data.isLocked),
-      isArchived: data.isArchived !== undefined ? Boolean(data.isArchived) : (data.size?.isArchived !== undefined ? Boolean(data.size.isArchived) : false),
-      isDeleted: Boolean(data.isDeleted),
-      isShowcase: data.size?.isShowcase !== undefined ? Boolean(data.size.isShowcase) : Boolean(data.isShowcase),
-      showcaseCategory: data.size?.showcaseCategory || data.showcaseCategory || '',
-      oldPriceInfo: data.size?.oldPriceInfo || undefined,
-      forceStandardCrush: data.size?.forceStandardCrush ?? true
+      ...rawProd,
+      packaging: rawProd.packaging !== undefined && rawProd.packaging !== null && rawProd.packaging !== '' && rawProd.packaging !== '---'
+        ? String(rawProd.packaging)
+        : (rawProd.size?.packaging || (rawProd.piecesCount ? String(rawProd.piecesCount) : (rawProd.size?.piecesCount ? String(rawProd.size.piecesCount) : ''))),
+      piecesCount: rawProd.piecesCount !== undefined && rawProd.piecesCount !== null
+        ? Number(rawProd.piecesCount)
+        : (rawProd.size?.piecesCount !== undefined ? Number(rawProd.size.piecesCount) : undefined),
+      isHidden: rawProd.size?.isHidden !== undefined ? Boolean(rawProd.size.isHidden) : Boolean(rawProd.isHidden),
+      isLocked: rawProd.size?.isLocked !== undefined ? Boolean(rawProd.size.isLocked) : Boolean(rawProd.isLocked),
+      isArchived: rawProd.isArchived !== undefined ? Boolean(rawProd.isArchived) : (rawProd.size?.isArchived !== undefined ? Boolean(rawProd.size.isArchived) : false),
+      isDeleted: Boolean(rawProd.isDeleted),
+      isShowcase: rawProd.size?.isShowcase !== undefined ? Boolean(rawProd.size.isShowcase) : Boolean(rawProd.isShowcase),
+      showcaseCategory: rawProd.size?.showcaseCategory || rawProd.showcaseCategory || '',
+      oldPriceInfo: rawProd.size?.oldPriceInfo || undefined,
+      forceStandardCrush: rawProd.size?.forceStandardCrush ?? true
     };
   },
 
@@ -1012,7 +1042,7 @@ export const api = {
   getCategories: async (forceNetwork = false): Promise<any[]> => {
     const cacheKey = 'all_categories';
     if (!forceNetwork && memCache[cacheKey]?.data?.length && (Date.now() - (memCache[cacheKey].timestamp || 0) < 30000)) {
-      return deduplicateItems(memCache[cacheKey].data);
+      return deduplicateCategories(memCache[cacheKey].data);
     }
 
     if (inFlightCategoriesPromise) {
@@ -1023,7 +1053,7 @@ export const api = {
       try {
         const fresh = await getData('categories', forceNetwork);
         if (fresh && fresh.length > 0) {
-          const cleanCats = deduplicateItems(fresh);
+          const cleanCats = deduplicateCategories(fresh);
           memCache[cacheKey] = { data: cleanCats, timestamp: Date.now() };
           localCache.set(cacheKey, cleanCats).catch(() => {});
           return cleanCats;
@@ -1035,13 +1065,13 @@ export const api = {
       // Fallback to cache if network fails
       const localCats = await localCache.get<any[]>(cacheKey, Infinity);
       if (localCats && localCats.length > 0) {
-        const cleanCats = deduplicateItems(localCats);
+        const cleanCats = deduplicateCategories(localCats);
         memCache[cacheKey] = { data: cleanCats, timestamp: Date.now() };
         return cleanCats;
       }
 
       if (memCache[cacheKey]?.data?.length) {
-        return deduplicateItems(memCache[cacheKey].data);
+        return deduplicateCategories(memCache[cacheKey].data);
       }
 
       return [];
