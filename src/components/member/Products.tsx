@@ -1,6 +1,6 @@
 import { formatDateTime, formatDate } from '../../utils/time';
 import { useParams, Link, useNavigate } from "react-router";
-import { ChevronRight, Filter, Download, ShoppingCart, Layers, Share2, CheckSquare, Square, History, Loader2, Search, Lock, LayoutGrid, Columns, Check, ZoomIn, ZoomOut } from "lucide-react";
+import { ChevronRight, Filter, Download, ShoppingCart, Layers, Share2, CheckSquare, Square, History, Loader2, Search, Lock, LayoutGrid, Columns, Check, ZoomIn, ZoomOut, RefreshCw } from "lucide-react";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { compressImage } from '../../utils/compressImage';
 import { api } from "../../api";
@@ -211,6 +211,7 @@ export default function Products() {
     const init = async () => {
       try {
         await fetchProducts(false);
+        fetchProducts(true).catch(() => {});
       } finally {
         if (mounted) {
           setLoading(false);
@@ -647,6 +648,17 @@ export default function Products() {
             </div>
           </div>
           <div className="flex gap-2">
+            <button 
+              onClick={async () => {
+                showToast("جاري تحديث المنتجات...", "success");
+                await fetchProducts(true);
+                showToast("تم تحديث المنتجات بنجاح", "success");
+              }}
+              className="p-2 bg-white/5 rounded-lg border border-white/10 text-white hover:bg-white/10 transition-colors"
+              title="تحديث المنتجات"
+            >
+              <RefreshCw size={18} />
+            </button>
             <button 
               onClick={() => setIsFilterModalOpen(true)}
               className="p-2 bg-white/5 rounded-lg border border-white/10 text-white hover:bg-white/10 transition-colors"
