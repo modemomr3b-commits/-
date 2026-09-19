@@ -668,8 +668,12 @@ export default function Products() {
               value={searchInput}
               onChange={(e) => {
                 setSearchInput(e.target.value);
-                setSearchTerm(e.target.value);
-                setCurrentPage(1);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  setSearchTerm(searchInput);
+                  setCurrentPage(1);
+                }
               }}
             />
             {searchInput && (
@@ -681,7 +685,16 @@ export default function Products() {
               </button>
             )}
           </div>
-
+          <button
+            onClick={() => {
+              setSearchTerm(searchInput);
+              setCurrentPage(1);
+            }}
+            className="px-4 py-2.5 bg-brq-gold text-black rounded-lg font-bold text-sm hover:bg-brq-gold/90 transition-colors shrink-0 flex items-center gap-1.5"
+          >
+            <Search size={16} />
+            <span>بحث</span>
+          </button>
         </div>
 
         {subCategories.length > 0 && (
@@ -950,16 +963,26 @@ export default function Products() {
         </div>
       ) : filteredProducts.length === 0 ? (
         <div className="flex-1 flex flex-col justify-center items-center text-white/50 p-8 text-center h-64">
-          <div className="text-4xl text-brq-gold mb-4 opacity-50">📦</div>
-          <p className="text-lg font-bold text-white mb-2">لا توجد منتجات</p>
+          <div className="text-4xl text-brq-gold mb-4 opacity-50">🔍</div>
+          <p className="text-lg font-bold text-white mb-2">
+            {searchTerm ? 'لم يتم العثور على منتج مطابق' : 'لا توجد منتجات'}
+          </p>
           <p className="text-sm">
-            هذا القسم لا يحتوي على منتجات حالياً. سيتم إضافة منتجات قريباً.
+            {searchTerm ? `لا توجد نتائج مطابقة لـ "${searchTerm}"` : 'هذا القسم لا يحتوي على منتجات حالياً. سيتم إضافة منتجات قريباً.'}
           </p>
           <button
-            onClick={() => navigate("/")}
+            onClick={() => {
+              if (searchTerm) {
+                setSearchInput('');
+                setSearchTerm('');
+                setCurrentPage(1);
+              } else {
+                navigate("/");
+              }
+            }}
             className="mt-6 px-6 py-2 bg-brq-gold text-black rounded-lg font-bold"
           >
-            العودة للرئيسية
+            {searchTerm ? 'إعادة تعيين البحث' : 'العودة للرئيسية'}
           </button>
         </div>
       ) : (
