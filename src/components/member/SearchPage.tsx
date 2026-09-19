@@ -1,24 +1,19 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Search, Lock, SlidersHorizontal, Archive, Download, Loader2, CheckCircle2, AlertCircle, ShoppingCart } from 'lucide-react';
+import { Search, Lock, SlidersHorizontal, Archive, Download, Loader2, ShoppingCart } from 'lucide-react';
 import { Link } from 'react-router';
-import { motion, AnimatePresence } from 'motion/react';
 import { api } from '../../api';
 import { supabase } from '../../supabase';
-import { shuffleProductsForUser } from '../../utils/shuffle';
-import { filterProductsBySearch, isProductRestrictedFromSearch, isArchivedCategoryName } from '../../utils/search';
-import { localCache } from '../../utils/localCache';
+import { isProductRestrictedFromSearch, isArchivedCategoryName } from '../../utils/search';
 import { Product } from '../../types';
 import OptimizedImage from '../OptimizedImage';
 import { useStore } from '../../store';
-import { isWafaaUser } from '../../utils/wafaaHelper';
 
 export default function SearchPage() {
   const { user, showToast, cart, addToCart, updateQuantity, removeFromCart } = useStore();
   const [products, setProducts] = useState<Product[]>([]);
   const [allCategories, setAllCategories] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
-  const [expandedProducts, setExpandedProducts] = useState<Record<string, boolean>>({});
   
   const [query, setQuery] = useState('');
   const [searchInput, setSearchInput] = useState('');
@@ -27,182 +22,123 @@ export default function SearchPage() {
   
   const [searchArchived, setSearchArchived] = useState(false);
 
+  // Load categories on mount
   useEffect(() => {
     let mounted = true;
-    
-    // Restore search state if returning
+    api.getCategories().then(cats => {
+      if (mounted && cats) {
+        setAllCategories(cats);
+      }
+    }).catch(e => console.error(e));
+
+    // Restore search state if returning from product detail
     if (sessionStorage.getItem('return_search') === 'true') {
       const savedQuery = sessionStorage.getItem('return_search_query');
+      const savedArchived = sessionStorage.getItem('return_search_archived') === 'true';
+      const savedPage = sessionStorage.getItem('return_search_page');
+      
       if (savedQuery) {
         setSearchInput(savedQuery);
         setQuery(savedQuery);
+        if (savedPage) setCurrentPage(parseInt(savedPage, 10));
+        setSearchArchived(savedArchived);
+        performDatabaseSearch(savedQuery, savedArchived);
       }
-      setSearchArchived(sessionStorage.getItem('return_search_archived') === 'true');
+      
+      const savedScroll = sessionStorage.getItem('return_search_scroll');
+      if (savedScroll) {
+        const targetY = parseInt(savedScroll, 10);
+        setTimeout(() => {
+          window.scrollTo(0, targetY);
+        }, 150);
+      }
+      
+      sessionStorage.removeItem('return_search');
+      sessionStorage.removeItem('return_search_page');
+      sessionStorage.removeItem('return_search_scroll');
+      sessionStorage.removeItem('return_search_query');
+      sessionStorage.removeItem('return_search_archived');
     }
-    
-    // Instant local cache restoration
-    Promise.all([
-      localCache.get<any[]>('all_categories'),
-      localCache.get<any[]>('all_products')
-    ]).then(([cachedCats, cachedProds]) => {
-      if (!mounted) return;
-      if (cachedCats && cachedCats.length > 0) {
-        setAllCategories(cachedCats);
-      }
-      if (cachedProds && cachedProds.length > 0) {
-        const isStaff = user?.role === 'admin' || user?.role === 'sales';
-        const archivedCatId = cachedCats?.find(c => isArchivedCategoryName(c.name))?.id;
-        const visibleProducts = isStaff
-          ? cachedProds
-          : cachedProds.filter(p => 
-              !p.isHidden && 
-              !p.isDeleted && 
-              !p.isArchived &&
-              (archivedCatId ? p.categoryId !== archivedCatId : true) &&
-              !isProductRestrictedFromSearch(p, cachedCats || [])
-            );
-        setProducts(shuffleProductsForUser(visibleProducts));
-        setLoading(false);
-      }
-    });
 
-    const fetchProducts = async () => {
-      try {
-         const cats = await api.getCategories();
-         const allProducts = await api.getProducts();
-         if (mounted) {
-            setAllCategories(cats);
-            const isStaff = user?.role === 'admin' || user?.role === 'sales';
-            const archivedCatId = cats.find(c => isArchivedCategoryName(c.name))?.id;
-            const visibleProducts = isStaff
-              ? allProducts
-              : allProducts.filter(p => 
-                  !p.isHidden && 
-                  !p.isDeleted && 
-                  !p.isArchived &&
-                  (archivedCatId ? p.categoryId !== archivedCatId : true) &&
-                  !isProductRestrictedFromSearch(p, cats)
-                );
-            setProducts(shuffleProductsForUser(visibleProducts));
-         }
-      } catch (e) {
-         console.error(e);
-      } finally {
-         if (mounted) setLoading(false);
-      }
-    };
-    fetchProducts();
-
-    // Instant local BroadcastChannel synchronization across tabs
-    let fetchTimeout: any = null;
-    const scheduleFetch = (delay = 1200) => {
-      clearTimeout(fetchTimeout);
-      fetchTimeout = setTimeout(() => {
-        if (mounted) fetchProducts();
-      }, delay);
-    };
-
-    let bc: any = null;
-    try {
-      if (typeof window !== 'undefined' && (window as any).BroadcastChannel) {
-        bc = new (window as any).BroadcastChannel('brq_products_sync');
-        bc.onmessage = () => {
-          scheduleFetch(400);
-        };
-      }
-    } catch {}
-
-    const channel = supabase
-      .channel('search_products_sync')
-      .on('broadcast', { event: 'bulk_updated' }, () => {
-        scheduleFetch(600);
-      })
-      .on('broadcast', { event: 'product_changed' }, () => {
-        scheduleFetch(600);
-      })
-      .on('broadcast', { event: 'product_created' }, () => {
-        scheduleFetch(600);
-      })
-      .on('broadcast', { event: 'bulk_deleted' }, () => {
-        scheduleFetch(600);
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
-        scheduleFetch(1200);
-      })
-      .subscribe();
-
-    return () => { 
-      mounted = false; 
-      clearTimeout(fetchTimeout);
-      supabase.removeChannel(channel);
-      if (bc) {
-        try { bc.close(); } catch {}
-      }
+    return () => {
+      mounted = false;
     };
   }, []);
 
-  // Removed debounce hook
+  const performDatabaseSearch = async (searchTerm: string, archivedMode: boolean) => {
+    const term = searchTerm.trim();
+    if (!term) {
+      setProducts([]);
+      return;
+    }
 
-  useEffect(() => {
-    if (!loading && products.length > 0) {
-      if (sessionStorage.getItem('return_search') === 'true') {
-        const savedPage = sessionStorage.getItem('return_search_page');
-        if (savedPage) setCurrentPage(parseInt(savedPage, 10));
-        
-        const savedScroll = sessionStorage.getItem('return_search_scroll');
-        if (savedScroll) {
-          const targetY = parseInt(savedScroll, 10);
-          window.scrollTo(0, targetY);
-          requestAnimationFrame(() => {
-            window.scrollTo(0, targetY);
-          });
-          const timer = setTimeout(() => {
-            window.scrollTo(0, targetY);
-          }, 150);
-          
-          sessionStorage.removeItem('return_search');
-          sessionStorage.removeItem('return_search_page');
-          sessionStorage.removeItem('return_search_scroll');
-          sessionStorage.removeItem('return_search_query');
-          sessionStorage.removeItem('return_search_archived');
-          
-          return () => clearTimeout(timer);
-        }
+    setLoading(true);
+    try {
+      let cats = allCategories;
+      if (cats.length === 0) {
+        cats = await api.getCategories();
+        setAllCategories(cats);
       }
-    }
-  }, [loading, products.length]);
 
-  const filteredProductsAll = useMemo(() => {
-    if (!query) return [];
-    
-    let archivedCat = allCategories.find(c => isArchivedCategoryName(c.name));
-    const archivedCatId = archivedCat?.id;
+      // Query database directly bypassing local cache
+      let queryBuilder = supabase.from('products').select('*');
+      
+      // Match by productCode, name, modelNumber, or barcode
+      queryBuilder = queryBuilder.or(`productCode.ilike.%${term}%,name.ilike.%${term}%,modelNumber.ilike.%${term}%`);
 
-    let result = products;
-    if (searchArchived) {
-      result = result.filter(p => archivedCatId && p.categoryId === archivedCatId);
-    } else {
-      result = result.filter(p => (!archivedCatId || p.categoryId !== archivedCatId) && !p.isHidden && !p.isLocked);
-    }
-    
-    // Always exclude products in restricted categories ("المواد المقفلة من قبل الادمن", "الموديلات متابعة")
-    if (searchArchived) {
-      result = result.filter(p => {
-        if (archivedCatId && p.categoryId === archivedCatId) return true;
-        return !isProductRestrictedFromSearch(p, allCategories);
-      });
-    } else {
-      result = result.filter(p => !isProductRestrictedFromSearch(p, allCategories));
-    }
-    
-    return filterProductsBySearch(result, query, allCategories, { includeRestricted: searchArchived });
-  }, [products, query, searchArchived, allCategories]);
+      const { data, error } = await queryBuilder;
+      if (error) throw error;
 
-  const totalPages = Math.ceil(filteredProductsAll.length / itemsPerPage);
+      let rawProducts = data || [];
+
+      let archivedCat = cats.find(c => isArchivedCategoryName(c.name));
+      const archivedCatId = archivedCat?.id;
+
+      if (archivedMode) {
+        // User selected المواد النافذة
+        rawProducts = rawProducts.filter(p => (archivedCatId && p.categoryId === archivedCatId) || p.isArchived);
+      } else {
+        // Active products only
+        rawProducts = rawProducts.filter(p => {
+          if (p.isDeleted) return false;
+          if (p.isArchived) return false;
+          if (p.isHidden) return false;
+          if (p.isLocked) return false;
+          if (archivedCatId && p.categoryId === archivedCatId) return false;
+          if (isProductRestrictedFromSearch(p, cats)) return false;
+          return true;
+        });
+      }
+
+      setProducts(rawProducts);
+      setCurrentPage(1);
+    } catch (err) {
+      console.error("Database search error:", err);
+      showToast("حدث خطأ أثناء البحث في قاعدة البيانات", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSearchClick = () => {
+    const term = searchInput.trim();
+    if (!term) {
+      showToast("يرجى إدخال الكود أو الآتم نمبر بالكامل للبحث", "error");
+      return;
+    }
+    setQuery(term);
+    performDatabaseSearch(term, searchArchived);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSearchClick();
+    }
+  };
+
+  const totalPages = Math.ceil(products.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const filteredProducts = useMemo(() => filteredProductsAll.slice(startIndex, startIndex + itemsPerPage), [filteredProductsAll, startIndex, itemsPerPage]);
-
-
+  const paginatedProducts = useMemo(() => products.slice(startIndex, startIndex + itemsPerPage), [products, startIndex, itemsPerPage]);
 
   const handleDownloadSingle = async (e: React.MouseEvent, p: Product) => {
     e.preventDefault();
@@ -239,7 +175,7 @@ export default function SearchPage() {
 
   return (
     <div className="p-4 flex flex-col min-h-[calc(100vh-60px)]">
-      <h1 className="text-xl font-bold mb-6 text-white">البحث الذكي</h1>
+      <h1 className="text-xl font-bold mb-6 text-white">البحث الذكي المباشر</h1>
       
       <div className="relative mb-6 shrink-0 flex gap-2">
         <div className="relative flex-1">
@@ -249,9 +185,10 @@ export default function SearchPage() {
           <input 
             type="text" 
             value={searchInput}
-            onChange={e => { setSearchInput(e.target.value); setQuery(e.target.value); setCurrentPage(1); }}
+            onChange={e => setSearchInput(e.target.value)}
+            onKeyDown={handleKeyDown}
             className="w-full glass-card pl-12 pr-10 py-3.5 rounded-xl text-sm placeholder-white/40 focus:outline-none focus:border-brq-gold focus:ring-1 focus:ring-brq-gold transition-all text-white"
-            placeholder="ابحث عن منتج، موديل، كود..."
+            placeholder="اكتب الكود الكامل أو الآتم نمبر واضغط بحث..."
             autoFocus
           />
           <button className="absolute inset-y-0 left-0 flex items-center pl-3">
@@ -259,11 +196,8 @@ export default function SearchPage() {
           </button>
         </div>
         <button
-          onClick={() => {
-            setQuery(searchInput);
-            setCurrentPage(1);
-          }}
-          className="bg-brq-gold text-black px-4 py-3.5 rounded-xl font-bold shadow-md hover:bg-yellow-400 active:scale-95 transition-all whitespace-nowrap text-sm flex items-center gap-1.5"
+          onClick={handleSearchClick}
+          className="bg-brq-gold text-black px-5 py-3.5 rounded-xl font-bold shadow-md hover:bg-yellow-400 active:scale-95 transition-all whitespace-nowrap text-sm flex items-center gap-1.5 cursor-pointer"
         >
           <Search size={16} />
           بحث عن المنتج
@@ -274,21 +208,25 @@ export default function SearchPage() {
          {!query ? (
            <>
              <div>
-                <h2 className="text-sm font-bold text-white/70 mb-3">البحث المتقدم</h2>
+                <h2 className="text-sm font-bold text-white/70 mb-3">خيارات البحث المتقدم</h2>
                 <div className="grid grid-cols-2 gap-3">
                    <button 
-                     onClick={() => { setSearchArchived(!searchArchived); setCurrentPage(1); }}
-                     className={`p-4 rounded-xl flex flex-col items-center justify-center gap-2 border transition-colors ${searchArchived ? 'bg-brq-gold/10 border-brq-gold' : 'glass-panel border-white/5 hover:border-brq-gold/50'}`}
+                     onClick={() => {
+                       const nextMode = !searchArchived;
+                       setSearchArchived(nextMode);
+                       if (query) performDatabaseSearch(query, nextMode);
+                     }}
+                     className={`p-4 rounded-xl flex flex-col items-center justify-center gap-2 border transition-colors cursor-pointer ${searchArchived ? 'bg-brq-gold/10 border-brq-gold' : 'glass-panel border-white/5 hover:border-brq-gold/50'}`}
                    >
                       <Archive className={searchArchived ? 'text-brq-gold mb-1' : 'text-white/50 mb-1'} />
                       <span className="text-sm font-bold text-white">المواد النافذة</span>
-                      <span className="text-[10px] text-white/50">أرشيف المنتجات القديمة</span>
+                      <span className="text-[10px] text-white/50">{searchArchived ? 'مفعل (البحث في النافذة)' : 'اختر للبحث في المواد النافذة'}</span>
                    </button>
-                   <button className="glass-panel p-4 rounded-xl flex flex-col items-center justify-center gap-2 border border-white/5 hover:border-brq-gold/50 transition-colors">
-                      <span className="text-xl mb-1">🔥</span>
-                      <span className="text-sm font-bold text-white">تحطيم الأسعار</span>
-                      <span className="text-[10px] text-white/50">تخفيضات وعروض</span>
-                   </button>
+                   <div className="glass-panel p-4 rounded-xl flex flex-col items-center justify-center gap-2 border border-white/5">
+                      <span className="text-xl mb-1">⚡</span>
+                      <span className="text-sm font-bold text-white">بحث مباشر من السيرفر</span>
+                      <span className="text-[10px] text-white/50">أدخل الكود واضغط بحث</span>
+                   </div>
                 </div>
              </div>
            </>
@@ -296,33 +234,44 @@ export default function SearchPage() {
            <div className="space-y-4">
              <div className="flex justify-between items-center mb-2">
                <h2 className="text-sm font-bold text-white/70">
-                 نتائج البحث {searchArchived ? '(المواد النافذة)' : '(المنتجات الفعالة)'}
+                 نتائج البحث عن "{query}" {searchArchived ? '(المواد النافذة)' : '(المنتجات الفعالة)'}
                </h2>
                <button 
-                 onClick={() => { setSearchArchived(!searchArchived); setCurrentPage(1); }}
-                 className={`text-xs px-2 py-1 rounded border transition-colors ${searchArchived ? 'bg-brq-gold text-black border-brq-gold font-bold' : 'bg-transparent text-white/50 border-white/10 hover:text-white'}`}
+                 onClick={() => {
+                   const nextMode = !searchArchived;
+                   setSearchArchived(nextMode);
+                   performDatabaseSearch(query, nextMode);
+                 }}
+                 className={`text-xs px-3 py-1.5 rounded-lg border transition-colors cursor-pointer ${searchArchived ? 'bg-brq-gold text-black border-brq-gold font-bold' : 'bg-transparent text-white/50 border-white/10 hover:text-white'}`}
                >
                  {searchArchived ? 'الرجوع للمنتجات الفعالة' : 'البحث في المواد النافذة 📦'}
                </button>
              </div>
              
              {loading ? (
-               <div className="flex justify-center py-12"><div className="w-8 h-8 border-4 border-brq-gold border-t-transparent rounded-full animate-spin"></div></div>
-             ) : filteredProducts.length === 0 ? (
-               <div className="text-center py-12 space-y-4">
-                 <p className="text-white/50">لا توجد نتائج تطابق بحثك {searchArchived ? 'في المواد النافذة' : 'في المنتجات الفعالة'}.</p>
+               <div className="flex flex-col items-center justify-center py-16 gap-3">
+                 <div className="w-10 h-10 border-4 border-brq-gold border-t-transparent rounded-full animate-spin"></div>
+                 <p className="text-sm text-white/60">جاري البحث في قاعدة البيانات...</p>
+               </div>
+             ) : paginatedProducts.length === 0 ? (
+               <div className="text-center py-12 space-y-4 glass-panel p-8 rounded-2xl border border-white/5">
+                 <p className="text-white/70">لا توجد نتائج تطابق "{query}" {searchArchived ? 'في المواد النافذة' : 'في المنتجات الفعالة'}.</p>
+                 <p className="text-xs text-white/40">تأكد من كتابة الكود كاملاً أو رقم الآتم بشكل صحيح.</p>
                  {!searchArchived && (
                    <button
-                     onClick={() => { setSearchArchived(true); setCurrentPage(1); }}
-                     className="px-5 py-2.5 bg-brq-gold/20 text-brq-gold border border-brq-gold/40 rounded-xl text-sm font-bold hover:bg-brq-gold hover:text-black transition-all"
+                     onClick={() => {
+                       setSearchArchived(true);
+                       performDatabaseSearch(query, true);
+                     }}
+                     className="px-5 py-2.5 bg-brq-gold/20 text-brq-gold border border-brq-gold/40 rounded-xl text-sm font-bold hover:bg-brq-gold hover:text-black transition-all cursor-pointer"
                    >
-                     🔍 البحث عن "{query}" في المواد النافذة
+                     📦 البحث عن "{query}" في المواد النافذة
                    </button>
                  )}
                </div>
              ) : (
                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                 {filteredProducts.map(p => (
+                 {paginatedProducts.map(p => (
                     <Link to={`/product/${p.id}`} state={{ product: p }} key={`${p.id}-srch`} className="rounded-2xl overflow-hidden flex flex-col border-2 border-yellow-500/50 relative group hover:border-yellow-400 transition-all shadow-lg hover:shadow-[0_8px_30px_rgba(234,179,8,0.28)] bg-gradient-to-b from-[#2B2304] to-[#141002]"
                           onClick={() => {
                             sessionStorage.setItem('return_search', 'true');
@@ -343,8 +292,8 @@ export default function SearchPage() {
                            <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center p-2 z-10 pointer-events-none gap-1">
                              {(p.isArchived || p.categoryId === 'be0a70a8-f9c6-430d-8416-11745f26576f') && (
                                <span className="text-red-500 font-bold text-xl drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] tracking-wide bg-black/40 px-3 py-1 rounded-lg border border-red-500/30">
-                                منتج نافذ
-                              </span>
+                                 منتج نافذ
+                               </span>
                              )}
                              {p.isLocked && (
                                <span className="bg-amber-600/90 text-white px-2.5 py-1 rounded-full text-[11px] font-bold border border-amber-400 backdrop-blur-md shadow-md">
@@ -359,58 +308,10 @@ export default function SearchPage() {
                            </div>
                          )}
                          {(p.finalImageUrl || p.imageUrl) && (
-                           <div className="absolute top-2 left-2 flex flex-col gap-1 z-10">
-                              {user?.role === 'admin' && (
-                                <button
-                                  onClick={async (e) => {
-                                     e.preventDefault(); e.stopPropagation();
-                                     showToast("جاري القفل...", "loading");
-                                     try {
-                                       await api.updateProduct(p.id!, { isHidden: true });
-                                       setProducts(prev => prev.filter(x => x.id !== p.id));
-                                       showToast("تم قفل المنتج بنجاح", "success");
-                                     } catch (err) {
-                                       console.error(err);
-                                       showToast("حدث خطأ", "error");
-                                     }
-                                  }}
-                                  className="w-8 h-8 rounded-full bg-black/50 backdrop-blur-md border border-white/10 flex items-center justify-center text-white hover:bg-red-500 hover:text-white transition-colors shadow-lg"
-                                  title="قفل المنتج"
-                                >
-                                  <Lock size={16} />
-                                </button>
-                              )}
-                           </div>
-                         )}
-                         {(p.finalImageUrl || p.imageUrl) && (
-                           <div className="absolute top-2 left-2 flex flex-col gap-1 z-10">
-                              {user?.role === 'admin' && (
-                                <button
-                                  onClick={async (e) => {
-                                     e.preventDefault(); e.stopPropagation();
-                                     showToast("جاري القفل...", "loading");
-                                     try {
-                                       await api.updateProduct(p.id!, { isHidden: true });
-                                       setProducts(prev => prev.filter(x => x.id !== p.id));
-                                       showToast("تم قفل المنتج بنجاح", "success");
-                                     } catch (err) {
-                                       console.error(err);
-                                       showToast("حدث خطأ", "error");
-                                     }
-                                  }}
-                                  className="w-8 h-8 rounded-full bg-black/50 backdrop-blur-md border border-white/10 flex items-center justify-center text-white hover:bg-red-500 hover:text-white transition-colors shadow-lg"
-                                  title="قفل المنتج"
-                                >
-                                  <Lock size={16} />
-                                </button>
-                              )}
-                           </div>
-                         )}
-                         {(p.finalImageUrl || p.imageUrl) && (
                            <button
                              onClick={(e) => handleDownloadSingle(e, p)}
                              disabled={downloadingId === p.id}
-                             className="absolute bottom-2 right-2 w-8 h-8 rounded-full bg-black/50 backdrop-blur-md border border-white/10 flex items-center justify-center text-white hover:bg-brq-gold hover:text-black hover:border-brq-gold transition-colors shadow-lg z-10"
+                             className="absolute bottom-2 right-2 w-8 h-8 rounded-full bg-black/50 backdrop-blur-md border border-white/10 flex items-center justify-center text-white hover:bg-brq-gold hover:text-black hover:border-brq-gold transition-colors shadow-lg z-10 cursor-pointer"
                              title="تحميل الصورة"
                            >
                              {downloadingId === p.id ? (
@@ -429,9 +330,6 @@ export default function SearchPage() {
                            <span className="text-xs sm:text-sm font-mono font-bold text-yellow-300 bg-yellow-400/20 px-2 py-0.5 rounded border border-yellow-400/30">{p.productCode}</span>
                            <div className="flex flex-col items-end">
                              <span className="font-bold text-yellow-300 text-sm font-mono">{Number(p.price).toLocaleString("en-US")} <span className="text-[10px] font-sans text-white/70">د.ع</span></span>
-                             {user?.role === 'admin' && p.dozenPriceUsd !== undefined && (
-                               <span className="font-bold text-brq-blue text-xs font-mono">${p.dozenPriceUsd}</span>
-                             )}
                            </div>
                          </div>
                          <div className="mt-2" onClick={(e) => e.preventDefault()}>
@@ -486,7 +384,7 @@ export default function SearchPage() {
                        setCurrentPage(pageNumber);
                        window.scrollTo({ top: 0, behavior: 'smooth' });
                      }}
-                     className={`w-12 h-12 flex items-center justify-center rounded-xl font-bold text-lg transition-all ${
+                     className={`w-12 h-12 flex items-center justify-center rounded-xl font-bold text-lg transition-all cursor-pointer ${
                        currentPage === pageNumber 
                          ? 'bg-brq-gold text-black scale-110 shadow-[0_0_15px_rgba(255,215,0,0.4)] border-2 border-yellow-300' 
                          : 'bg-brq-card border border-brq-border text-white hover:bg-white/10'
