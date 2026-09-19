@@ -55,6 +55,8 @@ export default function Profile() {
        }
     };
     fetchMyOrders();
+    const inv = setInterval(fetchMyOrders, 30000); // Check for order updates
+    return () => clearInterval(inv);
   }, [user?.uid, user?.id]);
 
   const handleLogout = () => {

@@ -99,10 +99,13 @@ export default function Login() {
         throw new Error(e.message || 'خطأ في الاتصال بالخادم');
       }
 
-      localStorage.setItem('brq_last_activity', Date.now().toString());
       setUser(finalUser);
-      // Immediately prefetch fresh data from DB on login with high speed
-      api.forceRefreshAll(true).catch(() => {});
+
+      // Force fetch latest database updates immediately upon login
+      try {
+        await api.forceRefreshAll();
+      } catch (e) {}
+
       navigate('/');
 
     } catch(err: any) {

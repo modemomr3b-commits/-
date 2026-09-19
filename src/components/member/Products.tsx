@@ -1,6 +1,6 @@
 import { formatDateTime, formatDate } from '../../utils/time';
 import { useParams, Link, useNavigate } from "react-router";
-import { ChevronRight, Filter, Download, ShoppingCart, Layers, Share2, CheckSquare, Square, History, Loader2, Search, Lock, LayoutGrid, Columns, Check, ZoomIn, ZoomOut, RefreshCw } from "lucide-react";
+import { ChevronRight, Filter, Download, ShoppingCart, Layers, Share2, CheckSquare, Square, History, Loader2, Search, Lock, LayoutGrid, Columns, Check, ZoomIn, ZoomOut } from "lucide-react";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { compressImage } from '../../utils/compressImage';
 import { api } from "../../api";
@@ -14,6 +14,7 @@ import { DownloadChoiceDialog } from "../shared/DownloadChoiceDialog";
 import { PriceHistoryViewer } from "./PriceHistoryViewer";
 import ImageViewer from "../ImageViewer";
 import { shuffleProductsForUser } from '../../utils/shuffle';
+import { localCache } from "../../utils/localCache";
 import { isWafaaUser } from "../../utils/wafaaHelper";
 import { useGridZoom } from '../../hooks/useGridZoom';
 import ZoomHUD from '../ui/ZoomHUD';
@@ -24,9 +25,7 @@ export default function Products() {
   const { categoryId } = useParams();
   const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
-  const [hasMore, setHasMore] = useState(true);
-  const [isFetchingNextPage, setIsFetchingNextPage] = useState(false);
-  const loadMoreRef = useRef<HTMLDivElement>(null);
+  const [allStoreProducts, setAllStoreProducts] = useState<Product[]>([]);
   
   // Initialize state from return storage if matching category
   const [searchInput, setSearchInput] = useState(() => {
@@ -46,8 +45,10 @@ export default function Products() {
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false);
   const isAndroid = /Android/i.test(navigator.userAgent || '');
   const maxShareLimit = isAndroid ? 10 : 100;
-
-  // Grid Column & Zoom management
+  const displayCountPerPage = 50;
+  const pageProductsAll = products;
+  
+  // Grid Column & Zoom management with Ctrl + Mouse Wheel support
   const {
     columns: gridColumns,
     setColumns: setGridColumns,
@@ -60,11 +61,11 @@ export default function Products() {
     canZoomIn,
     canZoomOut
   } = useGridZoom({
-    storageKey: 'brq_products_cols',
+    storageKey: 'brq_catalog_cols',
     minCols: 1,
     maxCols: 6
   });
-  
+
   const [isViewModeOpen, setIsViewModeOpen] = useState(false);
   const [subCategories, setSubCategories] = useState<any[]>([]);
   const [allCategories, setAllCategories] = useState<Category[]>([]);
@@ -99,32 +100,39 @@ export default function Products() {
     return 1;
   });
 
-  const fetchProducts = async (page: number, isNewSearch = false) => {
-    if (isNewSearch) {
-      setLoading(true);
-      setProducts([]);
-    } else {
-      setIsFetchingNextPage(true);
-    }
-
+  const fetchProducts = async (forceDirect = false, isRetry = false) => {
     try {
       const cats = await api.getCategories();
       setAllCategories(cats);
       
+      const allStore = forceDirect ? await api.getProductsDirect() : await api.getProducts();
+      
+      // Auto-retry if empty on the very first load to prevent showing "No products" prematurely
+      if (allStore.length === 0 && !isRetry) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        await fetchProducts(true, true);
+        return;
+      }
+
       const archivedCatId = cats.find((c: any) => isArchivedCategoryName(c.name))?.id;
-      const isSearchArchived = categoryId === archivedCatId;
+      const isArchivedProd = (p: any) => p.isArchived || (archivedCatId && p.categoryId === archivedCatId);
 
-      const pageSize = 50;
-      const result = await api.getProductsPaginated({
-        page,
-        pageSize,
-        categoryId: activeSub || categoryId || 'all',
-        searchTerm: searchTerm,
-        searchArchived: isSearchArchived,
-        isAdmin: false
-      });
-
+      const activeStore: Product[] = allStore.filter((p: any) => 
+        !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, cats) &&
+        (categoryId === archivedCatId ? isArchivedProd(p) : !isArchivedProd(p))
+      );
+      const shuffledStore = shuffleProductsForUser<Product>(activeStore);
+      setAllStoreProducts(shuffledStore);
+      
+      let fetchedProducts: Product[] = activeStore;
       if (categoryId) {
+        const childIds = cats.filter(c => c.parentId === categoryId).map(c => c.id);
+        fetchedProducts = activeStore.filter((p: any) => 
+          p.categoryId === categoryId || 
+          p.subcategoryId === categoryId || 
+          childIds.includes(p.categoryId) || 
+          (p.subcategoryId ? childIds.includes(p.subcategoryId) : false)
+        );
         const cat = cats.find((c: any) => c.id === categoryId);
         setCategoryName(cat ? cat.name : `القسم ${categoryId}`);
         const subs = cats
@@ -132,54 +140,78 @@ export default function Products() {
           .sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
         setSubCategories(subs);
       }
-
-      setProducts(prev => isNewSearch ? result.products : [...prev, ...result.products]);
-      setHasMore(result.hasMore);
-      setCurrentPage(page);
+      
+      fetchedProducts = shuffleProductsForUser<Product>(fetchedProducts);
+      setProducts(fetchedProducts);
     } catch (err) {
       console.error(err);
-    } finally {
-      setLoading(false);
-      setInitialLoading(false);
-      setIsFetchingNextPage(false);
     }
   };
-
-  const loadMore = () => {
-    if (!loading && !isFetchingNextPage && hasMore) {
-      fetchProducts(currentPage + 1);
-    }
-  };
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && hasMore && !loading && !isFetchingNextPage) {
-          loadMore();
-        }
-      },
-      { threshold: 0.1 }
-    );
-
-    if (loadMoreRef.current) {
-      observer.observe(loadMoreRef.current);
-    }
-
-    return () => observer.disconnect();
-  }, [hasMore, loading, isFetchingNextPage, currentPage]);
-
-  useEffect(() => {
-    fetchProducts(1, true);
-  }, [categoryId, activeSub, searchTerm]);
 
   useEffect(() => {
     let mounted = true;
+
+    // Instant local cache restoration so the user experiences NO wait time
+    Promise.all([
+      localCache.get<any[]>('all_categories'),
+      localCache.get<any[]>('all_products')
+    ]).then(([cachedCats, cachedProds]) => {
+      if (!mounted) return;
+      if (cachedCats && cachedCats.length > 0) {
+        setAllCategories(cachedCats);
+        if (categoryId) {
+          const cat = cachedCats.find((c: any) => c.id === categoryId);
+          if (cat) setCategoryName(cat.name);
+          const subs = cachedCats
+            .filter((c: any) => c.parentId === categoryId && !c.isHidden)
+            .sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+          setSubCategories(subs);
+        }
+      }
+      if (cachedProds && cachedProds.length > 0) {
+        const archivedCatId = cachedCats?.find((c: any) => isArchivedCategoryName(c.name))?.id;
+        const isArchivedProd = (p: any) => p.isArchived || (archivedCatId && p.categoryId === archivedCatId);
+        
+        let fetchedProducts = cachedProds.filter((p: any) => 
+          !p.isHidden && !p.isLocked && !p.isDeleted &&
+          (categoryId === archivedCatId ? isArchivedProd(p) : !isArchivedProd(p))
+        );
+        
+        if (categoryId) {
+          const childIds = cachedCats?.filter((c: any) => c.parentId === categoryId).map((c: any) => c.id) || [];
+          fetchedProducts = fetchedProducts.filter((p: any) => 
+            p.categoryId === categoryId || 
+            p.subcategoryId === categoryId || 
+            childIds.includes(p.categoryId) || 
+            (p.subcategoryId ? childIds.includes(p.subcategoryId) : false)
+          );
+        }
+        
+        setProducts(shuffleProductsForUser(fetchedProducts));
+        setLoading(false);
+        setInitialLoading(false);
+      }
+    });
+
+    const init = async () => {
+      try {
+        await fetchProducts();
+      } finally {
+        if (mounted) {
+          setLoading(false);
+          setInitialLoading(false);
+        }
+      }
+    };
+
+    init();
+
     // Instant local BroadcastChannel synchronization across tabs
     let fetchTimeout: any = null;
     const scheduleFetch = (delay = 400) => {
       clearTimeout(fetchTimeout);
       fetchTimeout = setTimeout(() => {
-        if (mounted) fetchProducts(1, true);
+        if (mounted) fetchProducts(true);
       }, delay);
     };
 
@@ -336,7 +368,42 @@ export default function Products() {
     }
   };
 
-  const filteredProducts = products;
+  const filteredProductsAll = useMemo(() => {
+    const archivedCatId = allCategories.find((c: any) => isArchivedCategoryName(c.name))?.id;
+    const isArchivedProd = (p: any) => p.isArchived || (archivedCatId && p.categoryId === archivedCatId);
+
+    const isActive = (p: any) =>
+      !p.isHidden &&
+      !p.isLocked &&
+      !p.isDeleted &&
+      !isProductRestrictedFromSearch(p, allCategories) &&
+      (categoryId === archivedCatId ? isArchivedProd(p) : !isArchivedProd(p));
+
+    // Only active products (never archived, hidden, locked, or in restricted categories) - Global search when searchTerm exists
+    if (searchTerm && searchTerm.trim()) {
+      const source = (allStoreProducts.length > 0 ? allStoreProducts : products).filter(isActive);
+      const result = filterProductsBySearch(source, searchTerm, allCategories);
+      return result.filter(isActive);
+    }
+
+    // Normal browsing without search term: show category-filtered and regular active products ONLY
+    let result = products.filter(isActive);
+    if (activeSub) {
+      result = result.filter((p) => p.subcategoryId === activeSub || (p.categoryId === activeSub && !p.subcategoryId));
+    }
+    const cleanList = result.filter(isActive);
+    
+    // Distribute products across pages with pageSize = 50
+    return shuffleProductsForUser(cleanList, 50, `member_${categoryId || 'all'}_${activeSub || 'none'}`);
+  }, [activeSub, products, allStoreProducts, searchTerm, allCategories, categoryId]);
+  
+  // Pagination: strict 50 items per page
+  const itemsPerPage = 50;
+  const totalPages = Math.ceil(filteredProductsAll.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const filteredProducts = useMemo(() => {
+    return filteredProductsAll.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredProductsAll, startIndex]);
 
 
   
@@ -560,22 +627,11 @@ export default function Products() {
                 {searchTerm ? 'نتائج البحث الشامل' : categoryName}
               </h2>
               <p className="text-[10px] text-white/50">
-                {products.length} منتجات {searchTerm ? '(بحث في جميع المواد والموديلات)' : ''}
+                {filteredProductsAll.length} منتجات {searchTerm ? '(بحث في جميع المواد والموديلات)' : ''}
               </p>
             </div>
           </div>
           <div className="flex gap-2">
-            <button 
-              onClick={async () => {
-                showToast("جاري تحديث المنتجات...", "success");
-                await fetchProducts(1, true);
-                showToast("تم تحديث المنتجات بنجاح", "success");
-              }}
-              className="p-2 bg-white/5 rounded-lg border border-white/10 text-white hover:bg-white/10 transition-colors"
-              title="تحديث المنتجات"
-            >
-              <RefreshCw size={18} />
-            </button>
             <button 
               onClick={() => setIsFilterModalOpen(true)}
               className="p-2 bg-white/5 rounded-lg border border-white/10 text-white hover:bg-white/10 transition-colors"
@@ -597,12 +653,8 @@ export default function Products() {
               value={searchInput}
               onChange={(e) => {
                 setSearchInput(e.target.value);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  setSearchTerm(searchInput);
-                  setCurrentPage(1);
-                }
+                setSearchTerm(e.target.value);
+                setCurrentPage(1);
               }}
             />
             {searchInput && (
@@ -614,16 +666,7 @@ export default function Products() {
               </button>
             )}
           </div>
-          <button
-            onClick={() => {
-              setSearchTerm(searchInput);
-              setCurrentPage(1);
-            }}
-            className="px-4 py-2.5 bg-brq-gold text-black rounded-lg font-bold text-sm hover:bg-brq-gold/90 transition-colors shrink-0 flex items-center gap-1.5"
-          >
-            <Search size={16} />
-            <span>بحث</span>
-          </button>
+
         </div>
 
         {subCategories.length > 0 && (
@@ -881,7 +924,7 @@ export default function Products() {
       {isDownloadDialogOpen && (
         <CategoryDownloadDialog 
           categories={allCategories}
-          products={products}
+          products={allStoreProducts.length > 0 ? allStoreProducts : products}
           onClose={() => setIsDownloadDialogOpen(false)}
         />
       )}
@@ -892,26 +935,16 @@ export default function Products() {
         </div>
       ) : filteredProducts.length === 0 ? (
         <div className="flex-1 flex flex-col justify-center items-center text-white/50 p-8 text-center h-64">
-          <div className="text-4xl text-brq-gold mb-4 opacity-50">🔍</div>
-          <p className="text-lg font-bold text-white mb-2">
-            {searchTerm ? 'لم يتم العثور على منتج مطابق' : 'لا توجد منتجات'}
-          </p>
+          <div className="text-4xl text-brq-gold mb-4 opacity-50">📦</div>
+          <p className="text-lg font-bold text-white mb-2">لا توجد منتجات</p>
           <p className="text-sm">
-            {searchTerm ? `لا توجد نتائج مطابقة لـ "${searchTerm}"` : 'هذا القسم لا يحتوي على منتجات حالياً. سيتم إضافة منتجات قريباً.'}
+            هذا القسم لا يحتوي على منتجات حالياً. سيتم إضافة منتجات قريباً.
           </p>
           <button
-            onClick={() => {
-              if (searchTerm) {
-                setSearchInput('');
-                setSearchTerm('');
-                setCurrentPage(1);
-              } else {
-                navigate("/");
-              }
-            }}
+            onClick={() => navigate("/")}
             className="mt-6 px-6 py-2 bg-brq-gold text-black rounded-lg font-bold"
           >
-            {searchTerm ? 'إعادة تعيين البحث' : 'العودة للرئيسية'}
+            العودة للرئيسية
           </button>
         </div>
       ) : (
@@ -1150,18 +1183,27 @@ export default function Products() {
         </div>
       )}
 
-      {/* Infinite Scroll Trigger */}
-      <div ref={loadMoreRef} className="col-span-full h-24 flex flex-col items-center justify-center mt-4">
-        {isFetchingNextPage && (
-          <div className="flex flex-col items-center gap-2">
-            <Loader2 className="w-8 h-8 text-brq-gold animate-spin" />
-            <p className="text-xs text-white/50">جاري تحميل المزيد...</p>
-          </div>
-        )}
-        {!hasMore && products.length > 0 && (
-          <p className="text-sm text-white/30 italic">نهاية القائمة</p>
-        )}
-      </div>
+      {/* Pagination Controls */}
+      {totalPages > 1 && !loading && filteredProductsAll.length > 0 && (
+        <div className="flex flex-wrap justify-center items-center gap-2 mt-6 mb-16 pb-24" dir="ltr">
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNumber) => (
+            <button
+              key={pageNumber}
+              onClick={() => {
+                setCurrentPage(pageNumber);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className={`w-12 h-12 flex items-center justify-center rounded-xl font-bold text-lg transition-all ${
+                currentPage === pageNumber 
+                  ? 'bg-brq-gold text-black scale-110 shadow-[0_0_15px_rgba(255,215,0,0.4)] border-2 border-yellow-300' 
+                  : 'bg-brq-card border border-brq-border text-white hover:bg-white/10'
+              }`}
+            >
+              {pageNumber}
+            </button>
+          ))}
+        </div>
+      )}
 
       {selectedIds.size > 0 && (
         <div className="fixed bottom-20 left-0 right-0 z-50 px-4 animate-in slide-in-from-bottom-10 fade-in duration-300">

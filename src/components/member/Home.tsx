@@ -22,7 +22,7 @@ import {
 import { Link, useNavigate } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
 import { useState, useEffect } from "react";
-import { api, deduplicateCategories } from "../../api";
+import { api } from "../../api";
 import { supabase } from "../../supabase";
 import { useStore } from "../../store";
 import Animated3DLogo from "../ui/Animated3DLogo";
@@ -55,17 +55,16 @@ export default function Home() {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const fetchCats = async (forceNetwork = false) => {
+  const fetchCats = async () => {
     try {
       const [cats, settings] = await Promise.all([
-        api.getCategories(forceNetwork),
+        api.getCategories(),
         api.getSettings()
       ]);
       
       if (cats && Array.isArray(cats)) {
-        const uniqueCats = deduplicateCategories(cats);
         setCategories(
-          uniqueCats
+          cats
             .filter((c) => !c.isHidden && !c.parentId && !isRestrictedCategoryName(c.name))
             .sort((a: any, b: any) => (a.order || 0) - (b.order || 0)),
         );
@@ -75,11 +74,21 @@ export default function Home() {
         setShowcaseSettings(settings);
       }
 
-      // Fetch lightweight counts projection instead of downloading all store products
-      api.getCategoryProductCounts(forceNetwork).then(result => {
-        if (result) {
-          setShowcaseCount(result.showcaseCount || 0);
-          setProductsCountMap(result.counts || {});
+      // Fetch products asynchronously in the background so it doesn't block the Home page from loading quickly
+      api.getProducts().then(prods => {
+        if (prods && Array.isArray(prods)) {
+          const scCount = prods.filter((p: any) => p.isShowcase && !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, cats)).length;
+          setShowcaseCount(scCount);
+  
+          const counts: Record<string, number> = {};
+          prods.forEach((p: any) => {
+            if (!p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, cats)) {
+              if (p.categoryId) {
+                counts[p.categoryId] = (counts[p.categoryId] || 0) + 1;
+              }
+            }
+          });
+          setProductsCountMap(counts);
         }
       }).catch(console.error);
 
@@ -95,27 +104,33 @@ export default function Home() {
     // Instant local cache check to prevent loading spinners
     Promise.all([
       localCache.get<any[]>('all_categories'),
-      localCache.get<any>('category_product_counts')
-    ]).then(([cachedCats, cachedCounts]) => {
+      localCache.get<any[]>('all_products')
+    ]).then(([cachedCats, cachedProds]) => {
       if (!mounted) return;
       if (cachedCats && cachedCats.length > 0) {
-        const uniqueCachedCats = deduplicateCategories(cachedCats);
         setCategories(
-          uniqueCachedCats
+          cachedCats
             .filter((c) => !c.isHidden && !c.parentId && !isRestrictedCategoryName(c.name))
             .sort((a: any, b: any) => (a.order || 0) - (b.order || 0)),
         );
         setLoading(false);
       }
-      if (cachedCounts && cachedCounts.counts) {
-        setProductsCountMap(cachedCounts.counts);
-        setShowcaseCount(cachedCounts.showcaseCount || 0);
+      if (cachedProds && cachedProds.length > 0 && cachedCats) {
+        const counts: Record<string, number> = {};
+        cachedProds.forEach((p: any) => {
+          if (!p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, cachedCats)) {
+            if (p.categoryId) {
+              counts[p.categoryId] = (counts[p.categoryId] || 0) + 1;
+            }
+          }
+        });
+        setProductsCountMap(counts);
       }
     });
 
     const initialFetch = async () => {
       try {
-        await fetchCats(false);
+        await fetchCats();
       } finally {
         if (mounted) setLoading(false);
       }
@@ -123,23 +138,12 @@ export default function Home() {
 
     initialFetch();
 
-    // Instant local BroadcastChannel sync across tabs/logins
-    let bc: any = null;
-    try {
-      if (typeof window !== 'undefined' && (window as any).BroadcastChannel) {
-        bc = new (window as any).BroadcastChannel('brq_products_sync');
-        bc.onmessage = () => {
-          if (mounted) fetchCats(true);
-        };
-      }
-    } catch {}
-
     const channel = supabase
       .channel('home_categories')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'categories' }, () => {
         clearTimeout(fetchTimeout);
         fetchTimeout = setTimeout(() => {
-          if (mounted) fetchCats(true);
+          if (mounted) fetchCats();
         }, 1500);
       })
       .on('broadcast', { event: 'settings_updated' }, ({ payload }) => {
@@ -152,7 +156,6 @@ export default function Home() {
     return () => {
       mounted = false;
       clearTimeout(fetchTimeout);
-      if (bc) bc.close();
       supabase.removeChannel(channel);
     };
   }, []);
@@ -417,7 +420,7 @@ export default function Home() {
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
             {categories.map((cat, i) => (
               <motion.div
-                key={`${cat.id}-${i}`}
+                key={cat.id}
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.05 * (i % 8) }}

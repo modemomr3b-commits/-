@@ -196,93 +196,72 @@ export function filterProductsBySearch(
   const cleanQuery = normalizedQuery.replace(/[-_]/g, ' ');
   const queryTokens = cleanQuery.split(/\s+/).filter(Boolean);
 
-  // Extract digits-only query if present (e.g. "551" or "10088")
+  // Extract digits-only query if present (e.g. "551" from "art 551" or "ارت 551")
   const digitsInQuery = normalizedQuery.replace(/\D/g, '');
 
   // Map categories for quick lookup
   const categoryMap = new Map<string, string>();
   categories.forEach(c => categoryMap.set(c.id, c.name));
 
-  const exactCodeMatches: Product[] = [];
-  const exactModelMatches: Product[] = [];
-  const exactBarcodeMatches: Product[] = [];
-  const partialCodeMatches: Product[] = [];
-  const nameAndDigitsMatches: Product[] = [];
+  const exactMatches: Product[] = [];
+  const partialMatches: Product[] = [];
   const generalMatches: Product[] = [];
 
   for (const p of candidateProducts) {
     const meta = getProductSearchMeta(p, categoryMap);
     const { code, model, barcode, name, nameDigits, codeDigits, modelDigits, barcodeDigits, fullText } = meta;
 
-    // 1. Exact code match
-    if (code && code === normalizedQuery) {
-      exactCodeMatches.push(p);
-      continue;
-    }
-
-    // 2. Exact model match
-    if (model && model === normalizedQuery) {
-      exactModelMatches.push(p);
-      continue;
-    }
-
-    // 3. Exact barcode match
-    if (barcode && barcode === normalizedQuery) {
-      exactBarcodeMatches.push(p);
-      continue;
-    }
-
-    // 4. Partial code match
-    if (code && code.includes(normalizedQuery)) {
-      partialCodeMatches.push(p);
-      continue;
-    }
-
-    // 5. Partial model or barcode match
+    // 1. Exact code / model / barcode match
     if (
+      (code && code === normalizedQuery) ||
+      (model && model === normalizedQuery) ||
+      (barcode && barcode === normalizedQuery)
+    ) {
+      exactMatches.push(p);
+      continue;
+    }
+
+    // 2. Partial code / model / barcode / name match
+    if (
+      (code && code.includes(normalizedQuery)) ||
       (model && model.includes(normalizedQuery)) ||
       (barcode && barcode.includes(normalizedQuery))
     ) {
-      partialCodeMatches.push(p);
+      partialMatches.push(p);
       continue;
     }
 
-    // 6. If query has numbers or specific strings (e.g. "10088", "AB10088", "BLACK")
-    if (
-      name.includes(normalizedQuery) ||
-      (digitsInQuery && digitsInQuery.length >= 2 && (
+    // 3. If query has specific numbers (e.g. "551" or "ارت 551"), check if product name or code contains that number sequence
+    if (digitsInQuery && digitsInQuery.length >= 2) {
+      if (
         name.includes(digitsInQuery) ||
+        code.includes(digitsInQuery) ||
+        model.includes(digitsInQuery) ||
+        barcode.includes(digitsInQuery) ||
         nameDigits.includes(digitsInQuery) ||
         codeDigits.includes(digitsInQuery) ||
         modelDigits.includes(digitsInQuery) ||
         barcodeDigits.includes(digitsInQuery)
-      ))
-    ) {
-      const nonDigitTokens = queryTokens.filter(t => !/^\d+$/.test(t) && t !== 'ارت' && t !== 'art');
-      const matchesNonDigits = nonDigitTokens.length === 0 || nonDigitTokens.every(t => fullText.includes(t));
-      if (matchesNonDigits) {
-        nameAndDigitsMatches.push(p);
-        continue;
+      ) {
+        const nonDigitTokens = queryTokens.filter(t => !/^\d+$/.test(t) && t !== 'ارت' && t !== 'art');
+        const matchesNonDigits = nonDigitTokens.every(t => fullText.includes(t));
+        if (matchesNonDigits) {
+          partialMatches.push(p);
+          continue;
+        }
       }
     }
 
-    // 7. Token-based general matching across all text fields
+    // 4. Token-based general matching across all text fields
     const matchesAllTokens = queryTokens.every(token => fullText.includes(token));
     if (matchesAllTokens) {
       generalMatches.push(p);
     }
   }
 
-  // Deduplicate results preserving priority order
+  // Deduplicate results
   const resultMap = new Map<string, Product>();
-  [
-    ...exactCodeMatches,
-    ...exactModelMatches,
-    ...exactBarcodeMatches,
-    ...partialCodeMatches,
-    ...nameAndDigitsMatches,
-    ...generalMatches
-  ].forEach(p => {
+  [...exactMatches, ...partialMatches, ...generalMatches].forEach(p => {
     if (p.id && !resultMap.has(p.id)) {
       resultMap.set(p.id, p);
     }

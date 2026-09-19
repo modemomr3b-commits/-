@@ -48,21 +48,31 @@ export default function App() {
     initialize();
   }, [initialize]);
 
-  // Initial warmup removed to avoid massive network requests on startup
+  // Global 5-minute forced sync & cache wipe interval for all users to guarantee out-of-stock / archived products never slip through
   useEffect(() => {
-    // No-op
+    // Delay immediate forced refresh & pre-warming to avoid network lag on initial app load
+    // It will silently fetch all products into memory in the background after 3 seconds
+    const warmupTimer = setTimeout(() => {
+      api.forceRefreshAll().catch(() => {});
+    }, 3000);
+
+    const syncInterval = setInterval(async () => {
+      try {
+        await api.forceRefreshAll();
+      } catch (e) {}
+    }, 5 * 60 * 1000); // 5 minutes
+
+    return () => {
+      clearTimeout(warmupTimer);
+      clearInterval(syncInterval);
+    };
   }, []);
 
-  // Smart background sync on visibility change / window focus removed as it causes heavy load
-  useEffect(() => {
-    // No-op
-  }, []);
-
-  // 10-minute inactivity logout tracker
+  // 15-minute inactivity logout tracker
   useEffect(() => {
     if (!user) return;
 
-    const INACTIVITY_LIMIT = 10 * 60 * 1000; // 10 minutes in ms
+    const INACTIVITY_LIMIT = 2 * 60 * 1000; // 2 minutes in ms
     let lastActivityTime = Date.now();
 
     const updateActivity = () => {
@@ -70,7 +80,7 @@ export default function App() {
       localStorage.setItem('brq_last_activity', lastActivityTime.toString());
     };
 
-    // Check immediately if they were away for > 10 mins when reopening the app
+    // Check immediately if they were away for > 15 mins when reopening the app
     const storedActivity = localStorage.getItem('brq_last_activity');
     if (storedActivity) {
       const parsed = parseInt(storedActivity, 10);
@@ -187,7 +197,7 @@ export default function App() {
               path="/admin" 
               element={user && (user.role === 'admin' || user.role === 'sales') ? <AdminLayout /> : <Navigate to="/login" />}
             >
-              <Route index element={<Navigate to="products" replace />} />
+              <Route index element={<AdminDashboard />} />
               <Route path="products" element={<ProductManager />} />
               <Route path="categories" element={<CategoryManager />} />
               <Route path="orders" element={<OrderManager />} />

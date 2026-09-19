@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Search, Lock, SlidersHorizontal, Archive, Download, Loader2, CheckCircle2, AlertCircle, ShoppingCart } from 'lucide-react';
 import { Link } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
@@ -15,18 +15,15 @@ import { isWafaaUser } from '../../utils/wafaaHelper';
 export default function SearchPage() {
   const { user, showToast, cart, addToCart, updateQuantity, removeFromCart } = useStore();
   const [products, setProducts] = useState<Product[]>([]);
-  const [hasMore, setHasMore] = useState(false);
-  const [isFetchingNextPage, setIsFetchingNextPage] = useState(false);
-  const loadMoreRef = useRef<HTMLDivElement>(null);
-  
-  const [loading, setLoading] = useState(false);
   const [allCategories, setAllCategories] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [expandedProducts, setExpandedProducts] = useState<Record<string, boolean>>({});
   
   const [query, setQuery] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 50;
+  const itemsPerPage = 100;
   
   const [searchArchived, setSearchArchived] = useState(false);
 
@@ -43,96 +40,167 @@ export default function SearchPage() {
       setSearchArchived(sessionStorage.getItem('return_search_archived') === 'true');
     }
     
-    api.getCategories().then(cats => {
-      if (mounted) setAllCategories(cats);
+    // Instant local cache restoration
+    Promise.all([
+      localCache.get<any[]>('all_categories'),
+      localCache.get<any[]>('all_products')
+    ]).then(([cachedCats, cachedProds]) => {
+      if (!mounted) return;
+      if (cachedCats && cachedCats.length > 0) {
+        setAllCategories(cachedCats);
+      }
+      if (cachedProds && cachedProds.length > 0) {
+        const isStaff = user?.role === 'admin' || user?.role === 'sales';
+        const archivedCatId = cachedCats?.find(c => isArchivedCategoryName(c.name))?.id;
+        const visibleProducts = isStaff
+          ? cachedProds
+          : cachedProds.filter(p => 
+              !p.isHidden && 
+              !p.isDeleted && 
+              !p.isArchived &&
+              (archivedCatId ? p.categoryId !== archivedCatId : true) &&
+              !isProductRestrictedFromSearch(p, cachedCats || [])
+            );
+        setProducts(shuffleProductsForUser(visibleProducts));
+        setLoading(false);
+      }
     });
 
-    return () => { mounted = false; };
+    const fetchProducts = async () => {
+      try {
+         const cats = await api.getCategories();
+         const allProducts = await api.getProducts();
+         if (mounted) {
+            setAllCategories(cats);
+            const isStaff = user?.role === 'admin' || user?.role === 'sales';
+            const archivedCatId = cats.find(c => isArchivedCategoryName(c.name))?.id;
+            const visibleProducts = isStaff
+              ? allProducts
+              : allProducts.filter(p => 
+                  !p.isHidden && 
+                  !p.isDeleted && 
+                  !p.isArchived &&
+                  (archivedCatId ? p.categoryId !== archivedCatId : true) &&
+                  !isProductRestrictedFromSearch(p, cats)
+                );
+            setProducts(shuffleProductsForUser(visibleProducts));
+         }
+      } catch (e) {
+         console.error(e);
+      } finally {
+         if (mounted) setLoading(false);
+      }
+    };
+    fetchProducts();
+
+    // Instant local BroadcastChannel synchronization across tabs
+    let fetchTimeout: any = null;
+    const scheduleFetch = (delay = 1200) => {
+      clearTimeout(fetchTimeout);
+      fetchTimeout = setTimeout(() => {
+        if (mounted) fetchProducts();
+      }, delay);
+    };
+
+    let bc: any = null;
+    try {
+      if (typeof window !== 'undefined' && (window as any).BroadcastChannel) {
+        bc = new (window as any).BroadcastChannel('brq_products_sync');
+        bc.onmessage = () => {
+          scheduleFetch(400);
+        };
+      }
+    } catch {}
+
+    const channel = supabase
+      .channel('search_products_sync')
+      .on('broadcast', { event: 'bulk_updated' }, () => {
+        scheduleFetch(600);
+      })
+      .on('broadcast', { event: 'product_changed' }, () => {
+        scheduleFetch(600);
+      })
+      .on('broadcast', { event: 'product_created' }, () => {
+        scheduleFetch(600);
+      })
+      .on('broadcast', { event: 'bulk_deleted' }, () => {
+        scheduleFetch(600);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
+        scheduleFetch(1200);
+      })
+      .subscribe();
+
+    return () => { 
+      mounted = false; 
+      clearTimeout(fetchTimeout);
+      supabase.removeChannel(channel);
+      if (bc) {
+        try { bc.close(); } catch {}
+      }
+    };
   }, []);
 
-  const fetchSearchResults = async (page: number, isNewSearch = false) => {
-    if (!query && !isNewSearch) return;
-    
-    if (isNewSearch) {
-      setLoading(true);
-      setProducts([]);
-    } else {
-      setIsFetchingNextPage(true);
-    }
-
-    try {
-      const result = await api.getProductsPaginated({
-        page,
-        pageSize,
-        searchTerm: query,
-        searchArchived: searchArchived,
-        isAdmin: false
-      });
-
-      setProducts(prev => isNewSearch ? result.products : [...prev, ...result.products]);
-      setHasMore(result.hasMore);
-      setCurrentPage(page);
-    } catch (err) {
-      console.error(err);
-      showToast("خطأ في البحث", "error");
-    } finally {
-      setLoading(false);
-      setIsFetchingNextPage(false);
-    }
-  };
-
-  useEffect(() => {
-    if (query) {
-      fetchSearchResults(1, true);
-    } else {
-      setProducts([]);
-      setHasMore(false);
-      setLoading(false);
-    }
-  }, [query, searchArchived]);
-
-  const loadMore = () => {
-    if (!loading && !isFetchingNextPage && hasMore) {
-      fetchSearchResults(currentPage + 1);
-    }
-  };
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && hasMore && !loading && !isFetchingNextPage) {
-          loadMore();
-        }
-      },
-      { threshold: 0.1 }
-    );
-
-    if (loadMoreRef.current) {
-      observer.observe(loadMoreRef.current);
-    }
-
-    return () => observer.disconnect();
-  }, [hasMore, loading, isFetchingNextPage, currentPage]);
+  // Removed debounce hook
 
   useEffect(() => {
     if (!loading && products.length > 0) {
       if (sessionStorage.getItem('return_search') === 'true') {
+        const savedPage = sessionStorage.getItem('return_search_page');
+        if (savedPage) setCurrentPage(parseInt(savedPage, 10));
+        
         const savedScroll = sessionStorage.getItem('return_search_scroll');
         if (savedScroll) {
           const targetY = parseInt(savedScroll, 10);
           window.scrollTo(0, targetY);
+          requestAnimationFrame(() => {
+            window.scrollTo(0, targetY);
+          });
+          const timer = setTimeout(() => {
+            window.scrollTo(0, targetY);
+          }, 150);
           
           sessionStorage.removeItem('return_search');
           sessionStorage.removeItem('return_search_page');
           sessionStorage.removeItem('return_search_scroll');
           sessionStorage.removeItem('return_search_query');
           sessionStorage.removeItem('return_search_archived');
+          
+          return () => clearTimeout(timer);
         }
       }
     }
   }, [loading, products.length]);
 
-  const filteredProducts = products;
+  const filteredProductsAll = useMemo(() => {
+    if (!query) return [];
+    
+    let archivedCat = allCategories.find(c => isArchivedCategoryName(c.name));
+    const archivedCatId = archivedCat?.id;
+
+    let result = products;
+    if (searchArchived) {
+      result = result.filter(p => archivedCatId && p.categoryId === archivedCatId);
+    } else {
+      result = result.filter(p => (!archivedCatId || p.categoryId !== archivedCatId) && !p.isHidden && !p.isLocked);
+    }
+    
+    // Always exclude products in restricted categories ("المواد المقفلة من قبل الادمن", "الموديلات متابعة")
+    if (searchArchived) {
+      result = result.filter(p => {
+        if (archivedCatId && p.categoryId === archivedCatId) return true;
+        return !isProductRestrictedFromSearch(p, allCategories);
+      });
+    } else {
+      result = result.filter(p => !isProductRestrictedFromSearch(p, allCategories));
+    }
+    
+    return filterProductsBySearch(result, query, allCategories, { includeRestricted: searchArchived });
+  }, [products, query, searchArchived, allCategories]);
+
+  const totalPages = Math.ceil(filteredProductsAll.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const filteredProducts = useMemo(() => filteredProductsAll.slice(startIndex, startIndex + itemsPerPage), [filteredProductsAll, startIndex, itemsPerPage]);
 
 
 
@@ -408,18 +476,27 @@ export default function SearchPage() {
                </div>
              )}
              
-              {/* Infinite Scroll Trigger */}
-              <div ref={loadMoreRef} className="col-span-full h-24 flex flex-col items-center justify-center mt-4">
-                {isFetchingNextPage && (
-                  <div className="flex flex-col items-center gap-2">
-                    <Loader2 className="w-8 h-8 text-brq-gold animate-spin" />
-                    <p className="text-xs text-white/50">جاري البحث...</p>
-                  </div>
-                )}
-                {!hasMore && products.length > 0 && (
-                  <p className="text-sm text-white/30 italic">نهاية النتائج</p>
-                )}
-              </div>
+             {/* Pagination Controls */}
+             {totalPages > 1 && (
+               <div className="flex flex-wrap justify-center items-center gap-2 mt-8 pb-12" dir="ltr">
+                 {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNumber) => (
+                   <button
+                     key={pageNumber}
+                     onClick={() => {
+                       setCurrentPage(pageNumber);
+                       window.scrollTo({ top: 0, behavior: 'smooth' });
+                     }}
+                     className={`w-12 h-12 flex items-center justify-center rounded-xl font-bold text-lg transition-all ${
+                       currentPage === pageNumber 
+                         ? 'bg-brq-gold text-black scale-110 shadow-[0_0_15px_rgba(255,215,0,0.4)] border-2 border-yellow-300' 
+                         : 'bg-brq-card border border-brq-border text-white hover:bg-white/10'
+                     }`}
+                   >
+                     {pageNumber}
+                   </button>
+                 ))}
+               </div>
+             )}
            </div>
          )}
       </div>

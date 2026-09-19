@@ -52,7 +52,7 @@ const statusMap: Record<OrderStatus, { label: string; color: string }> = {
 };
 
 export default function OrderManager() {
-  const { user, showToast } = useStore();
+  const { user } = useStore();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -80,7 +80,7 @@ export default function OrderManager() {
         const dbOrders = await api.getOrders();
         if (mounted) {
           const sortedOrders = dbOrders.sort(
-            (a: any, b: any) => (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0),
+            (a: any, b: any) => b.createdAt - a.createdAt,
           );
           setOrders(sortedOrders);
           setLoading(false);
@@ -107,61 +107,29 @@ export default function OrderManager() {
       })
       .subscribe();
 
+    const inv = setInterval(fetchOrders, 25000);
     return () => {
       mounted = false;
+      clearInterval(inv);
       supabase.removeChannel(channel);
     };
   }, []);
 
   const updateOrderStatus = async (id: string, status: OrderStatus) => {
-    const completedTime = status === "completed" ? Date.now() : undefined;
     // Optimistic update
-    setOrders((prev) =>
-      prev.map((o) =>
-        o.id === id
-          ? {
-              ...o,
-              status,
-              ...(completedTime ? { completedAt: o.completedAt || completedTime } : {}),
-            }
-          : o
-      )
-    );
+    setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, status } : o)));
     if (selectedOrder?.id === id) {
-      if (status === "completed") {
-        // Immediately close modal when marked completed
-        setSelectedOrder(null);
-      } else {
-        setSelectedOrder((prev) =>
-          prev
-            ? {
-                ...prev,
-                status,
-                ...(completedTime ? { completedAt: prev.completedAt || completedTime } : {}),
-              }
-            : null
-        );
-      }
-    }
-
-    if (status === "completed") {
-      showToast("تم إكمال الطلبية ونقلها للطلبات المكتملة بنجاح.");
+      setSelectedOrder({ ...selectedOrder, status });
     }
 
     try {
-      await api.updateOrder(id, {
-        status,
-        ...(completedTime ? { completedAt: completedTime } : {}),
-      });
+      await api.updateOrder(id, { status });
     } catch (e) {
       console.error("فشل تحديث حالة الطلب", e);
       // Revert on failure
       const updatedOrders = await api.getOrders();
       setOrders(
-        updatedOrders.sort(
-          (a: any, b: any) =>
-            (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0),
-        )
+        updatedOrders.sort((a: any, b: any) => b.createdAt - a.createdAt),
       );
       if (selectedOrder?.id === id) {
         const original = updatedOrders.find((o: any) => o.id === id);
@@ -170,58 +138,25 @@ export default function OrderManager() {
     }
   };
 
-  // Instant opening of orders with 0ms delay!
-  const handleViewOrder = (order: Order) => {
-    setSelectedOrder(order);
-  };
-
-  // Closing the order modal: automatically complete order and move to completed tab with zero delay!
-  const handleCloseOrderModal = async () => {
-    if (!selectedOrder) return;
-    const current = selectedOrder;
-    setSelectedOrder(null);
-
-    // If order was not already completed or cancelled, auto-complete it upon closing
-    if (current.status !== "completed" && current.status !== "cancelled") {
-      const completedTime = Date.now();
-      // Instant optimistic local update (0ms delay)
-      setOrders((prev) =>
-        prev.map((o) =>
-          o.id === current.id
-            ? { ...o, status: "completed", completedAt: completedTime }
-            : o
-        )
-      );
-      showToast(`تم إكمال الطلبية رقم ${current.orderNumber || ''} ونقلها للطلبات المكتملة بنجاح.`);
-
-      // Save to database & notify in background
+  const handleViewOrder = async (order: Order) => {
+    let currentStatus = order.status;
+    if (currentStatus === "new") {
+      currentStatus = "completed";
+      // Auto complete and notify
+      await updateOrderStatus(order.id, "completed");
       try {
-        await api.updateOrder(current.id, {
-          status: "completed",
-          completedAt: completedTime,
-        });
         await api.createNotification({
-          userId: current.userId,
+          userId: order.userId,
           type: "order",
-          message: `تم قبول وتأكيد طلبيتك رقم ${current.orderNumber || current.id.slice(0, 8)}`,
+          message: `تم قبول وتأكيد طلبيتك رقم ${order.orderNumber || order.id.slice(0, 8)}`,
           read: false,
         });
       } catch (e) {
-        console.error("فشل تحديث الطلب كمكتمل بالخلفية", e);
+        console.error("Failed to send notification", e);
       }
     }
+    setSelectedOrder({ ...order, status: currentStatus as OrderStatus });
   };
-
-  // Close modal on Escape key press
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && selectedOrder) {
-        handleCloseOrderModal();
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedOrder]);
 
   const handleDelete = async (id: string, orderNumber: string) => {
     // Optimistic update
@@ -234,34 +169,16 @@ export default function OrderManager() {
       await api.deleteOrder(id, user?.username);
       const updatedOrders = await api.getOrders();
       setOrders(
-        updatedOrders.sort(
-          (a: any, b: any) =>
-            (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0),
-        ),
+        updatedOrders.sort((a: any, b: any) => b.createdAt - a.createdAt),
       );
     } catch (e) {
       console.error(e);
       // Revert initial UI change
       const updatedOrders = await api.getOrders();
       setOrders(
-        updatedOrders.sort(
-          (a: any, b: any) =>
-            (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0),
-        ),
+        updatedOrders.sort((a: any, b: any) => b.createdAt - a.createdAt),
       );
       alert("حدث خطأ أثناء الحذف");
-    }
-  };
-
-  const handleDeleteAllCompleted = async () => {
-    if (!window.confirm("هل أنت متأكد من حذف جميع الطلبيات المكتملة الحالية؟")) return;
-    try {
-      await api.deleteAllCompletedOrders();
-      setOrders(prev => prev.filter(o => o.status !== 'completed'));
-      showToast("تم حذف جميع الطلبيات المكتملة بنجاح.");
-    } catch (e) {
-      console.error(e);
-      alert("حدث خطأ أثناء حذف الطلبيات المكتملة");
     }
   };
 
@@ -269,51 +186,35 @@ export default function OrderManager() {
     printOrderInvoice(order);
   };
 
-  const filteredOrders = orders
-    .filter((o) => {
-      if (o.status === 'pending_agent') return false;
-      const info = parseOrderDetails(o);
-      const matchesSearch =
-        (o.orderNumber &&
-          o.orderNumber.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (info.agentName &&
-          info.agentName.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (info.customerName &&
-          info.customerName.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (info.transport &&
-          info.transport.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (info.notes &&
-          info.notes.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (info.displayNotes &&
-          info.displayNotes.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredOrders = orders.filter((o) => {
+    if (o.status === 'pending_agent') return false;
+    const info = parseOrderDetails(o);
+    const matchesSearch =
+      (o.orderNumber &&
+        o.orderNumber.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (info.agentName &&
+        info.agentName.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (info.customerName &&
+        info.customerName.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (info.transport &&
+        info.transport.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (info.notes &&
+        info.notes.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (info.displayNotes &&
+        info.displayNotes.toLowerCase().includes(searchQuery.toLowerCase()));
 
-      const matchesStatus = filterStatus === "all" || o.status === filterStatus;
+    const matchesStatus = filterStatus === "all" || o.status === filterStatus;
 
-      const matchesTab =
-        activeTab === "new"
-          ? o.status === "new"
-          : o.status === "completed" ||
-            o.status === "cancelled" ||
-            o.status === "contacted" ||
-            o.status === "reviewing";
+    const matchesTab =
+      activeTab === "new"
+        ? o.status === "new"
+        : o.status === "completed" ||
+          o.status === "cancelled" ||
+          o.status === "contacted" ||
+          o.status === "reviewing";
 
-      return matchesSearch && matchesStatus && matchesTab;
-    })
-    .sort((a, b) => {
-      if (activeTab === "completed") {
-        // Completed orders:
-        // Most recently completed on top, earliest completed at the bottom!
-        // ("تكون محمد تحت وبعدها ياسر فوقها وبعدها حيدر فوقها وبعدها حسين فوقها")
-        const timeB = Number(b.completedAt || b.createdAt || 0);
-        const timeA = Number(a.completedAt || a.createdAt || 0);
-        return timeB - timeA;
-      } else {
-        // New orders: newest arrival on top
-        const timeB = Number(b.createdAt || 0);
-        const timeA = Number(a.createdAt || 0);
-        return timeB - timeA;
-      }
-    });
+    return matchesSearch && matchesStatus && matchesTab;
+  });
 
   const newOrdersCount = orders.filter((o) => o.status === "new").length;
 
@@ -341,30 +242,19 @@ export default function OrderManager() {
         </div>
       </div>
 
-      <div className="flex justify-between items-center border-b border-white/10 pb-0">
-        <div className="flex gap-4">
-          <button
-            onClick={() => setActiveTab("new")}
-            className={`pb-2 px-2 text-sm font-bold border-b-2 transition-colors ${activeTab === "new" ? "border-brq-gold text-brq-gold" : "border-transparent text-white/50 hover:text-white"}`}
-          >
-            الطلبات الجديدة
-          </button>
-          <button
-            onClick={() => setActiveTab("completed")}
-            className={`pb-2 px-2 text-sm font-bold border-b-2 transition-colors ${activeTab === "completed" ? "border-brq-gold text-brq-gold" : "border-transparent text-white/50 hover:text-white"}`}
-          >
-            الطلبات المكتملة
-          </button>
-        </div>
-        {activeTab === "completed" && orders.some(o => o.status === 'completed') && (
-          <button
-            onClick={handleDeleteAllCompleted}
-            className="mb-2 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5"
-          >
-            <Trash2 size={14} />
-            حذف جميع الطلبيات المكتملة
-          </button>
-        )}
+      <div className="flex gap-4 border-b border-white/10 pb-0">
+        <button
+          onClick={() => setActiveTab("new")}
+          className={`pb-2 px-2 text-sm font-bold border-b-2 transition-colors ${activeTab === "new" ? "border-brq-gold text-brq-gold" : "border-transparent text-white/50 hover:text-white"}`}
+        >
+          الطلبات الجديدة
+        </button>
+        <button
+          onClick={() => setActiveTab("completed")}
+          className={`pb-2 px-2 text-sm font-bold border-b-2 transition-colors ${activeTab === "completed" ? "border-brq-gold text-brq-gold" : "border-transparent text-white/50 hover:text-white"}`}
+        >
+          الطلبات المكتملة
+        </button>
       </div>
 
       <div className="glass-panel border border-white/5 rounded-2xl overflow-hidden p-1">
@@ -403,18 +293,18 @@ export default function OrderManager() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-right">
-              <thead className="bg-black/40 text-white/60 text-xs">
+              <thead className="bg-black/40 text-white/60">
                 <tr>
-                  <th className="px-4 py-3 font-medium rounded-tr-lg">رقم الطلب</th>
-                  <th className="px-4 py-3 font-medium">اسم الزبون / الوكيل</th>
-                  <th className="px-4 py-3 font-medium">الملاحظات</th>
-                  <th className="px-4 py-3 font-medium">عدد المنتجات</th>
-                  <th className="px-4 py-3 font-medium">التاريخ والوقت</th>
-                  <th className="px-4 py-3 font-medium">الحالة</th>
-                  <th className="px-4 py-3 font-medium rounded-tl-lg">التفاصيل</th>
+                  <th className="p-4 font-medium rounded-tr-lg">رقم الطلب</th>
+                  <th className="p-4 font-medium">اسم الزبون / الوكيل</th>
+                  <th className="p-4 font-medium">الملاحظات</th>
+                  <th className="p-4 font-medium">عدد المنتجات</th>
+                  <th className="p-4 font-medium">التاريخ والوقت</th>
+                  <th className="p-4 font-medium">الحالة</th>
+                  <th className="p-4 font-medium rounded-tl-lg">التفاصيل</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5 text-white/90 text-sm">
+              <tbody className="divide-y divide-white/5 text-white/90">
                 {filteredOrders.map((o) => {
                   const info = parseOrderDetails(o);
                   return (
@@ -423,7 +313,7 @@ export default function OrderManager() {
                       onClick={() => handleViewOrder(o)}
                       className="hover:bg-white/10 transition-colors cursor-pointer group"
                     >
-                      <td className="px-4 py-2.5 font-mono font-bold text-brq-gold">
+                      <td className="p-4 font-mono font-bold text-brq-gold">
                         <div className="flex items-center gap-2">
                           {o.status === "new" && (
                             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -431,55 +321,57 @@ export default function OrderManager() {
                           {o.orderNumber || o.id.slice(0, 8).toUpperCase()}
                         </div>
                       </td>
-                      <td className="px-4 py-2.5">
-                        <div className="flex flex-col gap-0.5 items-start">
+                      <td className="p-4">
+                        <div className="flex flex-col gap-1 items-start">
                           {info.customerName ? (
                             <>
-                              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-300 border border-amber-400 text-black shadow-sm">
-                                <UserCircle size={15} className="text-black flex-shrink-0" />
-                                <span className="text-sm font-black text-black tracking-wide leading-tight">
+                              <span className="text-[11px] text-white/50 font-bold">
+                                اسم الزبون:
+                              </span>
+                              <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-300 border border-amber-400 text-black shadow-md">
+                                <UserCircle size={17} className="text-black flex-shrink-0" />
+                                <span className="text-base font-black text-black tracking-wide leading-tight">
                                   {info.customerName}
                                 </span>
                               </div>
-                              <div className="text-[11px] text-white/60 flex items-center gap-1 mt-0.5">
-                                <span className="text-white/40">الوكيل:</span>
+                              <div className="text-xs text-white/60 flex items-center gap-1 mt-0.5">
+                                <span className="text-white/40">حساب الوكيل:</span>
                                 <span className="font-semibold text-white/90">{info.agentName}</span>
                               </div>
                             </>
                           ) : (
                             <div className="flex flex-col gap-0.5">
                               <div className="inline-flex items-center gap-1.5 text-white">
-                                <UserCircle size={15} className="text-brq-gold flex-shrink-0" />
+                                <UserCircle size={17} className="text-brq-gold flex-shrink-0" />
                                 <span className="font-bold text-sm text-white">
                                   {info.agentName}
                                 </span>
                               </div>
-                              <span className="text-[10px] text-white/40 font-normal">طلب مباشر</span>
+                              <span className="text-[11px] text-white/40 font-normal">طلب مباشر من الوكيل</span>
                             </div>
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-2.5">
+                      <td className="p-4">
                         {info.displayNotes ? (
-                          <div className="p-2 rounded-lg bg-white/90 border border-gray-300 text-black shadow-sm text-xs font-bold whitespace-pre-wrap max-w-[200px] break-words leading-relaxed">
+                          <div className="p-2.5 rounded-lg bg-white/90 border border-gray-300 text-black shadow-sm text-xs font-bold whitespace-pre-wrap max-w-[220px] break-words leading-relaxed">
                             {info.displayNotes}
                           </div>
                         ) : (
                           <span className="text-white/25 text-xs font-mono">—</span>
                         )}
                       </td>
-                      <td className="px-4 py-2.5 font-mono text-xs">
+                      <td className="p-4 font-mono">
                         {o.totalQuantity ||
                           o.items?.reduce((acc, i) => acc + i.quantity, 0)}{" "}
-                        قطعة
+                        قطعة/علبة
                       </td>
-                      <td className="px-4 py-2.5 text-white/60 text-xs" dir="ltr">
+                      <td className="p-4 text-white/60 text-xs" dir="ltr">
                         {formatDateTime(o.createdAt)}
                       </td>
-                      <td className="px-4 py-2.5">
+                      <td className="p-4">
                         <div className="group relative w-fit">
                           <select
-                            onClick={(e) => e.stopPropagation()}
                             value={o.status}
                             onChange={(e) =>
                               updateOrderStatus(
@@ -487,7 +379,7 @@ export default function OrderManager() {
                                 e.target.value as OrderStatus,
                               )
                             }
-                            className={`px-2.5 py-1 rounded-lg border text-xs font-bold appearance-none bg-transparent outline-none cursor-pointer pr-4 pl-6 ${statusMap[o.status || "new"]?.color}`}
+                            className={`px-3 py-1 rounded-lg border text-xs font-bold appearance-none bg-transparent outline-none cursor-pointer pr-4 pl-6 ${statusMap[o.status || "new"]?.color}`}
                           >
                             <option
                               value="new"
@@ -522,32 +414,23 @@ export default function OrderManager() {
                           </select>
                         </div>
                       </td>
-                      <td className="px-4 py-2.5">
+                      <td className="p-4">
                         <div className="flex gap-2">
                           <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handlePrintOrder(o);
-                            }}
+                            onClick={() => handlePrintOrder(o)}
                             className="p-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-lg transition-colors flex items-center gap-2 text-xs font-bold"
                             title="طباعة الطلب"
                           >
                             <Printer size={14} /> طباعة
                           </button>
                           <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleViewOrder(o);
-                            }}
+                            onClick={() => handleViewOrder(o)}
                             className="p-2 bg-brq-gold/10 hover:bg-brq-gold/20 text-brq-gold rounded-lg transition-colors flex items-center gap-2 text-xs font-bold"
                           >
                             <Eye size={14} /> عرض
                           </button>
                           <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDelete(o.id, o.orderNumber);
-                            }}
+                            onClick={() => handleDelete(o.id, o.orderNumber)}
                             className="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg transition-colors flex items-center gap-2 text-xs font-bold"
                             title="حذف الطلب"
                           >
@@ -565,14 +448,8 @@ export default function OrderManager() {
       </div>
 
       {selectedOrder && (
-        <div
-          onClick={handleCloseOrderModal}
-          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-5"
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="glass-panel w-full max-w-5xl rounded-2xl flex flex-col max-h-[92vh] border border-white/10 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150"
-          >
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-5">
+          <div className="glass-panel w-full max-w-5xl rounded-2xl flex flex-col max-h-[92vh] border border-white/10 shadow-2xl overflow-hidden">
             {/* Modal Header */}
             <div className="flex justify-between items-center p-5 border-b border-white/10 bg-black/40">
               <div className="flex items-center gap-4">
@@ -602,14 +479,7 @@ export default function OrderManager() {
                   <Printer size={16} /> طباعة
                 </button>
                 <button
-                  onClick={handleCloseOrderModal}
-                  className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-colors flex items-center gap-1.5 text-xs font-bold shadow-md"
-                  title="إنهاء الطلب ونقله للمكتملة وإغلاق"
-                >
-                  <Check size={16} /> إنهاء وإغلاق
-                </button>
-                <button
-                  onClick={handleCloseOrderModal}
+                  onClick={() => setSelectedOrder(null)}
                   className="text-white/50 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors"
                   title="إغلاق"
                 >

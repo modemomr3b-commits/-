@@ -73,6 +73,8 @@ export default function AccessLogManager() {
       }, 1500);
     };
 
+    const interval = setInterval(fetchData, 20000);
+
     const channel = supabase
       .channel('access_log_realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => scheduleFetch())
@@ -81,6 +83,7 @@ export default function AccessLogManager() {
 
     return () => {
       clearTimeout(debounceTimer);
+      clearInterval(interval);
       supabase.removeChannel(channel);
     };
   }, []);

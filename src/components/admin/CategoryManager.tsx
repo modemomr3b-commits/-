@@ -517,11 +517,11 @@ export default function CategoryManager() {
 
       {categories.length > 0 && (
         <div className="grid grid-cols-1 gap-4">
-          {parentCategories.map((c, cIdx) => {
+          {parentCategories.map((c) => {
             const subs = getSubcategories(c.id!);
             return (
               <div
-                key={`${c.id}-${cIdx}`}
+                key={c.id}
                 className="glass-panel border border-white/5 rounded-2xl p-4 overflow-hidden"
               >
                 <div
@@ -659,9 +659,9 @@ export default function CategoryManager() {
 
                 {subs.length > 0 && (
                   <div className="mt-4 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                    {subs.map((sub, sIdx) => (
+                    {subs.map((sub) => (
                       <div
-                        key={`${sub.id}-${sIdx}`}
+                        key={sub.id}
                         className="bg-black/30 border border-white/5 p-3 rounded-lg flex items-center justify-between group relative overflow-hidden"
                       >
                         {downloadProgress?.id === sub.id && (

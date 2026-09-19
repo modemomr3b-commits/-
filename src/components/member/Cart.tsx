@@ -18,7 +18,7 @@ export default function Cart() {
   const [isSharingWhatsapp, setIsSharingWhatsapp] = useState(false);
   const [success, setSuccess] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [errorModal, setErrorModal] = useState<{ isOpen: boolean; message: string; title?: string; onClose?: () => void }>({ isOpen: false, message: '' });
+  const [errorModal, setErrorModal] = useState<{ isOpen: boolean; message: string }>({ isOpen: false, message: '' });
   const submissionLock = useRef(false);
   const navigate = useNavigate();
 
@@ -38,21 +38,39 @@ export default function Cart() {
 
   const checkCartAvailability = async () => {
     try {
-      if (cart.length === 0) return;
-      const validation = await api.validateOrderItemsAvailability(
-        cart.map(item => ({
-          productId: item.product.id,
-          quantity: item.quantity,
-          product: item.product
-        }))
-      );
-      if (validation.hasDepleted) {
-        validation.depletedItems.forEach(dep => {
-          removeFromCart(dep.id);
+      const freshProducts = await api.getProductsDirect();
+      const archivedIds = new Set(freshProducts.filter((p: any) => p.isArchived || p.isHidden || p.isLocked || p.isDeleted).map((p: any) => p.id));
+      if (archivedIds.size > 0) {
+        cart.forEach(item => {
+          if (archivedIds.has(item.product.id)) {
+            removeFromCart(item.product.id);
+            // Don't show toast if we're showing the error modal already
+          }
         });
-        showToast(`تم تلقائياً إزالة ${validation.depletedItems.length} مواد نافذة من السلة.`);
       }
     } catch (e) {}
+  };
+
+  const validateCartAvailabilityBeforeSubmit = async () => {
+    try {
+      const freshProducts = await api.getProductsDirect();
+      const unavailableItems = cart.filter(item => {
+        const p = freshProducts.find((fp: any) => fp.id === item.product.id);
+        if (!p) return true;
+        return p.isArchived || p.isHidden || p.isLocked || p.isDeleted;
+      });
+
+      if (unavailableItems.length > 0) {
+        unavailableItems.forEach(item => removeFromCart(item.product.id));
+        setErrorModal({
+          isOpen: true,
+          message: `عذراً، بعض الموديلات في طلبيتك تحولت إلى قسم "النافذة" أو أصبحت غير متوفرة، وتم إزالتها تلقائياً من الطلبية:\n\n` +
+            unavailableItems.map(i => `• ${i.product.productCode || i.product.modelNumber || i.product.name || 'منتج'}`).join('\n')
+        });
+        return false;
+      }
+    } catch (e) {}
+    return true;
   };
 
   useEffect(() => {
@@ -65,61 +83,20 @@ export default function Cart() {
     submissionLock.current = true;
     setIsSharingWhatsapp(true);
 
+    const isValid = await validateCartAvailabilityBeforeSubmit();
+    if (!isValid) {
+      submissionLock.current = false;
+      setIsSharingWhatsapp(false);
+      return;
+    }
+
+    // First, save the order into the database so it appears in Order History
     try {
-      // 1. Real-time availability check
-      const validation = await api.validateOrderItemsAvailability(
-        cart.map(item => ({
-          productId: item.product.id,
-          quantity: item.quantity,
-          product: item.product
-        }))
-      );
-
-      // Handle any depleted/sold-out products
-      if (validation.hasDepleted) {
-        // Remove depleted items from cart
-        validation.depletedItems.forEach(dep => {
-          removeFromCart(dep.id);
-        });
-
-        const depletedList = validation.depletedItems
-          .map(d => `• كود: ${d.code} (${d.name})`)
-          .join('\n');
-
-        if (validation.availableItems.length === 0) {
-          setErrorModal({
-            isOpen: true,
-            title: 'المواد نافذة',
-            message: `عذراً، المواد التالية في طلبيتك أصبحت في قسم "المواد النافذة" وغير متوفرة حالياً:\n\n${depletedList}\n\nتم إلغاؤها وحذفها من الطلبية تلقائياً. لم يتم إرسال أي طلبية لعدم توفر مواد.`
-          });
-          submissionLock.current = false;
-          setIsSharingWhatsapp(false);
-          return;
-        }
-
-        setErrorModal({
-          isOpen: true,
-          title: 'تنبيه: استبعاد مواد نافذة',
-          message: `توجد منتجات نافذة موجودة بالطلبية تم إلغاؤها تلقائياً:\n\n${depletedList}\n\n✅ جاري تجهيز ومشاركة المنتجات المتوفرة فقط عبر الواتساب!`
-        });
-      }
-
-      const itemsToSend = validation.availableItems;
-      const piecesToSend = itemsToSend.reduce((acc, item) => acc + (Number(item.quantity) || 1), 0);
-
-      // Save order into database with ONLY available items
-      let fullNotes = [
-        customerName ? `اسم الزبون: ${customerName}` : '',
-        transport ? `النقليات: ${transport}` : '',
-        notes ? `ملاحظات إضافية: ${notes}` : ''
+      const fullNotes = [
+         customerName ? `اسم الزبون: ${customerName}` : '',
+         transport ? `النقليات: ${transport}` : '',
+         notes ? `ملاحظات إضافية: ${notes}` : ''
       ].filter(Boolean).join('\n');
-
-      if (validation.hasDepleted) {
-        const excludedSummary = validation.depletedItems.map(d => d.code).join(', ');
-        fullNotes = fullNotes
-          ? `${fullNotes}\n[تم تلقائياً استبعاد مواد نافذة: ${excludedSummary}]`
-          : `[تم تلقائياً استبعاد مواد نافذة: ${excludedSummary}]`;
-      }
 
       const orderNumber = `BRQ-${Math.floor(1000 + Math.random() * 9000)}`;
       await api.createOrder({
@@ -130,12 +107,12 @@ export default function Cart() {
         transport: transport.trim() || undefined,
         orderNumber,
         status: 'new',
-        items: itemsToSend.map(item => ({
-          productId: item.productId || item.product?.id,
-          quantity: item.quantity,
-          product: item.product,
+        items: cart.map(item => ({
+             productId: item.product.id,
+             quantity: item.quantity,
+             product: item.product,
         })),
-        totalQuantity: piecesToSend,
+        totalQuantity: totalPieces,
         notes: fullNotes,
         createdAt: Date.now()
       });
@@ -147,82 +124,87 @@ export default function Cart() {
           action: 'إنشاء طلب واتساب',
           entityType: 'order',
           entityId: orderNumber,
-          details: { totalPieces: piecesToSend }
+          details: { totalPieces }
         });
       }
 
       await api.createNotification({
-        message: `طلب واتساب جديد من: ${customerName || user?.fullName || user?.username || 'زبون'}`,
-        type: 'order'
+         message: `طلب واتساب جديد من: ${customerName || user?.fullName || user?.username || 'زبون'}`,
+         type: 'order'
       });
-
-      // Prepare images & text for itemsToSend
-      let filesArray: File[] = [];
-      const agentName = user?.fullName || user?.username || '---';
-      const text = `*طلب جديد* 🛒\n\n*اسم الوكيل:* ${agentName}\n*اسم الزبون:* ${customerName || '---'}\n*النقليات:* ${transport || '---'}\n\n*المنتجات:*\n${itemsToSend.map((item, index) => `${index+1}- *الكود: ${item.product?.productCode || item.product?.modelNumber || '---'}*\n  *الكمية: ${item.quantity}*`).join('\n\n')}`;
-      
-      if (navigator.share && navigator.canShare) {
-        try {
-          const fetchCartItemImage = async (item: any, i: number) => {
-            const url = item.product?.finalImageUrl || item.product?.imageUrl;
-            if (!url) return;
-            try {
-              const response = await fetch(url);
-              let blob = await response.blob();
-              try {
-                const count = itemsToSend.length;
-                const size = count > 50 ? 600 : (count > 20 ? 800 : 1000);
-                const qual = count > 50 ? 0.5 : (count > 20 ? 0.6 : 0.8);
-                blob = await compressImage(blob, size, qual);
-              } catch (e) { console.error(e); }
-                  
-              let type = blob.type;
-              if (!type || !type.startsWith('image/')) type = 'image/jpeg';
-              const extension = type.split('/')[1] || 'jpeg';
-              filesArray.push(new File([blob], `product-${item.product?.productCode || i+1}.${extension}`, { type }));
-            } catch (fetchErr) {
-              console.error("Failed to fetch image for sharing:", fetchErr);
-            }
-          };
-          
-          showToast("جاري تجهيز الصور للطلب...", "loading");
-          const batchSize = 10;
-          for (let i = 0; i < itemsToSend.length; i += batchSize) {
-            const batch = itemsToSend.slice(i, i + batchSize);
-            await Promise.all(batch.map((item, idx) => fetchCartItemImage(item, i + idx)));
-          }
-          
-          if (filesArray.length > 0 && navigator.canShare({ files: filesArray })) {
-            await navigator.share({
-              title: 'طلب جديد',
-              text: text,
-              files: filesArray
-            });
-            clearCart();
-            setSuccess(true);
-            submissionLock.current = false;
-            setIsSharingWhatsapp(false);
-            return;
-          }
-        } catch (err) {
-          console.error("Error sharing files:", err);
-          showToast("جهازك لا يدعم إرسال هذا العدد من الصور دفعة واحدة. سيتم إرسال الطلب كنص...", "loading");
-        }
-      }
-
-      // Fallback text share
-      const textFallback = `*طلب جديد* 🛒\n\n*اسم الوكيل:* ${agentName}\n*اسم الزبون:* ${customerName || '---'}\n*النقليات:* ${transport || '---'}\n${notes ? `*الملاحظات:* ${notes}\n\n` : '\n'}*المنتجات:*\n${itemsToSend.map((item, index) => `${index+1}- ${item.product?.name || 'منتج'}\n  *الكود: ${item.product?.productCode || '---'}*\n  الموديل: ${item.product?.modelNumber || '---'}\n  *الكمية: ${item.quantity}*\n  الصورة: ${item.product?.finalImageUrl || item.product?.imageUrl || ''}`).join('\n\n')}`;
-      openWhatsAppDirectly(textFallback);
-      clearCart();
-      setSuccess(true);
-      submissionLock.current = false;
-      setIsSharingWhatsapp(false);
     } catch (saveErr: any) {
-      console.error("Failed in handleWhatsAppShare:", saveErr);
-      setErrorModal({ isOpen: true, title: 'خطأ', message: saveErr.message || "عذراً، حدث خطأ أثناء إرسال الطلبية." });
+      console.error("Failed to save order to database:", saveErr);
+      setErrorModal({ isOpen: true, message: saveErr.message || "عذراً، بعض المنتجات في السلة نافذة وغير قابلة للطلب." });
+      
+      // Auto-remove archived/hidden products from the cart
+      await checkCartAvailability();
+
       submissionLock.current = false;
       setIsSharingWhatsapp(false);
+      return;
     }
+
+    let filesArray: File[] = [];
+    const agentName = user?.fullName || user?.username || '---';
+    const text = `*طلب جديد* 🛒\n\n*اسم الوكيل:* ${agentName}\n*اسم الزبون:* ${customerName || '---'}\n*النقليات:* ${transport || '---'}\n\n*المنتجات:*\n${cart.map((item, index) => `${index+1}- *الكود: ${item.product.productCode || '---'}*\n  *الكمية: ${item.quantity}*`).join('\n\n')}`;
+    
+    if (navigator.share && navigator.canShare) {
+        try {
+            const fetchCartItemImage = async (item: any, i: number) => {
+                const url = item.product.finalImageUrl || item.product.imageUrl;
+                if (!url) return;
+                try {
+                    const response = await fetch(url);
+                    let blob = await response.blob();
+                    try {
+                      const count = cart.length;
+                      const size = count > 50 ? 600 : (count > 20 ? 800 : 1000);
+                      const qual = count > 50 ? 0.5 : (count > 20 ? 0.6 : 0.8);
+                      blob = await compressImage(blob, size, qual);
+                    } catch (e) { console.error(e); }
+                        
+                    let type = blob.type;
+                    if (!type || !type.startsWith('image/')) type = 'image/jpeg';
+                    const extension = type.split('/')[1] || 'jpeg';
+                    filesArray.push(new File([blob], `product-${item.product.productCode || i+1}.${extension}`, { type }));
+                } catch (fetchErr) {
+                    console.error("Failed to fetch image for sharing:", fetchErr);
+                }
+            };
+            
+            showToast("جاري تجهيز الصور للطلب...", "loading");
+            const batchSize = 10;
+            for (let i = 0; i < cart.length; i += batchSize) {
+                const batch = cart.slice(i, i + batchSize);
+                await Promise.all(batch.map((item, idx) => fetchCartItemImage(item, i + idx)));
+            }
+            
+            if (filesArray.length > 0 && navigator.canShare({ files: filesArray })) {
+                await navigator.share({
+                    title: 'طلب جديد',
+                    text: text,
+                    files: filesArray
+                });
+                clearCart();
+                setSuccess(true);
+                submissionLock.current = false;
+                setIsSharingWhatsapp(false);
+                return;
+            }
+        } catch (err) {
+            console.error("Error sharing files:", err);
+            showToast("جهازك لا يدعم إرسال هذا العدد من الصور دفعة واحدة. سيتم إرسال الطلب كنص...", "loading");
+            // Fallthrough to text share below
+        }
+    }
+    
+    // Fallback to standard WhatsApp link if Web Share API with files fails or is unsupported
+    const textFallback = `*طلب جديد* 🛒\n\n*اسم الوكيل:* ${agentName}\n*اسم الزبون:* ${customerName || '---'}\n*النقليات:* ${transport || '---'}\n${notes ? `*الملاحظات:* ${notes}\n\n` : '\n'}*المنتجات:*\n${cart.map((item, index) => `${index+1}- ${item.product.name}\n  *الكود: ${item.product.productCode || '---'}*\n  الموديل: ${item.product.modelNumber || '---'}\n  *الكمية: ${item.quantity}*\n  الصورة: ${item.product.finalImageUrl || item.product.imageUrl || ''}`).join('\n\n')}`;
+    openWhatsAppDirectly(textFallback);
+    clearCart();
+    setSuccess(true);
+    submissionLock.current = false;
+    setIsSharingWhatsapp(false);
   };
 
   const handleSubmitOptions = async () => {
@@ -232,60 +214,15 @@ export default function Cart() {
     submissionLock.current = true;
     setIsSubmitting(true);
 
+    const isValid = await validateCartAvailabilityBeforeSubmit();
+    if (!isValid) {
+      submissionLock.current = false;
+      setIsSubmitting(false);
+      return;
+    }
+    
     try {
-      // 1. Real-time availability validation
-      const validation = await api.validateOrderItemsAvailability(
-        cart.map(item => ({
-          productId: item.product.id,
-          quantity: item.quantity,
-          product: item.product
-        }))
-      );
-
-      // Handle any depleted/sold-out items
-      if (validation.hasDepleted) {
-        // Remove depleted items from cart
-        validation.depletedItems.forEach(dep => {
-          removeFromCart(dep.id);
-        });
-
-        const depletedList = validation.depletedItems
-          .map(d => `• كود: ${d.code} (${d.name})`)
-          .join('\n');
-
-        // Case A: All items in cart were depleted
-        if (validation.availableItems.length === 0) {
-          setErrorModal({
-            isOpen: true,
-            title: 'المواد نافذة',
-            message: `عذراً، المواد التالية في طلبيتك أصبحت في قسم "المواد النافذة" وغير متوفرة حالياً:\n\n${depletedList}\n\nتم إلغاؤها وحذفها من الطلبية تلقائياً. لم يتم إرسال أي طلبية لعدم توفر مواد.`
-          });
-          submissionLock.current = false;
-          setIsSubmitting(false);
-          return;
-        }
-
-        // Case B: Some items depleted, send available items and notify user
-        setErrorModal({
-          isOpen: true,
-          title: 'تنبيه: استبعاد مواد نافذة',
-          message: `توجد منتجات نافذة موجودة بالطلبية تم إلغاؤها تلقائياً:\n\n${depletedList}\n\n✅ تم إرسال المنتجات المتوفرة فقط بنجاح إلى الإدارة!`,
-          onClose: () => setSuccess(true)
-        });
-      }
-
-      const itemsToSend = validation.availableItems;
-      const piecesToSend = itemsToSend.reduce((acc, item) => acc + (Number(item.quantity) || 1), 0);
-
       const orderNumber = `BRQ-${Math.floor(1000 + Math.random() * 9000)}`;
-      let orderNotes = notes.trim() || '';
-      if (validation.hasDepleted) {
-        const excludedSummary = validation.depletedItems.map(d => d.code).join(', ');
-        orderNotes = orderNotes 
-          ? `${orderNotes}\n[تم تلقائياً استبعاد مواد نافذة: ${excludedSummary}]`
-          : `[تم تلقائياً استبعاد مواد نافذة: ${excludedSummary}]`;
-      }
-
       await api.createOrder({
         userId: user.id || user.uid,
         username: user.username,
@@ -294,13 +231,13 @@ export default function Cart() {
         transport: transport.trim() || undefined,
         orderNumber,
         status: 'new',
-        items: itemsToSend.map(item => ({
-          productId: item.productId || item.product?.id,
-          quantity: item.quantity,
-          product: item.product,
+        items: cart.map(item => ({
+             productId: item.product.id,
+             quantity: item.quantity,
+             product: item.product,
         })),
-        totalQuantity: piecesToSend,
-        notes: orderNotes || undefined,
+        totalQuantity: totalPieces,
+        notes: notes.trim() || undefined,
         createdAt: Date.now()
       });
 
@@ -312,7 +249,7 @@ export default function Cart() {
           action: 'إنشاء طلب',
           entityType: 'order',
           entityId: orderNumber,
-          details: { totalPieces: piecesToSend }
+          details: { totalPieces }
         });
       } catch (logErr) {
         console.warn('logAction notice:', logErr);
@@ -321,24 +258,22 @@ export default function Cart() {
       // Create notification for admins
       try {
         await api.createNotification({
-          message: `لديك طلب جديد من المستخدم: ${user.fullName || user.username}`,
-          type: 'order'
+           message: `لديك طلب جديد من المستخدم: ${user.fullName || user.username}`,
+           type: 'order'
         });
       } catch (notifErr) {
         console.warn('createNotification notice:', notifErr);
       }
 
       clearCart();
-      if (!validation.hasDepleted) {
-        setSuccess(true);
-      }
+      setSuccess(true);
     } catch(e: any) {
       console.error(e);
-      setErrorModal({ 
-        isOpen: true, 
-        title: 'خطأ',
-        message: e.message || 'حدث خطأ أثناء إرسال الطلبية، يرجى المحاولة مرة أخرى.' 
-      });
+      setErrorModal({ isOpen: true, message: e.message || 'حدث خطأ أثناء إرسال الطلبية، يرجى المحاولة مرة أخرى.' });
+      
+      // Auto-remove archived/hidden products from the cart
+      await checkCartAvailability();
+
       submissionLock.current = false;
       setIsSubmitting(false);
     } finally {
@@ -393,8 +328,8 @@ export default function Cart() {
       </div>
       
       <div className="flex-1 space-y-4">
-         {paginatedCart.map((item, idx) => (
-             <div key={`${item.product.id}-${idx}`} className="glass-card p-3 rounded-2xl flex gap-3 relative">
+         {paginatedCart.map((item) => (
+             <div key={item.product.id} className="glass-card p-3 rounded-2xl flex gap-3 relative">
                 <Link to={`/product/${item.product.id}`} className="shrink-0">
                   {item.product.finalImageUrl || item.product.imageUrl ? (
                      <OptimizedImage src={item.product.finalImageUrl || item.product.imageUrl} alt={item.product.name} size="thumbnail" className="w-24 h-24 rounded-xl bg-black/40 border border-white/5" imgClassName="object-contain" />
@@ -504,7 +439,7 @@ export default function Cart() {
          </button>
       </div>
 
-      {/* Error / Alert Modal */}
+      {/* Error Modal */}
       {errorModal.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
           <div className="bg-[#141002] border-2 border-brq-gold/50 rounded-2xl p-6 w-full max-w-md shadow-2xl animate-in fade-in zoom-in duration-200">
@@ -512,19 +447,15 @@ export default function Cart() {
               <AlertCircle size={48} strokeWidth={1.5} />
             </div>
             
-            <h3 className="text-xl font-bold text-white text-center mb-4">{errorModal.title || 'تنبيه'}</h3>
+            <h3 className="text-xl font-bold text-white text-center mb-4">تنبيه</h3>
             
-            <p className="text-white/80 text-center leading-relaxed mb-8 whitespace-pre-line text-sm sm:text-base">
+            <p className="text-white/80 text-center leading-relaxed mb-8">
               {errorModal.message}
             </p>
             
             <button
-              onClick={() => {
-                const cb = errorModal.onClose;
-                setErrorModal({ isOpen: false, message: '' });
-                if (cb) cb();
-              }}
-              className="w-full flex items-center justify-center py-3 bg-gradient-to-r from-brq-gold to-yellow-600 hover:from-yellow-500 hover:to-yellow-500 text-black rounded-xl font-bold transition-all shadow-lg"
+              onClick={() => setErrorModal({ isOpen: false, message: '' })}
+              className="w-full flex items-center justify-center py-3 bg-gradient-to-r from-brq-gold to-yellow-600 hover:from-yellow-500 hover:to-yellow-500 text-black rounded-xl font-bold transition-all"
             >
               حسناً
             </button>

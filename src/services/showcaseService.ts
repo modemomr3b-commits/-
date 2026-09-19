@@ -278,7 +278,7 @@ export async function createShowcaseInvite(agentId: string, agentName: string, p
   try {
     const { data: invitesData } = await supabase
       .from('settings')
-      .select('id, data')
+      .select('*')
       .match({ id: 'showcase_invites' })
       .maybeSingle();
 
@@ -354,7 +354,7 @@ export async function verifyShowcaseInvite(token?: string, fallbackAgentId?: str
     if (cleanToken) {
       const { data: invitesData } = await supabase
         .from('settings')
-        .select('id, data')
+        .select('*')
         .match({ id: 'showcase_invites' })
         .maybeSingle();
 
@@ -532,7 +532,7 @@ export async function loginShowcase(params: {
   try {
     const { data: blockedData } = await supabase
       .from('settings')
-      .select('id, data')
+      .select('*')
       .match({ id: 'showcase_blocked_visitors' })
       .maybeSingle();
 
@@ -554,7 +554,7 @@ export async function loginShowcase(params: {
   if (inviteToken) {
     const { data: invitesData } = await supabase
       .from('settings')
-      .select('id, data')
+      .select('*')
       .match({ id: 'showcase_invites' })
       .maybeSingle();
 
@@ -637,7 +637,7 @@ export async function logShowcaseVisitDirectly(
   try {
     const { data: visitsData } = await supabase
       .from('settings')
-      .select('id, data')
+      .select('*')
       .match({ id: 'showcase_visits' })
       .maybeSingle();
 
@@ -685,7 +685,7 @@ export async function heartbeatShowcaseVisit(
 
     const { data: visitsData } = await supabase
       .from('settings')
-      .select('id, data')
+      .select('*')
       .match({ id: 'showcase_visits' })
       .maybeSingle();
 
@@ -739,8 +739,8 @@ export async function heartbeatShowcaseVisit(
 export async function getShowcaseVisits(): Promise<ShowcaseVisitRecord[]> {
   try {
     const [visitsRes, invitesRes] = await Promise.all([
-      supabase.from('settings').select('id, data').match({ id: 'showcase_visits' }).maybeSingle(),
-      supabase.from('settings').select('id, data').match({ id: 'showcase_invites' }).maybeSingle()
+      supabase.from('settings').select('*').match({ id: 'showcase_visits' }).maybeSingle(),
+      supabase.from('settings').select('*').match({ id: 'showcase_invites' }).maybeSingle()
     ]);
 
     const visitsList: ShowcaseVisitRecord[] = [];
@@ -808,7 +808,7 @@ export async function getBlockedVisitors(): Promise<BlockedVisitor[]> {
   try {
     const { data } = await supabase
       .from('settings')
-      .select('id, data')
+      .select('*')
       .match({ id: 'showcase_blocked_visitors' })
       .maybeSingle();
 

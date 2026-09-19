@@ -241,7 +241,7 @@ export default function ProductManager() {
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
   const [moveToCategoryId, setMoveToCategoryId] = useState("");
   const [moveToSubcategoryId, setMoveToSubcategoryId] = useState("");
-  const itemsPerPage = 35;
+  const [itemsPerPage, setItemsPerPage] = useState<number>(100);
 
   // Debounce search input
   // Reset page on filter changes (preserve selection)
@@ -297,18 +297,24 @@ export default function ProductManager() {
     let mounted = true;
     let fetchTimeout: any;
     const initialLoad = async () => {
-      // Products must now be fetched directly from network as per new requirements
+      // 1. Instantly load from local cache for 0ms delay display
+      try {
+        const cached = await localCache.get<any[]>('all_products', Infinity);
+        if (cached && cached.length > 0 && mounted && products.length === 0) {
+          const mappedCached = cached.map((p: any) => ({
+            ...p,
+            createdAt: p.createdAt ? new Date(p.createdAt).getTime() : Date.now(),
+          })).sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0));
+          setProducts(mappedCached);
+          setLoading(false);
+        }
+      } catch {}
+
+      // 2. Fetch fresh data in background
       await loadData();
       if (mounted) setLoading(false);
     };
     initialLoad();
-
-    const scheduleLoad = (delay = 1200) => {
-      clearTimeout(fetchTimeout);
-      fetchTimeout = setTimeout(() => {
-        if (mounted) loadData();
-      }, delay);
-    };
 
     // Instant local BroadcastChannel synchronization across tabs
     let bc: any = null;
@@ -316,7 +322,7 @@ export default function ProductManager() {
       if (typeof window !== 'undefined' && (window as any).BroadcastChannel) {
         bc = new (window as any).BroadcastChannel('brq_products_sync');
         bc.onmessage = () => {
-          scheduleLoad(800);
+          if (mounted) loadData();
         };
       }
     } catch {}
@@ -327,27 +333,33 @@ export default function ProductManager() {
         "postgres_changes",
         { event: "*", schema: "public", table: "products" },
         () => {
-          scheduleLoad(1500);
+          clearTimeout(fetchTimeout);
+          fetchTimeout = setTimeout(() => {
+             if (mounted) loadData();
+          }, 300);
         },
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "settings" },
         () => {
-          scheduleLoad(1000);
+          clearTimeout(fetchTimeout);
+          fetchTimeout = setTimeout(() => {
+             if (mounted) loadData();
+          }, 300);
         },
       )
       .on('broadcast', { event: 'bulk_updated' }, () => {
-        scheduleLoad(800);
+        if (mounted) loadData();
       })
       .on('broadcast', { event: 'product_changed' }, () => {
-        scheduleLoad(800);
+        if (mounted) loadData();
       })
       .on('broadcast', { event: 'product_created' }, () => {
-        scheduleLoad(800);
+        if (mounted) loadData();
       })
       .on('broadcast', { event: 'bulk_deleted' }, () => {
-        scheduleLoad(800);
+        if (mounted) loadData();
       })
       .subscribe();
 
@@ -584,11 +596,6 @@ export default function ProductManager() {
     e.preventDefault();
     if (!newProduct.name || !newProduct.price || isSubmitting) return;
 
-    if (!newProduct.imageUrl || !newProduct.imageUrl.trim()) {
-      setAlertMessage("⚠️ لا يمكن نشر المنتج بدون صورة! يرجى رفع صورة للموديل أولاً لإتمام النشر. جميع بيانات وتفاصيل المنتج محفوظة في النموذج ولن تضيع.");
-      return;
-    }
-
     const atNumber = extractAtNumber(newProduct.name);
     if (atNumber) {
       const existing = products.find(p => {
@@ -637,8 +644,6 @@ export default function ProductManager() {
 
     const fullUpdatedProduct: any = {
       ...payloadToUpdate,
-      categoryId: payloadToUpdate.categoryId && String(payloadToUpdate.categoryId).trim() !== '' ? payloadToUpdate.categoryId : null,
-      subcategoryId: payloadToUpdate.subcategoryId && String(payloadToUpdate.subcategoryId).trim() !== '' ? payloadToUpdate.subcategoryId : null,
       isArchived: originalProduct?.isArchived ? true : (payloadToUpdate.isArchived ?? false),
       ...(wasInactive && isNowActive ? { isShowcase: true, showcaseCategory: autoShowcaseCat } : {}),
       finalImageUrl: finalImg,
@@ -647,12 +652,8 @@ export default function ProductManager() {
 
     const archivedCat = categories.find(c => isArchivedCategoryName(c.name));
     const archivedCatId = archivedCat?.id || 'be0a70a8-f9c6-430d-8416-11745f26576f';
-    const isTargetArchived = fullUpdatedProduct.categoryId === archivedCatId ||
-      fullUpdatedProduct.categoryId === 'be0a70a8-f9c6-430d-8416-11745f26576f' ||
-      isArchivedCategoryName(categories.find(c => c.id === fullUpdatedProduct.categoryId)?.name || '');
-    if (isTargetArchived) {
+    if (fullUpdatedProduct.categoryId === archivedCatId) {
       fullUpdatedProduct.isShowcase = false;
-      fullUpdatedProduct.subcategoryId = null;
     }
 
     // Remove fields that are not editable in the form to prevent overwriting background toggles
@@ -875,16 +876,13 @@ export default function ProductManager() {
 
   const handleToggleArchive = async (p: Product) => {
     const archivedCat = categories.find(c => isArchivedCategoryName(c.name));
-    const archivedCatId = archivedCat?.id || 'be0a70a8-f9c6-430d-8416-11745f26576f';
+    const archivedCatId = archivedCat?.id;
+    if (!archivedCatId) {
+      setAlertMessage("❌ قسم المواد النافذة غير موجود!");
+      return;
+    }
 
-    const updates: any = { 
-      categoryId: archivedCatId, 
-      subcategoryId: null, 
-      isArchived: false, 
-      isHidden: false, 
-      isLocked: false, 
-      isShowcase: false 
-    };
+    const updates: any = { categoryId: archivedCatId, isArchived: false, isHidden: false, isLocked: false, isShowcase: false };
 
     // Optimistic update
     setProducts((prev) =>
@@ -897,12 +895,12 @@ export default function ProductManager() {
     try {
       await api.updateProduct(p.id!, updates);
       setAlertMessage(`تم نقل المنتج "${p.name || ''}" إلى قسم المواد النافذة بنجاح`);
-    } catch (e: any) {
+    } catch (e) {
       console.error(e);
       // Revert optimistic update
       const updated = await api.getProducts();
       setProducts(updated);
-      setAlertMessage("فشل نقل المنتج إلى المواد النافذة: " + (e?.message || ""));
+      setAlertMessage("فشل نقل المنتج إلى المواد النافذة");
     }
   };
 
@@ -1133,21 +1131,18 @@ export default function ProductManager() {
   const handleBulkToggleArchive = async () => {
     if (selectedIds.size === 0) return;
     const archivedCat = categories.find(c => isArchivedCategoryName(c.name));
-    const archivedCatId = archivedCat?.id || 'be0a70a8-f9c6-430d-8416-11745f26576f';
+    const archivedCatId = archivedCat?.id;
+    if (!archivedCatId) {
+      setAlertMessage("❌ قسم المواد النافذة غير موجود!");
+      return;
+    }
 
     const ids = Array.from(selectedIds);
     const targetIdsSet = new Set(ids.map(id => String(id)));
     setSelectedIds(new Set());
     setIsSubmitting(true);
 
-    const updatePayload = { 
-      categoryId: archivedCatId, 
-      subcategoryId: null, 
-      isArchived: false, 
-      isHidden: false, 
-      isLocked: false, 
-      isShowcase: false 
-    };
+    const updatePayload = { categoryId: archivedCatId, isArchived: false, isHidden: false, isLocked: false, isShowcase: false };
 
     // Instant optimistic local update
     setProducts((prev) =>
@@ -1233,14 +1228,8 @@ export default function ProductManager() {
 
     const archivedCat = categories.find(c => isArchivedCategoryName(c.name));
     const archivedCatId = archivedCat?.id || 'be0a70a8-f9c6-430d-8416-11745f26576f';
-    const isMovingToArchived = targetCatId === archivedCatId ||
-      targetCatId === 'be0a70a8-f9c6-430d-8416-11745f26576f' ||
-      isArchivedCategoryName(categories.find(c => c.id === targetCatId)?.name || '');
+    const isMovingToArchived = targetCatId === archivedCatId;
     
-    const cleanSubcat = isMovingToArchived 
-      ? null 
-      : (targetSubcatId && String(targetSubcatId).trim() !== '' ? targetSubcatId : null);
-
     // Instant optimistic update and close modal immediately
     setProducts((prev) =>
       prev.map((prod) =>
@@ -1248,7 +1237,7 @@ export default function ProductManager() {
           ? { 
               ...prod, 
               categoryId: targetCatId, 
-              subcategoryId: cleanSubcat || undefined,
+              subcategoryId: targetSubcatId || undefined,
               ...(isMovingToArchived ? { isShowcase: false } : {})
             } 
           : prod
@@ -1263,7 +1252,7 @@ export default function ProductManager() {
     try {
       await api.bulkUpdateProducts(ids, { 
         categoryId: targetCatId, 
-        subcategoryId: cleanSubcat,
+        subcategoryId: targetSubcatId,
         ...(isMovingToArchived ? { isShowcase: false } : {})
       });
     } catch (e: any) {
@@ -1285,7 +1274,7 @@ export default function ProductManager() {
       if (selectedIds.has(prod.id!)) {
         const matchedCatId = smartDetectMainCategoryId(prod, categories);
         updates.push({ id: prod.id!, categoryId: matchedCatId });
-        return { ...prod, categoryId: matchedCatId, subcategoryId: undefined as any };
+        return { ...prod, categoryId: matchedCatId, subcategoryId: '' };
       }
       return prod;
     });
@@ -1305,7 +1294,7 @@ export default function ProductManager() {
         catGroups[u.categoryId].push(u.id);
       });
       for (const [catId, groupIds] of Object.entries(catGroups)) {
-        await api.bulkUpdateProducts(groupIds, { categoryId: catId, subcategoryId: null });
+        await api.bulkUpdateProducts(groupIds, { categoryId: catId, subcategoryId: '' });
       }
     } catch (e: any) {
       console.error(e);
@@ -2567,16 +2556,33 @@ export default function ProductManager() {
                   <span>
                     عرض <strong className="text-brq-gold">{startIndex + 1}</strong> إلى <strong className="text-brq-gold">{Math.min(startIndex + itemsPerPage, filteredProducts.length)}</strong> من أصل <strong className="text-white">{filteredProducts.length}</strong> منتج
                   </span>
+                  
+                  {/* Page Size Selector */}
+                  <div className="flex items-center gap-1.5 bg-white/5 border border-white/10 px-2 py-1 rounded-lg">
+                    <span className="text-white/40 text-xs">عرض:</span>
+                    <select
+                      value={itemsPerPage}
+                      onChange={(e) => {
+                        setItemsPerPage(Number(e.target.value));
+                        setCurrentPage(1);
+                      }}
+                      className="bg-transparent text-brq-gold font-bold text-xs focus:outline-none cursor-pointer"
+                    >
+                      <option value={20} className="bg-neutral-900 text-white">20 بطاقة (عرض سريع)</option>
+                      <option value={50} className="bg-neutral-900 text-white">50 منتج</option>
+                      <option value={100} className="bg-neutral-900 text-white">100 منتج (الافتراضي)</option>
+                      <option value={200} className="bg-neutral-900 text-white">200 منتج</option>
+                      <option value={500} className="bg-neutral-900 text-white">500 منتج</option>
+                      <option value={1000} className="bg-neutral-900 text-white">1000 منتج (أقصى عرض)</option>
+                    </select>
+                  </div>
                 </div>
 
                 {totalPages > 1 && (
                   <div className="flex items-center gap-2">
                     <button
                       disabled={currentPage === 1}
-                      onClick={() => {
-                        setCurrentPage(p => Math.max(1, p - 1));
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                      }}
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                       className="p-2 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-white"
                       title="الصفحة السابقة"
                     >
@@ -2587,10 +2593,7 @@ export default function ProductManager() {
                     </span>
                     <button
                       disabled={currentPage === totalPages}
-                      onClick={() => {
-                        setCurrentPage(p => Math.min(totalPages, p + 1));
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                      }}
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                       className="p-2 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-white"
                       title="الصفحة التالية"
                     >
@@ -2754,13 +2757,11 @@ export default function ProductManager() {
                   value={editingProduct.categoryId}
                   onChange={(e) => {
                     const newCat = e.target.value;
-                    const isArchived = newCat === 'be0a70a8-f9c6-430d-8416-11745f26576f' ||
-                      isArchivedCategoryName(categories.find(c => c.id === newCat)?.name || '');
-                    const autoSub = isArchived ? null : autoSelectSubcategory(editingProduct.name || "", newCat, "", categories);
+                    const autoSub = autoSelectSubcategory(editingProduct.name || "", newCat, "", categories);
                     setEditingProduct({
                       ...editingProduct,
                       categoryId: newCat,
-                      subcategoryId: (autoSub && String(autoSub).trim() !== '') ? autoSub : (null as any),
+                      subcategoryId: autoSub || "",
                     });
                   }}
                   className="w-full bg-white border border-black rounded-lg px-3 py-2 text-base font-bold focus:border-brq-gold/50 outline-none text-black placeholder:text-gray-500"
@@ -2781,15 +2782,14 @@ export default function ProductManager() {
                 </label>
                 <select
                   value={editingProduct.subcategoryId || ""}
-                  onChange={(e) => {
-                    const val = e.target.value;
+                  onChange={(e) =>
                     setEditingProduct({
                       ...editingProduct,
-                      subcategoryId: val && val.trim() !== '' ? val : (null as any),
-                    });
-                  }}
-                  disabled={!editingProduct.categoryId || categories.filter((c) => c.parentId === editingProduct.categoryId).length === 0}
+                      subcategoryId: e.target.value,
+                    })
+                  }
                   className="w-full bg-white border border-black rounded-lg px-3 py-2 text-base font-bold focus:border-brq-gold/50 outline-none text-black disabled:opacity-50 placeholder:text-gray-500"
+                  disabled={!editingProduct.categoryId}
                 >
                   <option value="">-- إختر القسم الفرعي --</option>
                   {categories

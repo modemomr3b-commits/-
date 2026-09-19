@@ -7,7 +7,6 @@ export interface CleanedOrderInfo {
   transport: string;    // explicitly entered transport, or ""
   notes: string;        // explicitly entered notes by user, or ""
   displayNotes: string; // combined user text (transport + notes) or clean notes, or "" if empty
-  completedAt?: number; // timestamp when order was completed/closed
 }
 
 /**
@@ -29,7 +28,6 @@ export function parseOrderDetails(order?: Partial<Order> & { agentName?: string;
   let agentName = (order.username || order.fullName || order.agentName || '').trim();
   let agentId = (order.userId || '').toString().trim();
   const rawNotes = (order.rawNotes || order.notes || '').trim();
-  let completedAt: number | undefined = order.completedAt ? Number(order.completedAt) : undefined;
   
   let customerName = (order.customerName || order.visitorName || '').trim();
   let transport = (order.transport || '').trim();
@@ -38,14 +36,6 @@ export function parseOrderDetails(order?: Partial<Order> & { agentName?: string;
   if (rawNotes) {
     const lines = rawNotes.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
     for (const line of lines) {
-      // Extract completedAt metadata tag if present
-      const completedMatch = line.match(/^\[completedAt:(\d+)\]$/i) || line.match(/^(?:تاريخ الإكمال|وقت الإكمال):\s*(\d+)$/i);
-      if (completedMatch) {
-        if (!completedAt) {
-          completedAt = Number(completedMatch[1]);
-        }
-        continue;
-      }
       // Extract agent name if not set
       const agentMatch = line.match(/^(?:الوكيل|اسم الوكيل):\s*(.+)$/i);
       if (agentMatch) {
@@ -129,7 +119,6 @@ export function parseOrderDetails(order?: Partial<Order> & { agentName?: string;
     transport,
     notes: cleanNotes,
     displayNotes: displayParts.join('\n').trim(),
-    completedAt,
   };
 }
 

@@ -58,8 +58,10 @@ export default function AdminLayout() {
       })
       .subscribe();
 
+    const inv = setInterval(fetchOrdersForNotifications, 30000); 
     return () => {
       mounted = false;
+      clearInterval(inv);
       supabase.removeChannel(channel);
     };
   }, []);
@@ -70,6 +72,7 @@ export default function AdminLayout() {
   };
 
   const menu = [
+    { icon: LayoutDashboard, path: '/admin', label: 'لوحة القيادة' },
     { icon: Eye, path: '/', label: 'تصفح التطبيق' },
     { icon: Package, path: '/admin/products', label: 'إدارة المنتجات' },
     { icon: Tags, path: '/admin/categories', label: 'إدارة الأقسام' },
