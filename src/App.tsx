@@ -7,31 +7,34 @@ import SplashScreen from './components/SplashScreen';
 import GlobalNotifications from './components/GlobalNotifications';
 import GlobalToast from './components/GlobalToast';
 
-const Login = lazy(() => import('./components/Login'));
-const MemberLayout = lazy(() => import('./components/MemberLayout'));
-const AdminLayout = lazy(() => import('./components/AdminLayout'));
-const Home = lazy(() => import('./components/member/Home'));
-const Products = lazy(() => import('./components/member/Products'));
-const ProductDetail = lazy(() => import('./components/member/ProductDetail'));
-const Favorites = lazy(() => import('./components/member/Favorites'));
-const Cart = lazy(() => import('./components/member/Cart'));
-const MemberOrders = lazy(() => import('./components/member/MemberOrders'));
-const CustomerOrders = lazy(() => import('./components/member/CustomerOrders'));
-const SearchPage = lazy(() => import('./components/member/SearchPage'));
-const Profile = lazy(() => import('./components/member/Profile'));
-const Messages = lazy(() => import('./components/member/Messages'));
-const ShowcasePage = lazy(() => import('./components/showcase/ShowcasePage'));
+import { safeLazy } from './utils/safeLazy';
 
-const AdminDashboard = lazy(() => import('./components/admin/Dashboard'));
-const ProductManager = lazy(() => import('./components/admin/ProductManager'));
-const CategoryManager = lazy(() => import('./components/admin/CategoryManager'));
-const OrderManager = lazy(() => import('./components/admin/OrderManager'));
-const UserManager = lazy(() => import('./components/admin/UserManager'));
-const AccessLogManager = lazy(() => import('./components/admin/AccessLogManager'));
-const SettingsManager = lazy(() => import('./components/admin/SettingsManager'));
-const NotificationManager = lazy(() => import('./components/admin/NotificationManager'));
-const ReportManager = lazy(() => import('./components/admin/ReportManager'));
-const TrashManager = lazy(() => import('./components/admin/TrashManager'));
+const Login = safeLazy(() => import('./components/Login'));
+const MemberLayout = safeLazy(() => import('./components/MemberLayout'));
+const AdminLayout = safeLazy(() => import('./components/AdminLayout'));
+const Home = safeLazy(() => import('./components/member/Home'));
+const Products = safeLazy(() => import('./components/member/Products'));
+const ProductDetail = safeLazy(() => import('./components/member/ProductDetail'));
+const Favorites = safeLazy(() => import('./components/member/Favorites'));
+const Cart = safeLazy(() => import('./components/member/Cart'));
+const MemberOrders = safeLazy(() => import('./components/member/MemberOrders'));
+const CustomerOrders = safeLazy(() => import('./components/member/CustomerOrders'));
+const SearchPage = safeLazy(() => import('./components/member/SearchPage'));
+const Profile = safeLazy(() => import('./components/member/Profile'));
+const Messages = safeLazy(() => import('./components/member/Messages'));
+const ShowcasePage = safeLazy(() => import('./components/showcase/ShowcasePage'));
+
+import OrderManager from './components/admin/OrderManager';
+
+const AdminDashboard = safeLazy(() => import('./components/admin/Dashboard'));
+const ProductManager = safeLazy(() => import('./components/admin/ProductManager'));
+const CategoryManager = safeLazy(() => import('./components/admin/CategoryManager'));
+const UserManager = safeLazy(() => import('./components/admin/UserManager'));
+const AccessLogManager = safeLazy(() => import('./components/admin/AccessLogManager'));
+const SettingsManager = safeLazy(() => import('./components/admin/SettingsManager'));
+const NotificationManager = safeLazy(() => import('./components/admin/NotificationManager'));
+const ReportManager = safeLazy(() => import('./components/admin/ReportManager'));
+const TrashManager = safeLazy(() => import('./components/admin/TrashManager'));
 
 export default function App() {
   const { initialize, user, loading } = useStore();

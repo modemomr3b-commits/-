@@ -36,7 +36,10 @@ export default defineConfig(() => {
         },
         workbox: {
           importScripts: ['/custom-sw.js'],
-          maximumFileSizeToCacheInBytes: 5000000
+          maximumFileSizeToCacheInBytes: 5000000,
+          cleanupOutdatedCaches: true,
+          skipWaiting: true,
+          clientsClaim: true
         },
         devOptions: {
           enabled: false
