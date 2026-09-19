@@ -255,6 +255,9 @@ export const api = {
     const serverTime = await getServerTime();
     const safeData = { ...data, createdAt: data.createdAt || serverTime, updatedAt: data.updatedAt || serverTime };
     
+    if (safeData.categoryId === "" || safeData.categoryId === undefined) safeData.categoryId = null;
+    if (safeData.subcategoryId === "" || safeData.subcategoryId === undefined) safeData.subcategoryId = null;
+
     // Upload images if they are base64
     if (safeData.imageUrl?.startsWith('data:image')) {
         safeData.imageUrl = await api.uploadImage(safeData.imageUrl);
@@ -404,6 +407,9 @@ export const api = {
 
     const serverTime = await getServerTime();
     const safeData = { ...data, updatedAt: serverTime };
+
+    if (safeData.categoryId === "" || safeData.categoryId === undefined) safeData.categoryId = null;
+    if (safeData.subcategoryId === "" || safeData.subcategoryId === undefined) safeData.subcategoryId = null;
 
     if (safeData.imageUrl?.startsWith('data:image')) {
         safeData.imageUrl = await api.uploadImage(safeData.imageUrl);

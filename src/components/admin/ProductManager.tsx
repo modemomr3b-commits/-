@@ -1524,7 +1524,13 @@ export default function ProductManager() {
         }
 
         const match = filterProductsBySearch([p], searchQuery, categories, { includeRestricted: true });
-        if (match.length > 0) return true;
+        if (match.length > 0) {
+          if (searchDate) {
+            const productDateStr = new Date(p.createdAt || 0).toLocaleDateString('en-CA', { timeZone: 'Asia/Baghdad' });
+            if (productDateStr !== searchDate) return false;
+          }
+          return true;
+        }
         return false;
       }
 
