@@ -52,37 +52,37 @@ export default function SearchPage() {
       if (cachedProds && cachedProds.length > 0) {
         const isStaff = user?.role === 'admin' || user?.role === 'sales';
         const archivedCatId = cachedCats?.find(c => isArchivedCategoryName(c.name))?.id;
-        const visibleProducts = cachedProds.filter(p => {
-          if (p.isDeleted) return false;
-          const isArchived = p.isArchived || (archivedCatId && p.categoryId === archivedCatId);
-          if (isArchived && !searchArchived) return false;
-          return true;
-        });
+        const visibleProducts = isStaff
+          ? cachedProds
+          : cachedProds.filter(p => 
+              !p.isHidden && 
+              !p.isDeleted && 
+              !p.isArchived &&
+              (archivedCatId ? p.categoryId !== archivedCatId : true) &&
+              !isProductRestrictedFromSearch(p, cachedCats || [])
+            );
         setProducts(shuffleProductsForUser(visibleProducts));
         setLoading(false);
       }
     });
 
-    const fetchProducts = async (forceNetwork = false, incremental = true) => {
+    const fetchProducts = async (forceNetwork = false) => {
       try {
          const cats = await api.getCategories(forceNetwork);
-         let allProducts: Product[];
-         if (incremental && !forceNetwork) {
-            allProducts = await api.syncAllProductsIncremental();
-         } else {
-            allProducts = await api.getProductsDirect(forceNetwork);
-         }
-         
+         const allProducts = await api.getProductsDirect(forceNetwork);
          if (mounted) {
             setAllCategories(cats);
             const isStaff = user?.role === 'admin' || user?.role === 'sales';
             const archivedCatId = cats.find(c => isArchivedCategoryName(c.name))?.id;
-            const visibleProducts = allProducts.filter(p => {
-              if (p.isDeleted) return false;
-              const isArchived = p.isArchived || (archivedCatId && p.categoryId === archivedCatId);
-              if (isArchived && !searchArchived) return false;
-              return true;
-            });
+            const visibleProducts = isStaff
+              ? allProducts
+              : allProducts.filter(p => 
+                  !p.isHidden && 
+                  !p.isDeleted && 
+                  !p.isArchived &&
+                  (archivedCatId ? p.categoryId !== archivedCatId : true) &&
+                  !isProductRestrictedFromSearch(p, cats)
+                );
             setProducts(shuffleProductsForUser(visibleProducts));
          }
       } catch (e) {
@@ -91,14 +91,14 @@ export default function SearchPage() {
          if (mounted) setLoading(false);
       }
     };
-    fetchProducts(false, true);
+    fetchProducts(false);
 
     // Instant local BroadcastChannel synchronization across tabs
     let fetchTimeout: any = null;
-    const scheduleFetch = (delay = 1200, incremental = true) => {
+    const scheduleFetch = (delay = 1200) => {
       clearTimeout(fetchTimeout);
       fetchTimeout = setTimeout(() => {
-        if (mounted) fetchProducts(true, incremental);
+        if (mounted) fetchProducts(true);
       }, delay);
     };
 
@@ -107,7 +107,7 @@ export default function SearchPage() {
       if (typeof window !== 'undefined' && (window as any).BroadcastChannel) {
         bc = new (window as any).BroadcastChannel('brq_products_sync');
         bc.onmessage = () => {
-          scheduleFetch(400, true);
+          scheduleFetch(400);
         };
       }
     } catch {}
@@ -115,19 +115,19 @@ export default function SearchPage() {
     const channel = supabase
       .channel('search_products_sync')
       .on('broadcast', { event: 'bulk_updated' }, () => {
-        scheduleFetch(600, true);
+        scheduleFetch(600);
       })
       .on('broadcast', { event: 'product_changed' }, () => {
-        scheduleFetch(600, true);
+        scheduleFetch(600);
       })
       .on('broadcast', { event: 'product_created' }, () => {
-        scheduleFetch(600, true);
+        scheduleFetch(600);
       })
       .on('broadcast', { event: 'bulk_deleted' }, () => {
-        scheduleFetch(600, true);
+        scheduleFetch(600);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
-        scheduleFetch(1200, true);
+        scheduleFetch(1200);
       })
       .subscribe();
 
@@ -175,36 +175,28 @@ export default function SearchPage() {
   const filteredProductsAll = useMemo(() => {
     if (!query) return [];
     
-    const archivedCat = allCategories.find(c => isArchivedCategoryName(c.name));
+    let archivedCat = allCategories.find(c => isArchivedCategoryName(c.name));
     const archivedCatId = archivedCat?.id;
-    const isStaff = user?.role === 'admin' || user?.role === 'sales';
 
     let result = products;
-    
-    // Base filters for everyone
-    result = result.filter(p => !p.isDeleted);
-    
-    if (!isStaff) {
-      // For customers: strictly hide hidden/locked/restricted items
-      result = result.filter(p => !p.isHidden && !p.isLocked && !isProductRestrictedFromSearch(p, allCategories));
-    }
-
-    // Archived isolation:
-    const checkIsArchived = (p: any) => {
-      if (archivedCatId) return p.categoryId === archivedCatId || p.subcategoryId === archivedCatId;
-      return p.isArchived;
-    };
-
     if (searchArchived) {
-      // Show ONLY archived items
-      result = result.filter(p => checkIsArchived(p));
+      result = result.filter(p => archivedCatId && p.categoryId === archivedCatId);
     } else {
-      // Exclude archived items from general search (for everyone, including staff)
-      result = result.filter(p => !checkIsArchived(p));
+      result = result.filter(p => (!archivedCatId || p.categoryId !== archivedCatId) && !p.isHidden && !p.isLocked);
     }
     
-    return filterProductsBySearch(result, query, allCategories, { includeRestricted: isStaff || searchArchived });
-  }, [products, query, searchArchived, allCategories, user?.role]);
+    // Always exclude products in restricted categories ("المواد المقفلة من قبل الادمن", "الموديلات متابعة")
+    if (searchArchived) {
+      result = result.filter(p => {
+        if (archivedCatId && p.categoryId === archivedCatId) return true;
+        return !isProductRestrictedFromSearch(p, allCategories);
+      });
+    } else {
+      result = result.filter(p => !isProductRestrictedFromSearch(p, allCategories));
+    }
+    
+    return filterProductsBySearch(result, query, allCategories, { includeRestricted: searchArchived });
+  }, [products, query, searchArchived, allCategories]);
 
   const totalPages = Math.ceil(filteredProductsAll.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -257,25 +249,11 @@ export default function SearchPage() {
           <input 
             type="text" 
             value={searchInput}
-            onChange={e => { setSearchInput(e.target.value); setCurrentPage(1); }}
-            onKeyDown={e => {
-              if (e.key === 'Enter') {
-                setQuery(searchInput);
-                setCurrentPage(1);
-              }
-            }}
+            onChange={e => { setSearchInput(e.target.value); setQuery(e.target.value); setCurrentPage(1); }}
             className="w-full glass-card pl-12 pr-10 py-3.5 rounded-xl text-sm placeholder-white/40 focus:outline-none focus:border-brq-gold focus:ring-1 focus:ring-brq-gold transition-all text-white"
             placeholder="ابحث عن منتج، موديل، كود..."
             autoFocus
           />
-          {searchInput && (
-            <button
-              onClick={() => { setSearchInput(''); setQuery(''); setCurrentPage(1); }}
-              className="absolute inset-y-0 left-10 flex items-center pr-3 text-white/50 hover:text-white transition-colors"
-            >
-              ✕
-            </button>
-          )}
           <button className="absolute inset-y-0 left-0 flex items-center pl-3">
              <SlidersHorizontal className="w-5 h-5 text-white/50 hover:text-white transition-colors" />
           </button>

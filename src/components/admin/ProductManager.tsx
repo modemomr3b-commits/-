@@ -261,7 +261,7 @@ export default function ProductManager() {
           setUsdRate(settings.usdExchangeRate);
         }
       });
-      const prods = await api.getProducts(false, false); // Get all products for manager, no cache, activeOnly: false
+      const prods = await api.getProducts();
       setProducts(prev => {
         const prevMap = new Map(prev.map(p => [p.id, p]));
         const now = Date.now();
@@ -2019,32 +2019,13 @@ export default function ProductManager() {
                       value={searchInput}
                       onChange={(e) => {
                         setSearchInput(e.target.value);
+                        setSearchQuery(e.target.value);
                       }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          setSearchQuery(searchInput);
-                        }
-                      }}
-                      className="w-full bg-white border border-black rounded-lg pr-10 pl-10 py-2.5 text-base font-bold text-black placeholder:text-gray-500 focus:outline-none focus:border-brq-gold/50"
+                      className="w-full bg-white border border-black rounded-lg pr-10 pl-4 py-2.5 text-base font-bold text-black placeholder:text-gray-500 focus:outline-none focus:border-brq-gold/50"
                       placeholder="بحث بالاسم، الكود..."
                     />
-                    {searchInput && (
-                      <button
-                        onClick={() => { setSearchInput(''); setSearchQuery(''); }}
-                        className="absolute inset-y-0 left-3 flex items-center text-gray-400 hover:text-black transition-colors"
-                      >
-                        ✕
-                      </button>
-                    )}
                   </div>
                 </div>
-                <button
-                  onClick={() => setSearchQuery(searchInput)}
-                  className="px-4 py-2.5 bg-brq-gold text-black rounded-lg font-bold text-sm hover:bg-brq-gold/90 transition-colors shadow-sm flex items-center gap-1.5"
-                >
-                  <Search size={16} />
-                  <span>بحث</span>
-                </button>
                 <div className="relative w-full sm:w-48">
                   <input
                     type="date"

@@ -45,8 +45,8 @@ export default function Products() {
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false);
   const isAndroid = /Android/i.test(navigator.userAgent || '');
   const maxShareLimit = isAndroid ? 10 : 100;
-  const displayCountPerPage = 35;
-  const itemsPerPage = 35;
+  const displayCountPerPage = 50;
+  const pageProductsAll = products;
   
   // Grid Column & Zoom management with Ctrl + Mouse Wheel support
   const {
@@ -100,40 +100,21 @@ export default function Products() {
     return 1;
   });
 
-  const fetchProducts = async (forceDirect = false, isRetry = false, incremental = false) => {
+  const fetchProducts = async (forceDirect = false, isRetry = false) => {
     try {
       const cats = await api.getCategories(forceDirect);
       setAllCategories(cats);
 
       const archivedCatId = cats.find((c: any) => isArchivedCategoryName(c.name))?.id;
-      const isArchivedProd = (p: any) => {
-        if (archivedCatId) return p.categoryId === archivedCatId || p.subcategoryId === archivedCatId;
-        return p.isArchived;
-      };
+      const isArchivedProd = (p: any) => p.isArchived || (archivedCatId && p.categoryId === archivedCatId);
 
-      const isActive = (p: any) => {
-        if (p.isDeleted) return false;
-        
-        // Hide inactive (hidden), locked, and restricted products as per latest user request
-        if (p.isHidden || p.isLocked || isProductRestrictedFromSearch(p, cats)) return false;
-
-        const isArchived = isArchivedProd(p);
-        
-        // If we are in the "Archived/Materials" category, show ONLY archived items
-        if (categoryId === archivedCatId) return isArchived;
-        
-        // Otherwise, strictly exclude archived from general browsing/All view
-        return !isArchived;
-      };
+      const isActive = (p: any) => 
+        !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, cats) &&
+        (categoryId === archivedCatId ? isArchivedProd(p) : !isArchivedProd(p));
 
       if (categoryId) {
-        // Use incremental sync if requested and possible
-        let catProds: Product[];
-        if (incremental) {
-          catProds = await api.syncCategoryIncremental(categoryId);
-        } else {
-          catProds = await api.getProductsByCategory(categoryId, forceDirect);
-        }
+        // Fast targeted category fetch: only downloads products belonging to this category
+        const catProds = await api.getProductsByCategory(categoryId, forceDirect);
         
         if (catProds.length === 0 && !isRetry) {
           await new Promise(resolve => setTimeout(resolve, 800));
@@ -144,23 +125,14 @@ export default function Products() {
         const cat = cats.find((c: any) => c.id === categoryId);
         setCategoryName(cat ? cat.name : `القسم ${categoryId}`);
         const subs = cats
-          .filter((c: any) => {
-            if (c.parentId !== categoryId || c.isHidden) return false;
-            if (!isAdminOrSales && isArchivedCategoryName(c.name)) return false;
-            return true;
-          })
+          .filter((c: any) => c.parentId === categoryId && !c.isHidden)
           .sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
         setSubCategories(subs);
 
         const activeCatProds = catProds.filter(isActive);
         const shuffled = shuffleProductsForUser<Product>(activeCatProds);
         setProducts(shuffled);
-        
-        // Background fetch all products for global search (Pool excludes archived)
-        api.getProductsDirect(forceDirect).then(all => {
-          const searchPool = all.filter(isActive);
-          setAllStoreProducts(shuffleProductsForUser(searchPool));
-        }).catch(() => {});
+        setAllStoreProducts(shuffled);
       } else {
         // All products view fallback
         const allStore = await api.getProductsDirect(forceDirect);
@@ -172,10 +144,8 @@ export default function Products() {
 
         const activeStore: Product[] = allStore.filter(isActive);
         const shuffledStore = shuffleProductsForUser<Product>(activeStore);
+        setAllStoreProducts(shuffledStore);
         setProducts(shuffledStore);
-
-        const searchPool: Product[] = allStore.filter(isActive);
-        setAllStoreProducts(shuffleProductsForUser(searchPool));
       }
     } catch (err) {
       console.error(err);
@@ -185,8 +155,12 @@ export default function Products() {
   useEffect(() => {
     let mounted = true;
 
-    // Instant local categories restoration so navigation feels fast
-    localCache.get<any[]>('all_categories').then((cachedCats) => {
+    // Instant local cache restoration so the user experiences 0ms wait time
+    const catCacheKey = categoryId ? `products_cat_${categoryId}` : 'all_products';
+    Promise.all([
+      localCache.get<any[]>('all_categories'),
+      localCache.get<any>(catCacheKey)
+    ]).then(([cachedCats, cachedProdsRaw]) => {
       if (!mounted) return;
       if (cachedCats && cachedCats.length > 0) {
         setAllCategories(cachedCats);
@@ -194,22 +168,50 @@ export default function Products() {
           const cat = cachedCats.find((c: any) => c.id === categoryId);
           if (cat) setCategoryName(cat.name);
           const subs = cachedCats
-            .filter((c: any) => {
-              if (c.parentId !== categoryId || c.isHidden) return false;
-              if (!isAdminOrSales && isArchivedCategoryName(c.name)) return false;
-              return true;
-            })
+            .filter((c: any) => c.parentId === categoryId && !c.isHidden)
             .sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
           setSubCategories(subs);
         }
+      }
+
+      const cachedProds = Array.isArray(cachedProdsRaw) ? cachedProdsRaw : (cachedProdsRaw?.products || null);
+      if (cachedProds && cachedProds.length > 0) {
+        const archivedCatId = cachedCats?.find((c: any) => isArchivedCategoryName(c.name))?.id;
+        const isArchivedProd = (p: any) => p.isArchived || (archivedCatId && p.categoryId === archivedCatId);
+        
+        let fetchedProducts = cachedProds.filter((p: any) => 
+          !p.isHidden && !p.isLocked && !p.isDeleted &&
+          (categoryId === archivedCatId ? isArchivedProd(p) : !isArchivedProd(p))
+        );
+        
+        if (categoryId && cachedCats) {
+          const getAllDescendantIds = (catId: string, cats: any[]): string[] => {
+            const children = cats.filter((c: any) => c.parentId === catId);
+            let ids: string[] = [];
+            for (const child of children) {
+              ids.push(child.id);
+              ids.push(...getAllDescendantIds(child.id, cats));
+            }
+            return ids;
+          };
+          const descendantIds = getAllDescendantIds(categoryId, cachedCats);
+          const validCatIds = [categoryId, ...descendantIds];
+          fetchedProducts = fetchedProducts.filter((p: any) => 
+            validCatIds.includes(p.categoryId) || 
+            (p.subcategoryId && validCatIds.includes(p.subcategoryId))
+          );
+        }
+        
+        setProducts(shuffleProductsForUser(fetchedProducts));
+        setLoading(false);
+        setInitialLoading(false);
       }
     });
 
     const init = async () => {
       try {
-        // We removed localCache product restoration to avoid inconsistent data flickering.
-        // We fetch directly from API to ensure accuracy as requested.
-        await fetchProducts(true); 
+        await fetchProducts(false);
+        fetchProducts(true).catch(() => {});
       } finally {
         if (mounted) {
           setLoading(false);
@@ -222,10 +224,10 @@ export default function Products() {
 
     // Instant local BroadcastChannel synchronization across tabs
     let fetchTimeout: any = null;
-    const scheduleFetch = (delay = 400, incremental = true) => {
+    const scheduleFetch = (delay = 400) => {
       clearTimeout(fetchTimeout);
       fetchTimeout = setTimeout(() => {
-        if (mounted) fetchProducts(true, false, incremental);
+        if (mounted) fetchProducts(true);
       }, delay);
     };
 
@@ -234,7 +236,7 @@ export default function Products() {
       if (typeof window !== 'undefined' && (window as any).BroadcastChannel) {
         bc = new (window as any).BroadcastChannel('brq_products_sync');
         bc.onmessage = () => {
-          scheduleFetch(400, true);
+          scheduleFetch(400);
         };
       }
     } catch {}
@@ -242,22 +244,22 @@ export default function Products() {
     const channel = supabase
       .channel('member_products_view')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
-        scheduleFetch(1200, true);
+        scheduleFetch(1200);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'categories' }, () => {
-        scheduleFetch(1200, false); // Full fetch for categories
+        scheduleFetch(1200);
       })
       .on('broadcast', { event: 'bulk_updated' }, () => {
-        scheduleFetch(600, true);
+        scheduleFetch(600);
       })
       .on('broadcast', { event: 'product_changed' }, () => {
-        scheduleFetch(600, true);
+        scheduleFetch(600);
       })
       .on('broadcast', { event: 'product_created' }, () => {
-        scheduleFetch(600, true);
+        scheduleFetch(600);
       })
       .on('broadcast', { event: 'bulk_deleted' }, () => {
-        scheduleFetch(600, true);
+        scheduleFetch(600);
       })
       .subscribe();
 
@@ -384,28 +386,20 @@ export default function Products() {
 
   const filteredProductsAll = useMemo(() => {
     const archivedCatId = allCategories.find((c: any) => isArchivedCategoryName(c.name))?.id;
-    const isArchivedProd = (p: any) => {
-      if (archivedCatId) return p.categoryId === archivedCatId || p.subcategoryId === archivedCatId;
-      return p.isArchived;
-    };
+    const isArchivedProd = (p: any) => p.isArchived || (archivedCatId && p.categoryId === archivedCatId);
 
-    const isActive = (p: any) => {
-      if (p.isDeleted) return false;
-      
-      // Hide inactive (hidden), locked, and restricted products as per latest user request
-      if (p.isHidden || p.isLocked || isProductRestrictedFromSearch(p, allCategories)) return false;
-
-      // Archived items are strictly for specialized search.
-      if (isArchivedProd(p)) return false;
-
-      return true;
-    };
+    const isActive = (p: any) =>
+      !p.isHidden &&
+      !p.isLocked &&
+      !p.isDeleted &&
+      !isProductRestrictedFromSearch(p, allCategories) &&
+      (categoryId === archivedCatId ? isArchivedProd(p) : !isArchivedProd(p));
 
     // Only active products (never archived, hidden, locked, or in restricted categories) - Global search when searchTerm exists
     if (searchTerm && searchTerm.trim()) {
       const source = (allStoreProducts.length > 0 ? allStoreProducts : products).filter(isActive);
       const result = filterProductsBySearch(source, searchTerm, allCategories);
-      return result;
+      return result.filter(isActive);
     }
 
     // Normal browsing without search term: show category-filtered and regular active products ONLY
@@ -417,9 +411,10 @@ export default function Products() {
     
     // Distribute products across pages with pageSize = 35
     return shuffleProductsForUser(cleanList, 35, `member_${categoryId || 'all'}_${activeSub || 'none'}`);
-  }, [activeSub, products, allStoreProducts, searchTerm, allCategories, categoryId, isAdminOrSales]);
+  }, [activeSub, products, allStoreProducts, searchTerm, allCategories, categoryId]);
   
   // Pagination: strict 35 items per page
+  const itemsPerPage = 35;
   const totalPages = Math.ceil(filteredProductsAll.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const filteredProducts = useMemo(() => {
@@ -1241,63 +1236,22 @@ export default function Products() {
       {/* Pagination Controls */}
       {totalPages > 1 && !loading && filteredProductsAll.length > 0 && (
         <div className="flex flex-wrap justify-center items-center gap-2 mt-6 mb-16 pb-24" dir="ltr">
-          {(() => {
-            const pages = [];
-            const maxVisible = 5;
-            let start = Math.max(1, currentPage - 2);
-            let end = Math.min(totalPages, start + maxVisible - 1);
-            
-            if (end - start + 1 < maxVisible) {
-              start = Math.max(1, end - maxVisible + 1);
-            }
-
-            if (start > 1) {
-              pages.push(
-                <button
-                  key={1}
-                  onClick={() => { setCurrentPage(1); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                  className={`w-10 h-10 flex items-center justify-center rounded-lg font-bold text-sm transition-all bg-brq-card border border-brq-border text-white hover:bg-white/10`}
-                >
-                  1
-                </button>
-              );
-              if (start > 2) pages.push(<span key="sep1" className="text-white/50 px-1">...</span>);
-            }
-
-            for (let i = start; i <= end; i++) {
-              pages.push(
-                <button
-                  key={i}
-                  onClick={() => {
-                    setCurrentPage(i);
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                  className={`w-12 h-12 flex items-center justify-center rounded-xl font-bold text-lg transition-all ${
-                    currentPage === i 
-                      ? 'bg-brq-gold text-black scale-110 shadow-[0_0_15px_rgba(255,215,0,0.4)] border-2 border-yellow-300' 
-                      : 'bg-brq-card border border-brq-border text-white hover:bg-white/10'
-                  }`}
-                >
-                  {i}
-                </button>
-              );
-            }
-
-            if (end < totalPages) {
-              if (end < totalPages - 1) pages.push(<span key="sep2" className="text-white/50 px-1">...</span>);
-              pages.push(
-                <button
-                  key={totalPages}
-                  onClick={() => { setCurrentPage(totalPages); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                  className={`w-10 h-10 flex items-center justify-center rounded-lg font-bold text-sm transition-all bg-brq-card border border-brq-border text-white hover:bg-white/10`}
-                >
-                  {totalPages}
-                </button>
-              );
-            }
-
-            return pages;
-          })()}
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNumber) => (
+            <button
+              key={pageNumber}
+              onClick={() => {
+                setCurrentPage(pageNumber);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className={`w-12 h-12 flex items-center justify-center rounded-xl font-bold text-lg transition-all ${
+                currentPage === pageNumber 
+                  ? 'bg-brq-gold text-black scale-110 shadow-[0_0_15px_rgba(255,215,0,0.4)] border-2 border-yellow-300' 
+                  : 'bg-brq-card border border-brq-border text-white hover:bg-white/10'
+              }`}
+            >
+              {pageNumber}
+            </button>
+          ))}
         </div>
       )}
 

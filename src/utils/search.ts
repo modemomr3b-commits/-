@@ -83,10 +83,10 @@ export function isProductRestrictedFromSearch(
   product: Product,
   categories: Category[] = []
 ): boolean {
-  if (!product || product.isDeleted) return true;
+  if (!product) return false;
 
-  // If product itself is marked locked or hidden, it is restricted for members
-  if (product.isLocked || product.isHidden) {
+  // If product itself is marked locked
+  if (product.isLocked) {
     return true;
   }
 
