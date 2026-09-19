@@ -187,26 +187,21 @@ export default function SearchPage() {
 
     let result = products;
     
-    if (isStaff) {
-      // Admins see everything, but respect the toggle if they specifically want archived only
-      if (searchArchived) {
-        result = result.filter(p => p.isArchived || (archivedCatId && p.categoryId === archivedCatId));
-      }
-    } else {
-      // Standard users:
-      // We filter out strictly hidden/locked/deleted ones.
-      result = products.filter(p => !p.isDeleted);
-      
-      // If not staff, exclude truly hidden/locked products
+    // Base filters for everyone
+    result = result.filter(p => !p.isDeleted);
+    
+    if (!isStaff) {
+      // For customers: strictly hide hidden/locked/restricted items
       result = result.filter(p => !p.isHidden && !p.isLocked && !isProductRestrictedFromSearch(p, allCategories));
-      
-      if (searchArchived) {
-        // Specifically looking for archived ONLY
-        result = result.filter(p => p.isArchived || (archivedCatId && p.categoryId === archivedCatId));
-      } else {
-        // Exclude archived from general search
-        result = result.filter(p => !p.isArchived && (!archivedCatId || p.categoryId !== archivedCatId));
-      }
+    }
+
+    // Archived isolation:
+    if (searchArchived) {
+      // Show ONLY archived items
+      result = result.filter(p => p.isArchived || (archivedCatId && p.categoryId === archivedCatId));
+    } else {
+      // Exclude archived items from general search (for everyone, including staff)
+      result = result.filter(p => !p.isArchived && (!archivedCatId || p.categoryId !== archivedCatId));
     }
     
     return filterProductsBySearch(result, query, allCategories, { includeRestricted: isStaff || searchArchived });

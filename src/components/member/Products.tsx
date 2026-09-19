@@ -422,12 +422,12 @@ export default function Products() {
 
     const isActive = (p: any) => {
       if (p.isDeleted) return false;
-      if (isAdminOrSales) return true;
       
       const basicRestricted = p.isHidden || p.isLocked || isProductRestrictedFromSearch(p, allCategories);
       if (basicRestricted) return false;
 
       // Strictly exclude archived from general browsing and search in this view
+      // This view is for categories and 'All' products - archived items are strictly for specialized search.
       const isArchived = isArchivedProd(p);
       return !isArchived;
     };

@@ -591,19 +591,31 @@ export const api = {
         const startTime = Date.now();
         const { data, error } = await supabase
           .from('products')
-          .select('categoryId, subcategoryId, size')
-          .eq('isDeleted', false)
-          .eq('isArchived', false);
+          .select('categoryId, subcategoryId, isArchived, size')
+          .eq('isDeleted', false);
 
         if (error || !data) {
           return cached || { counts: {}, showcaseCount: 0 };
         }
+
+        // Fetch categories to check for archived names
+        const categories = await api.getCategories();
+        const archivedCatIds = new Set(
+          categories
+            .filter(c => isArchivedCategoryName(c.name))
+            .map(c => c.id)
+        );
 
         const counts: Record<string, number> = {};
         let showcaseCount = 0;
 
         for (let i = 0; i < data.length; i++) {
           const item = data[i] as any;
+          
+          // STRICT EXCLUSION: Skip archived products
+          if (item.isArchived) continue;
+          if (item.categoryId && archivedCatIds.has(item.categoryId)) continue;
+
           const size = item.size || {};
           if (size.isHidden || size.isLocked) continue;
 
