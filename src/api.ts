@@ -97,7 +97,9 @@ const MIN_BACKGROUND_FETCH_INTERVAL = 30000; // 30s cooldown between full backgr
 
 const getData = async (table: string, forceNetwork = false) => {
   // Try local cache first for instant response (0ms load time), sanitized for unique IDs
-  const rawCached = await localCache.get<any[]>(`all_${table}`, Infinity);
+  // Products must ALWAYS be fetched from network as per user requirement for Supabase to be sole source
+  const isProducts = table === 'products';
+  const rawCached = isProducts ? null : await localCache.get<any[]>(`all_${table}`, Infinity);
   const cached = rawCached ? deduplicateItems(rawCached) : null;
   if (rawCached && cached && rawCached.length !== cached.length) {
     // Purge stale duplicate entries from storage if found
@@ -184,7 +186,9 @@ const getData = async (table: string, forceNetwork = false) => {
 
         if (allData.length > 0) {
           lastTableFetchTimestamps[table] = Date.now();
-          localCache.set(`all_${table}`, allData).catch(() => {});
+          if (table !== 'products') {
+            localCache.set(`all_${table}`, allData).catch(() => {});
+          }
           return allData;
         }
 
@@ -333,6 +337,97 @@ export const api = {
     }
   },
   // PRODUCTS - CATEGORY SPECIFIC OPTIMIZED CACHING & INCREMENTAL SYNC
+  // SERVER-SIDE PAGINATED FETCH (The single source of truth for the product catalog)
+  getProductsPaginated: async (options: {
+    page: number;
+    pageSize: number;
+    categoryId?: string;
+    searchTerm?: string;
+    searchArchived?: boolean;
+    showcaseCategory?: string;
+    isAdmin?: boolean;
+  }): Promise<{ products: any[]; hasMore: boolean }> => {
+    const { page, pageSize, categoryId, searchTerm, searchArchived, showcaseCategory, isAdmin } = options;
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+
+    logDev('SUPABASE PAGINATED REQUEST', { categoryId, searchTerm, page, pageSize });
+
+    let query = supabase
+      .from('products')
+      .select(PRODUCT_SELECT_COLUMNS, { count: 'exact' });
+
+    // 1. Basic Status Filters
+    query = query.eq('isDeleted', false);
+
+    if (!isAdmin) {
+      // Normal users only see active (not hidden, not locked) and published products
+      query = query.eq('isHidden', false);
+      query = query.eq('isLocked', false);
+      
+      if (searchArchived) {
+        query = query.eq('isArchived', true);
+      } else {
+        query = query.eq('isArchived', false);
+        // Only published to showcase
+        query = query.eq('size->>isShowcase', 'true');
+      }
+    } else {
+      // Admin side logic (if needed, though this is primarily for user side)
+      if (searchArchived) query = query.eq('isArchived', true);
+    }
+
+    // 2. Showcase Category Filter
+    if (showcaseCategory && showcaseCategory !== 'all') {
+      query = query.eq('size->>showcaseCategory', showcaseCategory);
+    }
+
+    // 3. Category Filter (Recursive)
+    if (categoryId && categoryId !== 'all') {
+      const categories = await api.getCategories();
+      const getAllDescendantIds = (catId: string, cats: any[]): string[] => {
+        const children = cats.filter((c: any) => c.parentId === catId);
+        let ids: string[] = [];
+        for (const child of children) {
+          ids.push(child.id);
+          ids.push(...getAllDescendantIds(child.id, cats));
+        }
+        return ids;
+      };
+      const descendantIds = getAllDescendantIds(categoryId, categories);
+      const catIds = [categoryId, ...descendantIds];
+
+      if (catIds.length === 1) {
+        query = query.or(`categoryId.eq.${catIds[0]},subcategoryId.eq.${catIds[0]}`);
+      } else {
+        query = query.or(`categoryId.in.(${catIds.join(',')}),subcategoryId.in.(${catIds.join(',')})`);
+      }
+    }
+
+    // 3. Search Filter
+    if (searchTerm && searchTerm.trim()) {
+      const term = searchTerm.trim();
+      query = query.or(`name.ilike.%${term}%,productCode.ilike.%${term}%,modelNumber.ilike.%${term}%,barcode.ilike.%${term}%`);
+    }
+
+    // 4. Sorting & Pagination
+    // Stable sorting using createdAt desc and id asc to prevent row skipping during pagination
+    const { data, count, error } = await query
+      .order('createdAt', { ascending: false })
+      .order('id', { ascending: true })
+      .range(from, to);
+
+    if (error) {
+      console.error('Paginated fetch error:', error.message);
+      return { products: [], hasMore: false };
+    }
+
+    const mapped = (data || []).map(mapProduct);
+    const hasMore = count ? (from + mapped.length < count) : (mapped.length === pageSize);
+
+    return { products: mapped, hasMore };
+  },
+
   getProductsByCategory: async (categoryId: string, forceNetwork = false): Promise<any[]> => {
     if (!categoryId) return [];
     const cacheKey = `products_cat_${categoryId}`;
@@ -426,7 +521,7 @@ export const api = {
 
         const now = Date.now();
         memCache[cacheKey] = { data: mapped, lastSyncAt: now, timestamp: now };
-        localCache.set(cacheKey, { categoryId, products: mapped, lastSyncAt: now }).catch(() => {});
+        // No localCache for products
         lastCategorySyncTimestamps[categoryId] = now;
 
         return mapped;
@@ -544,7 +639,7 @@ export const api = {
 
       const clean = deduplicateItems(updatedList);
       memCache[cacheKey] = { data: clean, lastSyncAt: now, timestamp: now };
-      await localCache.set(cacheKey, { categoryId, products: clean, lastSyncAt: now });
+      // No localCache for products
     } catch (err) {
       console.warn(`Incremental sync failed for category ${categoryId}:`, err);
     } finally {
@@ -746,14 +841,6 @@ export const api = {
       return deduplicateItems(memCache['all_products'].data);
     }
 
-    // 2. Try fast return from local cache instantly (0ms load for instant UI render)
-    const localCached = await localCache.get<any[]>('all_products', Infinity);
-    if (!forceNetwork && localCached && localCached.length > 0) {
-      const processed = deduplicateItems(localCached).map(mapProduct);
-      memCache['all_products'] = { data: processed, timestamp: Date.now() };
-      return processed;
-    }
-
     // Deduplicate active in-flight fetch
     if (inFlightProductsPromise) {
       logDev('DUPLICATE REQUEST PREVENTED', { type: 'all_products' });
@@ -767,16 +854,10 @@ export const api = {
           const cleanData = deduplicateItems(data);
           const res = cleanData.map(mapProduct).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
           memCache['all_products'] = { data: res, timestamp: Date.now() };
-          localCache.set('all_products', res).catch(() => {});
           return res;
         }
       } catch (networkErr) {
-        console.warn('Network fetch failed, falling back to local cache:', networkErr);
-      }
-
-      const fallbackLocal = await localCache.get<any[]>('all_products', Infinity);
-      if (fallbackLocal && fallbackLocal.length > 0) {
-        return deduplicateItems(fallbackLocal).map(mapProduct);
+        console.warn('Network fetch failed:', networkErr);
       }
 
       if (memCache['all_products']?.data?.length) {

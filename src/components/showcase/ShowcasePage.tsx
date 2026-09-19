@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router';
 import { 
   Search, 
@@ -10,6 +10,7 @@ import {
   LayoutGrid, 
   Square, 
   Download, 
+  Loader2,
   Phone,
   Sparkles,
   ExternalLink,
@@ -52,7 +53,6 @@ import ImageViewer from '../ImageViewer';
 import Animated3DLogo from '../ui/Animated3DLogo';
 import ShowcaseAuth from './ShowcaseAuth';
 import ShowcaseCartModal from './ShowcaseCartModal';
-import { localCache } from '../../utils/localCache';
 import { useGridZoom } from '../../hooks/useGridZoom';
 import ZoomHUD from '../ui/ZoomHUD';
 import QuickContactWidget from '../common/QuickContactWidget';
@@ -319,7 +319,67 @@ export default function ShowcasePage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [isPromptModalOpen, setIsPromptModalOpen] = useState(false);
   const [navCounter, setNavCounter] = useState(0);
-  const itemsPerPage = 40;
+  const pageSize = 50;
+
+  const [hasMore, setHasMore] = useState(false);
+  const [isFetchingNextPage, setIsFetchingNextPage] = useState(false);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+
+  const fetchShowcaseProducts = async (page: number, isNewSearch = false) => {
+    if (isNewSearch) {
+      setLoading(true);
+      setProducts([]);
+    } else {
+      setIsFetchingNextPage(true);
+    }
+
+    try {
+      const result = await api.getProductsPaginated({
+        page,
+        pageSize,
+        searchTerm,
+        showcaseCategory: selectedCategory,
+        isAdmin: false,
+        searchArchived: false
+      });
+
+      setProducts(prev => isNewSearch ? result.products : [...prev, ...result.products]);
+      setHasMore(result.hasMore);
+      setCurrentPage(page);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+      setIsFetchingNextPage(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchShowcaseProducts(1, true);
+  }, [searchTerm, selectedCategory]);
+
+  const loadMore = () => {
+    if (!loading && !isFetchingNextPage && hasMore) {
+      fetchShowcaseProducts(currentPage + 1);
+    }
+  };
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loading && !isFetchingNextPage) {
+          loadMore();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (loadMoreRef.current) {
+      observer.observe(loadMoreRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, [hasMore, loading, isFetchingNextPage, currentPage]);
 
   const handleCategorySelect = (catId: string) => {
     if (catId !== selectedCategory) {
@@ -372,124 +432,13 @@ export default function ShowcasePage() {
   };
 
   const loadData = async () => {
-    try {
-      const [allProds, appSettings, allCats] = await Promise.all([
-        api.getProducts(),
-        api.getSettings(),
-        api.getCategories()
-      ]);
-      
-      // Filter products that are designated for showcase AND not archived/hidden/locked/restricted
-      const seen = new Set<string>();
-      const showcaseProds = (allProds || []).filter(
-        p => {
-          if (!p.isShowcase || p.isArchived || p.isHidden || p.isLocked || p.isDeleted || isProductRestrictedFromSearch(p, allCats || [])) {
-            return false;
-          }
-          if (p.id) {
-            if (seen.has(p.id)) return false;
-            seen.add(p.id);
-          }
-          return true;
-        }
-      );
-      setProducts(showcaseProds);
-      setSettings(appSettings || {});
-      setCategories(allCats || []);
-    } catch (e) {
-      console.error("Error loading showcase data:", e);
-    } finally {
-      setLoading(false);
-    }
+    // This is now handled by the paginated useEffect
   };
 
-  useEffect(() => {
-    let mounted = true;
-
-    // Instant local cache restore with duplicate protection
-    Promise.all([
-      localCache.get<any[]>('all_products'),
-      localCache.get<any[]>('all_categories')
-    ]).then(([cachedProds, cachedCats]) => {
-      if (!mounted) return;
-      if (cachedProds && cachedProds.length > 0) {
-        const seen = new Set<string>();
-        const showcaseProds = cachedProds.filter(
-          p => {
-            if (!p.isShowcase || p.isArchived || p.isHidden || p.isLocked || p.isDeleted || isProductRestrictedFromSearch(p, cachedCats || [])) {
-              return false;
-            }
-            if (p.id) {
-              if (seen.has(p.id)) return false;
-              seen.add(p.id);
-            }
-            return true;
-          }
-        );
-        setProducts(showcaseProds);
-        setLoading(false);
-      }
-      if (cachedCats && cachedCats.length > 0) {
-        setCategories(cachedCats);
-      }
-    });
-
-    loadData();
-
-    let fetchTimeout: any = null;
-    const scheduleRefresh = (delay = 1500) => {
-      clearTimeout(fetchTimeout);
-      fetchTimeout = setTimeout(() => {
-        if (mounted) loadData();
-      }, delay);
-    };
-
-    const channel = supabase
-      .channel('showcase_realtime')
-      .on('broadcast', { event: 'settings_updated' }, ({ payload }) => {
-        if (payload) {
-          setSettings(payload);
-        }
-      })
-      .on('broadcast', { event: 'bulk_updated' }, () => {
-        scheduleRefresh(800);
-      })
-      .on('broadcast', { event: 'product_changed' }, () => {
-        scheduleRefresh(800);
-      })
-      .on('broadcast', { event: 'product_created' }, () => {
-        scheduleRefresh(800);
-      })
-      .on('broadcast', { event: 'bulk_deleted' }, () => {
-        scheduleRefresh(800);
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
-        scheduleRefresh(1500);
-      })
-      .subscribe();
-
-    // Instant local BroadcastChannel synchronization across tabs
-    let bc: any = null;
-    try {
-      if (typeof window !== 'undefined' && (window as any).BroadcastChannel) {
-        bc = new (window as any).BroadcastChannel('brq_products_sync');
-        bc.onmessage = () => {
-          scheduleRefresh(500);
-        };
-      }
-    } catch {}
-
-    return () => {
-      mounted = false;
-      clearTimeout(fetchTimeout);
-      supabase.removeChannel(channel);
-      if (bc) {
-        try { bc.close(); } catch {}
-      }
-    };
-  }, []);
-
   const isShowcaseLocked = settings?.showcaseEnabled === false;
+
+  const paginatedProducts = products;
+  const filteredProducts = products;
 
   // Resolve accurate showcase category for any product
   const getShowcaseCategory = (p: Product) => {
@@ -498,48 +447,6 @@ export default function ShowcasePage() {
     }
     return detectShowcaseCategory(p, categories);
   };
-
-  // Reset page when category or search changes
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [selectedCategory, searchTerm]);
-
-  // Filter products by category and search, then distribute evenly across pages
-  const filteredProducts = useMemo(() => {
-    const list = products.filter(p => {
-      // Category match
-      if (selectedCategory !== 'all') {
-        const cat = getShowcaseCategory(p);
-        if (cat !== selectedCategory) return false;
-      }
-
-      // Search match
-      if (searchTerm.trim()) {
-        const q = searchTerm.toLowerCase().trim();
-        const matchName = p.name?.toLowerCase().includes(q);
-        const matchCode = p.productCode?.toLowerCase().includes(q);
-        const matchModel = p.modelNumber?.toLowerCase().includes(q);
-        if (!matchName && !matchCode && !matchModel) return false;
-      }
-
-      return true;
-    });
-
-    // If user is searching, return direct matching items
-    if (searchTerm.trim()) {
-      return list;
-    }
-
-    // Distribute products evenly across pages (with exact itemsPerPage = 40)
-    // so newly added or activated products are dispersed across Page 1, Page 2, Page 3, etc.
-    return shuffleProductsForUser(list, itemsPerPage, `showcase_${selectedCategory}`);
-  }, [products, selectedCategory, searchTerm, categories]);
-
-  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage) || 1;
-  const paginatedProducts = useMemo(() => {
-    const start = (currentPage - 1) * itemsPerPage;
-    return filteredProducts.slice(start, start + itemsPerPage);
-  }, [filteredProducts, currentPage]);
 
   // Counts per category
   const categoryCounts = useMemo(() => {
@@ -1042,27 +949,18 @@ export default function ShowcasePage() {
           </div>
         )}
 
-        {/* Pagination Controls */}
-        {totalPages > 1 && !loading && filteredProducts.length > 0 && (
-          <div className="flex flex-wrap justify-center items-center gap-2 mt-8 mb-16 pb-12" dir="ltr">
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNumber) => (
-              <button
-                key={pageNumber}
-                onClick={() => {
-                  setCurrentPage(pageNumber);
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                className={`w-10 h-10 flex items-center justify-center rounded-xl font-bold text-sm transition-all ${
-                  currentPage === pageNumber 
-                    ? 'bg-brq-gold text-black scale-110 shadow-[0_0_15px_rgba(255,215,0,0.4)] border-2 border-yellow-300' 
-                    : 'bg-white/5 border border-white/10 text-white hover:bg-white/10'
-                }`}
-              >
-                {pageNumber}
-              </button>
-            ))}
-          </div>
-        )}
+            {/* Infinite Scroll Trigger */}
+            <div ref={loadMoreRef} className="col-span-full h-24 flex flex-col items-center justify-center mt-4">
+              {isFetchingNextPage && (
+                <div className="flex flex-col items-center gap-2">
+                  <Loader2 className="w-8 h-8 text-brq-gold animate-spin" />
+                  <p className="text-xs text-white/50">جاري تحميل المزيد...</p>
+                </div>
+              )}
+              {!hasMore && products.length > 0 && (
+                <p className="text-sm text-white/30 italic">نهاية القائمة</p>
+              )}
+            </div>
       </main>
 
       {/* Floating Cart Button */}
