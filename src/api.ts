@@ -340,7 +340,18 @@ export const api = {
     const cacheKey = `products_cat_${categoryId}`;
     const now = Date.now();
 
-    // 1. Memory Cache check (0ms instant return)
+    // 1. Check if we have all products in memory already (Small store optimization)
+    if (!forceNetwork && memCache['all_products']?.data?.length) {
+      const filtered = memCache['all_products'].data.filter((p: any) => 
+        String(p.categoryId) === String(categoryId) || String(p.subcategoryId) === String(categoryId)
+      );
+      if (filtered.length > 0) {
+        logDev('DERIVED FROM GLOBAL CACHE', { categoryId, count: filtered.length });
+        return filtered;
+      }
+    }
+
+    // 2. Memory Cache check (0ms instant return)
     if (!forceNetwork && memCache[cacheKey]?.data?.length) {
       logDev('CACHE HIT', { categoryId, count: memCache[cacheKey].data.length });
       const lastSync = memCache[cacheKey].lastSyncAt || memCache[cacheKey].timestamp || 0;
@@ -402,26 +413,46 @@ export const api = {
 
         logDev('SUPABASE REQUEST', { categoryId, catIds });
 
-        let query = supabase
-          .from('products')
-          .select(PRODUCT_SELECT_COLUMNS)
-          .eq('isDeleted', false);
+        let allData: any[] = [];
+        let from = 0;
+        const limit = 1000;
+        let hasMore = true;
 
-        if (catIds.length === 1) {
-          query = query.or(`categoryId.eq.${catIds[0]},subcategoryId.eq.${catIds[0]}`);
-        } else {
-          query = query.or(`categoryId.in.(${catIds.join(',')}),subcategoryId.in.(${catIds.join(',')})`);
+        while (hasMore) {
+          let query = supabase
+            .from('products')
+            .select(PRODUCT_SELECT_COLUMNS)
+            .eq('isDeleted', false);
+
+          if (catIds.length === 1) {
+            query = query.or(`categoryId.eq.${catIds[0]},subcategoryId.eq.${catIds[0]}`);
+          } else {
+            query = query.or(`categoryId.in.(${catIds.join(',')}),subcategoryId.in.(${catIds.join(',')})`);
+          }
+
+          const { data, error } = await query
+            .order('id', { ascending: true })
+            .range(from, from + limit - 1);
+
+          if (error) {
+            console.error(`Error fetching category products for ${categoryId} [${from}-${from + limit - 1}]:`, error.message);
+            break;
+          }
+
+          if (data && data.length > 0) {
+            allData.push(...data);
+            if (data.length < limit) {
+              hasMore = false;
+            } else {
+              from += limit;
+            }
+          } else {
+            hasMore = false;
+          }
         }
 
-        const { data, error } = await query.order('createdAt', { ascending: false });
-        if (error) {
-          console.error(`Error fetching category products for ${categoryId}:`, error.message);
-          throw error;
-        }
-
-        const rawList = data || [];
-        const clean = deduplicateItems(rawList);
-        const mapped = clean.map(mapProduct);
+        const clean = deduplicateItems(allData);
+        const mapped = clean.map(mapProduct).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
         const duration = Date.now() - startTime;
         logDev('SUPABASE REQUEST', { categoryId, count: mapped.length, duration: `${duration}ms` });
@@ -589,12 +620,37 @@ export const api = {
       try {
         logDev('SUPABASE REQUEST', { type: 'category_counts_projection' });
         const startTime = Date.now();
-        const { data, error } = await supabase
-          .from('products')
-          .select('categoryId, subcategoryId, isArchived, size')
-          .eq('isDeleted', false);
+        let allData: any[] = [];
+        let from = 0;
+        const limit = 1000;
+        let hasMore = true;
 
-        if (error || !data) {
+        while (hasMore) {
+          const { data, error } = await supabase
+            .from('products')
+            .select('categoryId, subcategoryId, isArchived, size')
+            .eq('isDeleted', false)
+            .order('id', { ascending: true })
+            .range(from, from + limit - 1);
+
+          if (error) {
+            console.error(`Error fetching counts batch [${from}-${from + limit - 1}]:`, error.message);
+            break;
+          }
+
+          if (data && data.length > 0) {
+            allData.push(...data);
+            if (data.length < limit) {
+              hasMore = false;
+            } else {
+              from += limit;
+            }
+          } else {
+            hasMore = false;
+          }
+        }
+
+        if (allData.length === 0) {
           return cached || { counts: {}, showcaseCount: 0 };
         }
 
@@ -609,12 +665,12 @@ export const api = {
         const counts: Record<string, number> = {};
         let showcaseCount = 0;
 
-        for (let i = 0; i < data.length; i++) {
-          const item = data[i] as any;
+        for (let i = 0; i < allData.length; i++) {
+          const item = allData[i] as any;
           
-          // Skip archived products as requested previously
-          if (item.isArchived) continue;
+          // Only skip if explicitly in an archived category to match admin logic
           if (item.categoryId && archivedCatIds.has(item.categoryId)) continue;
+          if (item.subcategoryId && archivedCatIds.has(item.subcategoryId)) continue;
 
           const size = item.size || {};
           // We no longer skip hidden or locked products in the count, so it matches the admin view of published items.
@@ -761,24 +817,25 @@ export const api = {
 
   getProductsDirect: async (forceNetwork = false): Promise<any[]> => {
     const now = Date.now();
-    // 1. Return memory cache instantly if fresh
-    if (!forceNetwork && memCache['all_products'] && (now - memCache['all_products'].timestamp < MEM_CACHE_TTL)) {
-      const lastSync = memCache['all_products'].lastSyncAt || 0;
-      if (now - lastSync > 120000) {
-        api.syncAllProductsIncremental().catch(() => {});
-      }
+    // 1. Return memory cache instantly if fresh (within 30 seconds)
+    if (!forceNetwork && memCache['all_products'] && (now - memCache['all_products'].timestamp < 30000)) {
       return deduplicateItems(memCache['all_products'].data);
     }
 
     // 2. Try fast return from local cache instantly (0ms load for instant UI render)
     const localEntry = await localCache.get<any>('all_products', Infinity);
     const localCached = Array.isArray(localEntry) ? localEntry : (localEntry?.products || null);
+    const lastSyncAt = (Array.isArray(localEntry) ? 0 : localEntry?.lastSyncAt) || 0;
+
     if (!forceNetwork && localCached && localCached.length > 0) {
       const processed = deduplicateItems(localCached).map(mapProduct);
-      const lastSync = localEntry?.lastSyncAt || 0;
-      memCache['all_products'] = { data: processed, timestamp: now, lastSyncAt: lastSync };
       
-      if (now - lastSync > 120000) {
+      // Update memory cache
+      memCache['all_products'] = { data: processed, timestamp: now, lastSyncAt };
+      
+      // Trigger background incremental sync if it's been more than 5 seconds since last check
+      // This ensures "Every active product" is up to date almost immediately on app entry
+      if (now - lastSyncAt > 5000) {
         api.syncAllProductsIncremental().catch(() => {});
       }
       return processed;
@@ -786,7 +843,6 @@ export const api = {
 
     // Deduplicate active in-flight fetch
     if (inFlightProductsPromise) {
-      logDev('DUPLICATE REQUEST PREVENTED', { type: 'all_products' });
       return inFlightProductsPromise;
     }
 
@@ -801,21 +857,13 @@ export const api = {
           localCache.set('all_products', { products: res, lastSyncAt: syncTime }).catch(() => {});
           return res;
         }
+        return [];
       } catch (networkErr) {
         console.warn('Network fetch failed, falling back to local cache:', networkErr);
+        if (localCached) return deduplicateItems(localCached).map(mapProduct);
+        if (memCache['all_products']?.data) return memCache['all_products'].data;
+        return [];
       }
-
-      const fallbackLocalEntry = await localCache.get<any>('all_products', Infinity);
-      const fallbackLocal = Array.isArray(fallbackLocalEntry) ? fallbackLocalEntry : (fallbackLocalEntry?.products || null);
-      if (fallbackLocal && fallbackLocal.length > 0) {
-        return deduplicateItems(fallbackLocal).map(mapProduct);
-      }
-
-      if (memCache['all_products']?.data?.length) {
-        return deduplicateItems(memCache['all_products'].data);
-      }
-
-      return [];
     })().finally(() => {
       inFlightProductsPromise = null;
     });

@@ -185,17 +185,22 @@ export default function SearchPage() {
     result = result.filter(p => !p.isDeleted);
     
     if (!isStaff) {
-      // For customers: strictly hide hidden/locked/restricted items
-      result = result.filter(p => !p.isHidden && !p.isLocked && !isProductRestrictedFromSearch(p, allCategories));
+      // For customers: only exclude deleted items (which is already handled above)
+      // Restricted categories are now also visible as per user request
     }
 
     // Archived isolation:
+    const checkIsArchived = (p: any) => {
+      if (archivedCatId) return p.categoryId === archivedCatId || p.subcategoryId === archivedCatId;
+      return p.isArchived;
+    };
+
     if (searchArchived) {
       // Show ONLY archived items
-      result = result.filter(p => p.isArchived || (archivedCatId && p.categoryId === archivedCatId));
+      result = result.filter(p => checkIsArchived(p));
     } else {
       // Exclude archived items from general search (for everyone, including staff)
-      result = result.filter(p => !p.isArchived && (!archivedCatId || p.categoryId !== archivedCatId));
+      result = result.filter(p => !checkIsArchived(p));
     }
     
     return filterProductsBySearch(result, query, allCategories, { includeRestricted: isStaff || searchArchived });

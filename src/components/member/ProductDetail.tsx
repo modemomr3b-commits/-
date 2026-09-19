@@ -77,7 +77,7 @@ export default function ProductDetail() {
         const found = await api.getProductById(productId as string);
         if (mounted) {
           const isStaff = user?.role === 'admin' || user?.role === 'sales';
-          if (found && !isStaff && (found.isHidden || found.isDeleted || found.isArchived || found.isLocked)) {
+          if (found && !isStaff && (found.isDeleted || found.isArchived)) {
             setProduct(null);
             setLoading(false);
             return;
@@ -86,11 +86,11 @@ export default function ProductDetail() {
           setProduct(found || null);
           if (found && found.categoryId) {
             const catProducts = await api.getProductsByCategory(found.categoryId);
-            const active = catProducts.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted);
+            const active = catProducts.filter((p: any) => !p.isArchived && !p.isDeleted);
             if (mounted) setSiblingProducts(shuffleProductsForUser(active));
           } else {
             const allProducts = await api.getProducts();
-            const active = allProducts.filter((p: any) => !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted);
+            const active = allProducts.filter((p: any) => !p.isArchived && !p.isDeleted);
             if (mounted) setSiblingProducts(shuffleProductsForUser(active));
           }
           setLoading(false);

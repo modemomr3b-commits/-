@@ -83,53 +83,9 @@ export function isProductRestrictedFromSearch(
   product: Product,
   categories: Category[] = []
 ): boolean {
-  if (!product) return false;
-
-  // If product itself is marked locked
-  if (product.isLocked) {
-    return true;
-  }
-
-  const categoryMap = new Map<string, Category>();
-  categories.forEach(c => categoryMap.set(c.id, c));
-
-  // Check categoryId
-  if (product.categoryId) {
-    const cat = categoryMap.get(product.categoryId);
-    if (cat) {
-      if (cat.isHidden || isRestrictedCategoryName(cat.name)) {
-        return true;
-      }
-      if (cat.parentId) {
-        const parent = categoryMap.get(cat.parentId);
-        if (parent && (parent.isHidden || isRestrictedCategoryName(parent.name))) {
-          return true;
-        }
-      }
-    }
-  }
-
-  // Check subcategoryId
-  if (product.subcategoryId) {
-    const subcat = categoryMap.get(product.subcategoryId);
-    if (subcat) {
-      if (subcat.isHidden || isRestrictedCategoryName(subcat.name)) {
-        return true;
-      }
-      if (subcat.parentId) {
-        const parent = categoryMap.get(subcat.parentId);
-        if (parent && (parent.isHidden || isRestrictedCategoryName(parent.name))) {
-          return true;
-        }
-      }
-    }
-  }
-
-  // Check showcase category or metadata
-  if (product.showcaseCategory && isRestrictedCategoryName(product.showcaseCategory)) {
-    return true;
-  }
-
+  if (!product || product.isDeleted) return true;
+  // Previously we restricted hidden/locked products here, but the new requirement
+  // is to show all active published products to everyone.
   return false;
 }
 

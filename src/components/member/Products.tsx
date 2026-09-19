@@ -106,17 +106,20 @@ export default function Products() {
       setAllCategories(cats);
 
       const archivedCatId = cats.find((c: any) => isArchivedCategoryName(c.name))?.id;
-      const isArchivedProd = (p: any) => p.isArchived || (archivedCatId && p.categoryId === archivedCatId);
+      const isArchivedProd = (p: any) => {
+        if (archivedCatId) return p.categoryId === archivedCatId || p.subcategoryId === archivedCatId;
+        return p.isArchived;
+      };
 
       const isActive = (p: any) => {
         if (p.isDeleted) return false;
+        const isArchived = isArchivedProd(p);
         
-        // Strictly exclude archived from general browsing/All view
-        if (isArchivedProd(p)) return false;
-
-        // The user wants all published products to show for everyone with the same count.
-        // Hidden, locked, and restricted categories are still part of the active published set.
-        return true;
+        // If we are in the "Archived/Materials" category, show ONLY archived items
+        if (categoryId === archivedCatId) return isArchived;
+        
+        // Otherwise, strictly exclude archived from general browsing/All view
+        return !isArchived;
       };
 
       if (categoryId) {
@@ -204,12 +207,17 @@ export default function Products() {
       const cachedProds = Array.isArray(cachedProdsRaw) ? cachedProdsRaw : (cachedProdsRaw?.products || null);
       if (cachedProds && cachedProds.length > 0) {
         const archivedCatId = cachedCats?.find((c: any) => isArchivedCategoryName(c.name))?.id;
-        const isArchivedProd = (p: any) => p.isArchived || (archivedCatId && p.categoryId === archivedCatId);
-        
-        let fetchedProducts = cachedProds.filter((p: any) => 
-          !p.isHidden && !p.isLocked && !p.isDeleted &&
-          (categoryId === archivedCatId ? isArchivedProd(p) : !isArchivedProd(p))
-        );
+        const isArchivedProd = (p: any) => {
+          if (archivedCatId) return p.categoryId === archivedCatId || p.subcategoryId === archivedCatId;
+          return p.isArchived;
+        };
+
+        let fetchedProducts = cachedProds.filter((p: any) => {
+          if (p.isDeleted) return false;
+          const isArchived = isArchivedProd(p);
+          if (categoryId === archivedCatId) return isArchived;
+          return !isArchived;
+        });
         
         if (categoryId && cachedCats) {
           const getAllDescendantIds = (catId: string, cats: any[]): string[] => {
@@ -412,7 +420,10 @@ export default function Products() {
 
   const filteredProductsAll = useMemo(() => {
     const archivedCatId = allCategories.find((c: any) => isArchivedCategoryName(c.name))?.id;
-    const isArchivedProd = (p: any) => p.isArchived || (archivedCatId && p.categoryId === archivedCatId);
+    const isArchivedProd = (p: any) => {
+      if (archivedCatId) return p.categoryId === archivedCatId || p.subcategoryId === archivedCatId;
+      return p.isArchived;
+    };
 
     const isActive = (p: any) => {
       if (p.isDeleted) return false;
