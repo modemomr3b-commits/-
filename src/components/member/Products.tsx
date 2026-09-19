@@ -185,12 +185,8 @@ export default function Products() {
   useEffect(() => {
     let mounted = true;
 
-    // Instant local cache restoration so the user experiences 0ms wait time
-    const catCacheKey = categoryId ? `products_cat_${categoryId}` : 'all_products';
-    Promise.all([
-      localCache.get<any[]>('all_categories'),
-      localCache.get<any>(catCacheKey)
-    ]).then(([cachedCats, cachedProdsRaw]) => {
+    // Instant local categories restoration so navigation feels fast
+    localCache.get<any[]>('all_categories').then((cachedCats) => {
       if (!mounted) return;
       if (cachedCats && cachedCats.length > 0) {
         setAllCategories(cachedCats);
@@ -207,53 +203,13 @@ export default function Products() {
           setSubCategories(subs);
         }
       }
-
-      const cachedProds = Array.isArray(cachedProdsRaw) ? cachedProdsRaw : (cachedProdsRaw?.products || null);
-      if (cachedProds && cachedProds.length > 0) {
-        const archivedCatId = cachedCats?.find((c: any) => isArchivedCategoryName(c.name))?.id;
-        const isArchivedProd = (p: any) => {
-          if (archivedCatId) return p.categoryId === archivedCatId || p.subcategoryId === archivedCatId;
-          return p.isArchived;
-        };
-
-        let fetchedProducts = cachedProds.filter((p: any) => {
-          if (p.isDeleted) return false;
-          
-          // Hide inactive (hidden), locked, and restricted products as per latest user request
-          if (p.isHidden || p.isLocked || isProductRestrictedFromSearch(p, cachedCats || [])) return false;
-
-          const isArchived = isArchivedProd(p);
-          if (categoryId === archivedCatId) return isArchived;
-          return !isArchived;
-        });
-        
-        if (categoryId && cachedCats) {
-          const getAllDescendantIds = (catId: string, cats: any[]): string[] => {
-            const children = cats.filter((c: any) => c.parentId === catId);
-            let ids: string[] = [];
-            for (const child of children) {
-              ids.push(child.id);
-              ids.push(...getAllDescendantIds(child.id, cats));
-            }
-            return ids;
-          };
-          const descendantIds = getAllDescendantIds(categoryId, cachedCats);
-          const validCatIds = [categoryId, ...descendantIds];
-          fetchedProducts = fetchedProducts.filter((p: any) => 
-            validCatIds.includes(p.categoryId) || 
-            (p.subcategoryId && validCatIds.includes(p.subcategoryId))
-          );
-        }
-        
-        setProducts(shuffleProductsForUser(fetchedProducts));
-        setLoading(false);
-        setInitialLoading(false);
-      }
     });
 
     const init = async () => {
       try {
-        await fetchProducts(false, false, true); // Use incremental for initial background fetch
+        // We removed localCache product restoration to avoid inconsistent data flickering.
+        // We fetch directly from API to ensure accuracy as requested.
+        await fetchProducts(true); 
       } finally {
         if (mounted) {
           setLoading(false);

@@ -261,7 +261,7 @@ export default function ProductManager() {
           setUsdRate(settings.usdExchangeRate);
         }
       });
-      const prods = await api.getProducts();
+      const prods = await api.getProducts(false, false); // Get all products for manager, no cache, activeOnly: false
       setProducts(prev => {
         const prevMap = new Map(prev.map(p => [p.id, p]));
         const now = Date.now();

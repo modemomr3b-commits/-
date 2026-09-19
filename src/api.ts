@@ -335,64 +335,42 @@ export const api = {
     }
   },
   // PRODUCTS - CATEGORY SPECIFIC OPTIMIZED CACHING & INCREMENTAL SYNC
-  getProductsByCategory: async (categoryId: string, forceNetwork = false): Promise<any[]> => {
+  getProductsByCategory: async (categoryId: string, forceNetwork = false, activeOnly = true): Promise<any[]> => {
     if (!categoryId) return [];
-    const cacheKey = `products_cat_${categoryId}`;
+    const cacheKey = activeOnly ? `active_products_cat_${categoryId}` : `products_cat_${categoryId}`;
+    const globalKey = activeOnly ? 'all_active_products' : 'all_products';
     const now = Date.now();
 
-    // 1. Check if we have all products in memory already (Small store optimization)
-    if (!forceNetwork && memCache['all_products']?.data?.length) {
-      const filtered = memCache['all_products'].data.filter((p: any) => 
+    // 1. Check if we have matching products in memory already (Small store optimization)
+    if (!forceNetwork && memCache[globalKey]?.data?.length) {
+      const filtered = memCache[globalKey].data.filter((p: any) => 
         String(p.categoryId) === String(categoryId) || String(p.subcategoryId) === String(categoryId)
       );
       if (filtered.length > 0) {
-        logDev('DERIVED FROM GLOBAL CACHE', { categoryId, count: filtered.length });
+        logDev('DERIVED FROM GLOBAL CACHE', { categoryId, count: filtered.length, activeOnly });
         return filtered;
       }
     }
 
     // 2. Memory Cache check (0ms instant return)
     if (!forceNetwork && memCache[cacheKey]?.data?.length) {
-      logDev('CACHE HIT', { categoryId, count: memCache[cacheKey].data.length });
-      const lastSync = memCache[cacheKey].lastSyncAt || memCache[cacheKey].timestamp || 0;
-      // If synced > 60s ago, trigger silent background incremental sync
-      if (now - lastSync > 60000) {
-        api.syncCategoryIncremental(categoryId).catch(() => {});
-      }
+      logDev('CACHE HIT', { categoryId, count: memCache[cacheKey].data.length, activeOnly });
       return deduplicateItems(memCache[cacheKey].data);
     }
 
-    // 2. Local Cache check (instant offline / return from previous session)
-    const cached = await localCache.get<any>(cacheKey, Infinity);
-    if (!forceNetwork && cached) {
-      const rawList = Array.isArray(cached) ? cached : (cached.products || []);
-      if (rawList.length > 0) {
-        logDev('LOCAL CACHE HIT', { categoryId, count: rawList.length });
-        const processed = deduplicateItems(rawList).map(mapProduct);
-        const lastSync = cached.lastSyncAt || now;
-        memCache[cacheKey] = { data: processed, lastSyncAt: lastSync, timestamp: now };
-        
-        // Trigger silent background incremental sync if synced > 60s ago
-        if (now - lastSync > 60000) {
-          api.syncCategoryIncremental(categoryId).catch(() => {});
-        }
-        return processed;
-      }
-    }
-
-    // 3. Cache Miss: Fetch category data from network with request deduplication
-    logDev('CACHE MISS', { categoryId });
-    return api.fetchCategoryProductsDirect(categoryId, forceNetwork);
+    // 3. Cache Miss: Fetch category data from network
+    logDev('CACHE MISS', { categoryId, activeOnly });
+    return api.fetchCategoryProductsDirect(categoryId, forceNetwork, activeOnly);
   },
 
-  fetchCategoryProductsDirect: async (categoryId: string, forceNetwork = false): Promise<any[]> => {
+  fetchCategoryProductsDirect: async (categoryId: string, forceNetwork = false, activeOnly = true): Promise<any[]> => {
     if (!categoryId) return [];
-    const cacheKey = `products_cat_${categoryId}`;
+    const cacheKey = activeOnly ? `active_products_cat_${categoryId}` : `products_cat_${categoryId}`;
 
     // Deduplicate in-flight requests for the exact same category
-    if (inFlightCategoryRequests[categoryId]) {
-      logDev('DUPLICATE REQUEST PREVENTED', { categoryId });
-      return inFlightCategoryRequests[categoryId]!;
+    if (inFlightCategoryRequests[cacheKey]) {
+      logDev('DUPLICATE REQUEST PREVENTED', { categoryId, activeOnly });
+      return inFlightCategoryRequests[cacheKey]!;
     }
 
     const fetchPromise = (async () => {
@@ -411,7 +389,7 @@ export const api = {
         const descendantIds = getAllDescendantIds(categoryId, categories);
         const catIds = [categoryId, ...descendantIds];
 
-        logDev('SUPABASE REQUEST', { categoryId, catIds });
+        logDev('SUPABASE CATEGORY REQUEST', { categoryId, catIds, activeOnly });
 
         let allData: any[] = [];
         let from = 0;
@@ -423,6 +401,10 @@ export const api = {
             .from('products')
             .select(PRODUCT_SELECT_COLUMNS)
             .eq('isDeleted', false);
+
+          if (activeOnly) {
+            query = query.eq('isHidden', false).eq('isLocked', false);
+          }
 
           if (catIds.length === 1) {
             query = query.or(`categoryId.eq.${catIds[0]},subcategoryId.eq.${catIds[0]}`);
@@ -455,28 +437,24 @@ export const api = {
         const mapped = clean.map(mapProduct).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
         const duration = Date.now() - startTime;
-        logDev('SUPABASE REQUEST', { categoryId, count: mapped.length, duration: `${duration}ms` });
+        logDev('SUPABASE CATEGORY REQUEST COMPLETED', { categoryId, count: mapped.length, duration: `${duration}ms`, activeOnly });
 
         const now = Date.now();
         memCache[cacheKey] = { data: mapped, lastSyncAt: now, timestamp: now };
-        localCache.set(cacheKey, { categoryId, products: mapped, lastSyncAt: now }).catch(() => {});
         lastCategorySyncTimestamps[categoryId] = now;
 
         return mapped;
       } catch (err) {
         console.warn(`Fetch category failed for ${categoryId}:`, err);
-        const fallback = await localCache.get<any>(cacheKey, Infinity);
-        const rawList = Array.isArray(fallback) ? fallback : (fallback?.products || []);
-        if (rawList.length > 0) {
-          return deduplicateItems(rawList).map(mapProduct);
-        }
         return memCache[cacheKey]?.data || [];
-      } finally {
-        inFlightCategoryRequests[categoryId] = null;
       }
     })();
 
-    inFlightCategoryRequests[categoryId] = fetchPromise;
+    inFlightCategoryRequests[cacheKey] = fetchPromise;
+    fetchPromise.finally(() => {
+      delete inFlightCategoryRequests[cacheKey];
+    });
+
     return fetchPromise;
   },
 
@@ -691,7 +669,6 @@ export const api = {
         logDev('SUPABASE REQUEST', { type: 'category_counts_done', duration: `${Date.now() - startTime}ms` });
 
         memCache[cacheKey] = { data: result, timestamp: Date.now() };
-        localCache.set(cacheKey, result).catch(() => {});
         return result;
       } catch (err) {
         console.warn('Failed to fetch category counts:', err);
@@ -809,39 +786,24 @@ export const api = {
     const { count, error } = await supabase
       .from('products')
       .select('id', { count: 'exact', head: true })
-      .eq('isDeleted', false);
+      .eq('isDeleted', false)
+      .eq('isHidden', false)
+      .eq('isLocked', false);
     if (error) return 0;
     return count || 0;
   },
 
-  getProducts: async (forceNetwork = false) => {
-    return api.getProductsDirect(forceNetwork);
+  getProducts: async (forceNetwork = false, activeOnly = true) => {
+    return api.getProductsDirect(forceNetwork, activeOnly);
   },
 
-  getProductsDirect: async (forceNetwork = false): Promise<any[]> => {
+  getProductsDirect: async (forceNetwork = false, activeOnly = true): Promise<any[]> => {
     const now = Date.now();
+    const cacheKey = activeOnly ? 'all_active_products' : 'all_products';
+
     // 1. Return memory cache instantly if fresh (within 30 seconds)
-    if (!forceNetwork && memCache['all_products'] && (now - memCache['all_products'].timestamp < 30000)) {
-      return deduplicateItems(memCache['all_products'].data);
-    }
-
-    // 2. Try fast return from local cache instantly (0ms load for instant UI render)
-    const localEntry = await localCache.get<any>('all_products', Infinity);
-    const localCached = Array.isArray(localEntry) ? localEntry : (localEntry?.products || null);
-    const lastSyncAt = (Array.isArray(localEntry) ? 0 : localEntry?.lastSyncAt) || 0;
-
-    if (!forceNetwork && localCached && localCached.length > 0) {
-      const processed = deduplicateItems(localCached).map(mapProduct);
-      
-      // Update memory cache
-      memCache['all_products'] = { data: processed, timestamp: now, lastSyncAt };
-      
-      // Trigger background incremental sync if it's been more than 5 seconds since last check
-      // This ensures "Every active product" is up to date almost immediately on app entry
-      if (now - lastSyncAt > 5000) {
-        api.syncAllProductsIncremental().catch(() => {});
-      }
-      return processed;
+    if (!forceNetwork && memCache[cacheKey] && (now - memCache[cacheKey].timestamp < 30000)) {
+      return deduplicateItems(memCache[cacheKey].data);
     }
 
     // Deduplicate active in-flight fetch
@@ -851,20 +813,56 @@ export const api = {
 
     inFlightProductsPromise = (async () => {
       try {
-        const data = await getData('products', forceNetwork);
-        if (data && data.length > 0) {
-          const cleanData = deduplicateItems(data);
+        const startTime = Date.now();
+        let allData: any[] = [];
+        let from = 0;
+        const limit = 1000;
+        let hasMore = true;
+
+        while (hasMore) {
+          let query = supabase
+            .from('products')
+            .select(PRODUCT_SELECT_COLUMNS)
+            .eq('isDeleted', false);
+
+          if (activeOnly) {
+            query = query.eq('isHidden', false).eq('isLocked', false);
+          }
+
+          const { data, error } = await query
+            .order('id', { ascending: true })
+            .range(from, from + limit - 1);
+
+          if (error) {
+            console.error(`Error fetching all products [${from}-${from + limit - 1}]:`, error.message);
+            break;
+          }
+
+          if (data && data.length > 0) {
+            allData.push(...data);
+            if (data.length < limit) {
+              hasMore = false;
+            } else {
+              from += limit;
+            }
+          } else {
+            hasMore = false;
+          }
+        }
+
+        if (allData.length > 0) {
+          const cleanData = deduplicateItems(allData);
           const res = cleanData.map(mapProduct).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
           const syncTime = Date.now();
-          memCache['all_products'] = { data: res, timestamp: syncTime, lastSyncAt: syncTime };
-          localCache.set('all_products', { products: res, lastSyncAt: syncTime }).catch(() => {});
+          memCache[cacheKey] = { data: res, timestamp: syncTime, lastSyncAt: syncTime };
+          
+          logDev('SUPABASE ALL PRODUCTS FETCH', { count: res.length, activeOnly });
           return res;
         }
         return [];
       } catch (networkErr) {
-        console.warn('Network fetch failed, falling back to local cache:', networkErr);
-        if (localCached) return deduplicateItems(localCached).map(mapProduct);
-        if (memCache['all_products']?.data) return memCache['all_products'].data;
+        console.warn('Network fetch failed:', networkErr);
+        if (memCache[cacheKey]?.data) return memCache[cacheKey].data;
         return [];
       }
     })().finally(() => {
