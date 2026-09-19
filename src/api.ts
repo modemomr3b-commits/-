@@ -140,6 +140,8 @@ const getData = async (table: string, forceNetwork = false) => {
           selectColumns = 'id, userId, message, type, read, createdAt, isDeleted, deletedAt, deletedBy';
         } else if (table === 'settings') {
           selectColumns = 'id, data';
+        } else if (table === 'updates') {
+          selectColumns = 'id, title, message, type, createdAt, updatedAt, isDeleted, deletedAt, deletedBy';
         }
 
         logDev('SUPABASE REQUEST', { table, from, limit });
@@ -1410,6 +1412,9 @@ export const api = {
   },
   createCategory: async (data: any) => { 
     const safeData = { ...data };
+    delete safeData.id;
+    delete (safeData as any).image; // Defensive: DB uses 'icon' column
+    delete (safeData as any).imageUrl; // Defensive: imageUrl is frontend-only
     if ('parentId' in safeData) {
       safeData.parentId = (safeData.parentId && String(safeData.parentId).trim() !== '') ? safeData.parentId : null;
     }
@@ -1441,6 +1446,8 @@ export const api = {
   updateCategory: async (id: string, data: any) => { 
     const safeData = { ...data };
     delete safeData.id;
+    delete (safeData as any).image; // Defensive: DB uses 'icon' column
+    delete (safeData as any).imageUrl; // Defensive: imageUrl is frontend-only
     if ('parentId' in safeData) {
       safeData.parentId = (safeData.parentId && String(safeData.parentId).trim() !== '') ? safeData.parentId : null;
     }
@@ -1724,6 +1731,18 @@ export const api = {
     if (data.isDeleted !== undefined) safeData.isDeleted = data.isDeleted;
     if (data.deletedAt !== undefined) safeData.deletedAt = data.deletedAt;
     if (data.deletedBy !== undefined) safeData.deletedBy = data.deletedBy;
+    
+    // Explicitly ensure non-existent columns are NOT sent to Supabase
+    delete (safeData as any).userId;
+    delete (safeData as any).agentId;
+    delete (safeData as any).agentName;
+    delete (safeData as any).username;
+    delete (safeData as any).fullName;
+    delete (safeData as any).completedAt;
+    delete (safeData as any).items;
+    delete (safeData as any).totalQuantity;
+    delete (safeData as any).displayNotes;
+    delete (safeData as any).rawNotes;
 
     // Identify agent and customer
     const agentName = (data.username || data.agentName || data.fullName || 'الوكيل').trim();
@@ -1835,6 +1854,18 @@ export const api = {
     if (data.isDeleted !== undefined) safeData.isDeleted = data.isDeleted;
     if (data.deletedAt !== undefined) safeData.deletedAt = data.deletedAt;
     if (data.deletedBy !== undefined) safeData.deletedBy = data.deletedBy;
+
+    // Explicitly ensure non-existent columns are NOT sent to Supabase
+    delete (safeData as any).userId;
+    delete (safeData as any).agentId;
+    delete (safeData as any).agentName;
+    delete (safeData as any).username;
+    delete (safeData as any).fullName;
+    delete (safeData as any).completedAt;
+    delete (safeData as any).items;
+    delete (safeData as any).totalQuantity;
+    delete (safeData as any).displayNotes;
+    delete (safeData as any).rawNotes;
 
     if (data.customerName !== undefined || data.fullName !== undefined || data.username !== undefined) {
       safeData.customerName = data.customerName || data.fullName || data.username;

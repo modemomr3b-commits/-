@@ -66,7 +66,12 @@ export default function Home() {
         const uniqueCats = deduplicateCategories(cats);
         setCategories(
           uniqueCats
-            .filter((c) => !c.isHidden && !c.parentId && !isRestrictedCategoryName(c.name))
+            .filter((c) => {
+              if (c.isHidden || c.parentId || isRestrictedCategoryName(c.name)) return false;
+              // If not admin, hide archived categories from home grid
+              if (!isAdminOrSales && isArchivedCategoryName(c.name)) return false;
+              return true;
+            })
             .sort((a: any, b: any) => (a.order || 0) - (b.order || 0)),
         );
       }
@@ -102,7 +107,11 @@ export default function Home() {
         const uniqueCachedCats = deduplicateCategories(cachedCats);
         setCategories(
           uniqueCachedCats
-            .filter((c) => !c.isHidden && !c.parentId && !isRestrictedCategoryName(c.name))
+            .filter((c) => {
+              if (c.isHidden || c.parentId || isRestrictedCategoryName(c.name)) return false;
+              if (!isAdminOrSales && isArchivedCategoryName(c.name)) return false;
+              return true;
+            })
             .sort((a: any, b: any) => (a.order || 0) - (b.order || 0)),
         );
         setLoading(false);

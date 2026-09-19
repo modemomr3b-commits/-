@@ -175,28 +175,34 @@ export default function SearchPage() {
   const filteredProductsAll = useMemo(() => {
     if (!query) return [];
     
-    let archivedCat = allCategories.find(c => isArchivedCategoryName(c.name));
+    const archivedCat = allCategories.find(c => isArchivedCategoryName(c.name));
     const archivedCatId = archivedCat?.id;
+    const isStaff = user?.role === 'admin' || user?.role === 'sales';
 
     let result = products;
-    if (searchArchived) {
-      result = result.filter(p => archivedCatId && p.categoryId === archivedCatId);
+    
+    if (isStaff) {
+      // Admins see everything, but respect the toggle if they specifically want archived only
+      if (searchArchived) {
+        result = result.filter(p => p.isArchived || (archivedCatId && p.categoryId === archivedCatId));
+      }
     } else {
-      result = result.filter(p => (!archivedCatId || p.categoryId !== archivedCatId) && !p.isHidden && !p.isLocked);
+      // Standard users:
+      // If NOT searching archived specifically, we still allow them to appear if they match the query
+      // but we filter out strictly hidden/locked/deleted ones.
+      result = products.filter(p => !p.isDeleted);
+      
+      // If not staff, exclude truly hidden/locked products
+      result = result.filter(p => !p.isHidden && !p.isLocked && !isProductRestrictedFromSearch(p, allCategories));
+      
+      if (searchArchived) {
+        // Specifically looking for archived
+        result = result.filter(p => p.isArchived || (archivedCatId && p.categoryId === archivedCatId));
+      }
     }
     
-    // Always exclude products in restricted categories ("المواد المقفلة من قبل الادمن", "الموديلات متابعة")
-    if (searchArchived) {
-      result = result.filter(p => {
-        if (archivedCatId && p.categoryId === archivedCatId) return true;
-        return !isProductRestrictedFromSearch(p, allCategories);
-      });
-    } else {
-      result = result.filter(p => !isProductRestrictedFromSearch(p, allCategories));
-    }
-    
-    return filterProductsBySearch(result, query, allCategories, { includeRestricted: searchArchived });
-  }, [products, query, searchArchived, allCategories]);
+    return filterProductsBySearch(result, query, allCategories, { includeRestricted: isStaff || searchArchived });
+  }, [products, query, searchArchived, allCategories, user?.role]);
 
   const totalPages = Math.ceil(filteredProductsAll.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -249,11 +255,25 @@ export default function SearchPage() {
           <input 
             type="text" 
             value={searchInput}
-            onChange={e => { setSearchInput(e.target.value); setQuery(e.target.value); setCurrentPage(1); }}
+            onChange={e => { setSearchInput(e.target.value); setCurrentPage(1); }}
+            onKeyDown={e => {
+              if (e.key === 'Enter') {
+                setQuery(searchInput);
+                setCurrentPage(1);
+              }
+            }}
             className="w-full glass-card pl-12 pr-10 py-3.5 rounded-xl text-sm placeholder-white/40 focus:outline-none focus:border-brq-gold focus:ring-1 focus:ring-brq-gold transition-all text-white"
             placeholder="ابحث عن منتج، موديل، كود..."
             autoFocus
           />
+          {searchInput && (
+            <button
+              onClick={() => { setSearchInput(''); setQuery(''); setCurrentPage(1); }}
+              className="absolute inset-y-0 left-10 flex items-center pr-3 text-white/50 hover:text-white transition-colors"
+            >
+              ✕
+            </button>
+          )}
           <button className="absolute inset-y-0 left-0 flex items-center pl-3">
              <SlidersHorizontal className="w-5 h-5 text-white/50 hover:text-white transition-colors" />
           </button>

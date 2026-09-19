@@ -108,9 +108,32 @@ export default function Products() {
       const archivedCatId = cats.find((c: any) => isArchivedCategoryName(c.name))?.id;
       const isArchivedProd = (p: any) => p.isArchived || (archivedCatId && p.categoryId === archivedCatId);
 
-      const isActive = (p: any) => 
-        !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, cats) &&
-        (categoryId === archivedCatId ? isArchivedProd(p) : !isArchivedProd(p));
+      const isActive = (p: any, isSearchPool = false) => {
+        if (p.isDeleted) return false;
+        // Admins and Sales see everything regardless of hidden/locked status
+        if (isAdminOrSales) return true;
+        
+        // Basic restrictions (Hidden/Locked/Restricted Category)
+        if (p.isHidden || p.isLocked || isProductRestrictedFromSearch(p, cats)) {
+          return false;
+        }
+
+        const isArchived = isArchivedProd(p);
+        
+        if (isSearchPool) {
+          // In the search pool, we include everything that isn't restricted (including archived)
+          return true;
+        }
+
+        // For browsing/listing:
+        if (categoryId === archivedCatId) {
+          // If the user explicitly entered the archived category
+          return isArchived;
+        }
+        
+        // Otherwise, exclude archived from general browsing
+        return !isArchived;
+      };
 
       if (categoryId) {
         // Fast targeted category fetch: only downloads products belonging to this category
@@ -129,10 +152,15 @@ export default function Products() {
           .sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
         setSubCategories(subs);
 
-        const activeCatProds = catProds.filter(isActive);
+        const activeCatProds = catProds.filter(p => isActive(p, false));
         const shuffled = shuffleProductsForUser<Product>(activeCatProds);
         setProducts(shuffled);
-        setAllStoreProducts(shuffled);
+        
+        // Background fetch all products for global search (Pool includes archived)
+        api.getProductsDirect(forceDirect).then(all => {
+          const searchPool = all.filter(p => isActive(p, true));
+          setAllStoreProducts(shuffleProductsForUser(searchPool));
+        }).catch(() => {});
       } else {
         // All products view fallback
         const allStore = await api.getProductsDirect(forceDirect);
@@ -142,10 +170,12 @@ export default function Products() {
           return;
         }
 
-        const activeStore: Product[] = allStore.filter(isActive);
+        const activeStore: Product[] = allStore.filter(p => isActive(p, false));
         const shuffledStore = shuffleProductsForUser<Product>(activeStore);
-        setAllStoreProducts(shuffledStore);
         setProducts(shuffledStore);
+
+        const searchPool: Product[] = allStore.filter(p => isActive(p, true));
+        setAllStoreProducts(shuffleProductsForUser(searchPool));
       }
     } catch (err) {
       console.error(err);
@@ -388,30 +418,37 @@ export default function Products() {
     const archivedCatId = allCategories.find((c: any) => isArchivedCategoryName(c.name))?.id;
     const isArchivedProd = (p: any) => p.isArchived || (archivedCatId && p.categoryId === archivedCatId);
 
-    const isActive = (p: any) =>
-      !p.isHidden &&
-      !p.isLocked &&
-      !p.isDeleted &&
-      !isProductRestrictedFromSearch(p, allCategories) &&
-      (categoryId === archivedCatId ? isArchivedProd(p) : !isArchivedProd(p));
+    const isActive = (p: any, isSearch = false) => {
+      if (p.isDeleted) return false;
+      if (isAdminOrSales) return true;
+      
+      const basicRestricted = p.isHidden || p.isLocked || isProductRestrictedFromSearch(p, allCategories);
+      if (basicRestricted) return false;
+
+      if (isSearch) return true; // Search allows archived
+      
+      const isArchived = isArchivedProd(p);
+      if (categoryId === archivedCatId) return isArchived;
+      return !isArchived;
+    };
 
     // Only active products (never archived, hidden, locked, or in restricted categories) - Global search when searchTerm exists
     if (searchTerm && searchTerm.trim()) {
-      const source = (allStoreProducts.length > 0 ? allStoreProducts : products).filter(isActive);
+      const source = (allStoreProducts.length > 0 ? allStoreProducts : products).filter(p => isActive(p, true));
       const result = filterProductsBySearch(source, searchTerm, allCategories);
-      return result.filter(isActive);
+      return result;
     }
 
     // Normal browsing without search term: show category-filtered and regular active products ONLY
-    let result = products.filter(isActive);
+    let result = products.filter(p => isActive(p, false));
     if (activeSub) {
       result = result.filter((p) => p.subcategoryId === activeSub || (p.categoryId === activeSub && !p.subcategoryId));
     }
-    const cleanList = result.filter(isActive);
+    const cleanList = result.filter(p => isActive(p, false));
     
     // Distribute products across pages with pageSize = 35
     return shuffleProductsForUser(cleanList, 35, `member_${categoryId || 'all'}_${activeSub || 'none'}`);
-  }, [activeSub, products, allStoreProducts, searchTerm, allCategories, categoryId]);
+  }, [activeSub, products, allStoreProducts, searchTerm, allCategories, categoryId, isAdminOrSales]);
   
   // Pagination: strict 35 items per page
   const itemsPerPage = 35;
@@ -1236,22 +1273,63 @@ export default function Products() {
       {/* Pagination Controls */}
       {totalPages > 1 && !loading && filteredProductsAll.length > 0 && (
         <div className="flex flex-wrap justify-center items-center gap-2 mt-6 mb-16 pb-24" dir="ltr">
-          {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNumber) => (
-            <button
-              key={pageNumber}
-              onClick={() => {
-                setCurrentPage(pageNumber);
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              className={`w-12 h-12 flex items-center justify-center rounded-xl font-bold text-lg transition-all ${
-                currentPage === pageNumber 
-                  ? 'bg-brq-gold text-black scale-110 shadow-[0_0_15px_rgba(255,215,0,0.4)] border-2 border-yellow-300' 
-                  : 'bg-brq-card border border-brq-border text-white hover:bg-white/10'
-              }`}
-            >
-              {pageNumber}
-            </button>
-          ))}
+          {(() => {
+            const pages = [];
+            const maxVisible = 5;
+            let start = Math.max(1, currentPage - 2);
+            let end = Math.min(totalPages, start + maxVisible - 1);
+            
+            if (end - start + 1 < maxVisible) {
+              start = Math.max(1, end - maxVisible + 1);
+            }
+
+            if (start > 1) {
+              pages.push(
+                <button
+                  key={1}
+                  onClick={() => { setCurrentPage(1); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                  className={`w-10 h-10 flex items-center justify-center rounded-lg font-bold text-sm transition-all bg-brq-card border border-brq-border text-white hover:bg-white/10`}
+                >
+                  1
+                </button>
+              );
+              if (start > 2) pages.push(<span key="sep1" className="text-white/50 px-1">...</span>);
+            }
+
+            for (let i = start; i <= end; i++) {
+              pages.push(
+                <button
+                  key={i}
+                  onClick={() => {
+                    setCurrentPage(i);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  className={`w-12 h-12 flex items-center justify-center rounded-xl font-bold text-lg transition-all ${
+                    currentPage === i 
+                      ? 'bg-brq-gold text-black scale-110 shadow-[0_0_15px_rgba(255,215,0,0.4)] border-2 border-yellow-300' 
+                      : 'bg-brq-card border border-brq-border text-white hover:bg-white/10'
+                  }`}
+                >
+                  {i}
+                </button>
+              );
+            }
+
+            if (end < totalPages) {
+              if (end < totalPages - 1) pages.push(<span key="sep2" className="text-white/50 px-1">...</span>);
+              pages.push(
+                <button
+                  key={totalPages}
+                  onClick={() => { setCurrentPage(totalPages); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                  className={`w-10 h-10 flex items-center justify-center rounded-lg font-bold text-sm transition-all bg-brq-card border border-brq-border text-white hover:bg-white/10`}
+                >
+                  {totalPages}
+                </button>
+              );
+            }
+
+            return pages;
+          })()}
         </div>
       )}
 
