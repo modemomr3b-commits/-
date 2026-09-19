@@ -85,7 +85,7 @@ export const logDev = (tag: string, details?: any) => {
   }
 };
 
-export const PRODUCT_SELECT_COLUMNS = 'id, name, description, category, size, costPrice, sellingPrice, imageUrl, stock, minStock, qrCode, isArchived, isDeleted, deletedAt, deletedBy, createdAt, categoryId, subcategoryId, price, dozenPriceUsd, piecePriceUsd, piecePriceIqd, packaging, piecesCount, modelNumber, productCode, barcode, finalImageUrl, views';
+export const PRODUCT_SELECT_COLUMNS = 'id, name, description, category, size, costPrice, sellingPrice, imageUrl, stock, minStock, qrCode, isArchived, isDeleted, deletedAt, deletedBy, createdAt, categoryId, subcategoryId, price, dozenPriceUsd, piecePriceUsd, piecePriceIqd, packaging, piecesCount, modelNumber, productCode, barcode, finalImageUrl, views, isHidden, isLocked';
 export const USERS_SELECT_COLUMNS = 'id, uid, email, username, role, phone, password, allowedPages, isDeleted, deletedAt, deletedBy, createdAt, fullName, status, allowedDevice, lastActive, currentPage, isOnline, userNumber';
 export const ORDERS_SELECT_COLUMNS = 'id, orderNumber, customerName, customerPhone, address, status, notes, total, products, isDeleted, deletedAt, deletedBy, createdAt';
 export const CATEGORIES_SELECT_COLUMNS = 'id, name, description, icon, isDeleted, deletedAt, deletedBy, createdAt, order, parentId, isHidden';
@@ -628,7 +628,7 @@ export const api = {
         while (hasMore) {
           const { data, error } = await supabase
             .from('products')
-            .select('categoryId, subcategoryId, isArchived, size')
+            .select('categoryId, subcategoryId, isArchived, isHidden, isLocked, size')
             .eq('isDeleted', false)
             .order('id', { ascending: true })
             .range(from, from + limit - 1);
@@ -668,12 +668,15 @@ export const api = {
         for (let i = 0; i < allData.length; i++) {
           const item = allData[i] as any;
           
-          // Only skip if explicitly in an archived category to match admin logic
+          // Hide inactive (hidden), locked, and archived products from counts as requested
+          if (item.isHidden || item.isLocked) continue;
+          if (item.isArchived) continue;
+
+          // Also skip if explicitly in an archived category
           if (item.categoryId && archivedCatIds.has(item.categoryId)) continue;
           if (item.subcategoryId && archivedCatIds.has(item.subcategoryId)) continue;
 
           const size = item.size || {};
-          // We no longer skip hidden or locked products in the count, so it matches the admin view of published items.
           
           if (size.isShowcase) {
             showcaseCount++;
