@@ -612,13 +612,13 @@ export const api = {
         for (let i = 0; i < data.length; i++) {
           const item = data[i] as any;
           
-          // STRICT EXCLUSION: Skip archived products
+          // Skip archived products as requested previously
           if (item.isArchived) continue;
           if (item.categoryId && archivedCatIds.has(item.categoryId)) continue;
 
           const size = item.size || {};
-          if (size.isHidden || size.isLocked) continue;
-
+          // We no longer skip hidden or locked products in the count, so it matches the admin view of published items.
+          
           if (size.isShowcase) {
             showcaseCount++;
           }

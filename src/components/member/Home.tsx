@@ -67,9 +67,9 @@ export default function Home() {
         setCategories(
           uniqueCats
             .filter((c) => {
-              if (c.isHidden || c.parentId || isRestrictedCategoryName(c.name)) return false;
-              // If not admin, hide archived categories from home grid
-              if (!isAdminOrSales && isArchivedCategoryName(c.name)) return false;
+              if (c.isHidden || c.parentId) return false;
+              // Hide archived categories from home grid (they are only for search)
+              if (isArchivedCategoryName(c.name)) return false;
               return true;
             })
             .sort((a: any, b: any) => (a.order || 0) - (b.order || 0)),
@@ -108,8 +108,8 @@ export default function Home() {
         setCategories(
           uniqueCachedCats
             .filter((c) => {
-              if (c.isHidden || c.parentId || isRestrictedCategoryName(c.name)) return false;
-              if (!isAdminOrSales && isArchivedCategoryName(c.name)) return false;
+              if (c.isHidden || c.parentId) return false;
+              if (isArchivedCategoryName(c.name)) return false;
               return true;
             })
             .sort((a: any, b: any) => (a.order || 0) - (b.order || 0)),

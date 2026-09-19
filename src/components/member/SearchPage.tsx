@@ -52,15 +52,12 @@ export default function SearchPage() {
       if (cachedProds && cachedProds.length > 0) {
         const isStaff = user?.role === 'admin' || user?.role === 'sales';
         const archivedCatId = cachedCats?.find(c => isArchivedCategoryName(c.name))?.id;
-        const visibleProducts = isStaff
-          ? cachedProds
-          : cachedProds.filter(p => 
-              !p.isHidden && 
-              !p.isDeleted && 
-              !p.isArchived &&
-              (archivedCatId ? p.categoryId !== archivedCatId : true) &&
-              !isProductRestrictedFromSearch(p, cachedCats || [])
-            );
+        const visibleProducts = cachedProds.filter(p => {
+          if (p.isDeleted) return false;
+          const isArchived = p.isArchived || (archivedCatId && p.categoryId === archivedCatId);
+          if (isArchived && !searchArchived) return false;
+          return true;
+        });
         setProducts(shuffleProductsForUser(visibleProducts));
         setLoading(false);
       }
@@ -80,15 +77,12 @@ export default function SearchPage() {
             setAllCategories(cats);
             const isStaff = user?.role === 'admin' || user?.role === 'sales';
             const archivedCatId = cats.find(c => isArchivedCategoryName(c.name))?.id;
-            const visibleProducts = isStaff
-              ? allProducts
-              : allProducts.filter(p => 
-                  !p.isHidden && 
-                  !p.isDeleted && 
-                  !p.isArchived &&
-                  (archivedCatId ? p.categoryId !== archivedCatId : true) &&
-                  !isProductRestrictedFromSearch(p, cats)
-                );
+            const visibleProducts = allProducts.filter(p => {
+              if (p.isDeleted) return false;
+              const isArchived = p.isArchived || (archivedCatId && p.categoryId === archivedCatId);
+              if (isArchived && !searchArchived) return false;
+              return true;
+            });
             setProducts(shuffleProductsForUser(visibleProducts));
          }
       } catch (e) {

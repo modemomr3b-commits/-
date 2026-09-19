@@ -114,14 +114,8 @@ export default function Products() {
         // Strictly exclude archived from general browsing/All view
         if (isArchivedProd(p)) return false;
 
-        // Staff sees hidden/locked items in general browsing
-        if (isAdminOrSales) return true;
-        
-        // Customers: Hide hidden/locked/restricted items
-        if (p.isHidden || p.isLocked || isProductRestrictedFromSearch(p, cats)) {
-          return false;
-        }
-
+        // The user wants all published products to show for everyone with the same count.
+        // Hidden, locked, and restricted categories are still part of the active published set.
         return true;
       };
 
@@ -426,14 +420,8 @@ export default function Products() {
       // Archived items are strictly for specialized search.
       if (isArchivedProd(p)) return false;
 
-      // Staff sees everything else
-      if (isAdminOrSales) return true;
-      
-      // Customers: Hide hidden/locked/restricted
-      if (p.isHidden || p.isLocked || isProductRestrictedFromSearch(p, allCategories)) {
-        return false;
-      }
-      
+      // The user wants all published products to show for everyone with the same count.
+      // Hidden, locked, and restricted categories are still part of the active published set.
       return true;
     };
 
