@@ -45,8 +45,8 @@ export default function Products() {
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false);
   const isAndroid = /Android/i.test(navigator.userAgent || '');
   const maxShareLimit = isAndroid ? 10 : 100;
-  const displayCountPerPage = 50;
-  const pageProductsAll = products;
+  const displayCountPerPage = 35;
+  const itemsPerPage = 35;
   
   // Grid Column & Zoom management with Ctrl + Mouse Wheel support
   const {
@@ -110,19 +110,19 @@ export default function Products() {
 
       const isActive = (p: any) => {
         if (p.isDeleted) return false;
-        // Admins and Sales see everything regardless of hidden/locked status
+        
+        // Strictly exclude archived from general browsing/All view
+        if (isArchivedProd(p)) return false;
+
+        // Staff sees hidden/locked items in general browsing
         if (isAdminOrSales) return true;
         
-        // Basic restrictions (Hidden/Locked/Restricted Category)
+        // Customers: Hide hidden/locked/restricted items
         if (p.isHidden || p.isLocked || isProductRestrictedFromSearch(p, cats)) {
           return false;
         }
 
-        const isArchived = isArchivedProd(p);
-        
-        // For browsing/listing/searching in this view:
-        // Strictly exclude archived products from general view as requested
-        return !isArchived;
+        return true;
       };
 
       if (categoryId) {
@@ -423,13 +423,18 @@ export default function Products() {
     const isActive = (p: any) => {
       if (p.isDeleted) return false;
       
-      const basicRestricted = p.isHidden || p.isLocked || isProductRestrictedFromSearch(p, allCategories);
-      if (basicRestricted) return false;
+      // Archived items are strictly for specialized search.
+      if (isArchivedProd(p)) return false;
 
-      // Strictly exclude archived from general browsing and search in this view
-      // This view is for categories and 'All' products - archived items are strictly for specialized search.
-      const isArchived = isArchivedProd(p);
-      return !isArchived;
+      // Staff sees everything else
+      if (isAdminOrSales) return true;
+      
+      // Customers: Hide hidden/locked/restricted
+      if (p.isHidden || p.isLocked || isProductRestrictedFromSearch(p, allCategories)) {
+        return false;
+      }
+      
+      return true;
     };
 
     // Only active products (never archived, hidden, locked, or in restricted categories) - Global search when searchTerm exists
@@ -451,7 +456,6 @@ export default function Products() {
   }, [activeSub, products, allStoreProducts, searchTerm, allCategories, categoryId, isAdminOrSales]);
   
   // Pagination: strict 35 items per page
-  const itemsPerPage = 35;
   const totalPages = Math.ceil(filteredProductsAll.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const filteredProducts = useMemo(() => {
