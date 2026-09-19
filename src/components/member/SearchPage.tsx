@@ -185,8 +185,8 @@ export default function SearchPage() {
     result = result.filter(p => !p.isDeleted);
     
     if (!isStaff) {
-      // For customers: only exclude deleted items (which is already handled above)
-      // Restricted categories are now also visible as per user request
+      // For customers: strictly hide hidden/locked/restricted items
+      result = result.filter(p => !p.isHidden && !p.isLocked && !isProductRestrictedFromSearch(p, allCategories));
     }
 
     // Archived isolation:

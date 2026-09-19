@@ -113,6 +113,10 @@ export default function Products() {
 
       const isActive = (p: any) => {
         if (p.isDeleted) return false;
+        
+        // Hide inactive (hidden), locked, and restricted products as per latest user request
+        if (p.isHidden || p.isLocked || isProductRestrictedFromSearch(p, cats)) return false;
+
         const isArchived = isArchivedProd(p);
         
         // If we are in the "Archived/Materials" category, show ONLY archived items
@@ -214,6 +218,10 @@ export default function Products() {
 
         let fetchedProducts = cachedProds.filter((p: any) => {
           if (p.isDeleted) return false;
+          
+          // Hide inactive (hidden), locked, and restricted products as per latest user request
+          if (p.isHidden || p.isLocked || isProductRestrictedFromSearch(p, cachedCats || [])) return false;
+
           const isArchived = isArchivedProd(p);
           if (categoryId === archivedCatId) return isArchived;
           return !isArchived;
@@ -428,11 +436,12 @@ export default function Products() {
     const isActive = (p: any) => {
       if (p.isDeleted) return false;
       
+      // Hide inactive (hidden), locked, and restricted products as per latest user request
+      if (p.isHidden || p.isLocked || isProductRestrictedFromSearch(p, allCategories)) return false;
+
       // Archived items are strictly for specialized search.
       if (isArchivedProd(p)) return false;
 
-      // The user wants all published products to show for everyone with the same count.
-      // Hidden, locked, and restricted categories are still part of the active published set.
       return true;
     };
 
