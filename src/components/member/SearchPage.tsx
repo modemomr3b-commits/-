@@ -66,10 +66,16 @@ export default function SearchPage() {
       }
     });
 
-    const fetchProducts = async (forceNetwork = false) => {
+    const fetchProducts = async (forceNetwork = false, incremental = true) => {
       try {
          const cats = await api.getCategories(forceNetwork);
-         const allProducts = await api.getProductsDirect(forceNetwork);
+         let allProducts: Product[];
+         if (incremental && !forceNetwork) {
+            allProducts = await api.syncAllProductsIncremental();
+         } else {
+            allProducts = await api.getProductsDirect(forceNetwork);
+         }
+         
          if (mounted) {
             setAllCategories(cats);
             const isStaff = user?.role === 'admin' || user?.role === 'sales';
@@ -91,14 +97,14 @@ export default function SearchPage() {
          if (mounted) setLoading(false);
       }
     };
-    fetchProducts(false);
+    fetchProducts(false, true);
 
     // Instant local BroadcastChannel synchronization across tabs
     let fetchTimeout: any = null;
-    const scheduleFetch = (delay = 1200) => {
+    const scheduleFetch = (delay = 1200, incremental = true) => {
       clearTimeout(fetchTimeout);
       fetchTimeout = setTimeout(() => {
-        if (mounted) fetchProducts(true);
+        if (mounted) fetchProducts(true, incremental);
       }, delay);
     };
 
@@ -107,7 +113,7 @@ export default function SearchPage() {
       if (typeof window !== 'undefined' && (window as any).BroadcastChannel) {
         bc = new (window as any).BroadcastChannel('brq_products_sync');
         bc.onmessage = () => {
-          scheduleFetch(400);
+          scheduleFetch(400, true);
         };
       }
     } catch {}
@@ -115,19 +121,19 @@ export default function SearchPage() {
     const channel = supabase
       .channel('search_products_sync')
       .on('broadcast', { event: 'bulk_updated' }, () => {
-        scheduleFetch(600);
+        scheduleFetch(600, true);
       })
       .on('broadcast', { event: 'product_changed' }, () => {
-        scheduleFetch(600);
+        scheduleFetch(600, true);
       })
       .on('broadcast', { event: 'product_created' }, () => {
-        scheduleFetch(600);
+        scheduleFetch(600, true);
       })
       .on('broadcast', { event: 'bulk_deleted' }, () => {
-        scheduleFetch(600);
+        scheduleFetch(600, true);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
-        scheduleFetch(1200);
+        scheduleFetch(1200, true);
       })
       .subscribe();
 
@@ -188,16 +194,18 @@ export default function SearchPage() {
       }
     } else {
       // Standard users:
-      // If NOT searching archived specifically, we still allow them to appear if they match the query
-      // but we filter out strictly hidden/locked/deleted ones.
+      // We filter out strictly hidden/locked/deleted ones.
       result = products.filter(p => !p.isDeleted);
       
       // If not staff, exclude truly hidden/locked products
       result = result.filter(p => !p.isHidden && !p.isLocked && !isProductRestrictedFromSearch(p, allCategories));
       
       if (searchArchived) {
-        // Specifically looking for archived
+        // Specifically looking for archived ONLY
         result = result.filter(p => p.isArchived || (archivedCatId && p.categoryId === archivedCatId));
+      } else {
+        // Exclude archived from general search
+        result = result.filter(p => !p.isArchived && (!archivedCatId || p.categoryId !== archivedCatId));
       }
     }
     

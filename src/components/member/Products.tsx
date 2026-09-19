@@ -100,7 +100,7 @@ export default function Products() {
     return 1;
   });
 
-  const fetchProducts = async (forceDirect = false, isRetry = false) => {
+  const fetchProducts = async (forceDirect = false, isRetry = false, incremental = false) => {
     try {
       const cats = await api.getCategories(forceDirect);
       setAllCategories(cats);
@@ -108,7 +108,7 @@ export default function Products() {
       const archivedCatId = cats.find((c: any) => isArchivedCategoryName(c.name))?.id;
       const isArchivedProd = (p: any) => p.isArchived || (archivedCatId && p.categoryId === archivedCatId);
 
-      const isActive = (p: any, isSearchPool = false) => {
+      const isActive = (p: any) => {
         if (p.isDeleted) return false;
         // Admins and Sales see everything regardless of hidden/locked status
         if (isAdminOrSales) return true;
@@ -120,24 +120,19 @@ export default function Products() {
 
         const isArchived = isArchivedProd(p);
         
-        if (isSearchPool) {
-          // In the search pool, we include everything that isn't restricted (including archived)
-          return true;
-        }
-
-        // For browsing/listing:
-        if (categoryId === archivedCatId) {
-          // If the user explicitly entered the archived category
-          return isArchived;
-        }
-        
-        // Otherwise, exclude archived from general browsing
+        // For browsing/listing/searching in this view:
+        // Strictly exclude archived products from general view as requested
         return !isArchived;
       };
 
       if (categoryId) {
-        // Fast targeted category fetch: only downloads products belonging to this category
-        const catProds = await api.getProductsByCategory(categoryId, forceDirect);
+        // Use incremental sync if requested and possible
+        let catProds: Product[];
+        if (incremental) {
+          catProds = await api.syncCategoryIncremental(categoryId);
+        } else {
+          catProds = await api.getProductsByCategory(categoryId, forceDirect);
+        }
         
         if (catProds.length === 0 && !isRetry) {
           await new Promise(resolve => setTimeout(resolve, 800));
@@ -148,17 +143,21 @@ export default function Products() {
         const cat = cats.find((c: any) => c.id === categoryId);
         setCategoryName(cat ? cat.name : `القسم ${categoryId}`);
         const subs = cats
-          .filter((c: any) => c.parentId === categoryId && !c.isHidden)
+          .filter((c: any) => {
+            if (c.parentId !== categoryId || c.isHidden) return false;
+            if (!isAdminOrSales && isArchivedCategoryName(c.name)) return false;
+            return true;
+          })
           .sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
         setSubCategories(subs);
 
-        const activeCatProds = catProds.filter(p => isActive(p, false));
+        const activeCatProds = catProds.filter(isActive);
         const shuffled = shuffleProductsForUser<Product>(activeCatProds);
         setProducts(shuffled);
         
-        // Background fetch all products for global search (Pool includes archived)
+        // Background fetch all products for global search (Pool excludes archived)
         api.getProductsDirect(forceDirect).then(all => {
-          const searchPool = all.filter(p => isActive(p, true));
+          const searchPool = all.filter(isActive);
           setAllStoreProducts(shuffleProductsForUser(searchPool));
         }).catch(() => {});
       } else {
@@ -170,11 +169,11 @@ export default function Products() {
           return;
         }
 
-        const activeStore: Product[] = allStore.filter(p => isActive(p, false));
+        const activeStore: Product[] = allStore.filter(isActive);
         const shuffledStore = shuffleProductsForUser<Product>(activeStore);
         setProducts(shuffledStore);
 
-        const searchPool: Product[] = allStore.filter(p => isActive(p, true));
+        const searchPool: Product[] = allStore.filter(isActive);
         setAllStoreProducts(shuffleProductsForUser(searchPool));
       }
     } catch (err) {
@@ -198,7 +197,11 @@ export default function Products() {
           const cat = cachedCats.find((c: any) => c.id === categoryId);
           if (cat) setCategoryName(cat.name);
           const subs = cachedCats
-            .filter((c: any) => c.parentId === categoryId && !c.isHidden)
+            .filter((c: any) => {
+              if (c.parentId !== categoryId || c.isHidden) return false;
+              if (!isAdminOrSales && isArchivedCategoryName(c.name)) return false;
+              return true;
+            })
             .sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
           setSubCategories(subs);
         }
@@ -240,8 +243,7 @@ export default function Products() {
 
     const init = async () => {
       try {
-        await fetchProducts(false);
-        fetchProducts(true).catch(() => {});
+        await fetchProducts(false, false, true); // Use incremental for initial background fetch
       } finally {
         if (mounted) {
           setLoading(false);
@@ -254,10 +256,10 @@ export default function Products() {
 
     // Instant local BroadcastChannel synchronization across tabs
     let fetchTimeout: any = null;
-    const scheduleFetch = (delay = 400) => {
+    const scheduleFetch = (delay = 400, incremental = true) => {
       clearTimeout(fetchTimeout);
       fetchTimeout = setTimeout(() => {
-        if (mounted) fetchProducts(true);
+        if (mounted) fetchProducts(true, false, incremental);
       }, delay);
     };
 
@@ -266,7 +268,7 @@ export default function Products() {
       if (typeof window !== 'undefined' && (window as any).BroadcastChannel) {
         bc = new (window as any).BroadcastChannel('brq_products_sync');
         bc.onmessage = () => {
-          scheduleFetch(400);
+          scheduleFetch(400, true);
         };
       }
     } catch {}
@@ -274,22 +276,22 @@ export default function Products() {
     const channel = supabase
       .channel('member_products_view')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
-        scheduleFetch(1200);
+        scheduleFetch(1200, true);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'categories' }, () => {
-        scheduleFetch(1200);
+        scheduleFetch(1200, false); // Full fetch for categories
       })
       .on('broadcast', { event: 'bulk_updated' }, () => {
-        scheduleFetch(600);
+        scheduleFetch(600, true);
       })
       .on('broadcast', { event: 'product_changed' }, () => {
-        scheduleFetch(600);
+        scheduleFetch(600, true);
       })
       .on('broadcast', { event: 'product_created' }, () => {
-        scheduleFetch(600);
+        scheduleFetch(600, true);
       })
       .on('broadcast', { event: 'bulk_deleted' }, () => {
-        scheduleFetch(600);
+        scheduleFetch(600, true);
       })
       .subscribe();
 
@@ -418,33 +420,31 @@ export default function Products() {
     const archivedCatId = allCategories.find((c: any) => isArchivedCategoryName(c.name))?.id;
     const isArchivedProd = (p: any) => p.isArchived || (archivedCatId && p.categoryId === archivedCatId);
 
-    const isActive = (p: any, isSearch = false) => {
+    const isActive = (p: any) => {
       if (p.isDeleted) return false;
       if (isAdminOrSales) return true;
       
       const basicRestricted = p.isHidden || p.isLocked || isProductRestrictedFromSearch(p, allCategories);
       if (basicRestricted) return false;
 
-      if (isSearch) return true; // Search allows archived
-      
+      // Strictly exclude archived from general browsing and search in this view
       const isArchived = isArchivedProd(p);
-      if (categoryId === archivedCatId) return isArchived;
       return !isArchived;
     };
 
     // Only active products (never archived, hidden, locked, or in restricted categories) - Global search when searchTerm exists
     if (searchTerm && searchTerm.trim()) {
-      const source = (allStoreProducts.length > 0 ? allStoreProducts : products).filter(p => isActive(p, true));
+      const source = (allStoreProducts.length > 0 ? allStoreProducts : products).filter(isActive);
       const result = filterProductsBySearch(source, searchTerm, allCategories);
       return result;
     }
 
     // Normal browsing without search term: show category-filtered and regular active products ONLY
-    let result = products.filter(p => isActive(p, false));
+    let result = products.filter(isActive);
     if (activeSub) {
       result = result.filter((p) => p.subcategoryId === activeSub || (p.categoryId === activeSub && !p.subcategoryId));
     }
-    const cleanList = result.filter(p => isActive(p, false));
+    const cleanList = result.filter(isActive);
     
     // Distribute products across pages with pageSize = 35
     return shuffleProductsForUser(cleanList, 35, `member_${categoryId || 'all'}_${activeSub || 'none'}`);

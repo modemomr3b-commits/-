@@ -32,7 +32,7 @@ import { copyTextToClipboard, openWhatsAppDirectly } from "../../utils/whatsappS
 import { WhatsAppShareDialog } from "../shared/WhatsAppShareDialog";
 import CategoryIcon from "../ui/CategoryIcon";
 import { localCache } from "../../utils/localCache";
-import { isRestrictedCategoryName, isProductRestrictedFromSearch } from "../../utils/search";
+import { isRestrictedCategoryName, isProductRestrictedFromSearch, isArchivedCategoryName } from "../../utils/search";
 
 const DEFAULT_ICONS = ["✨", "👟", "🇹🇷", "⭐", "🎒", "☀️", "🔥"];
 

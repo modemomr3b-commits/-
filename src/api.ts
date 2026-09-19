@@ -450,8 +450,8 @@ export const api = {
   },
 
   // INCREMENTAL SYNC: Fetch ONLY new, updated, or deleted products since lastSyncAt
-  syncCategoryIncremental: async (categoryId: string): Promise<void> => {
-    if (!categoryId || inFlightCategorySyncs[categoryId]) return;
+  syncCategoryIncremental: async (categoryId: string): Promise<any[]> => {
+    if (!categoryId) return [];
 
     const cacheKey = `products_cat_${categoryId}`;
     const cachedEntry = memCache[cacheKey];
@@ -464,9 +464,12 @@ export const api = {
       lastSync = localEntry?.lastSyncAt || lastSync;
     }
 
-    if (currentProducts.length === 0 || !lastSync || (Date.now() - lastSync < 30000)) {
-      return; // Need at least initial products and minimum 30s cooldown
+    // If zero products locally, perform a full fetch instead
+    if (currentProducts.length === 0) {
+      return api.fetchCategoryProductsDirect(categoryId, true);
     }
+
+    if (inFlightCategorySyncs[categoryId]) return currentProducts;
 
     inFlightCategorySyncs[categoryId] = true;
     const startTime = Date.now();
@@ -523,7 +526,7 @@ export const api = {
       if (modified.length === 0 && deletedIds.size === 0) {
         if (memCache[cacheKey]) memCache[cacheKey].lastSyncAt = now;
         localCache.set(cacheKey, { categoryId, products: currentProducts, lastSyncAt: now }).catch(() => {});
-        return;
+        return currentProducts;
       }
 
       // Apply incremental changes
@@ -547,8 +550,10 @@ export const api = {
       const clean = deduplicateItems(updatedList);
       memCache[cacheKey] = { data: clean, lastSyncAt: now, timestamp: now };
       await localCache.set(cacheKey, { categoryId, products: clean, lastSyncAt: now });
+      return clean;
     } catch (err) {
       console.warn(`Incremental sync failed for category ${categoryId}:`, err);
+      return currentProducts;
     } finally {
       inFlightCategorySyncs[categoryId] = false;
     }
@@ -743,16 +748,27 @@ export const api = {
   },
 
   getProductsDirect: async (forceNetwork = false): Promise<any[]> => {
+    const now = Date.now();
     // 1. Return memory cache instantly if fresh
-    if (!forceNetwork && memCache['all_products'] && (Date.now() - memCache['all_products'].timestamp < MEM_CACHE_TTL)) {
+    if (!forceNetwork && memCache['all_products'] && (now - memCache['all_products'].timestamp < MEM_CACHE_TTL)) {
+      const lastSync = memCache['all_products'].lastSyncAt || 0;
+      if (now - lastSync > 120000) {
+        api.syncAllProductsIncremental().catch(() => {});
+      }
       return deduplicateItems(memCache['all_products'].data);
     }
 
     // 2. Try fast return from local cache instantly (0ms load for instant UI render)
-    const localCached = await localCache.get<any[]>('all_products', Infinity);
+    const localEntry = await localCache.get<any>('all_products', Infinity);
+    const localCached = Array.isArray(localEntry) ? localEntry : (localEntry?.products || null);
     if (!forceNetwork && localCached && localCached.length > 0) {
       const processed = deduplicateItems(localCached).map(mapProduct);
-      memCache['all_products'] = { data: processed, timestamp: Date.now() };
+      const lastSync = localEntry?.lastSyncAt || 0;
+      memCache['all_products'] = { data: processed, timestamp: now, lastSyncAt: lastSync };
+      
+      if (now - lastSync > 120000) {
+        api.syncAllProductsIncremental().catch(() => {});
+      }
       return processed;
     }
 
@@ -768,15 +784,17 @@ export const api = {
         if (data && data.length > 0) {
           const cleanData = deduplicateItems(data);
           const res = cleanData.map(mapProduct).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-          memCache['all_products'] = { data: res, timestamp: Date.now() };
-          localCache.set('all_products', res).catch(() => {});
+          const syncTime = Date.now();
+          memCache['all_products'] = { data: res, timestamp: syncTime, lastSyncAt: syncTime };
+          localCache.set('all_products', { products: res, lastSyncAt: syncTime }).catch(() => {});
           return res;
         }
       } catch (networkErr) {
         console.warn('Network fetch failed, falling back to local cache:', networkErr);
       }
 
-      const fallbackLocal = await localCache.get<any[]>('all_products', Infinity);
+      const fallbackLocalEntry = await localCache.get<any>('all_products', Infinity);
+      const fallbackLocal = Array.isArray(fallbackLocalEntry) ? fallbackLocalEntry : (fallbackLocalEntry?.products || null);
       if (fallbackLocal && fallbackLocal.length > 0) {
         return deduplicateItems(fallbackLocal).map(mapProduct);
       }
@@ -791,6 +809,71 @@ export const api = {
     });
 
     return inFlightProductsPromise;
+  },
+
+  // INCREMENTAL GLOBAL SYNC: Fetch ONLY new, updated, or deleted products since last global sync
+  syncAllProductsIncremental: async (): Promise<any[]> => {
+    const cacheKey = 'all_products';
+    const cachedEntry = memCache[cacheKey];
+    let currentProducts: any[] = cachedEntry?.data || [];
+    let lastSync = cachedEntry?.lastSyncAt || 0;
+
+    if (currentProducts.length === 0) {
+      const localEntry = await localCache.get<any>(cacheKey, Infinity);
+      currentProducts = Array.isArray(localEntry) ? localEntry : (localEntry?.products || []);
+      lastSync = localEntry?.lastSyncAt || lastSync;
+    }
+
+    if (currentProducts.length === 0) {
+      return api.getProductsDirect(true);
+    }
+
+    try {
+      const [modRes, delRes] = await Promise.all([
+        supabase
+          .from('products')
+          .select(PRODUCT_SELECT_COLUMNS)
+          .or(`createdAt.gt.${lastSync},size->>updatedAt.gt.${lastSync}`)
+          .eq('isDeleted', false),
+        supabase
+          .from('products')
+          .select('id, isDeleted, deletedAt')
+          .eq('isDeleted', true)
+          .gt('deletedAt', lastSync)
+      ]);
+
+      const modified = (modRes.data || []).map(mapProduct);
+      const deletedIds = new Set((delRes.data || []).map((d: any) => String(d.id)));
+
+      if (modified.length === 0 && deletedIds.size === 0) {
+        const now = Date.now();
+        if (memCache[cacheKey]) memCache[cacheKey].lastSyncAt = now;
+        localCache.set(cacheKey, { products: currentProducts, lastSyncAt: now }).catch(() => {});
+        return currentProducts;
+      }
+
+      let updatedList = [...currentProducts];
+      if (deletedIds.size > 0) {
+        updatedList = updatedList.filter(p => !deletedIds.has(String(p.id)));
+      }
+      modified.forEach(modProd => {
+        const idx = updatedList.findIndex(p => String(p.id) === String(modProd.id));
+        if (idx >= 0) {
+          updatedList[idx] = modProd;
+        } else {
+          updatedList.unshift(modProd);
+        }
+      });
+
+      const clean = deduplicateItems(updatedList).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      const syncTime = Date.now();
+      memCache[cacheKey] = { data: clean, timestamp: syncTime, lastSyncAt: syncTime };
+      await localCache.set(cacheKey, { products: clean, lastSyncAt: syncTime });
+      return clean;
+    } catch (err) {
+      console.warn('Global incremental sync failed:', err);
+      return currentProducts;
+    }
   },
   createProduct: async (data: any) => { 
     const serverTime = await getServerTime();
