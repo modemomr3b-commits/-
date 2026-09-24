@@ -232,10 +232,21 @@ export default function ProductManager() {
     showcaseCategory: "رجالي",
   });
 
-  const [filterStatus, setFilterStatus] = useState<"all" | "active" | "locked" | "inactive" | "duplicates" | "showcase" | "archived" | null>("active");
+  const [filterStatus, setFilterStatus] = useState<"all" | "active" | "locked" | "inactive" | "duplicates" | "noSubcategory" | "showcase" | "archived" | null>("active");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [searchDate, setSearchDate] = useState("");
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setSearchInput('');
+        setSearchQuery('');
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
   const [filterCategoryId, setFilterCategoryId] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
@@ -594,7 +605,22 @@ export default function ProductManager() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newProduct.name || !newProduct.price || isSubmitting) return;
+    if (isSubmitting) return;
+
+    const missingFields: string[] = [];
+    if (!newProduct.name || !newProduct.name.trim()) missingFields.push("اسم المنتج");
+    if (!newProduct.dozenPriceUsd || Number(newProduct.dozenPriceUsd) <= 0) missingFields.push("سعر الدرزن بالدولار");
+    if (!newProduct.price || Number(newProduct.price) <= 0) missingFields.push("سعر الدرزن بالدينار");
+    if (!newProduct.packaging || String(newProduct.packaging).trim() === '') missingFields.push("التعبئة");
+    if (!newProduct.categoryId || !newProduct.categoryId.trim()) missingFields.push("القسم");
+    if (!newProduct.subcategoryId || !newProduct.subcategoryId.trim()) missingFields.push("القسم الفرعي");
+    if (!newProduct.productCode || !newProduct.productCode.trim()) missingFields.push("كود المنتج");
+    if (!newProduct.imageUrl || !newProduct.imageUrl.trim()) missingFields.push("صورة المنتج");
+
+    if (missingFields.length > 0) {
+      setAlertMessage(`⚠️ لم يتم نشر البطاقة بسبب نقص أحد الحقول المطلوبة: ${missingFields.join("، ")}. يجب ملء كافة الحقول الـ 8 المطلوبة (اسم المنتج، سعر الدرزن بالدولار، سعر الدرزن بالدينار، التعبئة، القسم، القسم الفرعي، كود المنتج، والصورة) لنشر البطاقة بنجاح.`);
+      return;
+    }
 
     const atNumber = extractAtNumber(newProduct.name);
     if (atNumber) {
@@ -1479,6 +1505,7 @@ export default function ProductManager() {
       inactive: nonArchivedProds.filter(p => p.isHidden).length,
       locked: nonArchivedProds.filter(p => p.isLocked).length,
       duplicates: nonArchivedProds.filter(p => !p.isHidden && !p.isLocked && !isProductRestrictedFromSearch(p, categories) && duplicatesSet.has(p.modelNumber || p.productCode)).length,
+      noSubcategory: nonArchivedProds.filter(p => !p.isHidden && !p.isLocked && !isProductRestrictedFromSearch(p, categories) && p.categoryId && (!p.subcategoryId || p.subcategoryId.trim() === '')).length,
       showcase: nonArchivedProds.filter(p => p.isShowcase && !p.isHidden && !p.isLocked && !isProductRestrictedFromSearch(p, categories)).length,
     };
   }, [products, duplicatesSet, categories]);
@@ -1518,6 +1545,8 @@ export default function ProductManager() {
             if (!p.isLocked) return false;
           } else if (filterStatus === 'duplicates') {
             if (p.isHidden || p.isLocked || isProductRestrictedFromSearch(p, categories) || !duplicatesSet.has(p.modelNumber || p.productCode)) return false;
+          } else if (filterStatus === 'noSubcategory') {
+            if (p.isHidden || p.isLocked || isProductRestrictedFromSearch(p, categories) || !p.categoryId || (p.subcategoryId && p.subcategoryId.trim() !== '')) return false;
           } else if (filterStatus === 'showcase') {
             if (!p.isShowcase || p.isHidden || p.isLocked || isProductRestrictedFromSearch(p, categories)) return false;
           }
@@ -1553,6 +1582,9 @@ export default function ProductManager() {
         } else if (filterStatus === 'duplicates') {
           // Only active duplicates
           if (p.isHidden || p.isLocked || isProductRestrictedFromSearch(p, categories) || !duplicatesSet.has(p.modelNumber || p.productCode)) return false;
+        } else if (filterStatus === 'noSubcategory') {
+          // Only active without subcategory
+          if (p.isHidden || p.isLocked || isProductRestrictedFromSearch(p, categories) || !p.categoryId || (p.subcategoryId && p.subcategoryId.trim() !== '')) return false;
         } else if (filterStatus === 'showcase') {
           // Only showcase (active)
           if (!p.isShowcase || p.isHidden || p.isLocked || isProductRestrictedFromSearch(p, categories)) return false;
@@ -1964,6 +1996,15 @@ export default function ProductManager() {
               </span>
             </button>
             <button
+              onClick={() => setFilterStatus("noSubcategory")}
+              className={`pb-2 px-2.5 text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 ${filterStatus === "noSubcategory" ? "border-teal-400 text-teal-400" : "border-transparent text-white/50 hover:text-white"}`}
+            >
+              مواد بدون أقسام فرعية
+              <span className="text-[10px] bg-teal-500/20 text-teal-300 px-1.5 py-0.5 rounded-full font-mono font-bold">
+                {tabCounts.noSubcategory}
+              </span>
+            </button>
+            <button
               onClick={() => setFilterStatus("showcase")}
               className={`pb-2 px-2.5 text-sm font-bold border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap ${filterStatus === "showcase" ? "border-amber-400 text-amber-300" : "border-transparent text-white/50 hover:text-white"}`}
             >
@@ -1993,7 +2034,7 @@ export default function ProductManager() {
           <div className="glass-panel border border-white/5 rounded-2xl overflow-hidden p-1">
             <div className="p-4 border-b border-white/5 flex flex-col sm:flex-row gap-3 justify-between items-center">
               <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
-                <div className="relative w-full sm:w-80">
+                <div className="relative w-full sm:w-80 flex items-center gap-2">
                   <div className="relative w-full">
                     <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
                     <input
@@ -2007,6 +2048,17 @@ export default function ProductManager() {
                       placeholder="بحث بالاسم، الكود..."
                     />
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchInput('');
+                      setSearchQuery('');
+                    }}
+                    className="px-3 py-2.5 bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg text-sm font-bold hover:bg-red-500/30 transition-colors whitespace-nowrap"
+                    title="مسح البحث (ESC)"
+                  >
+                    Clear
+                  </button>
                 </div>
                 <div className="relative w-full sm:w-48">
                   <input
