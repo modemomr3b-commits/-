@@ -463,17 +463,47 @@ export function BatchProductUpload({ categories, usdRate, user, onAdded, onClose
 
   // Ultra-Fast Parallel Publishing (Automatically created as inactive isHidden: true)
   const handleSubmitAll = async () => {
-    const validProducts = products.filter(p => p.name && p.price);
+    const activeCards = products.map((p, idx) => ({ product: p, index: idx })).filter(({ product }) => {
+      return !!(
+        product.name?.trim() ||
+        product.dozenPriceUsd ||
+        product.price ||
+        product.packaging?.trim() ||
+        product.categoryId?.trim() ||
+        product.subcategoryId?.trim() ||
+        product.productCode?.trim() ||
+        product.imageUrl?.trim()
+      );
+    });
     
-    if (validProducts.length === 0) {
-      setAlertMessage('الرجاء تعبئة منتج واحد على الأقل (الاسم والسعر مطلوبان)');
+    if (activeCards.length === 0) {
+      setAlertMessage('الرجاء تعبئة منتج واحد على الأقل.');
       return;
     }
 
-    if (validProducts.length > MAX_CARDS) {
+    if (activeCards.length > MAX_CARDS) {
       setAlertMessage(`تم قفل النشر السريع على ${MAX_CARDS} بطاقة كحد أقصى.`);
       return;
     }
+
+    for (const { product, index } of activeCards) {
+      const missingFields: string[] = [];
+      if (!product.name || !product.name.trim()) missingFields.push("اسم المنتج");
+      if (!product.dozenPriceUsd || Number(product.dozenPriceUsd) <= 0) missingFields.push("سعر الدرزن بالدولار");
+      if (!product.price || Number(product.price) <= 0) missingFields.push("سعر الدرزن بالدينار");
+      if (!product.packaging || String(product.packaging).trim() === '') missingFields.push("التعبئة");
+      if (!product.categoryId || !product.categoryId.trim()) missingFields.push("القسم");
+      if (!product.subcategoryId || !product.subcategoryId.trim()) missingFields.push("القسم الفرعي");
+      if (!product.productCode || !product.productCode.trim()) missingFields.push("كود المنتج");
+      if (!product.imageUrl || !product.imageUrl.trim()) missingFields.push("صورة المنتج");
+
+      if (missingFields.length > 0) {
+        setAlertMessage(`⚠️ لم يتم نشر البطاقة رقم (${index + 1}) بسبب نقص الحقول المطلوبة: ${missingFields.join("، ")}. يجب ملء كافة الحقول الـ 8 المطلوبة (اسم المنتج، سعر الدرزن بالدولار، سعر الدرزن بالدينار، التعبئة، القسم، القسم الفرعي، كود المنتج، والصورة) لكل بطاقة لتتم عملية النشر السريع بنجاح.`);
+        return;
+      }
+    }
+
+    const validProducts = activeCards.map(c => c.product);
 
     setIsSubmitting(true);
     
