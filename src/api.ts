@@ -1171,6 +1171,7 @@ export const api = {
           phone2: '07817982888',
           telegram1: '07801359735',
           telegram2: '07817982888',
+          usdExchangeRate: 1590,
           ...parsed,
         };
         try {
@@ -1195,6 +1196,7 @@ export const api = {
       phone2: '07817982888',
       telegram1: '07801359735',
       telegram2: '07817982888',
+      usdExchangeRate: 1590,
     };
   },
   updateSettings: async (data: any) => { 
