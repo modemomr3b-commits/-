@@ -1,4 +1,4 @@
-import { Outlet, Link, useLocation, useNavigate } from 'react-router';
+import { Outlet, Link, useLocation, useNavigate, Navigate } from 'react-router';
 import { useStore } from '../store';
 import { LayoutDashboard, Users, ShoppingCart, Package, Settings, LogOut, Tags, Bell, MessageSquare, FileText, Eye, Trash2, Clock } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -13,6 +13,12 @@ export default function AdminLayout() {
   const { user, setUser } = useStore();
   const location = useLocation();
   const navigate = useNavigate();
+
+  if (user && (user.status === 'suspended' || user.status === 'inactive' || user.isDeleted === true)) {
+    useStore.getState().setUser(null);
+    useStore.getState().clearCart();
+    return <Navigate to="/login?suspended=1" replace />;
+  }
   const [newOrdersCount, setNewOrdersCount] = useState(0);
   const [toastMessage, setToastMessage] = useState<{ title: string, body: string } | null>(null);
   const [isLogoHovered, setIsLogoHovered] = useState(false);
