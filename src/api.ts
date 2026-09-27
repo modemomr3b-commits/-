@@ -910,37 +910,11 @@ export const api = {
   },
   updateUser: async (id: string, data: any, silent?: boolean) => { 
     const { data: r, error } = await supabase.from('users').update(data).match({ id }).select().single(); 
-    if (error && !silent) throw error; 
-    try {
-      await supabase.channel(`user_guard_${id}`).send({
-        type: 'broadcast',
-        event: 'user_updated',
-        payload: { id, ...data },
-      });
-      await supabase.channel('user_status_guard_global').send({
-        type: 'broadcast',
-        event: 'user_updated',
-        payload: { id, ...data },
-      });
-    } catch (e) {}
-    return r; 
+    if (error && !silent) throw error; return r; 
   },
   deleteUser: async (id: string, deletedBy?: string) => { 
     const { error } = await supabase.from('users').delete().match({ id }); 
-    if (error) throw error; 
-    try {
-      await supabase.channel(`user_guard_${id}`).send({
-        type: 'broadcast',
-        event: 'user_updated',
-        payload: { id, isDeleted: true },
-      });
-      await supabase.channel('user_status_guard_global').send({
-        type: 'broadcast',
-        event: 'user_updated',
-        payload: { id, isDeleted: true },
-      });
-    } catch (e) {}
-    return { success: true }; 
+    if (error) throw error; return { success: true }; 
   },
   hardDeleteUser: async (id: string) => { 
     const { error } = await supabase.from('users').delete().match({ id }); 

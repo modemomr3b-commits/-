@@ -335,8 +335,8 @@ Photorealistic studio shot, 8k resolution, crisp focus, commercial catalog quali
           return res.status(401).json({ error: 'بيانات الدخول غير صحيحة' });
       }
 
-      if (udoc.status === 'suspended' || udoc.status === 'inactive' || udoc.isActive === false || udoc.isDeleted === true) {
-          return res.status(403).json({ error: '⚠️ هذا الحساب موقوف من قبل إدارة التطبيق، يرجى مراجعة الدعم الفني للتفعيل.' });
+      if (udoc.status === 'inactive' || udoc.isActive === false) {
+          return res.status(403).json({ error: 'تم إيقاف هذا الحساب.' });
       }
 
       const { password: _dbPassword, ...userWithoutPassword } = udoc;

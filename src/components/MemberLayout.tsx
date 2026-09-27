@@ -1,4 +1,4 @@
-import { Outlet, Link, useLocation, Navigate } from 'react-router';
+import { Outlet, Link, useLocation } from 'react-router';
 import { useStore } from '../store.ts';
 import { api } from '../api.ts';
 import { Home, Search, Heart, ShoppingBag, User, Download, X, Share, MessageCircle, LayoutDashboard, Package, Users, Clock } from 'lucide-react';
@@ -13,12 +13,6 @@ import QuickContactWidget from './common/QuickContactWidget';
 export default function MemberLayout() {
   const { cart, user } = useStore();
   const location = useLocation();
-
-  if (user && (user.status === 'suspended' || user.status === 'inactive' || user.isDeleted === true)) {
-    useStore.getState().setUser(null);
-    useStore.getState().clearCart();
-    return <Navigate to="/login?suspended=1" replace />;
-  }
   const { deferredPrompt, isIOS, showInstallPrompt, setShowInstallPrompt, handleInstallClick } = usePWAInstall();
   const [isLogoHovered, setIsLogoHovered] = useState(false);
   const [pendingCustomerOrdersCount, setPendingCustomerOrdersCount] = useState(0);

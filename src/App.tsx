@@ -2,7 +2,6 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
 import { useEffect, useState, Suspense, lazy } from 'react';
 import { useStore } from './store';
 import { api } from './api';
-import { supabase } from './supabase';
 
 import SplashScreen from './components/SplashScreen';
 import GlobalNotifications from './components/GlobalNotifications';
@@ -72,74 +71,24 @@ export default function App() {
     };
   }, []);
 
-  // Security Guard: Monitor active user status in real-time & poll every 5 seconds to immediately kick suspended users
   useEffect(() => {
-    if (user && (user.uid || user.id)) {
-      const currentUserId = user.uid || user.id;
-
-      const performSecurityCheck = async (): Promise<boolean> => {
-        try {
-          const freshUser = await api.getUser(currentUserId);
-          const isSuspended = !freshUser || freshUser.status === 'suspended' || freshUser.status === 'inactive' || freshUser.isDeleted === true || freshUser.isActive === false;
-          
-          if (isSuspended) {
-            useStore.getState().setUser(null);
-            useStore.getState().clearCart();
-            localStorage.removeItem('brq-storage');
-            window.location.href = '/login?suspended=1';
-            return true;
-          }
-        } catch (e) {}
-        return false;
-      };
-
-      // Update last active online timestamp only once per minute to avoid database write load
+    if (user && user.uid) {
       const pingStatus = async () => {
-        const wasSuspended = await performSecurityCheck();
-        if (!wasSuspended) {
-          try {
-            await api.updateUser(currentUserId, { lastActive: Date.now(), isOnline: true }, true);
-          } catch (e) {}
-        }
+        try {
+          await api.updateUser(user.uid, { lastActive: Date.now(), isOnline: true }, true);
+        } catch (e) {}
       };
-
-      // Immediate initial checks
-      performSecurityCheck();
       pingStatus();
-
-      // Poll status check every 15s (super light read) and update online status every 60s
-      const secInterval = setInterval(performSecurityCheck, 15000);
-      const pingInterval = setInterval(pingStatus, 60000);
-
-      // Realtime listener for instant disconnect when admin changes status
-      const userChannel = supabase
-        .channel(`user_guard_${currentUserId}`)
-        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'users', filter: `id=eq.${currentUserId}` }, (payload) => {
-          const updated = payload.new;
-          if (updated && (updated.status === 'suspended' || updated.status === 'inactive' || updated.isDeleted === true || updated.isActive === false)) {
-            useStore.getState().setUser(null);
-            useStore.getState().clearCart();
-            localStorage.removeItem('brq-storage');
-            window.location.href = '/login?suspended=1';
-          }
-        })
-        .on('broadcast', { event: 'user_updated' }, (payload) => {
-          if (payload.payload?.id === currentUserId || payload.payload?.uid === currentUserId) {
-            performSecurityCheck();
-          }
-        })
-        .subscribe();
-
+      const interval = setInterval(pingStatus, 60000); // 1 minute
+      
       const handleBeforeUnload = () => {
-        api.updateUser(currentUserId, { isOnline: false, lastActive: Date.now() }, true).catch(() => {});
+        api.updateUser(user.uid, { isOnline: false, lastActive: Date.now() }, true).catch(() => {});
       };
       
       window.addEventListener('beforeunload', handleBeforeUnload);
       
       return () => {
-        clearInterval(secInterval);
-        clearInterval(pingInterval);
-        supabase.removeChannel(userChannel);
+        clearInterval(interval);
         window.removeEventListener('beforeunload', handleBeforeUnload);
       };
     }
