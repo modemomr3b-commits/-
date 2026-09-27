@@ -162,7 +162,18 @@ export default function App() {
             {/* Public Showcase - No login required */}
             <Route path="/showcase" element={<ShowcasePage />} />
 
-            <Route path="/login" element={!user ? <Login /> : <Navigate to="/" />} />
+            <Route 
+              path="/login" 
+              element={
+                !user ? (
+                  <Login />
+                ) : (user.role === 'admin' || user.role === 'sales') ? (
+                  <Navigate to="/admin" replace />
+                ) : (
+                  <Navigate to="/" replace />
+                )
+              } 
+            />
             
             <Route 
               path="/" 

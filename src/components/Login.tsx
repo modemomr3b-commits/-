@@ -110,7 +110,11 @@ export default function Login() {
         await api.forceRefreshAll();
       } catch (e) {}
 
-      navigate('/');
+      if (finalUser.role === 'admin' || finalUser.role === 'sales') {
+        navigate('/admin');
+      } else {
+        navigate('/');
+      }
 
     } catch(err: any) {
       setError(err.message || 'حدث خطأ أثناء تسجيل الدخول');

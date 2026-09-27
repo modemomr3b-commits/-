@@ -118,7 +118,7 @@ export default function AdminLayout() {
         </div>
         <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
           {menu.map((item) => {
-            const isActive = location.pathname === item.path || (item.path !== '/admin' && location.pathname.startsWith(item.path));
+            const isActive = location.pathname === item.path || (item.path !== '/admin' && item.path !== '/' && location.pathname.startsWith(item.path));
             const Icon = item.icon;
             return (
               <Link
@@ -184,7 +184,7 @@ export default function AdminLayout() {
       {/* Mobile Bottom Navigation */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 glass-panel border-t border-white/10 z-50 flex overflow-x-auto no-scrollbar pb-safe">
         {menu.map((item) => {
-          const isActive = location.pathname === item.path || (item.path !== '/admin' && location.pathname.startsWith(item.path));
+          const isActive = location.pathname === item.path || (item.path !== '/admin' && item.path !== '/' && location.pathname.startsWith(item.path));
           const Icon = item.icon;
           return (
             <Link
