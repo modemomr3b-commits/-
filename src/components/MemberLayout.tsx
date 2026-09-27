@@ -14,7 +14,7 @@ export default function MemberLayout() {
   const { cart, user } = useStore();
   const location = useLocation();
 
-  if (user && (user.status === 'suspended' || user.status === 'inactive' || user.isDeleted === true)) {
+  if (user && user.role !== 'admin' && (user.status === 'suspended' || user.status === 'inactive' || user.isDeleted === true)) {
     useStore.getState().setUser(null);
     useStore.getState().clearCart();
     return <Navigate to="/login?suspended=1" replace />;

@@ -86,7 +86,7 @@ export default function Login() {
                if (!isPasswordCorrect) {
                    throw new Error('بيانات الدخول غير صحيحة');
                }
-               if (udoc.status === 'suspended' || udoc.status === 'inactive' || udoc.isActive === false || udoc.isDeleted === true) {
+               if (udoc.role !== 'admin' && (udoc.status === 'suspended' || udoc.status === 'inactive' || udoc.isActive === false || udoc.isDeleted === true)) {
                    throw new Error('⚠️ هذا الحساب موقوف من قبل إدارة التطبيق، يرجى مراجعة الدعم الفني للتفعيل');
                }
                finalUser = {

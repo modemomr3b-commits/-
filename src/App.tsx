@@ -75,6 +75,16 @@ export default function App() {
   // Zero-DB-Load Realtime User Guard: Listens to instant memory broadcasts on user status change
   useEffect(() => {
     if (user && (user.uid || user.id)) {
+      // Admins are exempt from automatic kick
+      if (user.role === 'admin') {
+        const adminPing = () => {
+          api.updateUser(user.uid || user.id, { lastActive: Date.now(), isOnline: true }, true).catch(() => {});
+        };
+        adminPing();
+        const interval = setInterval(adminPing, 60000);
+        return () => clearInterval(interval);
+      }
+
       const currentUserId = user.uid || user.id;
 
       const logoutIfSuspended = () => {
@@ -87,7 +97,7 @@ export default function App() {
       const pingStatus = async () => {
         try {
           const freshUser = await api.getUser(currentUserId);
-          if (!freshUser || freshUser.status === 'suspended' || freshUser.status === 'inactive' || freshUser.isDeleted === true || freshUser.isActive === false) {
+          if (freshUser && (freshUser.status === 'suspended' || freshUser.status === 'inactive' || freshUser.isDeleted === true || freshUser.isActive === false)) {
             logoutIfSuspended();
             return;
           }
