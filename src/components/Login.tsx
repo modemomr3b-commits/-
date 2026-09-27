@@ -20,6 +20,13 @@ export default function Login() {
   const navigate = useNavigate();
   const { deferredPrompt, isIOS, showInstallPrompt, handleInstallClick, isStandalone } = usePWAInstall();
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('suspended') === '1') {
+      setError('⚠️ تم إيقاف حسابك من قبل إدارة التطبيق. تم تسجيل الخروج ولا يمكنك التصفح حالياً. يرجى التواصل مع الإدارة.');
+    }
+  }, []);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanUsername = username.trim().toLowerCase();
@@ -79,11 +86,8 @@ export default function Login() {
                if (!isPasswordCorrect) {
                    throw new Error('بيانات الدخول غير صحيحة');
                }
-               if (udoc.role !== 'admin') {
-                   const isAccountActive = udoc.status === 'active' || udoc.isActive === true || (udoc.status === undefined && udoc.isActive === undefined);
-                   if (!isAccountActive) {
-                       throw new Error('هذا الحساب موقوف، يرجى مراجعة الإدارة');
-                   }
+               if (udoc.status === 'suspended' || udoc.status === 'inactive' || udoc.isActive === false || udoc.isDeleted === true) {
+                   throw new Error('⚠️ هذا الحساب موقوف من قبل إدارة التطبيق، يرجى مراجعة الدعم الفني للتفعيل');
                }
                finalUser = {
                   id: udoc.id,
@@ -91,7 +95,7 @@ export default function Login() {
                   username: udoc.username,
                   fullName: udoc.fullName,
                   role: udoc.role,
-                  status: udoc.status || (udoc.isActive ? 'active' : 'suspended')
+                  status: udoc.status || 'active'
                };
            }
         }

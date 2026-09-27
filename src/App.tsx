@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
 import { useEffect, useState, Suspense, lazy } from 'react';
 import { useStore } from './store';
 import { api } from './api';
+import { supabase } from './supabase';
 
 import SplashScreen from './components/SplashScreen';
 import GlobalNotifications from './components/GlobalNotifications';
@@ -71,24 +72,53 @@ export default function App() {
     };
   }, []);
 
+  // Zero-DB-Load Realtime User Guard: Listens to instant memory broadcasts on user status change
   useEffect(() => {
-    if (user && user.uid) {
+    if (user && (user.uid || user.id)) {
+      const currentUserId = user.uid || user.id;
+
+      const logoutIfSuspended = () => {
+        useStore.getState().setUser(null);
+        useStore.getState().clearCart();
+        localStorage.removeItem('brq-storage');
+        window.location.href = '/login?suspended=1';
+      };
+
       const pingStatus = async () => {
         try {
-          await api.updateUser(user.uid, { lastActive: Date.now(), isOnline: true }, true);
+          const freshUser = await api.getUser(currentUserId);
+          if (!freshUser || freshUser.status === 'suspended' || freshUser.status === 'inactive' || freshUser.isDeleted === true || freshUser.isActive === false) {
+            logoutIfSuspended();
+            return;
+          }
+          await api.updateUser(currentUserId, { lastActive: Date.now(), isOnline: true }, true);
         } catch (e) {}
       };
+
       pingStatus();
-      const interval = setInterval(pingStatus, 60000); // 1 minute
+      const interval = setInterval(pingStatus, 60000); // Standard 1 minute online ping
+
+      // Pure Memory WebSocket listener - Zero DB queries
+      const guardChannel = supabase.channel('global_user_guard')
+        .on('broadcast', { event: 'user_status_changed' }, (payload) => {
+          const p = payload.payload;
+          if (p && (p.id === currentUserId || p.uid === currentUserId)) {
+            if (p.status === 'suspended' || p.status === 'inactive' || p.isDeleted === true) {
+              logoutIfSuspended();
+            }
+          }
+        })
+        .subscribe();
       
       const handleBeforeUnload = () => {
-        api.updateUser(user.uid, { isOnline: false, lastActive: Date.now() }, true).catch(() => {});
+        api.updateUser(currentUserId, { isOnline: false, lastActive: Date.now() }, true).catch(() => {});
       };
       
       window.addEventListener('beforeunload', handleBeforeUnload);
       
       return () => {
         clearInterval(interval);
+        supabase.removeChannel(guardChannel);
         window.removeEventListener('beforeunload', handleBeforeUnload);
       };
     }
