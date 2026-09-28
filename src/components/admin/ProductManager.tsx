@@ -2106,7 +2106,11 @@ export default function ProductManager() {
                 <div className="relative w-full sm:w-auto">
                   <select
                     value={filterCategoryId}
-                    onChange={(e) => setFilterCategoryId(e.target.value)}
+                    onChange={(e) => {
+                      setFilterCategoryId(e.target.value);
+                      setSearchQuery('');
+                      setSearchInput('');
+                    }}
                     className="appearance-none pl-8 pr-10 py-2.5 bg-white border-2 border-brq-royal rounded-lg text-sm font-bold text-black hover:bg-gray-50 transition-colors focus:outline-none focus:border-brq-gold shadow-sm"
                   >
                     <option value="none">لا شيء</option>
