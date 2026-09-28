@@ -211,6 +211,7 @@ export default function ProductManager() {
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
   const [publishSuccess, setPublishSuccess] = useState(false);
   const [duplicateConfirm, setDuplicateConfirm] = useState<{ atNumber: string; existingName: string; type: 'create' | 'update'; payload: any } | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
 
   // Helper to manage loading state
