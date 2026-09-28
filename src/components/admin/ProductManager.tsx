@@ -1607,8 +1607,9 @@ export default function ProductManager() {
           if (!isChild) return false;
         }
       } else if (filterCategoryId === 'none') {
-        // Special search behavior: if searching, show everything except archived. Else show nothing.
-        if (!searchQuery) return false;
+        // If searching, show products that match the query (excluding archived). Else show nothing.
+        if (!searchQuery || searchQuery.trim() === '') return false;
+        
         const archivedCat = categories.find(c => isArchivedCategoryName(c.name));
         const archivedCatId = archivedCat?.id || 'be0a70a8-f9c6-430d-8416-11745f26576f';
         if (p.categoryId === archivedCatId || p.subcategoryId === archivedCatId) return false;
