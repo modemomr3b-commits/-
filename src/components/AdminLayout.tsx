@@ -78,14 +78,12 @@ export default function AdminLayout() {
   };
 
   const menu = [
-    { icon: LayoutDashboard, path: '/admin', label: 'لوحة القيادة' },
     { icon: Eye, path: '/', label: 'تصفح التطبيق' },
     { icon: Package, path: '/admin/products', label: 'إدارة المنتجات' },
     { icon: Tags, path: '/admin/categories', label: 'إدارة الأقسام' },
     { icon: ShoppingCart, path: '/admin/orders', label: 'إدارة الطلبات', badge: newOrdersCount },
     { icon: Users, path: '/admin/users', label: 'إدارة المستخدمين' },
     { icon: Clock, path: '/admin/access-log', label: 'سجل الدخول (24h)' },
-    { icon: MessageSquare, path: '/admin/notifications', label: 'الرسائل' },
     { icon: Trash2, path: '/admin/trash', label: 'سلة المحذوفات' },
     { icon: Settings, path: '/admin/settings', label: 'الإعدادات' }
   ];
