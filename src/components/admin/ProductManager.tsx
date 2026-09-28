@@ -2052,13 +2052,19 @@ export default function ProductManager() {
                     <input
                       type="text"
                       value={searchInput}
-                      onChange={(e) => {
-                        setSearchInput(e.target.value);
-                        setSearchQuery(e.target.value);
+                      onChange={(e) => setSearchInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') setSearchQuery(searchInput);
                       }}
                       className="w-full bg-white border border-black rounded-lg pr-10 pl-4 py-2.5 text-base font-bold text-black placeholder:text-gray-500 focus:outline-none focus:border-brq-gold/50"
                       placeholder="بحث بالاسم، الكود..."
                     />
+                    <button
+                      onClick={() => setSearchQuery(searchInput)}
+                      className="px-4 py-2.5 bg-brq-royal text-white rounded-lg font-bold hover:bg-blue-600 transition-colors"
+                    >
+                      بحث
+                    </button>
                   </div>
                   <button
                     type="button"
