@@ -953,8 +953,21 @@ export const api = {
 
   // ORDERS
   getOrders: async () => {
-    const data = await getData('orders');
-    return data.map((o: any) => {
+    // Optimization: Fetch only recent orders to avoid timeouts
+    const { data, error } = await supabase
+      .from('orders')
+      .select('*')
+      .neq('status', 'completed')
+      .order('id', { ascending: false })
+      .limit(500);
+
+    if (error) {
+      console.error('Error fetching recent orders:', error);
+      return [];
+    }
+    
+    const activeData = (data || []).filter((item: any) => item.isDeleted !== true);
+    return activeData.map((o: any) => {
       const parsed = parseOrderDetails(o);
 
       return {
