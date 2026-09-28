@@ -1526,7 +1526,7 @@ export default function ProductManager() {
           return false;
         }
         if (filterCategoryId !== archivedCatId) {
-          if (filterCategoryId) {
+          if (filterCategoryId && filterCategoryId !== 'none') {
             const isDirect = p.categoryId === filterCategoryId || p.subcategoryId === filterCategoryId;
             let isChild = false;
             if (!isDirect) {
@@ -1534,6 +1534,11 @@ export default function ProductManager() {
               isChild = childIds.includes(p.categoryId) || (p.subcategoryId ? childIds.includes(p.subcategoryId) : false);
             }
             if (!isDirect && !isChild) return false;
+          } else if (filterCategoryId === 'none') {
+            // In search mode, 'none' should exclude archived but allow others.
+            const archivedCat = categories.find(c => isArchivedCategoryName(c.name));
+            const archivedCatId = archivedCat?.id || 'be0a70a8-f9c6-430d-8416-11745f26576f';
+            if (p.categoryId === archivedCatId || p.subcategoryId === archivedCatId) return false;
           }
 
           // Apply tab status filter during search
