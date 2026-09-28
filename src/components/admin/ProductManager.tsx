@@ -211,7 +211,17 @@ export default function ProductManager() {
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
   const [publishSuccess, setPublishSuccess] = useState(false);
   const [duplicateConfirm, setDuplicateConfirm] = useState<{ atNumber: string; existingName: string; type: 'create' | 'update'; payload: any } | null>(null);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
+
+  // Helper to manage loading state
+  const setProcessing = (id: string, isProcessing: boolean) => {
+    setProcessingIds(prev => {
+      const next = new Set(prev);
+      if (isProcessing) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
   const [downloadProgress, setDownloadProgress] = useState<{
     progress: number;
     total: number;
@@ -954,6 +964,7 @@ export default function ProductManager() {
   };
 
   const handleToggleHide = async (p: Product) => {
+    setProcessing(p.id!, true);
     const nextHidden = !p.isHidden;
     const cat = p.showcaseCategory || detectShowcaseCategory(p, categories) || 'عام';
     // When hidden: true -> MUST set isShowcase: false to completely deactivate and remove from showcase
@@ -976,6 +987,8 @@ export default function ProductManager() {
       const updated = await api.getProducts();
       setProducts(updated);
       setAlertMessage("فشل تغيير حالة إخفاء المنتج");
+    } finally {
+      setProcessing(p.id!, false);
     }
   };
 
