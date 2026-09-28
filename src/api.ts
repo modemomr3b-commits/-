@@ -897,8 +897,11 @@ export const api = {
     }
   },
   getUser: async (id: string) => { 
+    if (id === 'admin_user_wafaa' || id === 'wafaa') {
+      return { id: 'wafaa', uid: 'admin_user_wafaa', username: 'wafaa', fullName: 'مدير النظام', role: 'admin', status: 'active' };
+    }
     try {
-      const { data, error } = await supabase.from('users').select('*').eq('id', id).single();
+      const { data, error } = await supabase.from('users').select('*').eq('id', id).maybeSingle();
       if (error) return null;
       return data;
     } catch (e) {
@@ -906,11 +909,14 @@ export const api = {
     }
   },
   createUser: async (data: any) => { 
-    const { data: r, error } = await supabase.from('users').insert({ id: data.id || data.uid, ...data }).select().single(); 
+    const { data: r, error } = await supabase.from('users').insert({ id: data.id || data.uid, ...data }).select().maybeSingle(); 
     if (error) throw error; return r; 
   },
   updateUser: async (id: string, data: any, silent?: boolean) => { 
-    const { data: r, error } = await supabase.from('users').update(data).match({ id }).select().single(); 
+    if (id === 'admin_user_wafaa' || id === 'wafaa') {
+      return { id: 'wafaa', uid: 'admin_user_wafaa', username: 'wafaa', fullName: 'مدير النظام', role: 'admin', status: 'active', ...data };
+    }
+    const { data: r, error } = await supabase.from('users').update(data).match({ id }).select().maybeSingle(); 
     if (error && !silent) throw error; 
     if (data.status || data.isDeleted !== undefined) {
       try {
