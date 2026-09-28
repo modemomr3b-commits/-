@@ -116,6 +116,27 @@ export const api = {
       throw new Error(`خطأ في رفع الصورة: ${e.message || JSON.stringify(e)} (تأكد من وجود bucket باسم products وأنه public)`);
     }
   },
+  // --- PAGINATION HELPERS ---
+  getPaginatedData: async (table: string, page: number, pageSize: number, filters: any = {}) => {
+    let query = supabase
+      .from(table)
+      .select('*', { count: 'exact' })
+      .eq('isDeleted', false) // Assuming isDeleted is a common column
+      .range((page - 1) * pageSize, page * pageSize - 1)
+      .order('id', { ascending: false });
+
+    // Apply filters if any
+    Object.keys(filters).forEach(key => {
+      if (filters[key] !== undefined && filters[key] !== null) {
+        query = query.eq(key, filters[key]);
+      }
+    });
+
+    const { data, error, count } = await query;
+    if (error) throw error;
+    return { data: data || [], count: count || 0 };
+  },
+
   // PRODUCTS
   getProductsByCategory: async (categoryId: string) => {
     const cacheKey = `products_cat_${categoryId}`;
