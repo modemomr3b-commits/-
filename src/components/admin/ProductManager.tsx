@@ -2061,21 +2061,23 @@ export default function ProductManager() {
             <div className="p-4 border-b border-white/5 flex flex-col sm:flex-row gap-3 justify-between items-center">
               <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
                 <div className="relative w-full sm:w-80 flex items-center gap-2">
-                  <div className="relative w-full">
-                    <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
-                    <input
-                      type="text"
-                      value={searchInput}
-                      onChange={(e) => setSearchInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') setSearchQuery(searchInput);
-                      }}
-                      className="w-full bg-white border border-brq-gold rounded-lg pr-10 pl-4 py-2.5 text-base font-bold text-black placeholder:text-gray-500 focus:outline-none focus:border-brq-gold/50"
-                      placeholder="بحث بالاسم، الكود..."
-                    />
+                  <div className="relative w-full flex items-center gap-2">
+                    <div className="relative w-full">
+                      <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
+                      <input
+                        type="text"
+                        value={searchInput}
+                        onChange={(e) => setSearchInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') setSearchQuery(searchInput);
+                        }}
+                        className="w-full bg-white border border-brq-gold rounded-lg pr-10 pl-4 py-2.5 text-base font-bold text-black placeholder:text-gray-500 focus:outline-none focus:border-brq-gold/50"
+                        placeholder="بحث بالاسم، الكود..."
+                      />
+                    </div>
                     <button
                       onClick={() => setSearchQuery(searchInput)}
-                      className="px-6 py-2.5 bg-brq-gold text-black rounded-lg font-black hover:bg-yellow-500 transition-colors shadow-sm"
+                      className="px-6 py-2.5 bg-brq-gold text-black rounded-lg font-black hover:bg-yellow-500 transition-colors shadow-sm whitespace-nowrap"
                     >
                       بحث
                     </button>
