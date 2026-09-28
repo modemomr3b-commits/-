@@ -247,7 +247,7 @@ export default function ProductManager() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
-  const [filterCategoryId, setFilterCategoryId] = useState("");
+  const [filterCategoryId, setFilterCategoryId] = useState("none");
   const [currentPage, setCurrentPage] = useState(1);
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
   const [moveToCategoryId, setMoveToCategoryId] = useState("");
@@ -1599,13 +1599,19 @@ export default function ProductManager() {
       }
 
       // 2. Filter by Category / Section
-      if (filterCategoryId) {
+      if (filterCategoryId && filterCategoryId !== 'all' && filterCategoryId !== 'none') {
         const isDirect = p.categoryId === filterCategoryId || p.subcategoryId === filterCategoryId;
         if (!isDirect) {
           const childIds = categories.filter(c => c.parentId === filterCategoryId).map(c => c.id);
           const isChild = childIds.includes(p.categoryId) || (p.subcategoryId ? childIds.includes(p.subcategoryId) : false);
           if (!isChild) return false;
         }
+      } else if (filterCategoryId === 'none') {
+        // Special search behavior: if searching, show everything except archived. Else show nothing.
+        if (!searchQuery) return false;
+        const archivedCat = categories.find(c => isArchivedCategoryName(c.name));
+        const archivedCatId = archivedCat?.id || 'be0a70a8-f9c6-430d-8416-11745f26576f';
+        if (p.categoryId === archivedCatId || p.subcategoryId === archivedCatId) return false;
       }
 
       // 4. Filter by Date
@@ -2075,7 +2081,8 @@ export default function ProductManager() {
                     onChange={(e) => setFilterCategoryId(e.target.value)}
                     className="appearance-none pl-8 pr-10 py-2.5 bg-white border-2 border-brq-royal rounded-lg text-sm font-bold text-black hover:bg-gray-50 transition-colors focus:outline-none focus:border-brq-gold shadow-sm"
                   >
-                    <option value="">جميع الأقسام الرئيسية</option>
+                    <option value="none">لا شيء</option>
+                    <option value="all">جميع الأقسام الرئيسية</option>
                     {categories
                       .filter(c => !c.parentId)
                       .map(mainCat => (
