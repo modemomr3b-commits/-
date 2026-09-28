@@ -1155,7 +1155,7 @@ export const api = {
 
   // ACTIVITY LOGS
   getLogs: async () => {
-    const { data, error } = await supabase.from('activity_logs').select('*').order('createdAt', { ascending: false }).limit(200);
+    const { data, error } = await supabase.from('activity_logs').select('*').order('id', { ascending: false }).limit(200);
     if (error) { console.error(error); return []; }
     return data;
   },
@@ -1171,7 +1171,7 @@ export const api = {
   // NOTIFICATIONS
   getNotifications: async () => await getData('notifications'),
   getUnreadNotifications: async () => {
-    const { data, error } = await supabase.from('notifications').select('*').eq('read', false).neq('isDeleted', true).order('createdAt', { ascending: false });
+    const { data, error } = await supabase.from('notifications').select('*').eq('read', false).neq('isDeleted', true).order('id', { ascending: false });
     if (error) { console.error(error); return []; }
     return data;
   },
