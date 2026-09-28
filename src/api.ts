@@ -7,10 +7,11 @@ import { localCache } from './utils/localCache';
 const getData = async (table: string) => {
   let allData: any[] = [];
   let from = 0;
-  const limit = 1000;
+  const limit = 500;
+  const maxItems = 2000;
   
   try {
-    while (true) {
+    while (allData.length < maxItems) {
       const { data, error } = await supabase
         .from(table)
         .select('*')
@@ -886,7 +887,7 @@ export const api = {
   // USERS
   getUsers: async () => {
     try {
-      const { data, error } = await supabase.from('users').select('*');
+      const { data, error } = await supabase.from('users').select('*').limit(1000);
       if (error) { console.error('Error fetching users:', error); throw error; }
       const activeUsers = (data || []).filter((u: any) => u.isDeleted !== true);
       return activeUsers;
