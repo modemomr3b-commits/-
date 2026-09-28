@@ -126,19 +126,36 @@ export default function Products() {
       
       let fetchedProducts: Product[] = activeStore;
       if (categoryId) {
-        const childIds = cats.filter(c => c.parentId === categoryId).map(c => c.id);
-        fetchedProducts = activeStore.filter((p: any) => 
-          p.categoryId === categoryId || 
-          p.subcategoryId === categoryId || 
-          childIds.includes(p.categoryId) || 
-          (p.subcategoryId ? childIds.includes(p.subcategoryId) : false)
-        );
         const cat = cats.find((c: any) => c.id === categoryId);
+        const sameNameParents = cats.filter((c: any) => cat && c.name?.trim() === cat.name?.trim());
+        const parentIdsSet = new Set([categoryId, ...sameNameParents.map((c: any) => c.id)]);
+
+        const childSubCats = cats.filter((c: any) => c.parentId && parentIdsSet.has(c.parentId));
+        const childSubCatIdsSet = new Set(childSubCats.map((c: any) => c.id));
+        const allMatchingCatIds = new Set([...parentIdsSet, ...childSubCatIdsSet]);
+
+        fetchedProducts = activeStore.filter((p: any) => 
+          (p.categoryId && allMatchingCatIds.has(p.categoryId)) ||
+          (p.subcategoryId && allMatchingCatIds.has(p.subcategoryId))
+        );
+
         setCategoryName(cat ? cat.name : `القسم ${categoryId}`);
+
         const subs = cats
-          .filter((c: any) => c.parentId === categoryId && !c.isHidden)
+          .filter((c: any) => c.parentId && parentIdsSet.has(c.parentId) && !c.isHidden)
           .sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
-        setSubCategories(subs);
+
+        const uniqueSubs: any[] = [];
+        const subNameSeen = new Set<string>();
+        subs.forEach(s => {
+          const sName = s.name.trim();
+          if (!subNameSeen.has(sName)) {
+            subNameSeen.add(sName);
+            uniqueSubs.push(s);
+          }
+        });
+
+        setSubCategories(uniqueSubs);
       }
       
       fetchedProducts = shuffleProductsForUser<Product>(fetchedProducts);
@@ -162,10 +179,24 @@ export default function Products() {
         if (categoryId) {
           const cat = cachedCats.find((c: any) => c.id === categoryId);
           if (cat) setCategoryName(cat.name);
+          const sameNameParents = cachedCats.filter((c: any) => cat && c.name?.trim() === cat.name?.trim());
+          const parentIdsSet = new Set([categoryId, ...sameNameParents.map((c: any) => c.id)]);
+
           const subs = cachedCats
-            .filter((c: any) => c.parentId === categoryId && !c.isHidden)
+            .filter((c: any) => c.parentId && parentIdsSet.has(c.parentId) && !c.isHidden)
             .sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
-          setSubCategories(subs);
+
+          const uniqueSubs: any[] = [];
+          const subNameSeen = new Set<string>();
+          subs.forEach(s => {
+            const sName = s.name.trim();
+            if (!subNameSeen.has(sName)) {
+              subNameSeen.add(sName);
+              uniqueSubs.push(s);
+            }
+          });
+
+          setSubCategories(uniqueSubs);
         }
       }
       if (cachedProds && cachedProds.length > 0) {
@@ -177,13 +208,18 @@ export default function Products() {
           (categoryId === archivedCatId ? isArchivedProd(p) : !isArchivedProd(p))
         );
         
-        if (categoryId) {
-          const childIds = cachedCats?.filter((c: any) => c.parentId === categoryId).map((c: any) => c.id) || [];
+        if (categoryId && cachedCats) {
+          const cat = cachedCats.find((c: any) => c.id === categoryId);
+          const sameNameParents = cachedCats.filter((c: any) => cat && c.name?.trim() === cat.name?.trim());
+          const parentIdsSet = new Set([categoryId, ...sameNameParents.map((c: any) => c.id)]);
+
+          const childSubCats = cachedCats.filter((c: any) => c.parentId && parentIdsSet.has(c.parentId));
+          const childSubCatIdsSet = new Set(childSubCats.map((c: any) => c.id));
+          const allMatchingCatIds = new Set([...parentIdsSet, ...childSubCatIdsSet]);
+
           fetchedProducts = fetchedProducts.filter((p: any) => 
-            p.categoryId === categoryId || 
-            p.subcategoryId === categoryId || 
-            childIds.includes(p.categoryId) || 
-            (p.subcategoryId ? childIds.includes(p.subcategoryId) : false)
+            (p.categoryId && allMatchingCatIds.has(p.categoryId)) ||
+            (p.subcategoryId && allMatchingCatIds.has(p.subcategoryId))
           );
         }
         
@@ -389,7 +425,14 @@ export default function Products() {
     // Normal browsing without search term: show category-filtered and regular active products ONLY
     let result = products.filter(isActive);
     if (activeSub) {
-      result = result.filter((p) => p.subcategoryId === activeSub || (p.categoryId === activeSub && !p.subcategoryId));
+      const activeSubCat = allCategories.find((c: any) => c.id === activeSub);
+      const sameNameSubs = allCategories.filter((c: any) => activeSubCat && c.name?.trim() === activeSubCat.name?.trim());
+      const activeSubIdsSet = new Set([activeSub, ...sameNameSubs.map((c: any) => c.id)]);
+
+      result = result.filter((p) => 
+        (p.subcategoryId && activeSubIdsSet.has(p.subcategoryId)) || 
+        (p.categoryId && activeSubIdsSet.has(p.categoryId))
+      );
     }
     const cleanList = result.filter(isActive);
     

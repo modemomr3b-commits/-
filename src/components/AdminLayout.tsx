@@ -14,7 +14,7 @@ export default function AdminLayout() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  if (user && user.role !== 'admin' && (user.status === 'suspended' || user.status === 'inactive' || user.isDeleted === true)) {
+  if (user && user.role !== 'admin' && (user.status === 'suspended' || (user.status as any) === 'inactive' || user.isDeleted === true)) {
     useStore.getState().setUser(null);
     useStore.getState().clearCart();
     return <Navigate to="/login?suspended=1" replace />;

@@ -36,6 +36,81 @@ import { isRestrictedCategoryName, isProductRestrictedFromSearch } from "../../u
 
 const DEFAULT_ICONS = ["✨", "👟", "🇹🇷", "⭐", "🎒", "☀️", "🔥"];
 
+const calculateCategoryProductCounts = (cats: any[], prods: any[]) => {
+  if (!cats || !prods) return {};
+  
+  const catToTopMap: Record<string, string> = {};
+  const topCats = cats.filter((c) => !c.isHidden && !c.parentId && !isRestrictedCategoryName(c.name));
+
+  topCats.forEach((topCat) => {
+    const sameNameParents = cats.filter((c) => !c.parentId && c.name?.trim() === topCat.name?.trim());
+    const parentIdSet = new Set(sameNameParents.map((c) => c.id));
+
+    parentIdSet.forEach((id) => {
+      catToTopMap[id] = topCat.id;
+    });
+
+    cats.forEach((c) => {
+      if (c.parentId && parentIdSet.has(c.parentId)) {
+        catToTopMap[c.id] = topCat.id;
+      }
+    });
+  });
+
+  const counts: Record<string, number> = {};
+  topCats.forEach((tc) => {
+    counts[tc.id] = 0;
+  });
+
+  prods.forEach((p: any) => {
+    if (
+      !p.isArchived &&
+      !p.isHidden &&
+      !p.isLocked &&
+      !p.isDeleted &&
+      !p.size?.isArchived &&
+      !p.size?.isHidden &&
+      !p.size?.isLocked &&
+      !isProductRestrictedFromSearch(p, cats)
+    ) {
+      const topIdFromCat = p.categoryId ? catToTopMap[p.categoryId] : null;
+      const topIdFromSub = p.subcategoryId ? catToTopMap[p.subcategoryId] : null;
+      const targetTopId = topIdFromCat || topIdFromSub;
+
+      if (targetTopId && counts[targetTopId] !== undefined) {
+        counts[targetTopId]++;
+      }
+    }
+  });
+
+  return counts;
+};
+
+const filterAndDeduplicateTopCategories = (cats: any[], countsMap: Record<string, number>) => {
+  if (!cats || !Array.isArray(cats)) return [];
+  const topCats = cats
+    .filter((c) => !c.isHidden && !c.parentId && !isRestrictedCategoryName(c.name))
+    .sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+
+  const nameMap = new Map<string, any>();
+  topCats.forEach((c) => {
+    const normName = c.name?.trim();
+    if (!normName) return;
+    if (!nameMap.has(normName)) {
+      nameMap.set(normName, c);
+    } else {
+      const existing = nameMap.get(normName);
+      const existingCount = countsMap[existing.id] || 0;
+      const currentCount = countsMap[c.id] || 0;
+      if (currentCount > existingCount) {
+        nameMap.set(normName, c);
+      }
+    }
+  });
+
+  return Array.from(nameMap.values());
+};
+
 export default function Home() {
   const { user } = useStore();
   const isAdminOrSales = user && (user.role === 'admin' || user.role === 'sales');
@@ -61,36 +136,25 @@ export default function Home() {
         api.getCategories(),
         api.getSettings()
       ]);
-      
-      if (cats && Array.isArray(cats)) {
-        setCategories(
-          cats
-            .filter((c) => !c.isHidden && !c.parentId && !isRestrictedCategoryName(c.name))
-            .sort((a: any, b: any) => (a.order || 0) - (b.order || 0)),
-        );
-      }
 
       if (settings) {
         setShowcaseSettings(settings);
       }
 
-      // Fetch products asynchronously in the background so it doesn't block the Home page from loading quickly
       api.getProducts().then(prods => {
-        if (prods && Array.isArray(prods)) {
-          const scCount = prods.filter((p: any) => p.isShowcase && !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, cats)).length;
+        if (prods && Array.isArray(prods) && cats && Array.isArray(cats)) {
+          const scCount = prods.filter((p: any) => p.isShowcase && !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !p.size?.isArchived && !p.size?.isHidden && !p.size?.isLocked && !isProductRestrictedFromSearch(p, cats)).length;
           setShowcaseCount(scCount);
-  
-          const counts: Record<string, number> = {};
-          prods.forEach((p: any) => {
-            if (!p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, cats)) {
-              if (p.categoryId) {
-                counts[p.categoryId] = (counts[p.categoryId] || 0) + 1;
-              }
-            }
-          });
+
+          const counts = calculateCategoryProductCounts(cats, prods);
           setProductsCountMap(counts);
+          setCategories(filterAndDeduplicateTopCategories(cats, counts));
         }
       }).catch(console.error);
+
+      if (cats && Array.isArray(cats)) {
+        setCategories(filterAndDeduplicateTopCategories(cats, {}));
+      }
 
     } catch (e) {
       console.error(e);
@@ -101,30 +165,19 @@ export default function Home() {
     let mounted = true;
     let fetchTimeout: any;
 
-    // Instant local cache check to prevent loading spinners
     Promise.all([
       localCache.get<any[]>('all_categories'),
       localCache.get<any[]>('all_products')
     ]).then(([cachedCats, cachedProds]) => {
       if (!mounted) return;
       if (cachedCats && cachedCats.length > 0) {
-        setCategories(
-          cachedCats
-            .filter((c) => !c.isHidden && !c.parentId && !isRestrictedCategoryName(c.name))
-            .sort((a: any, b: any) => (a.order || 0) - (b.order || 0)),
-        );
+        let counts = {};
+        if (cachedProds && cachedProds.length > 0) {
+          counts = calculateCategoryProductCounts(cachedCats, cachedProds);
+          setProductsCountMap(counts);
+        }
+        setCategories(filterAndDeduplicateTopCategories(cachedCats, counts));
         setLoading(false);
-      }
-      if (cachedProds && cachedProds.length > 0 && cachedCats) {
-        const counts: Record<string, number> = {};
-        cachedProds.forEach((p: any) => {
-          if (!p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, cachedCats)) {
-            if (p.categoryId) {
-              counts[p.categoryId] = (counts[p.categoryId] || 0) + 1;
-            }
-          }
-        });
-        setProductsCountMap(counts);
       }
     });
 

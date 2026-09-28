@@ -14,6 +14,7 @@ const getData = async (table: string) => {
       const { data, error } = await supabase
         .from(table)
         .select('*')
+        .order('id', { ascending: true })
         .range(from, from + limit - 1);
         
       if (error) {
@@ -147,26 +148,33 @@ export const api = {
     const categories = await api.getCategories();
     const currentCat = categories.find((c: any) => c.id === categoryId);
 
+    const sameNameCatIds = categories
+      .filter((c: any) => currentCat && c.name?.trim() === currentCat.name?.trim())
+      .map((c: any) => c.id);
+
+    const targetCatIds = new Set<string>([categoryId, ...sameNameCatIds]);
+
     const isMainCat = !currentCat?.parentId;
     const allProducts = await api.getProducts();
 
     let res: any[] = [];
     if (isMainCat) {
-      // Find direct child subcategories for this main category
-      const subCats = categories.filter((c: any) => c.parentId === categoryId);
+      // Find direct child subcategories for any of these main categories
+      const subCats = categories.filter((c: any) => c.parentId && targetCatIds.has(c.parentId));
       const childSubCatIds = new Set<string>(subCats.map((c: any) => c.id));
 
       res = allProducts.filter((p: any) => {
-        // Product belongs directly to this category or to one of its subcategories
-        if (p.categoryId === categoryId) return true;
+        if (p.categoryId && targetCatIds.has(p.categoryId)) return true;
+        if (p.subcategoryId && targetCatIds.has(p.subcategoryId)) return true;
         if (p.subcategoryId && childSubCatIds.has(p.subcategoryId)) return true;
+        if (p.categoryId && childSubCatIds.has(p.categoryId)) return true;
         return false;
       });
     } else {
-      // Subcategory: strictly match products assigned to this subcategory
+      // Subcategory: match products assigned to this subcategory or subcategory ID
       res = allProducts.filter((p: any) => {
-        if (p.subcategoryId === categoryId) return true;
-        if (p.categoryId === categoryId && !p.subcategoryId) return true;
+        if (p.subcategoryId && targetCatIds.has(p.subcategoryId)) return true;
+        if (p.categoryId && targetCatIds.has(p.categoryId)) return true;
         return false;
       });
     }

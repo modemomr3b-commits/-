@@ -395,14 +395,12 @@ export async function verifyShowcaseInvite(token?: string, fallbackAgentId?: str
     if (targetLookup) {
       const { data: users } = await supabase
         .from('users')
-        .select('*');
+        .select('id, uid, username, fullName')
+        .or(`id.eq.${targetLookup},uid.eq.${targetLookup},username.eq.${targetLookup}`)
+        .limit(5);
       
       if (users && users.length > 0) {
-        const matchedUser = users.find(u => 
-          (u.id && String(u.id).toLowerCase() === targetLookup.toLowerCase()) || 
-          (u.uid && String(u.uid).toLowerCase() === targetLookup.toLowerCase()) || 
-          (u.username && String(u.username).toLowerCase() === targetLookup.toLowerCase())
-        );
+        const matchedUser = users[0];
         if (matchedUser) {
           return {
             valid: true,
