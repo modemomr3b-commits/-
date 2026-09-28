@@ -7,15 +7,21 @@ import { localCache } from './utils/localCache';
 const getData = async (table: string) => {
   let allData: any[] = [];
   let from = 0;
-  const limit = 500;
+  const limit = 200;
   const maxItems = 2000;
   
   try {
     while (allData.length < maxItems) {
-      const { data, error } = await supabase
+      let query = supabase
         .from(table)
-        .select('*')
-        .range(from, from + limit - 1);
+        .select('*');
+      
+      // Order by createdAt descending for orders/activity to get fresh items first
+      if (table === 'orders' || table === 'activity_logs') {
+        query = query.order('createdAt', { ascending: false });
+      }
+
+      const { data, error } = await query.range(from, from + limit - 1);
         
       if (error) {
         throw error;
