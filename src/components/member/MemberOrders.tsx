@@ -38,9 +38,9 @@ export default function MemberOrders() {
         setPendingCount(pCount);
 
         // Sort by newest first
-        allOrders.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        userOrders.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
-        const approvedAndDirectOrders = allOrders.filter(o => o.status !== 'pending_agent');
+        const approvedAndDirectOrders = userOrders.filter(o => o.status !== 'pending_agent');
         
         // Split into Completed and others
         const completedOrders = approvedAndDirectOrders.filter(o => o.status === 'completed');
