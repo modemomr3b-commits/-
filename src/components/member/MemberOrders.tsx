@@ -37,10 +37,21 @@ export default function MemberOrders() {
         const pCount = userOrders.filter(o => o.status === 'pending_agent').length;
         setPendingCount(pCount);
 
-        // Sort by newest first and exclude pending_agent from general order history
-        const approvedAndDirectOrders = userOrders.filter(o => o.status !== 'pending_agent');
-        approvedAndDirectOrders.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-        setOrders(approvedAndDirectOrders);
+        // Sort by newest first
+        allOrders.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+        const approvedAndDirectOrders = allOrders.filter(o => o.status !== 'pending_agent');
+        
+        // Split into Completed and others
+        const completedOrders = approvedAndDirectOrders.filter(o => o.status === 'completed');
+        const otherOrders = approvedAndDirectOrders.filter(o => o.status !== 'completed');
+        
+        // Take last 10 completed
+        const last10Completed = completedOrders.slice(0, 10);
+        
+        // Combine back
+        const finalOrders = [...last10Completed, ...otherOrders];
+        setOrders(finalOrders);
       } catch (err) {
         console.error(err);
         showToast("فشل تحميل الطلبات", "error");
