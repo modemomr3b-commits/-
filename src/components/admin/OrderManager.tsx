@@ -55,6 +55,10 @@ export default function OrderManager() {
   const { user } = useStore();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCompletedOrders, setTotalCompletedOrders] = useState(0);
+  const pageSize = 50;
+
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState<OrderStatus | "all">("all");
   const [activeTab, setActiveTab] = useState<"new" | "completed">("new");
@@ -75,31 +79,35 @@ export default function OrderManager() {
 
   useEffect(() => {
     let mounted = true;
+
     const fetchOrders = async () => {
       try {
-        const dbOrders = await api.getOrders();
-        if (mounted) {
-          const sortedOrders = dbOrders.sort(
-            (a: any, b: any) => b.createdAt - a.createdAt,
-          );
-          setOrders(sortedOrders);
-          setLoading(false);
-
-          if (
-            previousOrdersCount.current !== 0 &&
-            sortedOrders.length > previousOrdersCount.current
-          ) {
-            // New order arrived!
-            audioRef.current?.play().catch(() => {}); // catch error if browser blocks autoplay
+        setLoading(true);
+        if (activeTab === 'new') {
+          const dbOrders = await api.getOrders();
+          if (mounted) {
+            const sortedOrders = dbOrders.sort(
+              (a: any, b: any) => b.createdAt - a.createdAt,
+            );
+            setOrders(sortedOrders);
+            setLoading(false);
           }
-          previousOrdersCount.current = sortedOrders.length;
+        } else {
+          const { orders: pOrders, count } = await api.getPaginatedOrders(currentPage, pageSize, 'completed');
+          if (mounted) {
+            setOrders(pOrders);
+            setTotalCompletedOrders(count);
+            setLoading(false);
+          }
         }
       } catch (e) {
         console.error(e);
         if (mounted) setLoading(false);
       }
     };
+
     fetchOrders();
+    // ... realtime and interval logic remains...
     const channel = supabase
       .channel('admin_orders_realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
@@ -113,7 +121,7 @@ export default function OrderManager() {
       clearInterval(inv);
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [activeTab, currentPage]);
 
   const updateOrderStatus = async (id: string, status: OrderStatus) => {
     // Optimistic update
@@ -293,6 +301,7 @@ export default function OrderManager() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-right">
+              {/* ... table head and body ... */}
               <thead className="bg-black/40 text-white/60">
                 <tr>
                   <th className="p-4 font-medium rounded-tr-lg">رقم الطلب</th>
@@ -443,7 +452,32 @@ export default function OrderManager() {
                 })}
               </tbody>
             </table>
+
+            {activeTab === 'completed' && (
+              <div className="p-4 flex items-center justify-between border-t border-white/10">
+                <span className="text-sm text-white/60">
+                  صفحة {currentPage} من {Math.ceil(totalCompletedOrders / pageSize)}
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage(prev => prev - 1)}
+                    className="px-4 py-2 bg-white/10 rounded-lg disabled:opacity-50 text-white font-bold text-sm"
+                  >
+                    السابق
+                  </button>
+                  <button
+                    disabled={currentPage >= Math.ceil(totalCompletedOrders / pageSize)}
+                    onClick={() => setCurrentPage(prev => prev + 1)}
+                    className="px-4 py-2 bg-brq-gold rounded-lg disabled:opacity-50 text-black font-bold text-sm"
+                  >
+                    التالي
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
+
         )}
       </div>
 

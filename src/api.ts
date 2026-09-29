@@ -1008,6 +1008,53 @@ export const api = {
       };
     });
   },
+
+  getPaginatedOrders: async (page: number, pageSize: number, status: 'new' | 'completed' = 'completed') => {
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+
+    let query = supabase
+      .from('orders')
+      .select('*', { count: 'exact' })
+      .order('createdAt', { ascending: false })
+      .range(from, to);
+
+    if (status === 'completed') {
+      query = query.eq('status', 'completed');
+    } else {
+      query = query.neq('status', 'completed');
+    }
+
+    const { data, error, count } = await query;
+
+    if (error) {
+      console.error('Error fetching paginated orders:', error);
+      throw error;
+    }
+
+    const activeData = (data || []).filter((item: any) => item.isDeleted !== true);
+    const parsedOrders = activeData.map((o: any) => {
+      const parsed = parseOrderDetails(o);
+      return {
+        ...o,
+        items: o.products || o.items || [],
+        totalQuantity: o.total || o.totalQuantity || 0,
+        userId: o.userId || parsed.agentId || '',
+        agentId: parsed.agentId || o.userId || '',
+        agentName: parsed.agentName || o.agentName || '',
+        fullName: parsed.agentName || o.fullName || o.username || '',
+        username: o.username || parsed.agentName || '',
+        customerName: parsed.customerName || (o.customerName !== parsed.agentName ? o.customerName : '') || '',
+        transport: parsed.transport || o.transport || '',
+        notes: parsed.notes,
+        displayNotes: parsed.displayNotes,
+        rawNotes: o.notes || '',
+      };
+    });
+
+    return { orders: parsedOrders, count: count || 0 };
+  },
+
   createOrder: async (data: any) => { 
     const rawItems = data.products || data.items || [];
     for (const item of rawItems) {
