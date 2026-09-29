@@ -26,7 +26,7 @@ export default function MemberOrders() {
     const fetchOrders = async () => {
       try {
         setLoading(true);
-        const allOrders = await api.getOrders();
+        const allOrders = await api.getAllOrders();
         
         let userOrders = allOrders;
         if (user) {

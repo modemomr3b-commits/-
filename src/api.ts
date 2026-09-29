@@ -1009,6 +1009,40 @@ export const api = {
     });
   },
 
+  getAllOrders: async () => {
+    // Fetch all orders including completed ones
+    const { data, error } = await supabase
+      .from('orders')
+      .select('*')
+      .order('id', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching all orders:', error);
+      return [];
+    }
+    
+    const activeData = (data || []).filter((item: any) => item.isDeleted !== true);
+    return activeData.map((o: any) => {
+      const parsed = parseOrderDetails(o);
+
+      return {
+        ...o,
+        items: o.products || o.items || [],
+        totalQuantity: o.total || o.totalQuantity || 0,
+        userId: o.userId || parsed.agentId || '',
+        agentId: parsed.agentId || o.userId || '',
+        agentName: parsed.agentName || o.agentName || '',
+        fullName: parsed.agentName || o.fullName || o.username || '',
+        username: o.username || parsed.agentName || '',
+        customerName: parsed.customerName || (o.customerName !== parsed.agentName ? o.customerName : '') || '',
+        transport: parsed.transport || o.transport || '',
+        notes: parsed.notes,
+        displayNotes: parsed.displayNotes,
+        rawNotes: o.notes || '',
+      };
+    });
+  },
+
   getPaginatedOrders: async (page: number, pageSize: number, status: 'new' | 'completed' = 'completed') => {
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
