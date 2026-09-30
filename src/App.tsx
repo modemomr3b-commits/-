@@ -26,6 +26,7 @@ const Messages = safeLazy(() => import('./components/member/Messages'));
 const ShowcasePage = safeLazy(() => import('./components/showcase/ShowcasePage'));
 
 import OrderManager from './components/admin/OrderManager';
+const OrderDetail = safeLazy(() => import('./components/admin/OrderDetail'));
 
 const AdminDashboard = safeLazy(() => import('./components/admin/Dashboard'));
 const ProductManager = safeLazy(() => import('./components/admin/ProductManager'));
@@ -200,6 +201,7 @@ export default function App() {
               <Route path="products" element={<ProductManager />} />
               <Route path="categories" element={<CategoryManager />} />
               <Route path="orders" element={<OrderManager />} />
+              <Route path="order/:orderId" element={<OrderDetail />} />
               <Route path="users" element={<UserManager />} />
               <Route path="access-log" element={<AccessLogManager />} />
               <Route path="visits" element={<AccessLogManager />} />
