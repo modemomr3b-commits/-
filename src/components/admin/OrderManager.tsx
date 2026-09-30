@@ -56,12 +56,11 @@ export default function OrderManager() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalCompletedOrders, setTotalCompletedOrders] = useState(0);
-  const pageSize = 50;
+  const [totalOrders, setTotalOrders] = useState(0);
+  const pageSize = 50; // Requested size per page
 
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState<OrderStatus | "all">("all");
-  const [activeTab, setActiveTab] = useState<"new" | "completed">("new");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [viewImage, setViewImage] = useState<{
     src: string;
@@ -83,22 +82,17 @@ export default function OrderManager() {
     const fetchOrders = async () => {
       try {
         setLoading(true);
-        if (activeTab === 'new') {
-          const dbOrders = await api.getOrders();
-          if (mounted) {
-            const sortedOrders = dbOrders.sort(
-              (a: any, b: any) => b.createdAt - a.createdAt,
-            );
-            setOrders(sortedOrders);
-            setLoading(false);
-          }
-        } else {
-          const { orders: pOrders, count } = await api.getPaginatedOrders(currentPage, pageSize, 'completed');
-          if (mounted) {
-            setOrders(pOrders);
-            setTotalCompletedOrders(count);
-            setLoading(false);
-          }
+        // Assuming api.getPaginatedOrders takes (page, pageSize, status)
+        // Adjust API call based on real implementation if needed.
+        // For simplicity and requested pagination, we assume a paginated endpoint exists.
+        const { orders: pOrders, count } = await api.getPaginatedOrders(currentPage, pageSize, filterStatus === 'all' ? undefined : filterStatus);
+        
+        if (mounted) {
+          // Assuming the API returns ordered by newest first, if not, sort here:
+          // pOrders.sort((a: any, b: any) => b.createdAt - a.createdAt);
+          setOrders(pOrders);
+          setTotalOrders(count);
+          setLoading(false);
         }
       } catch (e) {
         console.error(e);
@@ -119,7 +113,7 @@ export default function OrderManager() {
       mounted = false;
       supabase.removeChannel(channel);
     };
-  }, [activeTab, currentPage]);
+  }, [currentPage, filterStatus]);
 
   const updateOrderStatus = async (id: string, status: OrderStatus) => {
     // Save previous state for revert
@@ -166,26 +160,21 @@ export default function OrderManager() {
   };
 
   const handleDelete = async (id: string, orderNumber: string) => {
-    // Optimistic update
-    setOrders((prev) => prev.filter((o) => o.id !== id));
-    if (selectedOrder?.id === id) {
-      setSelectedOrder(null);
-    }
+    if (!window.confirm(`هل أنت متأكد من حذف الطلب رقم ${orderNumber}؟`)) return;
 
     try {
+      showToast("جاري الحذف...", "loading");
       await api.deleteOrder(id, user?.username);
-      const updatedOrders = await api.getOrders();
-      setOrders(
-        updatedOrders.sort((a: any, b: any) => b.createdAt - a.createdAt),
-      );
+      
+      // Update local state by filtering out the deleted order
+      setOrders((prev) => prev.filter((o) => o.id !== id));
+      if (selectedOrder?.id === id) {
+        setSelectedOrder(null);
+      }
+      showToast("تم حذف الطلب بنجاح", "success");
     } catch (e) {
-      console.error(e);
-      // Revert initial UI change
-      const updatedOrders = await api.getOrders();
-      setOrders(
-        updatedOrders.sort((a: any, b: any) => b.createdAt - a.createdAt),
-      );
-      alert("حدث خطأ أثناء الحذف");
+      console.error("Delete order failed:", e);
+      showToast("حدث خطأ أثناء حذف الطلب. يرجى المحاولة لاحقاً", "error");
     }
   };
 
@@ -251,16 +240,9 @@ export default function OrderManager() {
 
       <div className="flex gap-4 border-b border-white/10 pb-0">
         <button
-          onClick={() => setActiveTab("new")}
-          className={`pb-2 px-2 text-sm font-bold border-b-2 transition-colors ${activeTab === "new" ? "border-brq-gold text-brq-gold" : "border-transparent text-white/50 hover:text-white"}`}
+          className="pb-2 px-2 text-sm font-bold border-b-2 border-brq-gold text-brq-gold"
         >
-          الطلبات الجديدة
-        </button>
-        <button
-          onClick={() => setActiveTab("completed")}
-          className={`pb-2 px-2 text-sm font-bold border-b-2 transition-colors ${activeTab === "completed" ? "border-brq-gold text-brq-gold" : "border-transparent text-white/50 hover:text-white"}`}
-        >
-          الطلبات المكتملة
+          سجل الطلبات
         </button>
       </div>
 
@@ -290,12 +272,12 @@ export default function OrderManager() {
           </select>
         </div>
 
-        {filteredOrders.length === 0 ? (
+        {orders.length === 0 ? (
           <div className="flex flex-col justify-center items-center h-64 text-center space-y-4">
             <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center text-white/30">
               <Search size={32} />
             </div>
-            <p className="text-white/50">لا توجد طلبات تطابق بحثك.</p>
+            <p className="text-white/50">لا توجد طلبات.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -313,7 +295,7 @@ export default function OrderManager() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5 text-white/90">
-                {filteredOrders.map((o) => {
+                {orders.map((o) => {
                   const info = parseOrderDetails(o);
                   return (
                     <tr
@@ -452,31 +434,28 @@ export default function OrderManager() {
               </tbody>
             </table>
 
-            {activeTab === 'completed' && (
-              <div className="p-4 flex items-center justify-between border-t border-white/10">
-                <span className="text-sm text-white/60">
-                  صفحة {currentPage} من {Math.ceil(totalCompletedOrders / pageSize)}
-                </span>
-                <div className="flex gap-2">
-                  <button
-                    disabled={currentPage === 1}
-                    onClick={() => setCurrentPage(prev => prev - 1)}
-                    className="px-4 py-2 bg-white/10 rounded-lg disabled:opacity-50 text-white font-bold text-sm"
-                  >
-                    السابق
-                  </button>
-                  <button
-                    disabled={currentPage >= Math.ceil(totalCompletedOrders / pageSize)}
-                    onClick={() => setCurrentPage(prev => prev + 1)}
-                    className="px-4 py-2 bg-brq-gold rounded-lg disabled:opacity-50 text-black font-bold text-sm"
-                  >
-                    التالي
-                  </button>
-                </div>
+            <div className="p-4 flex items-center justify-between border-t border-white/10">
+              <span className="text-sm text-white/60">
+                صفحة {currentPage} من {Math.ceil(totalOrders / pageSize) || 1}
+              </span>
+              <div className="flex gap-2">
+                <button
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(prev => prev - 1)}
+                  className="px-4 py-2 bg-white/10 rounded-lg disabled:opacity-50 text-white font-bold text-sm"
+                >
+                  السابق
+                </button>
+                <button
+                  disabled={currentPage >= Math.ceil(totalOrders / pageSize)}
+                  onClick={() => setCurrentPage(prev => prev + 1)}
+                  className="px-4 py-2 bg-brq-gold rounded-lg disabled:opacity-50 text-black font-bold text-sm"
+                >
+                  التالي
+                </button>
               </div>
-            )}
+            </div>
           </div>
-
         )}
       </div>
 
