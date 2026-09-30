@@ -13,9 +13,12 @@ const getData = async (table: string) => {
     while (true) {
       const { data, error } = await supabase
         .from(table)
-        .select('*')
+        .select('*', { count: 'exact', head: false })
         .order('id', { ascending: true })
-        .range(from, from + limit - 1);
+        .range(from, from + limit - 1)
+        .setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
+        .setHeader('Pragma', 'no-cache')
+        .setHeader('Expires', '0');
         
       if (error) {
         throw error;
