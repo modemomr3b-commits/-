@@ -1108,63 +1108,37 @@ export default function ProductManager() {
     setSelectedIds(new Set());
     setIsSubmitting(true);
 
-    if (!hide) {
-      // Activating products -> Auto publish to showcase!
-      setProducts((prev) =>
-        prev.map((prod) => {
-          if (targetIdsSet.has(String(prod.id))) {
-            const cat = prod.showcaseCategory || detectShowcaseCategory(prod, categories) || 'عام';
-            return { ...prod, isHidden: false, isShowcase: true, showcaseCategory: cat };
-          }
-          return prod;
-        })
-      );
-
-      try {
-        const categoryGroups: Record<string, string[]> = {};
-        productsToUpdate.forEach(p => {
-          const cat = p.showcaseCategory || detectShowcaseCategory(p, categories) || 'عام';
-          if (!categoryGroups[cat]) categoryGroups[cat] = [];
-          categoryGroups[cat].push(p.id!);
-        });
-
-        for (const [cat, groupIds] of Object.entries(categoryGroups)) {
-          await api.bulkUpdateProducts(groupIds, { isHidden: false, isShowcase: true, showcaseCategory: cat });
+    // Optimistic UI update
+    setProducts((prev) =>
+      prev.map((prod) => {
+        if (targetIdsSet.has(String(prod.id))) {
+          const cat = prod.showcaseCategory || detectShowcaseCategory(prod, categories) || 'عام';
+          return { ...prod, isHidden: hide, ...(hide ? { isShowcase: false } : { isShowcase: true, showcaseCategory: cat }) };
         }
-      } catch (e: any) {
-        console.error("Error bulk toggling hide:", e);
-        try {
-          const updated = await api.getProducts();
-          if (updated && updated.length > 0) {
-            setProducts(updated);
-          }
-        } catch {}
-        setAlertMessage("فشل التحديث المجمع: " + e.message);
-      } finally {
-        setIsSubmitting(false);
-      }
-    } else {
-      // Instant optimistic local update: hiding items completely removes them from showcase
-      setProducts((prev) =>
-        prev.map((prod) =>
-          targetIdsSet.has(String(prod.id)) ? { ...prod, isHidden: true, isShowcase: false } : prod
-        )
-      );
+        return prod;
+      })
+    );
 
-      try {
-        await api.bulkUpdateProducts(ids, { isHidden: true, isShowcase: false });
-      } catch (e: any) {
-        console.error("Error bulk toggling hide:", e);
-        try {
-          const updated = await api.getProducts();
-          if (updated && updated.length > 0) {
-            setProducts(updated);
-          }
-        } catch {}
-        setAlertMessage("فشل التحديث المجمع: " + e.message);
-      } finally {
-        setIsSubmitting(false);
+    try {
+      // Process up to 200 items in a single batch
+      if (ids.length <= 200) {
+        await api.bulkUpdateProducts(ids, { isHidden: hide, isShowcase: !hide });
+      } else {
+        // Fallback for larger batches: process in chunks
+        const chunkSize = 200;
+        for (let i = 0; i < ids.length; i += chunkSize) {
+          const chunk = ids.slice(i, i + chunkSize);
+          await api.bulkUpdateProducts(chunk, { isHidden: hide, isShowcase: !hide });
+        }
       }
+    } catch (e: any) {
+      console.error("Error bulk toggling hide:", e);
+      // Revert if error
+      const updated = await api.getProducts();
+      if (updated && updated.length > 0) setProducts(updated);
+      setAlertMessage("فشل التحديث المجمع: " + e.message);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
