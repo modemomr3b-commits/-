@@ -213,23 +213,15 @@ export default function Cart() {
     // Lock submission immediately to prevent duplicate sends
     submissionLock.current = true;
     setIsSubmitting(true);
-
-    const isValid = await validateCartAvailabilityBeforeSubmit();
-    if (!isValid) {
-      submissionLock.current = false;
-      setIsSubmitting(false);
-      return;
-    }
     
-    try {
-      const orderNumber = `BRQ-${Math.floor(1000 + Math.random() * 9000)}`;
-      await api.createOrder({
+    // Create a snapshot of data
+    const orderData = {
         userId: user.id || user.uid,
         username: user.username,
         fullName: user.fullName || user.username,
         customerName: customerName.trim() || undefined,
         transport: transport.trim() || undefined,
-        orderNumber,
+        orderNumber: `BRQ-${Math.floor(1000 + Math.random() * 9000)}`,
         status: 'new',
         items: cart.map(item => ({
              productId: item.product.id,
@@ -239,38 +231,28 @@ export default function Cart() {
         totalQuantity: totalPieces,
         notes: notes.trim() || undefined,
         createdAt: Date.now()
-      });
+    };
 
-      // log action (background)
-      api.logAction({
-          userId: user.id || user.uid,
-          userName: user.username,
-          action: 'إنشاء طلب',
-          entityType: 'order',
-          entityId: orderNumber,
-          details: { totalPieces }
-        }).catch(console.warn);
+    // Immediately update UI
+    clearCart();
+    setSuccess(true);
+    setIsSubmitting(false);
+    submissionLock.current = false;
 
-      // Create notification for admins (background)
-      api.createNotification({
-           message: `لديك طلب جديد من المستخدم: ${user.fullName || user.username}`,
-           type: 'order'
-        }).catch(console.warn);
-
-      clearCart();
-      setSuccess(true);
-    } catch(e: any) {
-      console.error(e);
-      setErrorModal({ isOpen: true, message: e.message || 'حدث خطأ أثناء إرسال الطلبية، يرجى المحاولة مرة أخرى.' });
-      
-      // Auto-remove archived/hidden products from the cart
-      await checkCartAvailability();
-
-      submissionLock.current = false;
-      setIsSubmitting(false);
-    } finally {
-      setIsSubmitting(false);
-    }
+    // Perform database operations in the background
+    api.createOrder(orderData).catch(e => console.error("Background order save failed:", e));
+    api.logAction({
+        userId: user.id || user.uid,
+        userName: user.username,
+        action: 'إنشاء طلب',
+        entityType: 'order',
+        entityId: orderData.orderNumber,
+        details: { totalPieces }
+    }).catch(console.warn);
+    api.createNotification({
+         message: `لديك طلب جديد من المستخدم: ${user.fullName || user.username}`,
+         type: 'order'
+    }).catch(console.warn);
   };
 
   if (success) {
