@@ -107,7 +107,7 @@ export default function OrderManager() {
     };
 
     fetchOrders();
-    // ... realtime and interval logic remains...
+
     const channel = supabase
       .channel('admin_orders_realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
@@ -115,10 +115,8 @@ export default function OrderManager() {
       })
       .subscribe();
 
-    const inv = setInterval(fetchOrders, 25000);
     return () => {
       mounted = false;
-      clearInterval(inv);
       supabase.removeChannel(channel);
     };
   }, [activeTab, currentPage]);
@@ -164,7 +162,10 @@ export default function OrderManager() {
         console.error("Failed to send notification", e);
       }
     }
-    setSelectedOrder({ ...order, status: currentStatus as OrderStatus });
+    
+    // Open in a new window/tab
+    const orderDetailsUrl = `/admin/order/${order.id}`;
+    window.open(orderDetailsUrl, '_blank');
   };
 
   const handleDelete = async (id: string, orderNumber: string) => {
