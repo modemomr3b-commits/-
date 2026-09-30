@@ -162,10 +162,7 @@ export default function OrderManager() {
         console.error("Failed to send notification", e);
       }
     }
-    
-    // Open in a new window/tab
-    const orderDetailsUrl = `/admin/order/${order.id}`;
-    window.open(orderDetailsUrl, '_blank');
+    setSelectedOrder({ ...order, status: currentStatus as OrderStatus });
   };
 
   const handleDelete = async (id: string, orderNumber: string) => {
