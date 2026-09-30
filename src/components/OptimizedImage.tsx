@@ -47,10 +47,12 @@ export default function OptimizedImage({
   } else if (src && src.includes('res.cloudinary.com')) {
     cdnUrl = src.replace('/upload/', `/upload/w_${targetWidth},q_auto,f_auto,c_limit/`);
   } else if (src && src.includes('supabase.co/storage/v1/object/public/')) {
-    // Supabase image transform support if available
-    // Can pass width parameter
+    // Supabase image transform support
+    // Force webp format and lower quality for better savings
     if (!src.includes('?')) {
-      cdnUrl = `${src}?width=${targetWidth}&quality=80`;
+      cdnUrl = `${src}?width=${targetWidth}&quality=70&format=webp`;
+    } else if (!src.includes('format=webp')) {
+      cdnUrl = `${src}&width=${targetWidth}&quality=70&format=webp`;
     }
   }
 
