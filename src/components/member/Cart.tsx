@@ -241,29 +241,21 @@ export default function Cart() {
         createdAt: Date.now()
       });
 
-      // log action
-      try {
-        await api.logAction({
+      // log action (background)
+      api.logAction({
           userId: user.id || user.uid,
           userName: user.username,
           action: 'إنشاء طلب',
           entityType: 'order',
           entityId: orderNumber,
           details: { totalPieces }
-        });
-      } catch (logErr) {
-        console.warn('logAction notice:', logErr);
-      }
+        }).catch(console.warn);
 
-      // Create notification for admins
-      try {
-        await api.createNotification({
+      // Create notification for admins (background)
+      api.createNotification({
            message: `لديك طلب جديد من المستخدم: ${user.fullName || user.username}`,
            type: 'order'
-        });
-      } catch (notifErr) {
-        console.warn('createNotification notice:', notifErr);
-      }
+        }).catch(console.warn);
 
       clearCart();
       setSuccess(true);
