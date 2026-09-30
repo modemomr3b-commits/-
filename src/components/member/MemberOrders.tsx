@@ -90,16 +90,28 @@ export default function MemberOrders() {
 
   const handleAgentAction = async (orderId: string, action: 'approve' | 'reject') => {
     if (processingOrderIds.has(orderId)) return;
+    
+    // Optimistic Update: Update UI immediately
+    const previousStatus = selectedOrder?.status;
+    const newStatus = action === 'approve' ? 'new' : 'cancelled';
+    
     setProcessingOrderIds(prev => new Set(prev).add(orderId));
+    
+    // UI Update
+    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
+    if (selectedOrder?.id === orderId) {
+      setSelectedOrder(prev => prev ? { ...prev, status: newStatus } : null);
+    }
+    
     try {
-      const newStatus = action === 'approve' ? 'new' : 'cancelled';
       await api.updateOrder(orderId, { status: newStatus });
-      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
-      if (selectedOrder?.id === orderId) {
-        setSelectedOrder({ ...selectedOrder, status: newStatus });
-      }
       showToast(action === 'approve' ? 'تم الموافقة على الطلبية وإرسالها للإدارة' : 'تم رفض الطلبية');
     } catch (err) {
+      // Revert on error
+      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: previousStatus || 'pending_agent' } : o));
+      if (selectedOrder?.id === orderId) {
+        setSelectedOrder(prev => prev ? { ...prev, status: previousStatus || 'pending_agent' } : null);
+      }
       showToast('حدث خطأ، يرجى المحاولة مرة أخرى', 'error');
     } finally {
       setProcessingOrderIds(prev => {

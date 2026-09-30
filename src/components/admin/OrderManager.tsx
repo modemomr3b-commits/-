@@ -124,6 +124,10 @@ export default function OrderManager() {
   }, [activeTab, currentPage]);
 
   const updateOrderStatus = async (id: string, status: OrderStatus) => {
+    // Save previous state for revert
+    const previousOrders = [...orders];
+    const previousSelectedOrder = selectedOrder ? { ...selectedOrder } : null;
+
     // Optimistic update
     setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, status } : o)));
     if (selectedOrder?.id === id) {
@@ -135,14 +139,11 @@ export default function OrderManager() {
     } catch (e) {
       console.error("فشل تحديث حالة الطلب", e);
       // Revert on failure
-      const updatedOrders = await api.getOrders();
-      setOrders(
-        updatedOrders.sort((a: any, b: any) => b.createdAt - a.createdAt),
-      );
+      setOrders(previousOrders);
       if (selectedOrder?.id === id) {
-        const original = updatedOrders.find((o: any) => o.id === id);
-        if (original) setSelectedOrder(original);
+        setSelectedOrder(previousSelectedOrder);
       }
+      alert("حدث خطأ أثناء تحديث الحالة");
     }
   };
 
