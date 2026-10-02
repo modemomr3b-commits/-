@@ -81,7 +81,7 @@ export default function MemberOrders() {
 
   // Pagination logic
   const paginatedOrders = filteredOrders.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-  const totalPages = Math.ceil(filteredOrders.length / pageSize);
+  const totalPages = Math.ceil(filteredOrders.length / pageSize) || 1;
 
   const handleAgentAction = async (orderId: string, action: 'approve' | 'reject') => {
     if (processingOrderIds.has(orderId)) return;
