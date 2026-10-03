@@ -201,13 +201,7 @@ export default function OrderManager() {
 
     const matchesStatus = filterStatus === "all" || o.status === filterStatus;
 
-    const matchesTab =
-      activeTab === "new"
-        ? o.status === "new"
-        : o.status === "completed" ||
-          o.status === "cancelled" ||
-          o.status === "contacted" ||
-          o.status === "reviewing";
+    const matchesTab = true; // Temporary fix
 
     return matchesSearch && matchesStatus && matchesTab;
   });
