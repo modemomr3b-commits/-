@@ -12,6 +12,8 @@ import { parseOrderDetails, isOrderBelongsToAgent } from '../../utils/orderUtils
 export default function MemberOrders() {
   const { user, showToast } = useStore();
   const [orders, setOrders] = useState<Order[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 5;
   const [pendingCount, setPendingCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -39,19 +41,8 @@ export default function MemberOrders() {
 
         // Sort by newest first
         userOrders.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-
-        const approvedAndDirectOrders = userOrders.filter(o => o.status !== 'pending_agent');
         
-        // Split into Completed and others
-        const completedOrders = approvedAndDirectOrders.filter(o => o.status === 'completed');
-        const otherOrders = approvedAndDirectOrders.filter(o => o.status !== 'completed');
-        
-        // Take last 10 completed
-        const last10Completed = completedOrders.slice(0, 10);
-        
-        // Combine back
-        const finalOrders = [...last10Completed, ...otherOrders];
-        setOrders(finalOrders);
+        setOrders(userOrders);
       } catch (err) {
         console.error(err);
         showToast("فشل تحميل الطلبات", "error");
@@ -87,6 +78,10 @@ export default function MemberOrders() {
       (o.notes || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
   });
+
+  // Pagination logic
+  const paginatedOrders = filteredOrders.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const totalPages = Math.ceil(filteredOrders.length / pageSize) || 1;
 
   const handleAgentAction = async (orderId: string, action: 'approve' | 'reject') => {
     if (processingOrderIds.has(orderId)) return;
@@ -252,7 +247,7 @@ export default function MemberOrders() {
         </div>
       ) : (
         <div className="space-y-4">
-          {filteredOrders.map(order => {
+          {paginatedOrders.map(order => {
             const statusConfig = getStatusDisplay(order.status);
             const StatusIcon = statusConfig.icon;
             const info = parseOrderDetails(order);
@@ -321,6 +316,26 @@ export default function MemberOrders() {
               </div>
             );
           })}
+          
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 pt-4">
+              <button
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(prev => prev - 1)}
+                className="px-4 py-2 bg-black/40 text-white rounded-lg disabled:opacity-50"
+              >
+                السابق
+              </button>
+              <span className="text-white">صفحة {currentPage} من {totalPages}</span>
+              <button
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(prev => prev + 1)}
+                className="px-4 py-2 bg-brq-gold text-black rounded-lg disabled:opacity-50"
+              >
+                التالي
+              </button>
+            </div>
+          )}
         </div>
       )}
 

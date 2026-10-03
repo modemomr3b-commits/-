@@ -13,9 +13,12 @@ const getData = async (table: string) => {
     while (true) {
       const { data, error } = await supabase
         .from(table)
-        .select('*')
+        .select('*', { count: 'exact', head: false })
         .order('id', { ascending: true })
-        .range(from, from + limit - 1);
+        .range(from, from + limit - 1)
+        .setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
+        .setHeader('Pragma', 'no-cache')
+        .setHeader('Expires', '0');
         
       if (error) {
         throw error;
@@ -85,6 +88,15 @@ export const api = {
   clearCache: () => { 
     Object.keys(memCache).forEach(k => delete memCache[k]); 
     localCache.clearAll().catch(() => {});
+  },
+  // Add an explicit cache invalidation function for products
+  invalidateProductCache: () => {
+    delete memCache['all_products'];
+    localCache.remove('all_products').catch(() => {});
+    Object.keys(memCache).forEach(k => {
+      if (k.startsWith('products_cat_')) delete memCache[k];
+    });
+    localCache.clearMatching('products_cat_').catch(() => {});
   },
   uploadImage: async (base64Str: string): Promise<string> => {
     try {
@@ -231,9 +243,9 @@ export const api = {
     return api.getProductsDirect();
   },
 
-  getProductsDirect: async () => {
+  getProductsDirect: async (force: boolean = false) => {
     // Return in-memory cache instantly if fresh (under 60 seconds)
-    if (memCache['all_products'] && (Date.now() - memCache['all_products'].timestamp < MEM_CACHE_TTL)) {
+    if (!force && memCache['all_products'] && (Date.now() - memCache['all_products'].timestamp < MEM_CACHE_TTL)) {
       return memCache['all_products'].data;
     }
 
@@ -397,16 +409,8 @@ export const api = {
     };
 
     // Update in-memory and persistent cache immediately
-    if (memCache['all_products']?.data) {
-      memCache['all_products'].data = [finalProduct, ...memCache['all_products'].data];
-      localCache.set('all_products', memCache['all_products'].data).catch(() => {});
-    }
-
-    // Invalidate category caches
-    Object.keys(memCache).forEach(k => {
-      if (k.startsWith('products_cat_')) delete memCache[k];
-    });
-
+    api.invalidateProductCache();
+    
     // Real-time broadcast
     try {
       if (typeof window !== 'undefined' && (window as any).BroadcastChannel) {
@@ -473,35 +477,7 @@ export const api = {
     if (error) throw error;
     
     // Update local cache immediately
-    if (memCache['all_products']?.data) {
-      memCache['all_products'].data = memCache['all_products'].data.map((p: any) =>
-        p.id === id
-          ? {
-              ...p,
-              ...r,
-              packaging: r.packaging !== undefined && r.packaging !== null && r.packaging !== '' && r.packaging !== '---'
-                ? String(r.packaging)
-                : (r.size?.packaging || (r.piecesCount ? String(r.piecesCount) : (r.size?.piecesCount ? String(r.size.piecesCount) : p.packaging))),
-              piecesCount: r.piecesCount !== undefined && r.piecesCount !== null
-                ? Number(r.piecesCount)
-                : (r.size?.piecesCount !== undefined ? Number(r.size.piecesCount) : p.piecesCount),
-              isHidden: r.size?.isHidden !== undefined ? Boolean(r.size.isHidden) : Boolean(r.isHidden),
-              isLocked: r.size?.isLocked !== undefined ? Boolean(r.size.isLocked) : Boolean(r.isLocked),
-              isArchived: r.size?.isArchived !== undefined ? Boolean(r.size.isArchived) : Boolean(r.isArchived),
-              isShowcase: r.size?.isShowcase !== undefined ? Boolean(r.size.isShowcase) : Boolean(r.isShowcase),
-              showcaseCategory: r.size?.showcaseCategory || r.showcaseCategory || '',
-              updatedAt: serverTime
-            }
-          : p
-      );
-      localCache.set('all_products', memCache['all_products'].data).catch(() => {});
-    }
-
-    // Invalidate category caches
-    Object.keys(memCache).forEach(k => {
-      if (k.startsWith('products_cat_')) delete memCache[k];
-    });
-    localCache.clearMatching('products_cat_').catch(() => {});
+    api.invalidateProductCache();
 
     // Real-time broadcast
     try {
@@ -668,48 +644,7 @@ export const api = {
     }
 
     // IMMEDIATELY update local in-memory cache and IndexedDB
-    const idSet = new Set(ids.map(String));
-    if (memCache['all_products']?.data) {
-      memCache['all_products'].data = memCache['all_products'].data.map((p: any) => {
-        if (idSet.has(String(p.id))) {
-          const mergedSize = {
-            ...(p.size || {}),
-            ...(hasSizeUpdates ? sizeUpdates : {})
-          };
-          if (data.isArchived !== undefined) mergedSize.isArchived = Boolean(data.isArchived);
-          if (data.isHidden !== undefined) mergedSize.isHidden = Boolean(data.isHidden);
-          if (data.isLocked !== undefined) mergedSize.isLocked = Boolean(data.isLocked);
-          if (data.isShowcase !== undefined) mergedSize.isShowcase = Boolean(data.isShowcase);
-          if (data.showcaseCategory !== undefined) mergedSize.showcaseCategory = data.showcaseCategory;
-
-          return {
-            ...p,
-            ...directUpdates,
-            ...(hasSizeUpdates ? sizeUpdates : {}),
-            isHidden: data.isHidden !== undefined ? Boolean(data.isHidden) : (mergedSize.isHidden !== undefined ? Boolean(mergedSize.isHidden) : p.isHidden),
-            isLocked: data.isLocked !== undefined ? Boolean(data.isLocked) : (mergedSize.isLocked !== undefined ? Boolean(mergedSize.isLocked) : p.isLocked),
-            isArchived: data.isArchived !== undefined ? Boolean(data.isArchived) : (mergedSize.isArchived !== undefined ? Boolean(mergedSize.isArchived) : p.isArchived),
-            isShowcase: data.isShowcase !== undefined ? Boolean(data.isShowcase) : (mergedSize.isShowcase !== undefined ? Boolean(mergedSize.isShowcase) : p.isShowcase),
-            showcaseCategory: data.showcaseCategory !== undefined ? data.showcaseCategory : (mergedSize.showcaseCategory || p.showcaseCategory),
-            categoryId: data.categoryId !== undefined ? data.categoryId : p.categoryId,
-            subcategoryId: data.subcategoryId !== undefined ? (data.subcategoryId || undefined) : p.subcategoryId,
-            size: mergedSize,
-            updatedAt: serverTime
-          };
-        }
-        return p;
-      });
-      memCache['all_products'].timestamp = Date.now();
-      localCache.set('all_products', memCache['all_products'].data).catch(() => {});
-    }
-
-    // Invalidate all category caches so fresh queries reflect moved products immediately
-    Object.keys(memCache).forEach(k => {
-      if (k.startsWith('products_cat_')) {
-        delete memCache[k];
-      }
-    });
-    localCache.clearMatching('products_cat_').catch(() => {});
+    api.invalidateProductCache();
 
     // Real-time broadcast across all open tabs and all remote clients
     try {
@@ -1110,7 +1045,8 @@ export const api = {
     const safeData: any = {};
     if (data.id) safeData.id = data.id;
     if (data.orderNumber !== undefined) safeData.orderNumber = data.orderNumber;
-    if (data.status !== undefined) safeData.status = data.status;
+    // Set default status to 'new' if not provided
+    safeData.status = data.status || 'new';
     if (data.customerPhone !== undefined) safeData.customerPhone = data.customerPhone;
     if (data.address !== undefined) safeData.address = data.address;
     if (data.createdAt !== undefined) safeData.createdAt = data.createdAt;
@@ -1166,7 +1102,11 @@ export const api = {
     }
 
     const { data: r, error } = await supabase.from('orders').insert(safeData).select().single(); 
-    if (error) throw error; return r; 
+    if (error) {
+        console.error("Error inserting order into Supabase:", error);
+        throw error;
+    }
+    return r; 
   },
   updateOrder: async (id: string, data: any) => { 
     const safeData: any = {};

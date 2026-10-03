@@ -275,7 +275,7 @@ export default function ProductManager() {
     return autoSelectSubcategory(name, categoryId, currentSubcategoryId, categories);
   };
 
-  const loadData = async () => {
+  const loadData = async (force: boolean = false) => {
     try {
       api.getCategories().then(cats => setCategories(cats));
       api.getSettings().then(settings => {
@@ -283,7 +283,7 @@ export default function ProductManager() {
           setUsdRate(settings.usdExchangeRate);
         }
       });
-      const prods = await api.getProducts();
+      const prods = await api.getProductsDirect(force);
       setProducts(prev => {
         const prevMap = new Map(prev.map(p => [p.id, p]));
         const now = Date.now();
@@ -344,7 +344,7 @@ export default function ProductManager() {
       if (typeof window !== 'undefined' && (window as any).BroadcastChannel) {
         bc = new (window as any).BroadcastChannel('brq_products_sync');
         bc.onmessage = () => {
-          if (mounted) loadData();
+          if (mounted) loadData(true);
         };
       }
     } catch {}
@@ -357,7 +357,7 @@ export default function ProductManager() {
         () => {
           clearTimeout(fetchTimeout);
           fetchTimeout = setTimeout(() => {
-             if (mounted) loadData();
+             if (mounted) loadData(true);
           }, 300);
         },
       )
@@ -367,21 +367,21 @@ export default function ProductManager() {
         () => {
           clearTimeout(fetchTimeout);
           fetchTimeout = setTimeout(() => {
-             if (mounted) loadData();
+             if (mounted) loadData(true);
           }, 300);
         },
       )
       .on('broadcast', { event: 'bulk_updated' }, () => {
-        if (mounted) loadData();
+        if (mounted) loadData(true);
       })
       .on('broadcast', { event: 'product_changed' }, () => {
-        if (mounted) loadData();
+        if (mounted) loadData(true);
       })
       .on('broadcast', { event: 'product_created' }, () => {
-        if (mounted) loadData();
+        if (mounted) loadData(true);
       })
       .on('broadcast', { event: 'bulk_deleted' }, () => {
-        if (mounted) loadData();
+        if (mounted) loadData(true);
       })
       .subscribe();
 

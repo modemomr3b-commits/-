@@ -233,26 +233,37 @@ export default function Cart() {
         createdAt: Date.now()
     };
 
-    // Immediately update UI
-    clearCart();
-    setSuccess(true);
-    setIsSubmitting(false);
-    submissionLock.current = false;
+    try {
+        // Perform database operations and wait for completion
+        await api.createOrder(orderData);
+        
+        await api.logAction({
+            userId: user.id || user.uid,
+            userName: user.username,
+            action: 'إنشاء طلب',
+            entityType: 'order',
+            entityId: orderData.orderNumber,
+            details: { totalPieces }
+        });
+        
+        await api.createNotification({
+             message: `لديك طلب جديد من المستخدم: ${user.fullName || user.username}`,
+             type: 'order'
+        });
 
-    // Perform database operations in the background
-    api.createOrder(orderData).catch(e => console.error("Background order save failed:", e));
-    api.logAction({
-        userId: user.id || user.uid,
-        userName: user.username,
-        action: 'إنشاء طلب',
-        entityType: 'order',
-        entityId: orderData.orderNumber,
-        details: { totalPieces }
-    }).catch(console.warn);
-    api.createNotification({
-         message: `لديك طلب جديد من المستخدم: ${user.fullName || user.username}`,
-         type: 'order'
-    }).catch(console.warn);
+        // Only update UI if all operations succeed
+        clearCart();
+        setSuccess(true);
+    } catch (e: any) {
+        console.error("Order submission failed:", e);
+        setErrorModal({ 
+            isOpen: true, 
+            message: `عذراً، حدث خطأ أثناء إرسال الطلبية: ${e.message || "يرجى المحاولة مرة أخرى"}` 
+        });
+    } finally {
+        setIsSubmitting(false);
+        submissionLock.current = false;
+    }
   };
 
   if (success) {
