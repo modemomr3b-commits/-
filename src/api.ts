@@ -979,7 +979,7 @@ export const api = {
       .from('orders')
       .select('*')
       .neq('status', 'completed')
-      .order('id', { ascending: false })
+      .order('createdAt', { ascending: false })
       .limit(500);
 
     if (error) {
@@ -1014,7 +1014,7 @@ export const api = {
     const { data, error } = await supabase
       .from('orders')
       .select('*')
-      .order('id', { ascending: false });
+      .order('createdAt', { ascending: false });
 
     if (error) {
       console.error('Error fetching all orders:', error);
@@ -1178,7 +1178,12 @@ export const api = {
     }
 
     const { data: r, error } = await supabase.from('orders').insert(safeData).select().single(); 
-    if (error) throw error; return r; 
+    if (error) {
+        console.error("Supabase order insert error:", error);
+        throw error;
+    }
+    console.log("Order created successfully:", r);
+    return r; 
   },
   updateOrder: async (id: string, data: any) => { 
     const safeData: any = {};

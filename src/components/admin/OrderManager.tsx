@@ -56,12 +56,12 @@ export default function OrderManager() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalOrders, setTotalOrders] = useState(0);
-  const pageSize = 50; // Requested size per page
+  const [totalCompletedOrders, setTotalCompletedOrders] = useState(0);
+  const pageSize = 50;
 
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState<OrderStatus | "all">("all");
-  const [activeTab, setActiveTab] = useState<"new" | "all">("new");
+  const [activeTab, setActiveTab] = useState<"new" | "processing" | "completed">("new");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [viewImage, setViewImage] = useState<{
     src: string;
@@ -83,17 +83,24 @@ export default function OrderManager() {
     const fetchOrders = async () => {
       try {
         setLoading(true);
-        // Assuming api.getPaginatedOrders takes (page, pageSize, status)
-        // Adjust API call based on real implementation if needed.
-        // For simplicity and requested pagination, we assume a paginated endpoint exists.
-        const { orders: pOrders, count } = await api.getPaginatedOrders(currentPage, pageSize, filterStatus === 'all' ? undefined : filterStatus);
-        
-        if (mounted) {
-          // Assuming the API returns ordered by newest first, if not, sort here:
-          // pOrders.sort((a: any, b: any) => b.createdAt - a.createdAt);
-          setOrders(pOrders);
-          setTotalOrders(count);
-          setLoading(false);
+        console.log("DEBUG: Fetching orders for tab:", activeTab);
+        if (activeTab === 'new' || activeTab === 'processing') {
+          const dbOrders = await api.getOrders();
+          console.log("DEBUG: Fetched orders count:", dbOrders.length);
+          if (mounted) {
+            const sortedOrders = dbOrders.sort(
+              (a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0),
+            );
+            setOrders(sortedOrders);
+            setLoading(false);
+          }
+        } else {
+          const { orders: pOrders, count } = await api.getPaginatedOrders(currentPage, pageSize, 'completed');
+          if (mounted) {
+            setOrders(pOrders);
+            setTotalCompletedOrders(count);
+            setLoading(false);
+          }
         }
       } catch (e) {
         console.error(e);
@@ -114,7 +121,7 @@ export default function OrderManager() {
       mounted = false;
       supabase.removeChannel(channel);
     };
-  }, [currentPage, filterStatus]);
+  }, [activeTab, currentPage]);
 
   const updateOrderStatus = async (id: string, status: OrderStatus) => {
     // Save previous state for revert
@@ -141,41 +148,34 @@ export default function OrderManager() {
   };
 
   const handleViewOrder = async (order: Order) => {
-    let currentStatus = order.status;
-    if (currentStatus === "new") {
-      currentStatus = "completed";
-      // Auto complete and notify
-      await updateOrderStatus(order.id, "completed");
-      try {
-        await api.createNotification({
-          userId: order.userId,
-          type: "order",
-          message: `تم قبول وتأكيد طلبيتك رقم ${order.orderNumber || order.id.slice(0, 8)}`,
-          read: false,
-        });
-      } catch (e) {
-        console.error("Failed to send notification", e);
-      }
+    // If the order is new, move it to 'reviewing' (Processing) immediately upon opening
+    if (order.status === "new") {
+      await updateOrderStatus(order.id, "reviewing");
     }
-    setSelectedOrder({ ...order, status: currentStatus as OrderStatus });
+    setSelectedOrder({ ...order, status: order.status === "new" ? "reviewing" : order.status });
   };
 
   const handleDelete = async (id: string, orderNumber: string) => {
-    if (!window.confirm(`هل أنت متأكد من حذف الطلب رقم ${orderNumber}؟`)) return;
+    // Optimistic update
+    setOrders((prev) => prev.filter((o) => o.id !== id));
+    if (selectedOrder?.id === id) {
+      setSelectedOrder(null);
+    }
 
     try {
-      showToast("جاري الحذف...", "loading");
       await api.deleteOrder(id, user?.username);
-      
-      // Update local state by filtering out the deleted order
-      setOrders((prev) => prev.filter((o) => o.id !== id));
-      if (selectedOrder?.id === id) {
-        setSelectedOrder(null);
-      }
-      showToast("تم حذف الطلب بنجاح", "success");
+      const updatedOrders = await api.getOrders();
+      setOrders(
+        updatedOrders.sort((a: any, b: any) => b.createdAt - a.createdAt),
+      );
     } catch (e) {
-      console.error("Delete order failed:", e);
-      showToast("حدث خطأ أثناء حذف الطلب. يرجى المحاولة لاحقاً", "error");
+      console.error(e);
+      // Revert initial UI change
+      const updatedOrders = await api.getOrders();
+      setOrders(
+        updatedOrders.sort((a: any, b: any) => b.createdAt - a.createdAt),
+      );
+      alert("حدث خطأ أثناء الحذف");
     }
   };
 
@@ -205,7 +205,9 @@ export default function OrderManager() {
     const matchesTab =
       activeTab === "new"
         ? o.status === "new"
-        : o.status !== "new";
+        : activeTab === "processing"
+        ? o.status === "reviewing" || o.status === "contacted" || o.status === "pending_agent" || o.status === "cancelled"
+        : o.status === "completed";
 
     return matchesSearch && matchesStatus && matchesTab;
   });
@@ -236,31 +238,24 @@ export default function OrderManager() {
         </div>
       </div>
 
-      <div className="flex gap-4 border-b border-white/10 pb-0">
+      <div className="flex gap-4 border-b border-white/10 pb-0 overflow-x-auto no-scrollbar">
         <button
           onClick={() => setActiveTab("new")}
-          className={`pb-2 px-2 text-sm font-bold border-b-2 ${
-            activeTab === "new"
-              ? "border-brq-gold text-brq-gold"
-              : "border-transparent text-white/50 hover:text-white"
-          }`}
+          className={`pb-2 px-2 text-sm font-bold border-b-2 transition-colors whitespace-nowrap ${activeTab === "new" ? "border-brq-gold text-brq-gold" : "border-transparent text-white/50 hover:text-white"}`}
         >
           الطلبات الجديدة
-          {newOrdersCount > 0 && (
-            <span className="ml-2 bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">
-              {newOrdersCount}
-            </span>
-          )}
         </button>
         <button
-          onClick={() => setActiveTab("all")}
-          className={`pb-2 px-2 text-sm font-bold border-b-2 ${
-            activeTab === "all"
-              ? "border-brq-gold text-brq-gold"
-              : "border-transparent text-white/50 hover:text-white"
-          }`}
+          onClick={() => setActiveTab("processing")}
+          className={`pb-2 px-2 text-sm font-bold border-b-2 transition-colors whitespace-nowrap ${activeTab === "processing" ? "border-brq-gold text-brq-gold" : "border-transparent text-white/50 hover:text-white"}`}
         >
-          سجل الطلبات
+          قيد المعالجة / المراجعة
+        </button>
+        <button
+          onClick={() => setActiveTab("completed")}
+          className={`pb-2 px-2 text-sm font-bold border-b-2 transition-colors whitespace-nowrap ${activeTab === "completed" ? "border-brq-gold text-brq-gold" : "border-transparent text-white/50 hover:text-white"}`}
+        >
+          الطلبات المكتملة
         </button>
       </div>
 
@@ -290,12 +285,12 @@ export default function OrderManager() {
           </select>
         </div>
 
-        {orders.length === 0 ? (
+        {filteredOrders.length === 0 ? (
           <div className="flex flex-col justify-center items-center h-64 text-center space-y-4">
             <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center text-white/30">
               <Search size={32} />
             </div>
-            <p className="text-white/50">لا توجد طلبات.</p>
+            <p className="text-white/50">لا توجد طلبات تطابق بحثك.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -313,7 +308,7 @@ export default function OrderManager() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5 text-white/90">
-                {orders.map((o) => {
+                {filteredOrders.map((o) => {
                   const info = parseOrderDetails(o);
                   return (
                     <tr
@@ -321,158 +316,162 @@ export default function OrderManager() {
                       onClick={() => handleViewOrder(o)}
                       className="hover:bg-white/10 transition-colors cursor-pointer group"
                     >
-                        <td className="p-4 font-mono font-bold text-brq-gold">
-                          <div className="flex items-center gap-2">
-                            {o.status === "new" && (
-                              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                            )}
-                            {o.orderNumber || (o.id ? o.id.slice(0, 8).toUpperCase() : '---')}
-                          </div>
-                        </td>
-                        <td className="p-4">
-                          <div className="flex flex-col gap-1 items-start">
-                            {info.customerName ? (
-                              <>
-                                <span className="text-[11px] text-white/50 font-bold">
-                                  اسم الزبون:
-                                </span>
-                                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-300 border border-amber-400 text-black shadow-md">
-                                  <UserCircle size={17} className="text-black flex-shrink-0" />
-                                  <span className="text-base font-black text-black tracking-wide leading-tight">
-                                    {info.customerName}
-                                  </span>
-                                </div>
-                                <div className="text-xs text-white/60 flex items-center gap-1 mt-0.5">
-                                  <span className="text-white/40">حساب الوكيل:</span>
-                                  <span className="font-semibold text-white/90">{info.agentName}</span>
-                                </div>
-                              </>
-                            ) : (
-                              <div className="flex flex-col gap-0.5">
-                                <div className="inline-flex items-center gap-1.5 text-white">
-                                  <UserCircle size={17} className="text-brq-gold flex-shrink-0" />
-                                  <span className="font-bold text-sm text-white">
-                                    {info.agentName}
-                                  </span>
-                                </div>
-                                <span className="text-[11px] text-white/40 font-normal">طلب مباشر من الوكيل</span>
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                        <td className="p-4">
-                          {info.displayNotes ? (
-                            <div className="p-2.5 rounded-lg bg-white/90 border border-gray-300 text-black shadow-sm text-xs font-bold whitespace-pre-wrap max-w-[220px] break-words leading-relaxed">
-                              {info.displayNotes}
-                            </div>
-                          ) : (
-                            <span className="text-white/25 text-xs font-mono">—</span>
+                      <td className="p-4 font-mono font-bold text-brq-gold">
+                        <div className="flex items-center gap-2">
+                          {o.status === "new" && (
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                           )}
-                        </td>
-                        <td className="p-4 font-mono">
-                          {(o.totalQuantity || (o.items && o.items.reduce((acc, i) => acc + i.quantity, 0)) || 0)}{" "}
-                          قطعة/علبة
-                        </td>
-                        <td className="p-4 text-white/60 text-xs" dir="ltr">
-                          {formatDateTime(o.createdAt)}
-                        </td>
-                        <td className="p-4">
-                          <div className="group relative w-fit">
-                            <select
-                              value={o.status}
-                              onChange={(e) =>
-                                updateOrderStatus(
-                                  o.id,
-                                  e.target.value as OrderStatus,
-                                )
-                              }
-                              className={`px-3 py-1 rounded-lg border text-xs font-bold appearance-none bg-transparent outline-none cursor-pointer pr-4 pl-6 ${statusMap[o.status || "new"]?.color || "bg-gray-500 text-white"}`}
-                            >
-                              <option
-                                value="new"
-                                className="bg-brq-black text-white"
-                              >
-                                جديد
-                              </option>
-                              <option
-                                value="reviewing"
-                                className="bg-brq-black text-white"
-                              >
-                                قيد المراجعة
-                              </option>
-                              <option
-                                value="contacted"
-                                className="bg-brq-black text-white"
-                              >
-                                تم التواصل
-                              </option>
-                              <option
-                                value="completed"
-                                className="bg-brq-black text-white"
-                              >
-                                مكتمل
-                              </option>
-                              <option
-                                value="cancelled"
-                                className="bg-brq-black text-white"
-                              >
-                                ملغى
-                              </option>
-                            </select>
+                          {o.orderNumber || o.id.slice(0, 8).toUpperCase()}
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        <div className="flex flex-col gap-1 items-start">
+                          {info.customerName ? (
+                            <>
+                              <span className="text-[11px] text-white/50 font-bold">
+                                اسم الزبون:
+                              </span>
+                              <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-300 border border-amber-400 text-black shadow-md">
+                                <UserCircle size={17} className="text-black flex-shrink-0" />
+                                <span className="text-base font-black text-black tracking-wide leading-tight">
+                                  {info.customerName}
+                                </span>
+                              </div>
+                              <div className="text-xs text-white/60 flex items-center gap-1 mt-0.5">
+                                <span className="text-white/40">حساب الوكيل:</span>
+                                <span className="font-semibold text-white/90">{info.agentName}</span>
+                              </div>
+                            </>
+                          ) : (
+                            <div className="flex flex-col gap-0.5">
+                              <div className="inline-flex items-center gap-1.5 text-white">
+                                <UserCircle size={17} className="text-brq-gold flex-shrink-0" />
+                                <span className="font-bold text-sm text-white">
+                                  {info.agentName}
+                                </span>
+                              </div>
+                              <span className="text-[11px] text-white/40 font-normal">طلب مباشر من الوكيل</span>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        {info.displayNotes ? (
+                          <div className="p-2.5 rounded-lg bg-white/90 border border-gray-300 text-black shadow-sm text-xs font-bold whitespace-pre-wrap max-w-[220px] break-words leading-relaxed">
+                            {info.displayNotes}
                           </div>
-                        </td>
-                        <td className="p-4">
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => handlePrintOrder(o)}
-                              className="p-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-lg transition-colors flex items-center gap-2 text-xs font-bold"
-                              title="طباعة الطلب"
+                        ) : (
+                          <span className="text-white/25 text-xs font-mono">—</span>
+                        )}
+                      </td>
+                      <td className="p-4 font-mono">
+                        {o.totalQuantity ||
+                          o.items?.reduce((acc, i) => acc + i.quantity, 0)}{" "}
+                        قطعة/علبة
+                      </td>
+                      <td className="p-4 text-white/60 text-xs" dir="ltr">
+                        {formatDateTime(o.createdAt)}
+                      </td>
+                      <td className="p-4">
+                        <div className="group relative w-fit">
+                          <select
+                            value={o.status}
+                            onChange={(e) =>
+                              updateOrderStatus(
+                                o.id,
+                                e.target.value as OrderStatus,
+                              )
+                            }
+                            className={`px-3 py-1 rounded-lg border text-xs font-bold appearance-none bg-transparent outline-none cursor-pointer pr-4 pl-6 ${statusMap[o.status || "new"]?.color}`}
+                          >
+                            <option
+                              value="new"
+                              className="bg-brq-black text-white"
                             >
-                              <Printer size={14} /> طباعة
-                            </button>
-                            <button
-                              onClick={() => handleViewOrder(o)}
-                              className="p-2 bg-brq-gold/10 hover:bg-brq-gold/20 text-brq-gold rounded-lg transition-colors flex items-center gap-2 text-xs font-bold"
+                              جديد
+                            </option>
+                            <option
+                              value="reviewing"
+                              className="bg-brq-black text-white"
                             >
-                              <Eye size={14} /> عرض
-                            </button>
-                            <button
-                              onClick={() => handleDelete(o.id, o.orderNumber)}
-                              className="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg transition-colors flex items-center gap-2 text-xs font-bold"
-                              title="حذف الطلب"
+                              قيد المراجعة
+                            </option>
+                            <option
+                              value="contacted"
+                              className="bg-brq-black text-white"
                             >
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
+                              تم التواصل
+                            </option>
+                            <option
+                              value="completed"
+                              className="bg-brq-black text-white"
+                            >
+                              مكتمل
+                            </option>
+                            <option
+                              value="cancelled"
+                              className="bg-brq-black text-white"
+                            >
+                              ملغى
+                            </option>
+                          </select>
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handlePrintOrder(o)}
+                            className="p-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-lg transition-colors flex items-center gap-2 text-xs font-bold"
+                            title="طباعة الطلب"
+                          >
+                            <Printer size={14} /> طباعة
+                          </button>
+                          <button
+                            onClick={() => handleViewOrder(o)}
+                            className="p-2 bg-brq-gold/10 hover:bg-brq-gold/20 text-brq-gold rounded-lg transition-colors flex items-center gap-2 text-xs font-bold"
+                          >
+                            <Eye size={14} /> عرض
+                          </button>
+                          <button
+                            onClick={() => handleDelete(o.id, o.orderNumber)}
+                            className="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg transition-colors flex items-center gap-2 text-xs font-bold"
+                            title="حذف الطلب"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
                 })}
               </tbody>
             </table>
 
-            <div className="p-4 flex items-center justify-between border-t border-white/10">
-              <span className="text-sm text-white/60">
-                صفحة {currentPage} من {Math.ceil(totalOrders / pageSize) || 1}
-              </span>
-              <div className="flex gap-2">
-                <button
-                  disabled={currentPage === 1}
-                  onClick={() => setCurrentPage(prev => prev - 1)}
-                  className="px-4 py-2 bg-white/10 rounded-lg disabled:opacity-50 text-white font-bold text-sm"
-                >
-                  السابق
-                </button>
-                <button
-                  disabled={currentPage >= Math.ceil(totalOrders / pageSize)}
-                  onClick={() => setCurrentPage(prev => prev + 1)}
-                  className="px-4 py-2 bg-brq-gold rounded-lg disabled:opacity-50 text-black font-bold text-sm"
-                >
-                  التالي
-                </button>
+            {activeTab === 'completed' && (
+              <div className="p-4 flex items-center justify-between border-t border-white/10">
+                <span className="text-sm text-white/60">
+                  صفحة {currentPage} من {Math.ceil(totalCompletedOrders / pageSize)}
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage(prev => prev - 1)}
+                    className="px-4 py-2 bg-white/10 rounded-lg disabled:opacity-50 text-white font-bold text-sm"
+                  >
+                    السابق
+                  </button>
+                  <button
+                    disabled={currentPage >= Math.ceil(totalCompletedOrders / pageSize)}
+                    onClick={() => setCurrentPage(prev => prev + 1)}
+                    className="px-4 py-2 bg-brq-gold rounded-lg disabled:opacity-50 text-black font-bold text-sm"
+                  >
+                    التالي
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
           </div>
+
         )}
       </div>
 
