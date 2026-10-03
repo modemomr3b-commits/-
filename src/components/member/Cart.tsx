@@ -234,24 +234,26 @@ export default function Cart() {
     };
 
     try {
-        // Perform database operations and wait for completion
+        // Perform critical operation and await it
         await api.createOrder(orderData);
         
-        await api.logAction({
-            userId: user.id || user.uid,
-            userName: user.username,
-            action: 'إنشاء طلب',
-            entityType: 'order',
-            entityId: orderData.orderNumber,
-            details: { totalPieces }
-        });
-        
-        await api.createNotification({
-             message: `لديك طلب جديد من المستخدم: ${user.fullName || user.username}`,
-             type: 'order'
-        });
+        // Fire and forget secondary tasks
+        Promise.all([
+            api.logAction({
+                userId: user.id || user.uid,
+                userName: user.username,
+                action: 'إنشاء طلب',
+                entityType: 'order',
+                entityId: orderData.orderNumber,
+                details: { totalPieces }
+            }),
+            api.createNotification({
+                 message: `لديك طلب جديد من المستخدم: ${user.fullName || user.username}`,
+                 type: 'order'
+            })
+        ]).catch(console.error);
 
-        // Only update UI if all operations succeed
+        // Update UI immediately after critical operation succeeds
         clearCart();
         setSuccess(true);
     } catch (e: any) {
@@ -398,7 +400,7 @@ export default function Cart() {
             {isSubmitting ? (
                <>
                   <Loader2 size={20} className="animate-spin" />
-                  <span>جاري إرسال الطلبية للإدارة...</span>
+                  <span>جاري الحفظ في قاعدة البيانات...</span>
                </>
             ) : (
                <>
