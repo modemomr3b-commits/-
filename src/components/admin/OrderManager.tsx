@@ -296,14 +296,13 @@ export default function OrderManager() {
               </thead>
               <tbody className="divide-y divide-white/5 text-white/90">
                 {orders.map((o) => {
-                  try {
-                    const info = parseOrderDetails(o);
-                    return (
-                      <tr
-                        key={o.id}
-                        onClick={() => handleViewOrder(o)}
-                        className="hover:bg-white/10 transition-colors cursor-pointer group"
-                      >
+                  const info = parseOrderDetails(o);
+                  return (
+                    <tr
+                      key={o.id}
+                      onClick={() => handleViewOrder(o)}
+                      className="hover:bg-white/10 transition-colors cursor-pointer group"
+                    >
                         <td className="p-4 font-mono font-bold text-brq-gold">
                           <div className="flex items-center gap-2">
                             {o.status === "new" && (
@@ -430,10 +429,6 @@ export default function OrderManager() {
                         </td>
                       </tr>
                     );
-                  } catch (err) {
-                    console.error("Error rendering order row:", err, o);
-                    return null;
-                  }
                 })}
               </tbody>
             </table>

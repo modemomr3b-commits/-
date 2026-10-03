@@ -1045,7 +1045,8 @@ export const api = {
     const safeData: any = {};
     if (data.id) safeData.id = data.id;
     if (data.orderNumber !== undefined) safeData.orderNumber = data.orderNumber;
-    if (data.status !== undefined) safeData.status = data.status;
+    // Set default status to 'new' if not provided
+    safeData.status = data.status || 'new';
     if (data.customerPhone !== undefined) safeData.customerPhone = data.customerPhone;
     if (data.address !== undefined) safeData.address = data.address;
     if (data.createdAt !== undefined) safeData.createdAt = data.createdAt;
