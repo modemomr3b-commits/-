@@ -205,10 +205,7 @@ export default function OrderManager() {
     const matchesTab =
       activeTab === "new"
         ? o.status === "new"
-        : o.status === "completed" ||
-          o.status === "cancelled" ||
-          o.status === "contacted" ||
-          o.status === "reviewing";
+        : o.status !== "new";
 
     return matchesSearch && matchesStatus && matchesTab;
   });
