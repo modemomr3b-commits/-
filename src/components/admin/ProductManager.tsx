@@ -1505,113 +1505,59 @@ export default function ProductManager() {
     return products.filter(p => {
       const isArchivedProd = archivedCatId ? p.categoryId === archivedCatId : p.isArchived;
 
-      // If there is an active search query, evaluate it alongside tab filters
-      if (searchQuery && searchQuery.trim()) {
-        if (isArchivedProd && filterCategoryId !== archivedCatId) {
-          return false;
-        }
-        if (!isArchivedProd && filterCategoryId === archivedCatId) {
-          return false;
-        }
-        if (filterCategoryId !== archivedCatId) {
-          if (filterCategoryId && filterCategoryId !== 'none') {
-            const isDirect = p.categoryId === filterCategoryId || p.subcategoryId === filterCategoryId;
-            let isChild = false;
-            if (!isDirect) {
-              const childIds = categories.filter(c => c.parentId === filterCategoryId).map(c => c.id);
-              isChild = childIds.includes(p.categoryId) || (p.subcategoryId ? childIds.includes(p.subcategoryId) : false);
-            }
-            if (!isDirect && !isChild) return false;
-          } else if (filterCategoryId === 'none') {
-            // In search mode, 'none' should exclude archived but allow others.
-            const archivedCat = categories.find(c => isArchivedCategoryName(c.name));
-            const archivedCatId = archivedCat?.id || 'be0a70a8-f9c6-430d-8416-11745f26576f';
-            if (p.categoryId === archivedCatId || p.subcategoryId === archivedCatId) return false;
-          }
-
-          // Apply tab status filter during search
-          if (filterStatus === 'active') {
-            if (p.isHidden || p.isLocked || isProductRestrictedFromSearch(p, categories)) return false;
-          } else if (filterStatus === 'inactive') {
-            if (!p.isHidden) return false;
-          } else if (filterStatus === 'locked') {
-            if (!p.isLocked) return false;
-          } else if (filterStatus === 'duplicates') {
-            if (p.isHidden || p.isLocked || isProductRestrictedFromSearch(p, categories) || !duplicatesSet.has(p.modelNumber || p.productCode)) return false;
-          } else if (filterStatus === 'noSubcategory') {
-            if (p.isHidden || p.isLocked || isProductRestrictedFromSearch(p, categories) || !p.categoryId || (p.subcategoryId && p.subcategoryId.trim() !== '')) return false;
-          } else if (filterStatus === 'showcase') {
-            if (!p.isShowcase || p.isHidden || p.isLocked || isProductRestrictedFromSearch(p, categories)) return false;
-          }
-        }
-
-        const match = filterProductsBySearch([p], searchQuery, categories, { includeRestricted: true });
-        if (match.length > 0) {
-          if (searchDate) {
-            const productDateStr = new Date(p.createdAt || 0).toLocaleDateString('en-CA', { timeZone: 'Asia/Baghdad' });
-            if (productDateStr !== searchDate) return false;
-          }
-          return true;
-        }
-        return false;
-      }
-
-      // If product belongs to archived category, it ONLY shows when filterCategoryId matches archivedCatId
+      // 1. Mandatory Archive / Non-Archive separation
       if (filterCategoryId === archivedCatId) {
         if (!isArchivedProd) return false;
       } else {
         if (isArchivedProd) return false;
+      }
 
-        // 1. Filter by Status Tab
+      // 2. Tab Status Constraints
+      // These must apply ALWAYS, whether searching or not.
+      if (filterCategoryId !== archivedCatId) {
         if (filterStatus === 'active') {
-          // Only active: NOT hidden, NOT locked, NOT restricted
           if (p.isHidden || p.isLocked || isProductRestrictedFromSearch(p, categories)) return false;
         } else if (filterStatus === 'inactive') {
-          // Only inactive: isHidden is true
           if (!p.isHidden) return false;
         } else if (filterStatus === 'locked') {
-          // Only locked products
           if (!p.isLocked) return false;
         } else if (filterStatus === 'duplicates') {
-          // Only active duplicates
           if (p.isHidden || p.isLocked || isProductRestrictedFromSearch(p, categories) || !duplicatesSet.has(p.modelNumber || p.productCode)) return false;
         } else if (filterStatus === 'noSubcategory') {
-          // Only active without subcategory
           if (p.isHidden || p.isLocked || isProductRestrictedFromSearch(p, categories) || !p.categoryId || (p.subcategoryId && p.subcategoryId.trim() !== '')) return false;
         } else if (filterStatus === 'showcase') {
-          // Only showcase (active)
           if (!p.isShowcase || p.isHidden || p.isLocked || isProductRestrictedFromSearch(p, categories)) return false;
         } else if (filterStatus === 'all') {
-          // All non-archived products
-        } else if (filterStatus === null) {
-          // If null and no search, hide
-          if (!searchQuery && !searchDate && !filterCategoryId) return false;
-          // If search exists but no tab selected, default to active
-          if (p.isHidden || p.isLocked || isProductRestrictedFromSearch(p, categories)) return false;
+          // Allow all non-archived
+        } else if (filterStatus === null && !searchQuery) {
+          return false;
         }
       }
 
-      // 2. Filter by Category / Section
-      if (filterCategoryId && filterCategoryId !== 'all' && filterCategoryId !== 'none') {
+      // 3. Category Dropdown Filter
+      if (filterCategoryId && filterCategoryId !== 'all' && filterCategoryId !== 'none' && filterCategoryId !== archivedCatId) {
         const isDirect = p.categoryId === filterCategoryId || p.subcategoryId === filterCategoryId;
+        let isChild = false;
         if (!isDirect) {
           const childIds = categories.filter(c => c.parentId === filterCategoryId).map(c => c.id);
-          const isChild = childIds.includes(p.categoryId) || (p.subcategoryId ? childIds.includes(p.subcategoryId) : false);
-          if (!isChild) return false;
+          isChild = childIds.includes(p.categoryId) || (p.subcategoryId ? childIds.includes(p.subcategoryId) : false);
         }
+        if (!isDirect && !isChild) return false;
       } else if (filterCategoryId === 'none') {
-        // If searching, show products that match the query (excluding archived). Else show nothing.
+        // If 'none' is selected, we only show something if searching.
         if (!searchQuery || searchQuery.trim() === '') return false;
-        
-        const archivedCat = categories.find(c => isArchivedCategoryName(c.name));
-        const archivedCatId = archivedCat?.id || 'be0a70a8-f9c6-430d-8416-11745f26576f';
-        if (p.categoryId === archivedCatId || p.subcategoryId === archivedCatId) return false;
       }
 
-      // 4. Filter by Date
+      // 4. Date Filter
       if (searchDate) {
         const productDateStr = new Date(p.createdAt || 0).toLocaleDateString('en-CA', { timeZone: 'Asia/Baghdad' });
         if (productDateStr !== searchDate) return false;
+      }
+
+      // 5. Search Query Filter
+      if (searchQuery && searchQuery.trim()) {
+        const match = filterProductsBySearch([p], searchQuery, categories, { includeRestricted: true });
+        return match.length > 0;
       }
 
       return true;
