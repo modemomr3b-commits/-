@@ -61,6 +61,7 @@ export default function OrderManager() {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState<OrderStatus | "all">("all");
+  const [activeTab, setActiveTab] = useState<"new" | "all">("new");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [viewImage, setViewImage] = useState<{
     src: string;
@@ -201,7 +202,13 @@ export default function OrderManager() {
 
     const matchesStatus = filterStatus === "all" || o.status === filterStatus;
 
-    const matchesTab = true; // Temporary fix
+    const matchesTab =
+      activeTab === "new"
+        ? o.status === "new"
+        : o.status === "completed" ||
+          o.status === "cancelled" ||
+          o.status === "contacted" ||
+          o.status === "reviewing";
 
     return matchesSearch && matchesStatus && matchesTab;
   });
@@ -234,7 +241,27 @@ export default function OrderManager() {
 
       <div className="flex gap-4 border-b border-white/10 pb-0">
         <button
-          className="pb-2 px-2 text-sm font-bold border-b-2 border-brq-gold text-brq-gold"
+          onClick={() => setActiveTab("new")}
+          className={`pb-2 px-2 text-sm font-bold border-b-2 ${
+            activeTab === "new"
+              ? "border-brq-gold text-brq-gold"
+              : "border-transparent text-white/50 hover:text-white"
+          }`}
+        >
+          الطلبات الجديدة
+          {newOrdersCount > 0 && (
+            <span className="ml-2 bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">
+              {newOrdersCount}
+            </span>
+          )}
+        </button>
+        <button
+          onClick={() => setActiveTab("all")}
+          className={`pb-2 px-2 text-sm font-bold border-b-2 ${
+            activeTab === "all"
+              ? "border-brq-gold text-brq-gold"
+              : "border-transparent text-white/50 hover:text-white"
+          }`}
         >
           سجل الطلبات
         </button>
