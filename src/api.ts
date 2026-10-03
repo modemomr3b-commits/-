@@ -1102,7 +1102,11 @@ export const api = {
     }
 
     const { data: r, error } = await supabase.from('orders').insert(safeData).select().single(); 
-    if (error) throw error; return r; 
+    if (error) {
+        console.error("Error inserting order into Supabase:", error);
+        throw error;
+    }
+    return r; 
   },
   updateOrder: async (id: string, data: any) => { 
     const safeData: any = {};
