@@ -296,140 +296,144 @@ export default function OrderManager() {
               </thead>
               <tbody className="divide-y divide-white/5 text-white/90">
                 {orders.map((o) => {
-                  const info = parseOrderDetails(o);
-                  return (
-                    <tr
-                      key={o.id}
-                      onClick={() => handleViewOrder(o)}
-                      className="hover:bg-white/10 transition-colors cursor-pointer group"
-                    >
-                      <td className="p-4 font-mono font-bold text-brq-gold">
-                        <div className="flex items-center gap-2">
-                          {o.status === "new" && (
-                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                          )}
-                          {o.orderNumber || o.id.slice(0, 8).toUpperCase()}
-                        </div>
-                      </td>
-                      <td className="p-4">
-                        <div className="flex flex-col gap-1 items-start">
-                          {info.customerName ? (
-                            <>
-                              <span className="text-[11px] text-white/50 font-bold">
-                                اسم الزبون:
-                              </span>
-                              <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-300 border border-amber-400 text-black shadow-md">
-                                <UserCircle size={17} className="text-black flex-shrink-0" />
-                                <span className="text-base font-black text-black tracking-wide leading-tight">
-                                  {info.customerName}
-                                </span>
-                              </div>
-                              <div className="text-xs text-white/60 flex items-center gap-1 mt-0.5">
-                                <span className="text-white/40">حساب الوكيل:</span>
-                                <span className="font-semibold text-white/90">{info.agentName}</span>
-                              </div>
-                            </>
-                          ) : (
-                            <div className="flex flex-col gap-0.5">
-                              <div className="inline-flex items-center gap-1.5 text-white">
-                                <UserCircle size={17} className="text-brq-gold flex-shrink-0" />
-                                <span className="font-bold text-sm text-white">
-                                  {info.agentName}
-                                </span>
-                              </div>
-                              <span className="text-[11px] text-white/40 font-normal">طلب مباشر من الوكيل</span>
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="p-4">
-                        {info.displayNotes ? (
-                          <div className="p-2.5 rounded-lg bg-white/90 border border-gray-300 text-black shadow-sm text-xs font-bold whitespace-pre-wrap max-w-[220px] break-words leading-relaxed">
-                            {info.displayNotes}
+                  try {
+                    const info = parseOrderDetails(o);
+                    return (
+                      <tr
+                        key={o.id}
+                        onClick={() => handleViewOrder(o)}
+                        className="hover:bg-white/10 transition-colors cursor-pointer group"
+                      >
+                        <td className="p-4 font-mono font-bold text-brq-gold">
+                          <div className="flex items-center gap-2">
+                            {o.status === "new" && (
+                              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                            )}
+                            {o.orderNumber || (o.id ? o.id.slice(0, 8).toUpperCase() : '---')}
                           </div>
-                        ) : (
-                          <span className="text-white/25 text-xs font-mono">—</span>
-                        )}
-                      </td>
-                      <td className="p-4 font-mono">
-                        {o.totalQuantity ||
-                          o.items?.reduce((acc, i) => acc + i.quantity, 0)}{" "}
-                        قطعة/علبة
-                      </td>
-                      <td className="p-4 text-white/60 text-xs" dir="ltr">
-                        {formatDateTime(o.createdAt)}
-                      </td>
-                      <td className="p-4">
-                        <div className="group relative w-fit">
-                          <select
-                            value={o.status}
-                            onChange={(e) =>
-                              updateOrderStatus(
-                                o.id,
-                                e.target.value as OrderStatus,
-                              )
-                            }
-                            className={`px-3 py-1 rounded-lg border text-xs font-bold appearance-none bg-transparent outline-none cursor-pointer pr-4 pl-6 ${statusMap[o.status || "new"]?.color}`}
-                          >
-                            <option
-                              value="new"
-                              className="bg-brq-black text-white"
+                        </td>
+                        <td className="p-4">
+                          <div className="flex flex-col gap-1 items-start">
+                            {info.customerName ? (
+                              <>
+                                <span className="text-[11px] text-white/50 font-bold">
+                                  اسم الزبون:
+                                </span>
+                                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-300 border border-amber-400 text-black shadow-md">
+                                  <UserCircle size={17} className="text-black flex-shrink-0" />
+                                  <span className="text-base font-black text-black tracking-wide leading-tight">
+                                    {info.customerName}
+                                  </span>
+                                </div>
+                                <div className="text-xs text-white/60 flex items-center gap-1 mt-0.5">
+                                  <span className="text-white/40">حساب الوكيل:</span>
+                                  <span className="font-semibold text-white/90">{info.agentName}</span>
+                                </div>
+                              </>
+                            ) : (
+                              <div className="flex flex-col gap-0.5">
+                                <div className="inline-flex items-center gap-1.5 text-white">
+                                  <UserCircle size={17} className="text-brq-gold flex-shrink-0" />
+                                  <span className="font-bold text-sm text-white">
+                                    {info.agentName}
+                                  </span>
+                                </div>
+                                <span className="text-[11px] text-white/40 font-normal">طلب مباشر من الوكيل</span>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-4">
+                          {info.displayNotes ? (
+                            <div className="p-2.5 rounded-lg bg-white/90 border border-gray-300 text-black shadow-sm text-xs font-bold whitespace-pre-wrap max-w-[220px] break-words leading-relaxed">
+                              {info.displayNotes}
+                            </div>
+                          ) : (
+                            <span className="text-white/25 text-xs font-mono">—</span>
+                          )}
+                        </td>
+                        <td className="p-4 font-mono">
+                          {(o.totalQuantity || (o.items && o.items.reduce((acc, i) => acc + i.quantity, 0)) || 0)}{" "}
+                          قطعة/علبة
+                        </td>
+                        <td className="p-4 text-white/60 text-xs" dir="ltr">
+                          {formatDateTime(o.createdAt)}
+                        </td>
+                        <td className="p-4">
+                          <div className="group relative w-fit">
+                            <select
+                              value={o.status}
+                              onChange={(e) =>
+                                updateOrderStatus(
+                                  o.id,
+                                  e.target.value as OrderStatus,
+                                )
+                              }
+                              className={`px-3 py-1 rounded-lg border text-xs font-bold appearance-none bg-transparent outline-none cursor-pointer pr-4 pl-6 ${statusMap[o.status || "new"]?.color || "bg-gray-500 text-white"}`}
                             >
-                              جديد
-                            </option>
-                            <option
-                              value="reviewing"
-                              className="bg-brq-black text-white"
+                              <option
+                                value="new"
+                                className="bg-brq-black text-white"
+                              >
+                                جديد
+                              </option>
+                              <option
+                                value="reviewing"
+                                className="bg-brq-black text-white"
+                              >
+                                قيد المراجعة
+                              </option>
+                              <option
+                                value="contacted"
+                                className="bg-brq-black text-white"
+                              >
+                                تم التواصل
+                              </option>
+                              <option
+                                value="completed"
+                                className="bg-brq-black text-white"
+                              >
+                                مكتمل
+                              </option>
+                              <option
+                                value="cancelled"
+                                className="bg-brq-black text-white"
+                              >
+                                ملغى
+                              </option>
+                            </select>
+                          </div>
+                        </td>
+                        <td className="p-4">
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handlePrintOrder(o)}
+                              className="p-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-lg transition-colors flex items-center gap-2 text-xs font-bold"
+                              title="طباعة الطلب"
                             >
-                              قيد المراجعة
-                            </option>
-                            <option
-                              value="contacted"
-                              className="bg-brq-black text-white"
+                              <Printer size={14} /> طباعة
+                            </button>
+                            <button
+                              onClick={() => handleViewOrder(o)}
+                              className="p-2 bg-brq-gold/10 hover:bg-brq-gold/20 text-brq-gold rounded-lg transition-colors flex items-center gap-2 text-xs font-bold"
                             >
-                              تم التواصل
-                            </option>
-                            <option
-                              value="completed"
-                              className="bg-brq-black text-white"
+                              <Eye size={14} /> عرض
+                            </button>
+                            <button
+                              onClick={() => handleDelete(o.id, o.orderNumber)}
+                              className="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg transition-colors flex items-center gap-2 text-xs font-bold"
+                              title="حذف الطلب"
                             >
-                              مكتمل
-                            </option>
-                            <option
-                              value="cancelled"
-                              className="bg-brq-black text-white"
-                            >
-                              ملغى
-                            </option>
-                          </select>
-                        </div>
-                      </td>
-                      <td className="p-4">
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handlePrintOrder(o)}
-                            className="p-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-lg transition-colors flex items-center gap-2 text-xs font-bold"
-                            title="طباعة الطلب"
-                          >
-                            <Printer size={14} /> طباعة
-                          </button>
-                          <button
-                            onClick={() => handleViewOrder(o)}
-                            className="p-2 bg-brq-gold/10 hover:bg-brq-gold/20 text-brq-gold rounded-lg transition-colors flex items-center gap-2 text-xs font-bold"
-                          >
-                            <Eye size={14} /> عرض
-                          </button>
-                          <button
-                            onClick={() => handleDelete(o.id, o.orderNumber)}
-                            className="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg transition-colors flex items-center gap-2 text-xs font-bold"
-                            title="حذف الطلب"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  } catch (err) {
+                    console.error("Error rendering order row:", err, o);
+                    return null;
+                  }
                 })}
               </tbody>
             </table>
