@@ -208,8 +208,8 @@ export const api = {
     }
 
     if (restrictedIds.length > 0) {
-      query = query.not('categoryId', 'in', `(${restrictedIds.join(',')})`);
-      query = query.not('subcategoryId', 'in', `(${restrictedIds.join(',')})`);
+      query = query.not('categoryId', 'in', `("${restrictedIds.join('","')}")`);
+      query = query.not('subcategoryId', 'in', `("${restrictedIds.join('","')}")`);
     }
 
     const { data, error, count } = await query
@@ -245,8 +245,8 @@ export const api = {
     }
 
     if (restrictedIds.length > 0) {
-      query = query.not('categoryId', 'in', `(${restrictedIds.join(',')})`);
-      query = query.not('subcategoryId', 'in', `(${restrictedIds.join(',')})`);
+      query = query.not('categoryId', 'in', `("${restrictedIds.join('","')}")`);
+      query = query.not('subcategoryId', 'in', `("${restrictedIds.join('","')}")`);
     }
 
     if (subCategoryId) {
@@ -292,8 +292,8 @@ export const api = {
     }
 
     if (restrictedIds.length > 0) {
-      query = query.not('categoryId', 'in', `(${restrictedIds.join(',')})`);
-      query = query.not('subcategoryId', 'in', `(${restrictedIds.join(',')})`);
+      query = query.not('categoryId', 'in', `("${restrictedIds.join('","')}")`);
+      query = query.not('subcategoryId', 'in', `("${restrictedIds.join('","')}")`);
     }
 
     const term = searchTerm.trim();
