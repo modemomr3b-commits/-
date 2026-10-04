@@ -192,11 +192,17 @@ export const api = {
     return (data || []).map(mapProduct);
   },
 
-  getProductsPaginated: async (page: number, pageSize: number) => {
+  getProductsPaginated: async (page: number, pageSize: number, includeArchived = false) => {
     // Fetch with basic query, filter locally for JSONB fields
-    const { data, error, count } = await supabase
+    let query = supabase
       .from('products')
-      .select('*', { count: 'exact' })
+      .select('*', { count: 'exact' });
+
+    if (!includeArchived) {
+      query = query.eq('isArchived', false);
+    }
+
+    const { data, error, count } = await query
       .range((page - 1) * pageSize, page * pageSize - 1)
       .order('id', { ascending: false });
 
@@ -206,7 +212,7 @@ export const api = {
     return { data: mapped, total: count || 0 };
   },
 
-  getProductsByCategoryPaginated: async (categoryId: string, page: number, pageSize: number, subCategoryId?: string | null) => {
+  getProductsByCategoryPaginated: async (categoryId: string, page: number, pageSize: number, subCategoryId?: string | null, includeArchived = false) => {
     const categories = await api.getCategories();
     const currentCat = categories.find((c: any) => c.id === categoryId);
     if (!currentCat) return { data: [], total: 0 };
@@ -219,6 +225,10 @@ export const api = {
     const isMainCat = !currentCat.parentId;
 
     let query = supabase.from('products').select('*', { count: 'exact' });
+
+    if (!includeArchived) {
+      query = query.eq('isArchived', false);
+    }
 
     if (subCategoryId) {
       const subCat = categories.find(c => c.id === subCategoryId);
@@ -250,9 +260,13 @@ export const api = {
     };
   },
 
-  getProductsBySearchPaginated: async (searchTerm: string, page: number, pageSize: number) => {
+  getProductsBySearchPaginated: async (searchTerm: string, page: number, pageSize: number, includeArchived = false) => {
     let query = supabase.from('products').select('*', { count: 'exact' });
     
+    if (!includeArchived) {
+      query = query.eq('isArchived', false);
+    }
+
     const term = searchTerm.trim();
     if (term) {
         query = query.or(`name.ilike.%${term}%,modelNumber.ilike.%${term}%,productCode.ilike.%${term}%,barcode.ilike.%${term}%`);

@@ -106,13 +106,16 @@ export default function Products() {
       const cats = await api.getCategories();
       setAllCategories(cats);
 
+      const archivedCatId = cats.find((c: any) => isArchivedCategoryName(c.name))?.id;
+      const isArchivedView = categoryId === archivedCatId;
+
       let result;
       if (search && search.trim()) {
-        result = await api.getProductsBySearchPaginated(search, page, itemsPerPage);
+        result = await api.getProductsBySearchPaginated(search, page, itemsPerPage, isArchivedView);
       } else if (categoryId && categoryId !== 'all') {
-        result = await api.getProductsByCategoryPaginated(categoryId, page, itemsPerPage, subId);
+        result = await api.getProductsByCategoryPaginated(categoryId, page, itemsPerPage, subId, isArchivedView);
       } else {
-        result = await api.getProductsPaginated(page, itemsPerPage);
+        result = await api.getProductsPaginated(page, itemsPerPage, isArchivedView);
       }
 
       setProducts(result.data);
