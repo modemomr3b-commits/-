@@ -74,16 +74,15 @@ export function isRestrictedCategoryName(categoryName: string): boolean {
 export function isArchivedCategoryName(categoryName: string): boolean {
   if (!categoryName) return false;
   const norm = normalizeArabic(categoryName).toLowerCase();
-  return (
-    norm.includes('نافذ') || 
-    norm.includes('نفاذ') || 
-    norm.includes('نافد') ||
-    norm.includes('sold out') ||
-    norm.includes('archived') ||
-    norm.includes('stock out') ||
-    norm.includes('منتهيه') ||
-    norm.includes('منتهي')
-  );
+  
+  // Use more specific matching for Arabic to avoid false positives with common letters
+  const patterns = ['نافذ', 'نفاذ', 'نافد', 'sold out', 'archived', 'stock out'];
+  if (patterns.some(p => norm.includes(p))) return true;
+  
+  // Check for exact matches for short words
+  if (norm === 'منتهي' || norm === 'منتهيه' || norm === 'نافذ') return true;
+  
+  return false;
 }
 
 /**

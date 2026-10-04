@@ -2,7 +2,7 @@ import { getServerTime } from './utils/time';
 import { supabase } from './supabase';
 import { ActivityLog } from './types';
 import { parseOrderDetails } from './utils/orderUtils';
-import { isArchivedCategoryName, isRestrictedCategoryName } from './utils/search.ts';
+import { isArchivedCategoryName, isRestrictedCategoryName } from './utils/search';
 
 const mapProduct = (p: any) => ({
   ...p,
@@ -205,7 +205,7 @@ export const api = {
   },
 
   getSpecialCategoryIds: async () => {
-    const categories = await api.getCategories();
+    const categories = await getData('categories');
     return categories
       .filter((c: any) => c.isHidden || isRestrictedCategoryName(c.name) || isArchivedCategoryName(c.name))
       .map((c: any) => c.id);

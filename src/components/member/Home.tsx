@@ -88,9 +88,18 @@ const calculateCategoryProductCounts = (cats: any[], prods: any[]) => {
 
 const filterAndDeduplicateTopCategories = (cats: any[], countsMap: Record<string, number>) => {
   if (!cats || !Array.isArray(cats)) return [];
-  const topCats = cats
+  
+  let topCats = cats
     .filter((c) => !c.isHidden && !c.parentId && !isRestrictedCategoryName(c.name) && !isArchivedCategoryName(c.name))
     .sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+
+  // Fallback: If filtering by name was too aggressive and removed everything, 
+  // revert to just showing all non-hidden top categories.
+  if (topCats.length === 0 && cats.some(c => !c.parentId && !c.isHidden)) {
+    topCats = cats
+      .filter(c => !c.parentId && !c.isHidden)
+      .sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+  }
 
   const nameMap = new Map<string, any>();
   topCats.forEach((c) => {
