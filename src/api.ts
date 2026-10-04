@@ -9,34 +9,16 @@ const getData = async (table: string) => {
   let from = 0;
   const limit = 1000;
   
-  const fetchWithTimeout = async (queryPromise: any, timeoutMs = 6000) => {
-    let timeoutId: any;
-    const timeoutPromise = new Promise((_, reject) => {
-      timeoutId = setTimeout(() => reject(new Error('Timeout')), timeoutMs);
-    });
-    try {
-      const res = await Promise.race([Promise.resolve(queryPromise), timeoutPromise]);
-      clearTimeout(timeoutId);
-      return res;
-    } catch (e) {
-      clearTimeout(timeoutId);
-      throw e;
-    }
-  };
-
   try {
     while (true) {
-      const query = supabase
+      const { data, error } = await supabase
         .from(table)
         .select('*')
         .order('id', { ascending: true })
         .range(from, from + limit - 1);
-
-      const { data, error } = await fetchWithTimeout(query, 6000);
         
       if (error) {
-        console.error(`Error fetching ${table}:`, error);
-        break;
+        throw error;
       }
       
       if (data && data.length > 0) {
@@ -50,27 +32,19 @@ const getData = async (table: string) => {
         break;
       }
     }
-  } catch (err) {
-    console.warn(`Timeout or error in getData for table ${table}:`, err);
-  }
-
-  if (allData.length === 0) {
-    try {
-      const cached = await localCache.get<any[]>(`all_${table}`, Infinity);
-      if (cached && cached.length > 0) {
-        return cached;
-      }
-    } catch {}
-  } else {
-    try {
+    if (allData.length > 0) {
       localCache.set(`all_${table}`, allData).catch(() => {});
-    } catch {}
+    }
+    return allData;
+  } catch (err) {
+    console.warn(`Network error in getData for table ${table}, falling back to local cache:`, err);
+    const cached = await localCache.get<any[]>(`all_${table}`, Infinity);
+    if (cached && cached.length > 0) {
+      return cached;
+    }
+    return [];
   }
-
-  return allData;
 };
-
-
 
 const getDeletedData = async (table: string) => {
   let allData: any[] = [];
@@ -253,12 +227,13 @@ export const api = {
     };
   },
 
-  getProducts: async (force?: boolean) => {
-    return api.getProductsDirect(force);
+  getProducts: async () => {
+    return api.getProductsDirect();
   },
 
-  getProductsDirect: async (force?: boolean) => {
-    if (!force && memCache['all_products'] && (Date.now() - memCache['all_products'].timestamp < MEM_CACHE_TTL)) {
+  getProductsDirect: async () => {
+    // Return in-memory cache instantly if fresh (under 60 seconds)
+    if (memCache['all_products'] && (Date.now() - memCache['all_products'].timestamp < MEM_CACHE_TTL)) {
       return memCache['all_products'].data;
     }
 
