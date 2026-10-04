@@ -2,6 +2,7 @@ import { getServerTime } from './utils/time';
 import { supabase } from './supabase';
 import { ActivityLog } from './types';
 import { parseOrderDetails } from './utils/orderUtils';
+import { isArchivedCategoryName, isRestrictedCategoryName } from './utils/search.ts';
 
 const mapProduct = (p: any) => ({
   ...p,
@@ -161,8 +162,19 @@ export const api = {
 
     const targetCatIds = [...new Set([categoryId, ...sameNameCatIds])];
     const isMainCat = !currentCat.parentId;
+    const isArchivedTarget = isArchivedCategoryName(currentCat.name);
 
     let query = supabase.from('products').select('*');
+    
+    if (!isArchivedTarget) {
+      query = query.eq('isArchived', false);
+      const specialIds = await api.getSpecialCategoryIds();
+      if (specialIds.length > 0) {
+        const idList = `("${specialIds.join('","')}")`;
+        query = query.or(`categoryId.not.in.${idList},categoryId.is.null`);
+        query = query.or(`subcategoryId.not.in.${idList},subcategoryId.is.null`);
+      }
+    }
 
     if (isMainCat) {
       const subCats = categories.filter((c: any) => c.parentId && targetCatIds.includes(c.parentId));
@@ -192,6 +204,13 @@ export const api = {
     return (data || []).map(mapProduct);
   },
 
+  getSpecialCategoryIds: async () => {
+    const categories = await api.getCategories();
+    return categories
+      .filter((c: any) => c.isHidden || isRestrictedCategoryName(c.name) || isArchivedCategoryName(c.name))
+      .map((c: any) => c.id);
+  },
+  
   getProductsPaginated: async (page: number, pageSize: number, includeArchived = false) => {
     // Fetch with basic query, filter locally for JSONB fields
     let query = supabase
@@ -200,6 +219,13 @@ export const api = {
 
     if (!includeArchived) {
       query = query.eq('isArchived', false);
+      const specialIds = await api.getSpecialCategoryIds();
+      if (specialIds.length > 0) {
+        const idList = `("${specialIds.join('","')}")`;
+        // Exclude products in hidden/archived categories
+        query = query.or(`categoryId.not.in.${idList},categoryId.is.null`);
+        query = query.or(`subcategoryId.not.in.${idList},subcategoryId.is.null`);
+      }
     }
 
     const { data, error, count } = await query
@@ -228,6 +254,13 @@ export const api = {
 
     if (!includeArchived) {
       query = query.eq('isArchived', false);
+      const specialIds = await api.getSpecialCategoryIds();
+      if (specialIds.length > 0) {
+        const idList = `("${specialIds.join('","')}")`;
+        // Exclude products in hidden/archived categories
+        query = query.or(`categoryId.not.in.${idList},categoryId.is.null`);
+        query = query.or(`subcategoryId.not.in.${idList},subcategoryId.is.null`);
+      }
     }
 
     if (subCategoryId) {
@@ -265,6 +298,13 @@ export const api = {
     
     if (!includeArchived) {
       query = query.eq('isArchived', false);
+      const specialIds = await api.getSpecialCategoryIds();
+      if (specialIds.length > 0) {
+        const idList = `("${specialIds.join('","')}")`;
+        // Exclude products in hidden/archived categories
+        query = query.or(`categoryId.not.in.${idList},categoryId.is.null`);
+        query = query.or(`subcategoryId.not.in.${idList},subcategoryId.is.null`);
+      }
     }
 
     const term = searchTerm.trim();

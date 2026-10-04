@@ -89,7 +89,7 @@ const calculateCategoryProductCounts = (cats: any[], prods: any[]) => {
 const filterAndDeduplicateTopCategories = (cats: any[], countsMap: Record<string, number>) => {
   if (!cats || !Array.isArray(cats)) return [];
   const topCats = cats
-    .filter((c) => !c.isHidden && !c.parentId && !isRestrictedCategoryName(c.name))
+    .filter((c) => !c.isHidden && !c.parentId && !isRestrictedCategoryName(c.name) && !isArchivedCategoryName(c.name))
     .sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
 
   const nameMap = new Map<string, any>();

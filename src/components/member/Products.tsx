@@ -106,8 +106,9 @@ export default function Products() {
       const cats = await api.getCategories();
       setAllCategories(cats);
 
-      const archivedCatId = cats.find((c: any) => isArchivedCategoryName(c.name))?.id;
-      const isArchivedView = categoryId === archivedCatId;
+      const archivedCats = cats.filter((c: any) => isArchivedCategoryName(c.name));
+      const archivedCatIds = archivedCats.map((c: any) => c.id);
+      const isArchivedView = categoryId && archivedCatIds.includes(categoryId);
 
       let result;
       if (search && search.trim()) {
@@ -118,7 +119,16 @@ export default function Products() {
         result = await api.getProductsPaginated(page, itemsPerPage, isArchivedView);
       }
 
-      setProducts(result.data);
+      // Safety filter to ensure products that shouldn't be here are removed
+      // (Handles cases where server-side filtering might have gaps like JSONB fields)
+      const safetyFiltered = result.data.filter((p: any) => {
+        if (isArchivedView) return true; // In archived view, we want to see everything requested
+        
+        // Exclude restricted/archived/hidden if not in archived view
+        return !p.isArchived && !p.isHidden && !p.isLocked && !isProductRestrictedFromSearch(p, cats);
+      });
+
+      setProducts(safetyFiltered);
       setTotalCount(result.total);
       
       if (categoryId) {
