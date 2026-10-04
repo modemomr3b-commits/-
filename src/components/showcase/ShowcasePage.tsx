@@ -398,24 +398,6 @@ export default function ShowcasePage() {
   useEffect(() => {
     let mounted = true;
 
-    // Instant local cache restore
-    Promise.all([
-      localCache.get<any[]>('all_products'),
-      localCache.get<any[]>('all_categories')
-    ]).then(([cachedProds, cachedCats]) => {
-      if (!mounted) return;
-      if (cachedProds && cachedProds.length > 0) {
-        const showcaseProds = cachedProds.filter(
-          p => p.isShowcase && !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, cachedCats || [])
-        );
-        setProducts(showcaseProds);
-        setLoading(false);
-      }
-      if (cachedCats && cachedCats.length > 0) {
-        setCategories(cachedCats);
-      }
-    });
-
     loadData();
 
     let fetchTimeout: any = null;

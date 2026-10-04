@@ -135,18 +135,12 @@ export default function Home() {
       const [cats, settings] = await Promise.all([
         api.getCategories(),
         api.getSettings()
-      ]).catch(() => [[], {}]);
+      ]);
 
       if (settings) {
         setShowcaseSettings(settings);
       }
 
-      if (cats && Array.isArray(cats)) {
-        setCategories(filterAndDeduplicateTopCategories(cats, {}));
-      }
-      setLoading(false);
-
-      // Fetch products in background for counts
       api.getProducts().then(prods => {
         if (prods && Array.isArray(prods) && cats && Array.isArray(cats)) {
           const scCount = prods.filter((p: any) => p.isShowcase && !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !p.size?.isArchived && !p.size?.isHidden && !p.size?.isLocked && !isProductRestrictedFromSearch(p, cats)).length;
@@ -156,13 +150,14 @@ export default function Home() {
           setProductsCountMap(counts);
           setCategories(filterAndDeduplicateTopCategories(cats, counts));
         }
-      }).catch(err => {
-        console.warn("Background product fetch warning:", err);
-      });
+      }).catch(console.error);
+
+      if (cats && Array.isArray(cats)) {
+        setCategories(filterAndDeduplicateTopCategories(cats, {}));
+      }
 
     } catch (e) {
       console.error(e);
-      setLoading(false);
     }
   };
 
@@ -173,22 +168,12 @@ export default function Home() {
     const initialFetch = async () => {
       try {
         await fetchCats();
-      } catch (err) {
-        console.error(err);
       } finally {
         if (mounted) setLoading(false);
       }
     };
 
     initialFetch();
-
-    // Safety fallback: force loading to false after 3 seconds max so spinner never hangs
-    const safetyTimer = setTimeout(() => {
-      if (mounted) setLoading(false);
-    }, 3000);
-
-
-
 
     const channel = supabase
       .channel('home_categories')

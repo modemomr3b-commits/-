@@ -2,7 +2,6 @@ import { getServerTime } from './utils/time';
 import { supabase } from './supabase';
 import { ActivityLog } from './types';
 import { parseOrderDetails } from './utils/orderUtils';
-import { localCache } from './utils/localCache';
 
 const getData = async (table: string) => {
   let allData: any[] = [];
@@ -32,16 +31,9 @@ const getData = async (table: string) => {
         break;
       }
     }
-    if (allData.length > 0) {
-      localCache.set(`all_${table}`, allData).catch(() => {});
-    }
     return allData;
   } catch (err) {
-    console.warn(`Network error in getData for table ${table}, falling back to local cache:`, err);
-    const cached = await localCache.get<any[]>(`all_${table}`, Infinity);
-    if (cached && cached.length > 0) {
-      return cached;
-    }
+    console.error(`Error in getData for table ${table}:`, err);
     return [];
   }
 };
@@ -77,14 +69,9 @@ const getDeletedData = async (table: string) => {
 };
 
 
-// Fast in-memory and persistent IndexedDB cache
-const memCache: Record<string, { data: any, timestamp: number }> = {};
-const MEM_CACHE_TTL = 60000; // 1 minute in-memory
-
 export const api = {
   clearCache: () => { 
-    Object.keys(memCache).forEach(k => delete memCache[k]); 
-    localCache.clearAll().catch(() => {});
+    // No-op as cache is disabled
   },
   uploadImage: async (base64Str: string): Promise<string> => {
     try {
@@ -354,18 +341,6 @@ export const api = {
       updatedAt: r.size?.updatedAt || r.createdAt
     };
 
-    // Update in-memory and persistent cache immediately
-    if (memCache['all_products']?.data) {
-      memCache['all_products'].data = [finalProduct, ...memCache['all_products'].data];
-      localCache.set('all_products', memCache['all_products'].data).catch(() => {});
-    }
-
-    // Invalidate category caches
-    Object.keys(memCache).forEach(k => {
-      if (k.startsWith('products_cat_')) delete memCache[k];
-    });
-
-    // Real-time broadcast
     try {
       if (typeof window !== 'undefined' && (window as any).BroadcastChannel) {
         const bc = new (window as any).BroadcastChannel('brq_products_sync');
@@ -430,37 +405,6 @@ export const api = {
     const { data: r, error } = await supabase.from('products').update(safeData).match({ id }).select().single(); 
     if (error) throw error;
     
-    // Update local cache immediately
-    if (memCache['all_products']?.data) {
-      memCache['all_products'].data = memCache['all_products'].data.map((p: any) =>
-        p.id === id
-          ? {
-              ...p,
-              ...r,
-              packaging: r.packaging !== undefined && r.packaging !== null && r.packaging !== '' && r.packaging !== '---'
-                ? String(r.packaging)
-                : (r.size?.packaging || (r.piecesCount ? String(r.piecesCount) : (r.size?.piecesCount ? String(r.size.piecesCount) : p.packaging))),
-              piecesCount: r.piecesCount !== undefined && r.piecesCount !== null
-                ? Number(r.piecesCount)
-                : (r.size?.piecesCount !== undefined ? Number(r.size.piecesCount) : p.piecesCount),
-              isHidden: r.size?.isHidden !== undefined ? Boolean(r.size.isHidden) : Boolean(r.isHidden),
-              isLocked: r.size?.isLocked !== undefined ? Boolean(r.size.isLocked) : Boolean(r.isLocked),
-              isArchived: r.size?.isArchived !== undefined ? Boolean(r.size.isArchived) : Boolean(r.isArchived),
-              isShowcase: r.size?.isShowcase !== undefined ? Boolean(r.size.isShowcase) : Boolean(r.isShowcase),
-              showcaseCategory: r.size?.showcaseCategory || r.showcaseCategory || '',
-              updatedAt: serverTime
-            }
-          : p
-      );
-      localCache.set('all_products', memCache['all_products'].data).catch(() => {});
-    }
-
-    // Invalidate category caches
-    Object.keys(memCache).forEach(k => {
-      if (k.startsWith('products_cat_')) delete memCache[k];
-    });
-    localCache.clearMatching('products_cat_').catch(() => {});
-
     // Real-time broadcast
     try {
       if (typeof window !== 'undefined' && (window as any).BroadcastChannel) {
@@ -625,50 +569,6 @@ export const api = {
       }
     }
 
-    // IMMEDIATELY update local in-memory cache and IndexedDB
-    const idSet = new Set(ids.map(String));
-    if (memCache['all_products']?.data) {
-      memCache['all_products'].data = memCache['all_products'].data.map((p: any) => {
-        if (idSet.has(String(p.id))) {
-          const mergedSize = {
-            ...(p.size || {}),
-            ...(hasSizeUpdates ? sizeUpdates : {})
-          };
-          if (data.isArchived !== undefined) mergedSize.isArchived = Boolean(data.isArchived);
-          if (data.isHidden !== undefined) mergedSize.isHidden = Boolean(data.isHidden);
-          if (data.isLocked !== undefined) mergedSize.isLocked = Boolean(data.isLocked);
-          if (data.isShowcase !== undefined) mergedSize.isShowcase = Boolean(data.isShowcase);
-          if (data.showcaseCategory !== undefined) mergedSize.showcaseCategory = data.showcaseCategory;
-
-          return {
-            ...p,
-            ...directUpdates,
-            ...(hasSizeUpdates ? sizeUpdates : {}),
-            isHidden: data.isHidden !== undefined ? Boolean(data.isHidden) : (mergedSize.isHidden !== undefined ? Boolean(mergedSize.isHidden) : p.isHidden),
-            isLocked: data.isLocked !== undefined ? Boolean(data.isLocked) : (mergedSize.isLocked !== undefined ? Boolean(mergedSize.isLocked) : p.isLocked),
-            isArchived: data.isArchived !== undefined ? Boolean(data.isArchived) : (mergedSize.isArchived !== undefined ? Boolean(mergedSize.isArchived) : p.isArchived),
-            isShowcase: data.isShowcase !== undefined ? Boolean(data.isShowcase) : (mergedSize.isShowcase !== undefined ? Boolean(mergedSize.isShowcase) : p.isShowcase),
-            showcaseCategory: data.showcaseCategory !== undefined ? data.showcaseCategory : (mergedSize.showcaseCategory || p.showcaseCategory),
-            categoryId: data.categoryId !== undefined ? data.categoryId : p.categoryId,
-            subcategoryId: data.subcategoryId !== undefined ? (data.subcategoryId || undefined) : p.subcategoryId,
-            size: mergedSize,
-            updatedAt: serverTime
-          };
-        }
-        return p;
-      });
-      memCache['all_products'].timestamp = Date.now();
-      localCache.set('all_products', memCache['all_products'].data).catch(() => {});
-    }
-
-    // Invalidate all category caches so fresh queries reflect moved products immediately
-    Object.keys(memCache).forEach(k => {
-      if (k.startsWith('products_cat_')) {
-        delete memCache[k];
-      }
-    });
-    localCache.clearMatching('products_cat_').catch(() => {});
-
     // Real-time broadcast across all open tabs and all remote clients
     try {
       if (typeof window !== 'undefined' && (window as any).BroadcastChannel) {
@@ -697,16 +597,6 @@ export const api = {
       if (error) throw error;
     }
     
-    // Invalidate caches
-    const idSet = new Set(ids);
-    if (memCache['all_products']?.data) {
-      memCache['all_products'].data = memCache['all_products'].data.filter((p: any) => !idSet.has(p.id));
-      localCache.set('all_products', memCache['all_products'].data).catch(() => {});
-    }
-    Object.keys(memCache).forEach(k => {
-      if (k.startsWith('products_cat_')) delete memCache[k];
-    });
-
     try {
       if (typeof window !== 'undefined' && (window as any).BroadcastChannel) {
         const bc = new (window as any).BroadcastChannel('brq_products_sync');
@@ -739,42 +629,17 @@ export const api = {
 
   // CATEGORIES
   getCategories: async () => {
-    const cacheKey = 'all_categories';
-    if (memCache[cacheKey]?.data?.length && (Date.now() - (memCache[cacheKey].timestamp || 0) < 30000)) {
-      return memCache[cacheKey].data;
-    }
-    
     try {
       const fresh = await getData('categories');
-      if (fresh && fresh.length > 0) {
-        memCache[cacheKey] = { data: fresh, timestamp: Date.now() };
-        localCache.set(cacheKey, fresh).catch(() => {});
-        return fresh;
-      }
+      return fresh || [];
     } catch (networkErr) {
-      console.warn('Network fetch failed, falling back to cached local storage version:', networkErr);
+      console.error('Fetch categories failed:', networkErr);
+      return [];
     }
-
-    // Fallback to cache if network fails
-    const localCats = await localCache.get<any[]>(cacheKey, Infinity);
-    if (localCats && localCats.length > 0) {
-      memCache[cacheKey] = { data: localCats, timestamp: Date.now() };
-      return localCats;
-    }
-
-    if (memCache[cacheKey]?.data?.length) {
-      return memCache[cacheKey].data;
-    }
-
-    return [];
   },
   createCategory: async (data: any) => { 
     const { data: r, error } = await supabase.from('categories').insert(data).select().single(); 
     if (error) throw error; 
-    
-    // Invalidate categories cache
-    delete memCache['all_categories'];
-    localCache.remove('all_categories').catch(() => {});
 
     try {
       if (typeof window !== 'undefined' && (window as any).BroadcastChannel) {
@@ -797,10 +662,6 @@ export const api = {
   updateCategory: async (id: string, data: any) => { 
     const { data: r, error } = await supabase.from('categories').update(data).match({ id }).select().single(); 
     if (error) throw error; 
-    
-    // Invalidate categories cache
-    delete memCache['all_categories'];
-    localCache.remove('all_categories').catch(() => {});
 
     try {
       if (typeof window !== 'undefined' && (window as any).BroadcastChannel) {
@@ -827,13 +688,6 @@ export const api = {
     // Delete the category itself
     const { error } = await supabase.from('categories').delete().match({ id }); 
     if (error) throw error; 
-    
-    // Invalidate categories and products cache
-    delete memCache['all_categories'];
-    localCache.remove('all_categories').catch(() => {});
-    Object.keys(memCache).forEach(k => {
-      if (k.startsWith('products_cat_')) delete memCache[k];
-    });
 
     try {
       if (typeof window !== 'undefined' && (window as any).BroadcastChannel) {
@@ -857,12 +711,6 @@ export const api = {
     await supabase.from('categories').delete().eq('parentId', id);
     const { error } = await supabase.from('categories').delete().match({ id }); 
     if (error) throw error; 
-    
-    delete memCache['all_categories'];
-    localCache.remove('all_categories').catch(() => {});
-    Object.keys(memCache).forEach(k => {
-      if (k.startsWith('products_cat_')) delete memCache[k];
-    });
     return { success: true }; 
   },
   restoreCategory: async (id: string) => { 
@@ -1290,19 +1138,11 @@ export const api = {
           usdExchangeRate: 1590,
           ...parsed,
         };
-        try {
-          localStorage.setItem('alwafaa_settings_cache', JSON.stringify(complete));
-        } catch (e) {}
         return complete;
       }
     } catch (e) {
       console.warn("Could not fetch settings from supabase:", e);
     }
-    
-    try {
-      const cached = localStorage.getItem('alwafaa_settings_cache');
-      if (cached) return JSON.parse(cached);
-    } catch (e) {}
     
     return {
       id: 'global',
@@ -1318,11 +1158,6 @@ export const api = {
   updateSettings: async (data: any) => { 
     const { id, ...dataJson } = data;
     const merged = { id: 'global', ...dataJson };
-    
-    // Save to local cache immediately
-    try {
-      localStorage.setItem('alwafaa_settings_cache', JSON.stringify(merged));
-    } catch (e) {}
 
     // Try updating Supabase
     try {
