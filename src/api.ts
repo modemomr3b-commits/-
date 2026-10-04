@@ -3,6 +3,25 @@ import { supabase } from './supabase';
 import { ActivityLog } from './types';
 import { parseOrderDetails } from './utils/orderUtils';
 
+const mapProduct = (p: any) => ({
+  ...p,
+  packaging: p.packaging !== undefined && p.packaging !== null && p.packaging !== '' && p.packaging !== '---'
+    ? String(p.packaging)
+    : (p.size?.packaging || (p.piecesCount ? String(p.piecesCount) : (p.size?.piecesCount ? String(p.size.piecesCount) : ''))),
+  piecesCount: p.piecesCount !== undefined && p.piecesCount !== null
+    ? Number(p.piecesCount)
+    : (p.size?.piecesCount !== undefined ? Number(p.size.piecesCount) : undefined),
+  isHidden: p.size?.isHidden !== undefined ? Boolean(p.size.isHidden) : Boolean(p.isHidden),
+  isLocked: p.size?.isLocked !== undefined ? Boolean(p.size.isLocked) : Boolean(p.isLocked),
+  isArchived: p.isArchived !== undefined ? Boolean(p.isArchived) : (p.size?.isArchived !== undefined ? Boolean(p.size.isArchived) : false),
+  isDeleted: Boolean(p.isDeleted),
+  isShowcase: p.size?.isShowcase !== undefined ? Boolean(p.size.isShowcase) : Boolean(p.isShowcase),
+  showcaseCategory: p.size?.showcaseCategory || p.showcaseCategory || '',
+  oldPriceInfo: p.size?.oldPriceInfo || undefined,
+  forceStandardCrush: p.size?.forceStandardCrush ?? true,
+  updatedAt: p.size?.updatedAt || p.createdAt
+});
+
 const getData = async (table: string) => {
   let allData: any[] = [];
   let from = 0;
@@ -10,25 +29,33 @@ const getData = async (table: string) => {
   
   try {
     while (true) {
-      const { data, error } = await supabase
-        .from(table)
-        .select('*')
-        .order('id', { ascending: true })
-        .range(from, from + limit - 1);
+      let query = supabase.from(table).select('*');
+      
+      // Attempt to order by id if possible, fallback to no order if it fails
+      query = query.order('id', { ascending: true });
+      
+      const { data, error } = await query.range(from, from + limit - 1);
         
       if (error) {
-        throw error;
-      }
-      
-      if (data && data.length > 0) {
-        const activeData = data.filter((item: any) => item.isDeleted !== true);
-        allData = [...allData, ...activeData];
-        if (data.length < limit) {
-          break;
-        }
-        from += limit;
+        // Fallback without order if id column missing or error
+        const { data: data2, error: error2 } = await supabase
+          .from(table)
+          .select('*')
+          .range(from, from + limit - 1);
+        if (error2) throw error2;
+        if (data2 && data2.length > 0) {
+          const activeData = data2.filter((item: any) => item.isDeleted !== true);
+          allData = [...allData, ...activeData];
+          if (data2.length < limit) break;
+          from += limit;
+        } else break;
       } else {
-        break;
+        if (data && data.length > 0) {
+          const activeData = data.filter((item: any) => item.isDeleted !== true);
+          allData = [...allData, ...activeData];
+          if (data.length < limit) break;
+          from += limit;
+        } else break;
       }
     }
     return allData;
@@ -132,39 +159,122 @@ export const api = {
   getProductsByCategoryDirect: async (categoryId: string) => {
     const categories = await api.getCategories();
     const currentCat = categories.find((c: any) => c.id === categoryId);
+    if (!currentCat) return [];
 
     const sameNameCatIds = categories
-      .filter((c: any) => currentCat && c.name?.trim() === currentCat.name?.trim())
+      .filter((c: any) => c.name?.trim() === currentCat.name?.trim())
       .map((c: any) => c.id);
 
-    const targetCatIds = new Set<string>([categoryId, ...sameNameCatIds]);
+    const targetCatIds = [...new Set([categoryId, ...sameNameCatIds])];
+    const isMainCat = !currentCat.parentId;
 
-    const isMainCat = !currentCat?.parentId;
-    const allProducts = await api.getProducts();
+    let query = supabase.from('products').select('*');
 
-    let res: any[] = [];
     if (isMainCat) {
-      // Find direct child subcategories for any of these main categories
-      const subCats = categories.filter((c: any) => c.parentId && targetCatIds.has(c.parentId));
-      const childSubCatIds = new Set<string>(subCats.map((c: any) => c.id));
-
-      res = allProducts.filter((p: any) => {
-        if (p.categoryId && targetCatIds.has(p.categoryId)) return true;
-        if (p.subcategoryId && targetCatIds.has(p.subcategoryId)) return true;
-        if (p.subcategoryId && childSubCatIds.has(p.subcategoryId)) return true;
-        if (p.categoryId && childSubCatIds.has(p.categoryId)) return true;
-        return false;
-      });
+      const subCats = categories.filter((c: any) => c.parentId && targetCatIds.includes(c.parentId));
+      const childSubCatIds = subCats.map((c: any) => c.id);
+      const allMatchingIds = [...new Set([...targetCatIds, ...childSubCatIds])];
+      
+      query = query.or(`categoryId.in.(${allMatchingIds.join(',')}),subcategoryId.in.(${allMatchingIds.join(',')})`);
     } else {
-      // Subcategory: match products assigned to this subcategory or subcategory ID
-      res = allProducts.filter((p: any) => {
-        if (p.subcategoryId && targetCatIds.has(p.subcategoryId)) return true;
-        if (p.categoryId && targetCatIds.has(p.categoryId)) return true;
+      query = query.or(`categoryId.in.(${targetCatIds.join(',')}),subcategoryId.in.(${targetCatIds.join(',')})`);
+    }
+
+    const { data, error } = await query
+      .neq('isDeleted', true)
+      .order('id', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching products by category:', error);
+      // Fallback to in-memory filter if complex query fails
+      const allProducts = await api.getProducts();
+      return allProducts.filter((p: any) => {
+        if (p.categoryId && targetCatIds.includes(p.categoryId)) return true;
+        if (p.subcategoryId && targetCatIds.includes(p.subcategoryId)) return true;
         return false;
       });
     }
 
-    return res;
+    return (data || []).map(mapProduct);
+  },
+
+  getProductsPaginated: async (page: number, pageSize: number) => {
+    const { data, error, count } = await supabase
+      .from('products')
+      .select('*', { count: 'exact' })
+      .neq('isDeleted', true)
+      .eq('isHidden', false)
+      .eq('isLocked', false)
+      .range((page - 1) * pageSize, page * pageSize - 1)
+      .order('id', { ascending: false });
+
+    if (error) throw error;
+    return { data: (data || []).map(mapProduct), total: count || 0 };
+  },
+
+  getProductsByCategoryPaginated: async (categoryId: string, page: number, pageSize: number, subCategoryId?: string | null) => {
+    const categories = await api.getCategories();
+    const currentCat = categories.find((c: any) => c.id === categoryId);
+    if (!currentCat) return { data: [], total: 0 };
+
+    const sameNameCatIds = categories
+      .filter((c: any) => c.name?.trim() === currentCat.name?.trim())
+      .map((c: any) => c.id);
+
+    const targetCatIds = [...new Set([categoryId, ...sameNameCatIds])];
+    const isMainCat = !currentCat.parentId;
+
+    let query = supabase.from('products').select('*', { count: 'exact' });
+
+    if (subCategoryId) {
+      const subCat = categories.find(c => c.id === subCategoryId);
+      const sameNameSubIds = categories.filter(c => subCat && c.name?.trim() === subCat.name?.trim()).map(c => c.id);
+      const allSubIds = [...new Set([subCategoryId, ...sameNameSubIds])];
+      query = query.or(`categoryId.in.(${allSubIds.join(',')}),subcategoryId.in.(${allSubIds.join(',')})`);
+    } else if (isMainCat) {
+      const subCats = categories.filter((c: any) => c.parentId && targetCatIds.includes(c.parentId));
+      const childSubCatIds = subCats.map((c: any) => c.id);
+      const allMatchingIds = [...new Set([...targetCatIds, ...childSubCatIds])];
+      query = query.or(`categoryId.in.(${allMatchingIds.join(',')}),subcategoryId.in.(${allMatchingIds.join(',')})`);
+    } else {
+      query = query.or(`categoryId.in.(${targetCatIds.join(',')}),subcategoryId.in.(${targetCatIds.join(',')})`);
+    }
+
+    const { data, error, count } = await query
+      .neq('isDeleted', true)
+      .eq('isHidden', false)
+      .eq('isLocked', false)
+      .range((page - 1) * pageSize, page * pageSize - 1)
+      .order('id', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching paginated category products:', error);
+      return { data: [], total: 0 };
+    }
+
+    return {
+      data: (data || []).map(mapProduct),
+      total: count || 0
+    };
+  },
+
+  getProductsBySearchPaginated: async (searchTerm: string, page: number, pageSize: number) => {
+    let query = supabase.from('products').select('*', { count: 'exact' });
+    
+    const term = searchTerm.trim();
+    if (term) {
+        query = query.or(`name.ilike.%${term}%,modelNumber.ilike.%${term}%,productCode.ilike.%${term}%,barcode.ilike.%${term}%`);
+    }
+
+    const { data, error, count } = await query
+      .neq('isDeleted', true)
+      .eq('isHidden', false)
+      .eq('isLocked', false)
+      .range((page - 1) * pageSize, page * pageSize - 1)
+      .order('id', { ascending: false });
+
+    if (error) throw error;
+    return { data: (data || []).map(mapProduct), total: count || 0 };
   },
 
   getProductById: async (id: string) => {
@@ -194,29 +304,14 @@ export const api = {
   },
 
   getProductsDirect: async () => {
-    const mapProduct = (p: any) => ({
-      ...p,
-      packaging: p.packaging !== undefined && p.packaging !== null && p.packaging !== '' && p.packaging !== '---'
-        ? String(p.packaging)
-        : (p.size?.packaging || (p.piecesCount ? String(p.piecesCount) : (p.size?.piecesCount ? String(p.size.piecesCount) : ''))),
-      piecesCount: p.piecesCount !== undefined && p.piecesCount !== null
-        ? Number(p.piecesCount)
-        : (p.size?.piecesCount !== undefined ? Number(p.size.piecesCount) : undefined),
-      isHidden: p.size?.isHidden !== undefined ? Boolean(p.size.isHidden) : Boolean(p.isHidden),
-      isLocked: p.size?.isLocked !== undefined ? Boolean(p.size.isLocked) : Boolean(p.isLocked),
-      isArchived: p.isArchived !== undefined ? Boolean(p.isArchived) : (p.size?.isArchived !== undefined ? Boolean(p.size.isArchived) : false),
-      isDeleted: Boolean(p.isDeleted),
-      isShowcase: p.size?.isShowcase !== undefined ? Boolean(p.size.isShowcase) : Boolean(p.isShowcase),
-      showcaseCategory: p.size?.showcaseCategory || p.showcaseCategory || '',
-      oldPriceInfo: p.size?.oldPriceInfo || undefined,
-      forceStandardCrush: p.size?.forceStandardCrush ?? true,
-      updatedAt: p.size?.updatedAt || p.createdAt
-    });
-
     try {
       const data = await getData('products');
       if (data) {
-        const res = data.map(mapProduct).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        const res = data.map(mapProduct).sort((a, b) => {
+          const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return timeB - timeA;
+        });
         return res;
       }
     } catch (networkErr) {
