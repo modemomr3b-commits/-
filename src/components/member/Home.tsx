@@ -182,6 +182,12 @@ export default function Home() {
 
     initialFetch();
 
+    // Safety fallback: force loading to false after 3 seconds max so spinner never hangs
+    const safetyTimer = setTimeout(() => {
+      if (mounted) setLoading(false);
+    }, 3000);
+
+
 
 
     const channel = supabase

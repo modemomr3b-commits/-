@@ -9,31 +9,67 @@ const getData = async (table: string) => {
   let from = 0;
   const limit = 1000;
   
-  while (true) {
-    const { data, error } = await supabase
-      .from(table)
-      .select('*')
-      .order('id', { ascending: true })
-      .range(from, from + limit - 1);
-      
-    if (error) {
-      console.error(`Error fetching ${table}:`, error);
-      throw error;
+  const fetchWithTimeout = async (queryPromise: any, timeoutMs = 6000) => {
+    let timeoutId: any;
+    const timeoutPromise = new Promise((_, reject) => {
+      timeoutId = setTimeout(() => reject(new Error('Timeout')), timeoutMs);
+    });
+    try {
+      const res = await Promise.race([Promise.resolve(queryPromise), timeoutPromise]);
+      clearTimeout(timeoutId);
+      return res;
+    } catch (e) {
+      clearTimeout(timeoutId);
+      throw e;
     }
-    
-    if (data && data.length > 0) {
-      const activeData = data.filter((item: any) => item.isDeleted !== true);
-      allData = [...allData, ...activeData];
-      if (data.length < limit) {
+  };
+
+  try {
+    while (true) {
+      const query = supabase
+        .from(table)
+        .select('*')
+        .order('id', { ascending: true })
+        .range(from, from + limit - 1);
+
+      const { data, error } = await fetchWithTimeout(query, 6000);
+        
+      if (error) {
+        console.error(`Error fetching ${table}:`, error);
         break;
       }
-      from += limit;
-    } else {
-      break;
+      
+      if (data && data.length > 0) {
+        const activeData = data.filter((item: any) => item.isDeleted !== true);
+        allData = [...allData, ...activeData];
+        if (data.length < limit) {
+          break;
+        }
+        from += limit;
+      } else {
+        break;
+      }
     }
+  } catch (err) {
+    console.warn(`Timeout or error in getData for table ${table}:`, err);
   }
+
+  if (allData.length === 0) {
+    try {
+      const cached = await localCache.get<any[]>(`all_${table}`, Infinity);
+      if (cached && cached.length > 0) {
+        return cached;
+      }
+    } catch {}
+  } else {
+    try {
+      localCache.set(`all_${table}`, allData).catch(() => {});
+    } catch {}
+  }
+
   return allData;
 };
+
 
 
 const getDeletedData = async (table: string) => {
@@ -217,13 +253,12 @@ export const api = {
     };
   },
 
-  getProducts: async () => {
-    return api.getProductsDirect();
+  getProducts: async (force?: boolean) => {
+    return api.getProductsDirect(force);
   },
 
-  getProductsDirect: async () => {
-    // Return in-memory cache instantly if fresh (under 60 seconds)
-    if (memCache['all_products'] && (Date.now() - memCache['all_products'].timestamp < MEM_CACHE_TTL)) {
+  getProductsDirect: async (force?: boolean) => {
+    if (!force && memCache['all_products'] && (Date.now() - memCache['all_products'].timestamp < MEM_CACHE_TTL)) {
       return memCache['all_products'].data;
     }
 
