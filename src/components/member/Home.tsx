@@ -132,30 +132,37 @@ export default function Home() {
 
   const fetchCats = async () => {
     try {
-      const [cats, settings, prods] = await Promise.all([
+      const [cats, settings] = await Promise.all([
         api.getCategories(),
-        api.getSettings(),
-        api.getProducts()
-      ]);
+        api.getSettings()
+      ]).catch(() => [[], {}]);
 
       if (settings) {
         setShowcaseSettings(settings);
       }
 
       if (cats && Array.isArray(cats)) {
-        if (prods && Array.isArray(prods)) {
+        setCategories(filterAndDeduplicateTopCategories(cats, {}));
+      }
+      setLoading(false);
+
+      // Fetch products in background for counts
+      api.getProducts().then(prods => {
+        if (prods && Array.isArray(prods) && cats && Array.isArray(cats)) {
           const scCount = prods.filter((p: any) => p.isShowcase && !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !p.size?.isArchived && !p.size?.isHidden && !p.size?.isLocked && !isProductRestrictedFromSearch(p, cats)).length;
           setShowcaseCount(scCount);
 
           const counts = calculateCategoryProductCounts(cats, prods);
           setProductsCountMap(counts);
           setCategories(filterAndDeduplicateTopCategories(cats, counts));
-        } else {
-          setCategories(filterAndDeduplicateTopCategories(cats, {}));
         }
-      }
+      }).catch(err => {
+        console.warn("Background product fetch warning:", err);
+      });
+
     } catch (e) {
       console.error(e);
+      setLoading(false);
     }
   };
 
@@ -166,12 +173,15 @@ export default function Home() {
     const initialFetch = async () => {
       try {
         await fetchCats();
+      } catch (err) {
+        console.error(err);
       } finally {
         if (mounted) setLoading(false);
       }
     };
 
     initialFetch();
+
 
 
     const channel = supabase
