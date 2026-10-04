@@ -1249,7 +1249,7 @@ export default function Products() {
       )}
 
       {selectedIds.size > 0 && (
-        <div className="fixed bottom-24 left-0 right-0 z-50 px-4 animate-in slide-in-from-bottom-10 fade-in duration-300 md:bottom-6">
+        <div className="fixed bottom-28 left-0 right-0 z-50 px-4 animate-in slide-in-from-bottom-10 fade-in duration-300 md:bottom-6">
           <div className={`max-w-md mx-auto bg-blue-900/90 backdrop-blur-md border border-blue-500/50 rounded-2xl shadow-2xl p-4 flex ${readyFilesToShare && readyFilesToShare.length > maxShareLimit ? 'flex-col gap-3 items-start' : 'items-center justify-between'}`}>
             <div className="flex flex-col">
               <span className="text-white font-bold text-sm">
