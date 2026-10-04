@@ -41,11 +41,13 @@ export function isRestrictedCategoryName(categoryName: string): boolean {
   
   // 1. المواد المقفلة من قبل الادمن
   if (
-    (norm.includes('مقفل') && (norm.includes('ادمن') || norm.includes('اداره') || norm.includes('مواد') || norm.includes('مدير'))) ||
+    (norm.includes('مقفل') && (norm.includes('ادمن') || norm.includes('اداره') || norm.includes('مواد') || norm.includes('مدير') || norm.includes('قسم') || norm.includes('مخفي'))) ||
     norm.includes('المواد المقفله') ||
     norm.includes('مواد مقفله') ||
     norm.includes('مقفل من قبل') ||
-    norm.includes('مقفله من قبل')
+    norm.includes('مقفله من قبل') ||
+    norm.includes('قسم مقفل') ||
+    norm.includes('قسم مخفي')
   ) {
     return true;
   }

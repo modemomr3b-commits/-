@@ -193,6 +193,11 @@ export const api = {
   },
 
   getProductsPaginated: async (page: number, pageSize: number, includeArchived = false) => {
+    const categories = await api.getCategories();
+    const restrictedIds = categories
+      .filter((c: any) => c.isHidden || isRestrictedCategoryName(c.name))
+      .map((c: any) => c.id);
+
     // Fetch with basic query, filter locally for JSONB fields
     let query = supabase
       .from('products')
@@ -202,13 +207,18 @@ export const api = {
       query = query.eq('isArchived', false);
     }
 
+    if (restrictedIds.length > 0) {
+      query = query.not('categoryId', 'in', `(${restrictedIds.join(',')})`);
+      query = query.not('subcategoryId', 'in', `(${restrictedIds.join(',')})`);
+    }
+
     const { data, error, count } = await query
       .range((page - 1) * pageSize, page * pageSize - 1)
       .order('id', { ascending: false });
 
     if (error) throw error;
     
-    const mapped = (data || []).map(mapProduct).filter(p => !p.isDeleted);
+    const mapped = (data || []).map(mapProduct).filter(p => !p.isDeleted && !p.isLocked && !p.isHidden);
     return { data: mapped, total: count || 0 };
   },
 
@@ -224,10 +234,19 @@ export const api = {
     const targetCatIds = [...new Set([categoryId, ...sameNameCatIds])];
     const isMainCat = !currentCat.parentId;
 
+    const restrictedIds = categories
+      .filter((c: any) => c.isHidden || isRestrictedCategoryName(c.name))
+      .map((c: any) => c.id);
+
     let query = supabase.from('products').select('*', { count: 'exact' });
 
     if (!includeArchived) {
       query = query.eq('isArchived', false);
+    }
+
+    if (restrictedIds.length > 0) {
+      query = query.not('categoryId', 'in', `(${restrictedIds.join(',')})`);
+      query = query.not('subcategoryId', 'in', `(${restrictedIds.join(',')})`);
     }
 
     if (subCategoryId) {
@@ -253,7 +272,7 @@ export const api = {
       return { data: [], total: 0 };
     }
 
-    const mapped = (data || []).map(mapProduct).filter(p => !p.isDeleted);
+    const mapped = (data || []).map(mapProduct).filter(p => !p.isDeleted && !p.isLocked && !p.isHidden);
     return {
       data: mapped,
       total: count || 0
@@ -261,10 +280,20 @@ export const api = {
   },
 
   getProductsBySearchPaginated: async (searchTerm: string, page: number, pageSize: number, includeArchived = false) => {
+    const categories = await api.getCategories();
+    const restrictedIds = categories
+      .filter((c: any) => c.isHidden || isRestrictedCategoryName(c.name))
+      .map((c: any) => c.id);
+
     let query = supabase.from('products').select('*', { count: 'exact' });
     
     if (!includeArchived) {
       query = query.eq('isArchived', false);
+    }
+
+    if (restrictedIds.length > 0) {
+      query = query.not('categoryId', 'in', `(${restrictedIds.join(',')})`);
+      query = query.not('subcategoryId', 'in', `(${restrictedIds.join(',')})`);
     }
 
     const term = searchTerm.trim();
@@ -277,7 +306,7 @@ export const api = {
       .order('id', { ascending: false });
 
     if (error) throw error;
-    const mapped = (data || []).map(mapProduct).filter(p => !p.isDeleted);
+    const mapped = (data || []).map(mapProduct).filter(p => !p.isDeleted && !p.isLocked && !p.isHidden);
     return { data: mapped, total: count || 0 };
   },
 
