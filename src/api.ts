@@ -29,36 +29,30 @@ const getData = async (table: string) => {
   
   try {
     while (true) {
-      let query = supabase.from(table).select('*');
-      
-      // Attempt to order by id if possible, fallback to no order if it fails
-      query = query.order('id', { ascending: true });
-      
-      const { data, error } = await query.range(from, from + limit - 1);
+      const { data, error } = await supabase
+        .from(table)
+        .select('*')
+        .order('id', { ascending: true })
+        .range(from, from + limit - 1);
         
       if (error) {
-        // Fallback without order if id column missing or error
-        const { data: data2, error: error2 } = await supabase
-          .from(table)
-          .select('*')
-          .range(from, from + limit - 1);
-        if (error2) throw error2;
-        if (data2 && data2.length > 0) {
-          const activeData = data2.filter((item: any) => item.isDeleted !== true);
-          allData = [...allData, ...activeData];
-          if (data2.length < limit) break;
+        const fallback = await supabase.from(table).select('*').range(from, from + limit - 1);
+        if (fallback.error) throw fallback.error;
+        if (fallback.data && fallback.data.length > 0) {
+          allData = [...allData, ...fallback.data];
+          if (fallback.data.length < limit) break;
           from += limit;
-        } else break;
-      } else {
-        if (data && data.length > 0) {
-          const activeData = data.filter((item: any) => item.isDeleted !== true);
-          allData = [...allData, ...activeData];
-          if (data.length < limit) break;
-          from += limit;
+          continue;
         } else break;
       }
+      
+      if (data && data.length > 0) {
+        allData = [...allData, ...data];
+        if (data.length < limit) break;
+        from += limit;
+      } else break;
     }
-    return allData;
+    return allData.filter(item => item && item.isDeleted !== true);
   } catch (err) {
     console.error(`Error in getData for table ${table}:`, err);
     return [];
@@ -199,17 +193,17 @@ export const api = {
   },
 
   getProductsPaginated: async (page: number, pageSize: number) => {
+    // Fetch with basic query, filter locally for JSONB fields
     const { data, error, count } = await supabase
       .from('products')
       .select('*', { count: 'exact' })
-      .neq('isDeleted', true)
-      .eq('isHidden', false)
-      .eq('isLocked', false)
       .range((page - 1) * pageSize, page * pageSize - 1)
       .order('id', { ascending: false });
 
     if (error) throw error;
-    return { data: (data || []).map(mapProduct), total: count || 0 };
+    
+    const mapped = (data || []).map(mapProduct).filter(p => !p.isDeleted);
+    return { data: mapped, total: count || 0 };
   },
 
   getProductsByCategoryPaginated: async (categoryId: string, page: number, pageSize: number, subCategoryId?: string | null) => {
@@ -230,20 +224,17 @@ export const api = {
       const subCat = categories.find(c => c.id === subCategoryId);
       const sameNameSubIds = categories.filter(c => subCat && c.name?.trim() === subCat.name?.trim()).map(c => c.id);
       const allSubIds = [...new Set([subCategoryId, ...sameNameSubIds])];
-      query = query.or(`categoryId.in.(${allSubIds.join(',')}),subcategoryId.in.(${allSubIds.join(',')})`);
+      query = query.or(`categoryId.in.("${allSubIds.join('","')}"),subcategoryId.in.("${allSubIds.join('","')}")`);
     } else if (isMainCat) {
       const subCats = categories.filter((c: any) => c.parentId && targetCatIds.includes(c.parentId));
       const childSubCatIds = subCats.map((c: any) => c.id);
       const allMatchingIds = [...new Set([...targetCatIds, ...childSubCatIds])];
-      query = query.or(`categoryId.in.(${allMatchingIds.join(',')}),subcategoryId.in.(${allMatchingIds.join(',')})`);
+      query = query.or(`categoryId.in.("${allMatchingIds.join('","')}"),subcategoryId.in.("${allMatchingIds.join('","')}")`);
     } else {
-      query = query.or(`categoryId.in.(${targetCatIds.join(',')}),subcategoryId.in.(${targetCatIds.join(',')})`);
+      query = query.or(`categoryId.in.("${targetCatIds.join('","')}"),subcategoryId.in.("${targetCatIds.join('","')}")`);
     }
 
     const { data, error, count } = await query
-      .neq('isDeleted', true)
-      .eq('isHidden', false)
-      .eq('isLocked', false)
       .range((page - 1) * pageSize, page * pageSize - 1)
       .order('id', { ascending: false });
 
@@ -252,8 +243,9 @@ export const api = {
       return { data: [], total: 0 };
     }
 
+    const mapped = (data || []).map(mapProduct).filter(p => !p.isDeleted);
     return {
-      data: (data || []).map(mapProduct),
+      data: mapped,
       total: count || 0
     };
   },
@@ -267,14 +259,12 @@ export const api = {
     }
 
     const { data, error, count } = await query
-      .neq('isDeleted', true)
-      .eq('isHidden', false)
-      .eq('isLocked', false)
       .range((page - 1) * pageSize, page * pageSize - 1)
       .order('id', { ascending: false });
 
     if (error) throw error;
-    return { data: (data || []).map(mapProduct), total: count || 0 };
+    const mapped = (data || []).map(mapProduct).filter(p => !p.isDeleted);
+    return { data: mapped, total: count || 0 };
   },
 
   getProductById: async (id: string) => {

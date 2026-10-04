@@ -544,7 +544,7 @@ export default function Products() {
                 {searchTerm ? 'نتائج البحث الشامل' : categoryName}
               </h2>
               <p className="text-[10px] text-white/50">
-                {filteredProductsAll.length} منتجات {searchTerm ? '(بحث في جميع المواد والموديلات)' : ''}
+                {totalCount} منتجات {searchTerm ? '(بحث في جميع المواد والموديلات)' : ''}
               </p>
             </div>
           </div>
@@ -597,21 +597,15 @@ export default function Products() {
               }`}
             >
               <span>الكل</span>
-              {isAdminOrSales && (
-                <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${activeSub === null ? 'bg-black/20 text-black' : 'bg-white/10 text-brq-gold'}`}>
-                  {products.length}
-                </span>
-              )}
             </button>
             {subCategories.map((sub) => {
-              const subCount = products.filter(p => p.subcategoryId === sub.id || (p as any).subcategory === sub.name).length;
               return (
                 <button
                   key={sub.id}
                   onClick={() => { setActiveSub(sub.id); setCurrentPage(1); }}
                   className={`whitespace-nowrap px-4 py-1.5 rounded-full text-xs font-bold transition-colors flex items-center gap-1.5 ${
                     activeSub === sub.id 
-                      ? "bg-brq-gold text-black" 
+                      ? "bg-brq-gold text-black shadow-lg shadow-yellow-500/20" 
                       : "bg-white/10 text-white/70 hover:bg-white/20"
                   }`}
                 >
@@ -619,11 +613,6 @@ export default function Products() {
                     <img src={sub.icon} alt={sub.name} className="w-4 h-4 rounded-full object-cover shrink-0" />
                   )}
                   <span>{sub.name}</span>
-                  {isAdminOrSales && (
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${activeSub === sub.id ? 'bg-black/20 text-black' : 'bg-white/10 text-brq-gold'}`}>
-                      {subCount}
-                    </span>
-                  )}
                 </button>
               );
             })}
