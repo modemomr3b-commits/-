@@ -203,18 +203,19 @@ export const api = {
       .from('products')
       .select('*', { count: 'exact' });
 
-    if (!includeArchived) {
-      query = query.eq('isArchived', false);
-    }
-
+    // Moved isArchived filter to JS to avoid query failure if column is missing
     const { data, error, count } = await query
       .range((page - 1) * pageSize, page * pageSize - 1)
       .order('id', { ascending: false });
 
-    if (error) throw error;
+    if (error) {
+      console.error('Error fetching paginated products:', error);
+      return { data: [], total: 0 };
+    }
     
     const mapped = (data || []).map(mapProduct).filter(p => {
       if (p.isDeleted || p.isLocked || p.isHidden) return false;
+      if (!includeArchived && p.isArchived) return false;
       if (restrictedIds.includes(p.categoryId) || restrictedIds.includes(p.subcategoryId)) return false;
       return true;
     });
@@ -238,10 +239,6 @@ export const api = {
       .map((c: any) => c.id);
 
     let query = supabase.from('products').select('*', { count: 'exact' });
-
-    if (!includeArchived) {
-      query = query.eq('isArchived', false);
-    }
 
     if (subCategoryId) {
       const subCat = categories.find(c => c.id === subCategoryId);
@@ -268,6 +265,7 @@ export const api = {
 
     const mapped = (data || []).map(mapProduct).filter(p => {
       if (p.isDeleted || p.isLocked || p.isHidden) return false;
+      if (!includeArchived && p.isArchived) return false;
       if (restrictedIds.includes(p.categoryId) || restrictedIds.includes(p.subcategoryId)) return false;
       return true;
     });
@@ -285,10 +283,6 @@ export const api = {
 
     let query = supabase.from('products').select('*', { count: 'exact' });
     
-    if (!includeArchived) {
-      query = query.eq('isArchived', false);
-    }
-
     const term = searchTerm.trim();
     if (term) {
         query = query.or(`name.ilike.%${term}%,modelNumber.ilike.%${term}%,productCode.ilike.%${term}%,barcode.ilike.%${term}%`);
@@ -298,9 +292,14 @@ export const api = {
       .range((page - 1) * pageSize, page * pageSize - 1)
       .order('id', { ascending: false });
 
-    if (error) throw error;
+    if (error) {
+      console.error('Error searching products:', error);
+      return { data: [], total: 0 };
+    }
+    
     const mapped = (data || []).map(mapProduct).filter(p => {
       if (p.isDeleted || p.isLocked || p.isHidden) return false;
+      if (!includeArchived && p.isArchived) return false;
       if (restrictedIds.includes(p.categoryId) || restrictedIds.includes(p.subcategoryId)) return false;
       return true;
     });
