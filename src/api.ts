@@ -207,18 +207,17 @@ export const api = {
       query = query.eq('isArchived', false);
     }
 
-    if (restrictedIds.length > 0) {
-      query = query.not('categoryId', 'in', `("${restrictedIds.join('","')}")`);
-      query = query.not('subcategoryId', 'in', `("${restrictedIds.join('","')}")`);
-    }
-
     const { data, error, count } = await query
       .range((page - 1) * pageSize, page * pageSize - 1)
       .order('id', { ascending: false });
 
     if (error) throw error;
     
-    const mapped = (data || []).map(mapProduct).filter(p => !p.isDeleted && !p.isLocked && !p.isHidden);
+    const mapped = (data || []).map(mapProduct).filter(p => {
+      if (p.isDeleted || p.isLocked || p.isHidden) return false;
+      if (restrictedIds.includes(p.categoryId) || restrictedIds.includes(p.subcategoryId)) return false;
+      return true;
+    });
     return { data: mapped, total: count || 0 };
   },
 
@@ -244,11 +243,6 @@ export const api = {
       query = query.eq('isArchived', false);
     }
 
-    if (restrictedIds.length > 0) {
-      query = query.not('categoryId', 'in', `("${restrictedIds.join('","')}")`);
-      query = query.not('subcategoryId', 'in', `("${restrictedIds.join('","')}")`);
-    }
-
     if (subCategoryId) {
       const subCat = categories.find(c => c.id === subCategoryId);
       const sameNameSubIds = categories.filter(c => subCat && c.name?.trim() === subCat.name?.trim()).map(c => c.id);
@@ -272,7 +266,11 @@ export const api = {
       return { data: [], total: 0 };
     }
 
-    const mapped = (data || []).map(mapProduct).filter(p => !p.isDeleted && !p.isLocked && !p.isHidden);
+    const mapped = (data || []).map(mapProduct).filter(p => {
+      if (p.isDeleted || p.isLocked || p.isHidden) return false;
+      if (restrictedIds.includes(p.categoryId) || restrictedIds.includes(p.subcategoryId)) return false;
+      return true;
+    });
     return {
       data: mapped,
       total: count || 0
@@ -291,11 +289,6 @@ export const api = {
       query = query.eq('isArchived', false);
     }
 
-    if (restrictedIds.length > 0) {
-      query = query.not('categoryId', 'in', `("${restrictedIds.join('","')}")`);
-      query = query.not('subcategoryId', 'in', `("${restrictedIds.join('","')}")`);
-    }
-
     const term = searchTerm.trim();
     if (term) {
         query = query.or(`name.ilike.%${term}%,modelNumber.ilike.%${term}%,productCode.ilike.%${term}%,barcode.ilike.%${term}%`);
@@ -306,7 +299,11 @@ export const api = {
       .order('id', { ascending: false });
 
     if (error) throw error;
-    const mapped = (data || []).map(mapProduct).filter(p => !p.isDeleted && !p.isLocked && !p.isHidden);
+    const mapped = (data || []).map(mapProduct).filter(p => {
+      if (p.isDeleted || p.isLocked || p.isHidden) return false;
+      if (restrictedIds.includes(p.categoryId) || restrictedIds.includes(p.subcategoryId)) return false;
+      return true;
+    });
     return { data: mapped, total: count || 0 };
   },
 
