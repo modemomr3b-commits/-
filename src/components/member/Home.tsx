@@ -132,30 +132,28 @@ export default function Home() {
 
   const fetchCats = async () => {
     try {
-      const [cats, settings] = await Promise.all([
+      const [cats, settings, prods] = await Promise.all([
         api.getCategories(),
-        api.getSettings()
+        api.getSettings(),
+        api.getProducts()
       ]);
 
       if (settings) {
         setShowcaseSettings(settings);
       }
 
-      api.getProducts().then(prods => {
-        if (prods && Array.isArray(prods) && cats && Array.isArray(cats)) {
+      if (cats && Array.isArray(cats)) {
+        if (prods && Array.isArray(prods)) {
           const scCount = prods.filter((p: any) => p.isShowcase && !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !p.size?.isArchived && !p.size?.isHidden && !p.size?.isLocked && !isProductRestrictedFromSearch(p, cats)).length;
           setShowcaseCount(scCount);
 
           const counts = calculateCategoryProductCounts(cats, prods);
           setProductsCountMap(counts);
           setCategories(filterAndDeduplicateTopCategories(cats, counts));
+        } else {
+          setCategories(filterAndDeduplicateTopCategories(cats, {}));
         }
-      }).catch(console.error);
-
-      if (cats && Array.isArray(cats)) {
-        setCategories(filterAndDeduplicateTopCategories(cats, {}));
       }
-
     } catch (e) {
       console.error(e);
     }
@@ -164,22 +162,6 @@ export default function Home() {
   useEffect(() => {
     let mounted = true;
     let fetchTimeout: any;
-
-    Promise.all([
-      localCache.get<any[]>('all_categories'),
-      localCache.get<any[]>('all_products')
-    ]).then(([cachedCats, cachedProds]) => {
-      if (!mounted) return;
-      if (cachedCats && cachedCats.length > 0) {
-        let counts = {};
-        if (cachedProds && cachedProds.length > 0) {
-          counts = calculateCategoryProductCounts(cachedCats, cachedProds);
-          setProductsCountMap(counts);
-        }
-        setCategories(filterAndDeduplicateTopCategories(cachedCats, counts));
-        setLoading(false);
-      }
-    });
 
     const initialFetch = async () => {
       try {
@@ -190,6 +172,7 @@ export default function Home() {
     };
 
     initialFetch();
+
 
     const channel = supabase
       .channel('home_categories')
