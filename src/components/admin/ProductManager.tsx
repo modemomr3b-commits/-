@@ -623,12 +623,12 @@ export default function ProductManager() {
     if (!newProduct.dozenPriceUsd || Number(newProduct.dozenPriceUsd) <= 0) missingFields.push("سعر الدرزن بالدولار");
     if (!newProduct.price || Number(newProduct.price) <= 0) missingFields.push("سعر الدرزن بالدينار");
     if (!newProduct.packaging || String(newProduct.packaging).trim() === '') missingFields.push("التعبئة");
-    if (!newProduct.categoryId || !newProduct.categoryId.trim()) missingFields.push("القسم");
+    if (!newProduct.categoryId || !newProduct.categoryId.trim()) missingFields.push("القسم الرئيسي");
     if (!newProduct.productCode || !newProduct.productCode.trim()) missingFields.push("كود المنتج");
     if (!newProduct.imageUrl || !newProduct.imageUrl.trim()) missingFields.push("صورة المنتج");
 
     if (missingFields.length > 0) {
-      setAlertMessage(`⚠️ لم يتم نشر البطاقة بسبب نقص أحد الحقول المطلوبة: ${missingFields.join("، ")}. يجب ملء كافة الحقول المطلوبة (اسم المنتج، سعر الدرزن بالدولار، سعر الدرزن بالدينار، التعبئة، القسم، كود المنتج، والصورة) لنشر البطاقة بنجاح.`);
+      setAlertMessage(`⚠️ لم يتم نشر البطاقة بسبب نقص أحد الحقول المطلوبة: ${missingFields.join("، ")}. يجب ملء الحقول الأساسية (الاسم، السعر، التعبئة، القسم الرئيسي، الكود، والصورة) لنشر البطاقة بنجاح.`);
       return;
     }
 
