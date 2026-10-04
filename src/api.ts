@@ -139,33 +139,10 @@ export const api = {
 
   // PRODUCTS
   getProductsByCategory: async (categoryId: string) => {
-    const cacheKey = `products_cat_${categoryId}`;
-    if (memCache[cacheKey] && Date.now() - memCache[cacheKey].timestamp < MEM_CACHE_TTL) {
-      return memCache[cacheKey].data;
-    }
-    
-    // Check persistent local cache for instant retrieval
-    const cachedCatProds = await localCache.get<any[]>(cacheKey, 1000 * 60 * 10);
-    if (cachedCatProds && cachedCatProds.length > 0) {
-      memCache[cacheKey] = { data: cachedCatProds, timestamp: Date.now() };
-      // Background revalidation
-      setTimeout(async () => {
-        try {
-          const fresh = await api.getProductsByCategoryDirect(categoryId);
-          if (fresh) {
-            memCache[cacheKey] = { data: fresh, timestamp: Date.now() };
-            localCache.set(cacheKey, fresh);
-          }
-        } catch {}
-      }, 50);
-      return cachedCatProds;
-    }
-
     return api.getProductsByCategoryDirect(categoryId);
   },
 
   getProductsByCategoryDirect: async (categoryId: string) => {
-    const cacheKey = `products_cat_${categoryId}`;
     const categories = await api.getCategories();
     const currentCat = categories.find((c: any) => c.id === categoryId);
 
@@ -200,8 +177,6 @@ export const api = {
       });
     }
 
-    memCache[cacheKey] = { data: res, timestamp: Date.now() };
-    localCache.set(cacheKey, res).catch(() => {});
     return res;
   },
 
@@ -232,11 +207,6 @@ export const api = {
   },
 
   getProductsDirect: async () => {
-    // Return in-memory cache instantly if fresh (under 60 seconds)
-    if (memCache['all_products'] && (Date.now() - memCache['all_products'].timestamp < MEM_CACHE_TTL)) {
-      return memCache['all_products'].data;
-    }
-
     const mapProduct = (p: any) => ({
       ...p,
       packaging: p.packaging !== undefined && p.packaging !== null && p.packaging !== '' && p.packaging !== '---'
@@ -258,24 +228,12 @@ export const api = {
 
     try {
       const data = await getData('products');
-      if (data && data.length > 0) {
+      if (data) {
         const res = data.map(mapProduct).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-        memCache['all_products'] = { data: res, timestamp: Date.now() };
-        localCache.set('all_products', res).catch(() => {});
         return res;
       }
     } catch (networkErr) {
-      console.warn('Network fetch failed, falling back to cached local storage version:', networkErr);
-    }
-
-    // Fallback to cache if network fails (لا سامح الله صارت مشكلة)
-    const fallbackLocal = await localCache.get<any[]>('all_products', Infinity);
-    if (fallbackLocal && fallbackLocal.length > 0) {
-      return fallbackLocal.map(mapProduct);
-    }
-
-    if (memCache['all_products']?.data?.length) {
-      return memCache['all_products'].data;
+      console.warn('Network fetch failed:', networkErr);
     }
 
     return [];
