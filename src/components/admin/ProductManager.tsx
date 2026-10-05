@@ -66,6 +66,10 @@ export default function ProductManager() {
   const [historyProduct, setHistoryProduct] = useState<Product | null>(null);
   const [lastEditProduct, setLastEditProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isSearching, setIsSearching] = useState(false);
+  const [isServerMode, setIsServerMode] = useState(true);
+  const [totalServerCount, setTotalServerCount] = useState(0);
+  const [serverStats, setServerStats] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [usdRate, setUsdRate] = useState<number>(1590);
 
@@ -277,39 +281,67 @@ export default function ProductManager() {
 
   const loadData = async (force: boolean = false) => {
     try {
-      api.getCategories().then(cats => setCategories(cats));
-      api.getSettings().then(settings => {
-        if (settings?.usdExchangeRate) {
-          setUsdRate(settings.usdExchangeRate);
-        }
-      });
-      const prods = await api.getProductsDirect(force);
-      setProducts(prev => {
-        const prevMap = new Map(prev.map(p => [p.id, p]));
-        const now = Date.now();
-        return prods
-          .map((p: any) => {
-            const mapped = {
-              ...p,
-              createdAt: p.createdAt ? new Date(p.createdAt).getTime() : Date.now(),
-            };
-            const lastMod = recentlyModifiedRef.current[p.id];
-            if (lastMod && (now - lastMod < 8000)) {
-              const localProd = prevMap.get(p.id);
-              if (localProd) {
-                return {
-                  ...mapped,
-                  isArchived: localProd.isArchived,
-                  isLocked: localProd.isLocked,
-                  isHidden: localProd.isHidden,
-                  isShowcase: localProd.isShowcase,
-                };
+      if (!isServerMode) {
+        api.getCategories().then(cats => setCategories(cats));
+        api.getSettings().then(settings => {
+          if (settings?.usdExchangeRate) {
+            setUsdRate(settings.usdExchangeRate);
+          }
+        });
+        const prods = await api.getProductsDirect(force);
+        setProducts(prev => {
+          const prevMap = new Map(prev.map(p => [p.id, p]));
+          const now = Date.now();
+          return prods
+            .map((p: any) => {
+              const mapped = {
+                ...p,
+                createdAt: p.createdAt ? new Date(p.createdAt).getTime() : Date.now(),
+              };
+              const lastMod = recentlyModifiedRef.current[p.id];
+              if (lastMod && (now - lastMod < 8000)) {
+                const localProd = prevMap.get(p.id);
+                if (localProd) {
+                  return {
+                    ...mapped,
+                    isArchived: localProd.isArchived,
+                    isLocked: localProd.isLocked,
+                    isHidden: localProd.isHidden,
+                    isShowcase: localProd.isShowcase,
+                  };
+                }
               }
-            }
-            return mapped;
-          })
-          .sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0));
-      });
+              return mapped;
+            })
+            .sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0));
+        });
+      } else {
+        // SERVER MODE: Fetch specific slice
+        setIsSearching(true);
+        try {
+          const [cats, settings, stats, result] = await Promise.all([
+            api.getCategories(),
+            api.getSettings(),
+            api.getAdminStats(),
+            api.getProductsAdminFiltered({
+              searchTerm: searchQuery,
+              categoryId: filterCategoryId,
+              status: filterStatus || 'active',
+              date: searchDate,
+              page: currentPage,
+              pageSize: itemsPerPage
+            })
+          ]);
+          
+          setCategories(cats);
+          if (settings?.usdExchangeRate) setUsdRate(settings.usdExchangeRate);
+          setServerStats(stats);
+          setProducts(result.data);
+          setTotalServerCount(result.total);
+        } finally {
+          setIsSearching(false);
+        }
+      }
     } catch (e) {
       console.error(e);
     }
@@ -1469,6 +1501,17 @@ export default function ProductManager() {
 
   // Tab counts for clear visual counters
   const tabCounts = useMemo(() => {
+    if (isServerMode && serverStats) {
+      return {
+        all: serverStats.total || 0,
+        active: serverStats.active || 0,
+        inactive: serverStats.inactive || 0,
+        locked: serverStats.locked || 0,
+        duplicates: 0, // Not implemented server-side yet
+        noSubcategory: 0, // Not implemented server-side yet
+        showcase: serverStats.showcase || 0,
+      };
+    }
     const archivedCat = categories.find(c => isArchivedCategoryName(c.name));
     const archivedCatId = archivedCat?.id;
     const nonArchivedProds = products.filter(p => !(archivedCatId ? p.categoryId === archivedCatId : p.isArchived));
@@ -1485,6 +1528,8 @@ export default function ProductManager() {
   }, [products, duplicatesSet, categories]);
 
   const filteredProducts = useMemo(() => {
+    if (isServerMode) return products;
+    
     const archivedCat = categories.find(c => isArchivedCategoryName(c.name));
     const archivedCatId = archivedCat?.id;
 
@@ -1550,9 +1595,9 @@ export default function ProductManager() {
     });
   }, [products, filterCategoryId, searchQuery, searchDate, filterStatus, duplicatesSet, categories]);
 
-  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
+  const totalPages = Math.ceil((isServerMode ? totalServerCount : filteredProducts.length) / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedProducts = useMemo(() => filteredProducts.slice(startIndex, startIndex + itemsPerPage), [filteredProducts, startIndex, itemsPerPage]);
+  const paginatedProducts = useMemo(() => isServerMode ? products : filteredProducts.slice(startIndex, startIndex + itemsPerPage), [isServerMode, products, filteredProducts, startIndex, itemsPerPage]);
 
   return (
     <div className="space-y-6">
@@ -1983,8 +2028,10 @@ export default function ProductManager() {
                     </div>
                     <button
                       onClick={() => setSearchQuery(searchInput)}
-                      className="px-6 py-2.5 bg-brq-gold text-black rounded-lg font-black hover:bg-yellow-500 transition-colors shadow-sm whitespace-nowrap"
+                      disabled={isSearching}
+                      className="px-6 py-2.5 bg-brq-gold text-black rounded-lg font-black hover:bg-yellow-500 transition-colors shadow-sm whitespace-nowrap flex items-center gap-2"
                     >
+                      {isSearching ? <Loader2 size={18} className="animate-spin" /> : <Search size={18} />}
                       بحث
                     </button>
                   </div>
@@ -2289,8 +2336,32 @@ export default function ProductManager() {
                 <tbody className="divide-y divide-white/5 text-white/90">
                   {paginatedProducts.length === 0 ? (
                     <tr>
-                      <td colSpan={10} className="p-8 text-center text-white/50">
-                        لا توجد منتجات مطابقة في هذا القسم
+                      <td colSpan={11} className="p-12 text-center">
+                        <div className="flex flex-col items-center gap-3">
+                          {isSearching ? (
+                            <>
+                              <Loader2 className="w-10 h-10 text-brq-gold animate-spin" />
+                              <p className="text-white/70 font-bold">جاري جلب البيانات من السيرفر...</p>
+                            </>
+                          ) : (
+                            <>
+                              <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mb-2">
+                                <Search className="w-8 h-8 text-white/20" />
+                              </div>
+                              <p className="text-white/50 font-medium text-lg">
+                                {isServerMode && !searchQuery && filterCategoryId === 'none' 
+                                  ? 'يرجى إدخال كلمة بحث أو اختيار قسم لعرض النتائج' 
+                                  : 'لا توجد منتجات مطابقة للبحث الحالي'}
+                              </p>
+                              <button 
+                                onClick={() => loadData(true)}
+                                className="mt-2 text-brq-gold hover:underline text-sm font-bold"
+                              >
+                                تحديث البيانات
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ) : (
