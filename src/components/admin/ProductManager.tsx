@@ -66,10 +66,6 @@ export default function ProductManager() {
   const [historyProduct, setHistoryProduct] = useState<Product | null>(null);
   const [lastEditProduct, setLastEditProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isSearching, setIsSearching] = useState(false);
-  const [isServerMode, setIsServerMode] = useState(true);
-  const [totalServerCount, setTotalServerCount] = useState(0);
-  const [serverStats, setServerStats] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [usdRate, setUsdRate] = useState<number>(1590);
 
@@ -247,7 +243,7 @@ export default function ProductManager() {
     showcaseCategory: "رجالي",
   });
 
-  const [filterStatus, setFilterStatus] = useState<"all" | "active" | "locked" | "inactive" | "duplicates" | "noSubcategory" | "showcase" | "archived" | null>(null);
+  const [filterStatus, setFilterStatus] = useState<"all" | "active" | "locked" | "inactive" | "duplicates" | "noSubcategory" | "showcase" | "archived" | null>("active");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [searchDate, setSearchDate] = useState("");
@@ -281,74 +277,39 @@ export default function ProductManager() {
 
   const loadData = async (force: boolean = false) => {
     try {
-      if (!isServerMode) {
-        api.getCategories().then(cats => setCategories(cats));
-        api.getSettings().then(settings => {
-          if (settings?.usdExchangeRate) {
-            setUsdRate(settings.usdExchangeRate);
-          }
-        });
-        const prods = await api.getProductsDirect(force);
-        setProducts(prev => {
-          const prevMap = new Map(prev.map(p => [p.id, p]));
-          const now = Date.now();
-          return prods
-            .map((p: any) => {
-              const mapped = {
-                ...p,
-                createdAt: p.createdAt ? new Date(p.createdAt).getTime() : Date.now(),
-              };
-              const lastMod = recentlyModifiedRef.current[p.id];
-              if (lastMod && (now - lastMod < 8000)) {
-                const localProd = prevMap.get(p.id);
-                if (localProd) {
-                  return {
-                    ...mapped,
-                    isArchived: localProd.isArchived,
-                    isLocked: localProd.isLocked,
-                    isHidden: localProd.isHidden,
-                    isShowcase: localProd.isShowcase,
-                  };
-                }
+      api.getCategories().then(cats => setCategories(cats));
+      api.getSettings().then(settings => {
+        if (settings?.usdExchangeRate) {
+          setUsdRate(settings.usdExchangeRate);
+        }
+      });
+      const prods = await api.getProductsDirect(force);
+      setProducts(prev => {
+        const prevMap = new Map(prev.map(p => [p.id, p]));
+        const now = Date.now();
+        return prods
+          .map((p: any) => {
+            const mapped = {
+              ...p,
+              createdAt: p.createdAt ? new Date(p.createdAt).getTime() : Date.now(),
+            };
+            const lastMod = recentlyModifiedRef.current[p.id];
+            if (lastMod && (now - lastMod < 8000)) {
+              const localProd = prevMap.get(p.id);
+              if (localProd) {
+                return {
+                  ...mapped,
+                  isArchived: localProd.isArchived,
+                  isLocked: localProd.isLocked,
+                  isHidden: localProd.isHidden,
+                  isShowcase: localProd.isShowcase,
+                };
               }
-              return mapped;
-            })
-            .sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0));
-        });
-      } else {
-        // SERVER MODE: Fetch specific slice
-        // If nothing is searched or filtered, just clear and return (performance)
-        if (!force && !searchQuery && filterCategoryId === 'none' && filterStatus === null && !searchDate) {
-          setProducts([]);
-          setTotalServerCount(0);
-          return;
-        }
-
-        setIsSearching(true);
-        try {
-          const [cats, settings, stats, result] = await Promise.all([
-            api.getCategories(),
-            api.getSettings(),
-            api.getAdminStats(),
-            api.getProductsAdminFiltered({
-              searchTerm: searchQuery,
-              categoryId: filterCategoryId,
-              status: filterStatus || 'all',
-              date: searchDate,
-              page: currentPage,
-              pageSize: itemsPerPage
-            })
-          ]);
-          
-          setCategories(cats);
-          if (settings?.usdExchangeRate) setUsdRate(settings.usdExchangeRate);
-          setServerStats(stats);
-          setProducts(result.data);
-          setTotalServerCount(result.total);
-        } finally {
-          setIsSearching(false);
-        }
-      }
+            }
+            return mapped;
+          })
+          .sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0));
+      });
     } catch (e) {
       console.error(e);
     }
@@ -358,22 +319,22 @@ export default function ProductManager() {
     let mounted = true;
     let fetchTimeout: any;
     const initialLoad = async () => {
-      // 1. Fetch vital metadata first (FAST)
+      // 1. Instantly load from local cache for 0ms delay display
       try {
-        // Fire all but don't await them as a block if we want to show UI fast
-        api.getCategories().then(cats => { if (mounted) setCategories(cats); });
-        api.getSettings().then(settings => { 
-          if (mounted && settings?.usdExchangeRate) setUsdRate(settings.usdExchangeRate); 
-        });
-        api.getAdminStats().then(stats => { if (mounted) setServerStats(stats); });
-        
-        // 2. We don't fetch all products here anymore for performance
-        // The page will render search bars and empty table initially
-        if (mounted) setLoading(false);
-      } catch (err) {
-        console.error(err);
-        if (mounted) setLoading(false);
-      }
+        const cached = await localCache.get<any[]>('all_products', Infinity);
+        if (cached && cached.length > 0 && mounted && products.length === 0) {
+          const mappedCached = cached.map((p: any) => ({
+            ...p,
+            createdAt: p.createdAt ? new Date(p.createdAt).getTime() : Date.now(),
+          })).sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0));
+          setProducts(mappedCached);
+          setLoading(false);
+        }
+      } catch {}
+
+      // 2. Fetch fresh data in background
+      await loadData();
+      if (mounted) setLoading(false);
     };
     initialLoad();
 
@@ -432,14 +393,7 @@ export default function ProductManager() {
         try { bc.close(); } catch {}
       }
     };
-  }, [isServerMode]);
-
-  // Re-fetch in server mode when search filters change
-  useEffect(() => {
-    if (isServerMode && !loading) {
-      loadData(true);
-    }
-  }, [searchQuery, filterCategoryId, filterStatus, searchDate, currentPage, itemsPerPage]);
+  }, []);
 
   const getNormalizedRate = () => {
     const r = usdRate || 1590;
@@ -1528,17 +1482,6 @@ export default function ProductManager() {
 
   // Tab counts for clear visual counters
   const tabCounts = useMemo(() => {
-    if (isServerMode && serverStats) {
-      return {
-        all: serverStats.total || 0,
-        active: serverStats.active || 0,
-        inactive: serverStats.inactive || 0,
-        locked: serverStats.locked || 0,
-        duplicates: 0, // Not implemented server-side yet
-        noSubcategory: 0, // Not implemented server-side yet
-        showcase: serverStats.showcase || 0,
-      };
-    }
     const archivedCat = categories.find(c => isArchivedCategoryName(c.name));
     const archivedCatId = archivedCat?.id;
     const nonArchivedProds = products.filter(p => !(archivedCatId ? p.categoryId === archivedCatId : p.isArchived));
@@ -1555,8 +1498,6 @@ export default function ProductManager() {
   }, [products, duplicatesSet, categories]);
 
   const filteredProducts = useMemo(() => {
-    if (isServerMode) return products;
-    
     const archivedCat = categories.find(c => isArchivedCategoryName(c.name));
     const archivedCatId = archivedCat?.id;
 
@@ -1622,9 +1563,9 @@ export default function ProductManager() {
     });
   }, [products, filterCategoryId, searchQuery, searchDate, filterStatus, duplicatesSet, categories]);
 
-  const totalPages = Math.ceil((isServerMode ? totalServerCount : filteredProducts.length) / itemsPerPage);
+  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedProducts = useMemo(() => isServerMode ? products : filteredProducts.slice(startIndex, startIndex + itemsPerPage), [isServerMode, products, filteredProducts, startIndex, itemsPerPage]);
+  const paginatedProducts = useMemo(() => filteredProducts.slice(startIndex, startIndex + itemsPerPage), [filteredProducts, startIndex, itemsPerPage]);
 
   return (
     <div className="space-y-6">
@@ -1935,7 +1876,22 @@ export default function ProductManager() {
         </div>
       )}
 
-      <div className="space-y-4">
+      {products.length === 0 && !isAdding ? (
+        <div className="flex-1 flex flex-col justify-center items-center h-[40vh] text-center space-y-6">
+          <div className="w-24 h-24 rounded-full bg-brq-navy flex items-center justify-center text-brq-gold">
+            <Package size={48} />
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold text-white mb-2">
+              لا توجد منتجات
+            </h2>
+            <p className="text-white/50 max-w-md mx-auto">
+              لم يتم العثور على أي منتجات في قاعدة البيانات.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-4">
           <div className="flex gap-2 sm:gap-4 border-b border-white/10 pb-0 overflow-x-auto">
             <button
               onClick={() => setFilterStatus("all")}
@@ -2040,10 +1996,8 @@ export default function ProductManager() {
                     </div>
                     <button
                       onClick={() => setSearchQuery(searchInput)}
-                      disabled={isSearching}
-                      className="px-6 py-2.5 bg-brq-gold text-black rounded-lg font-black hover:bg-yellow-500 transition-colors shadow-sm whitespace-nowrap flex items-center gap-2"
+                      className="px-6 py-2.5 bg-brq-gold text-black rounded-lg font-black hover:bg-yellow-500 transition-colors shadow-sm whitespace-nowrap"
                     >
-                      {isSearching ? <Loader2 size={18} className="animate-spin" /> : <Search size={18} />}
                       بحث
                     </button>
                   </div>
@@ -2302,6 +2256,11 @@ export default function ProductManager() {
                     </p>
                   </div>
                 </div>
+              ) : loading ? (
+                <div className="flex flex-col items-center justify-center h-[400px] text-center p-8 space-y-6">
+                  <Loader2 className="animate-spin text-brq-gold w-12 h-12 mb-4" />
+                  <p className="text-white/50">جاري تحميل المنتجات...</p>
+                </div>
               ) : (
               <table className="w-full text-sm text-right">
                 <thead className="bg-black/40 text-white/60">
@@ -2343,32 +2302,8 @@ export default function ProductManager() {
                 <tbody className="divide-y divide-white/5 text-white/90">
                   {paginatedProducts.length === 0 ? (
                     <tr>
-                      <td colSpan={11} className="p-12 text-center">
-                        <div className="flex flex-col items-center gap-3">
-                          {isSearching ? (
-                            <>
-                              <Loader2 className="w-10 h-10 text-brq-gold animate-spin" />
-                              <p className="text-white/70 font-bold">جاري جلب البيانات من السيرفر...</p>
-                            </>
-                          ) : (
-                            <>
-                              <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mb-2">
-                                <Search className="w-8 h-8 text-white/20" />
-                              </div>
-                              <p className="text-white/50 font-medium text-lg">
-                                {isServerMode && !searchQuery && filterCategoryId === 'none' 
-                                  ? 'يرجى إدخال كلمة بحث أو اختيار قسم لعرض النتائج' 
-                                  : 'لا توجد منتجات مطابقة للبحث الحالي'}
-                              </p>
-                              <button 
-                                onClick={() => loadData(true)}
-                                className="mt-2 text-brq-gold hover:underline text-sm font-bold"
-                              >
-                                تحديث البيانات
-                              </button>
-                            </>
-                          )}
-                        </div>
+                      <td colSpan={10} className="p-8 text-center text-white/50">
+                        لا توجد منتجات مطابقة في هذا القسم
                       </td>
                     </tr>
                   ) : (
@@ -2631,11 +2566,11 @@ export default function ProductManager() {
             </div>
             
             {/* Pagination Controls & Page Size Selector */}
-            {(isServerMode ? products.length > 0 : filteredProducts.length > 0) && filterStatus !== null && (
+            {filteredProducts.length > 0 && filterStatus !== null && (
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-4 border-t border-white/10 bg-black/30">
                 <div className="flex items-center gap-4 text-xs sm:text-sm text-white/60">
                   <span>
-                    عرض <strong className="text-brq-gold">{startIndex + 1}</strong> إلى <strong className="text-brq-gold">{startIndex + (isServerMode ? products.length : Math.min(itemsPerPage, filteredProducts.length - startIndex))}</strong> من أصل <strong className="text-white">{isServerMode ? totalServerCount : filteredProducts.length}</strong> منتج
+                    عرض <strong className="text-brq-gold">{startIndex + 1}</strong> إلى <strong className="text-brq-gold">{Math.min(startIndex + itemsPerPage, filteredProducts.length)}</strong> من أصل <strong className="text-white">{filteredProducts.length}</strong> منتج
                   </span>
                   
                   {/* Page Size Selector */}
@@ -2687,7 +2622,7 @@ export default function ProductManager() {
             
           </div>
         </div>
-      </div>
+      )}
 
       {editingProduct && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">

@@ -398,6 +398,24 @@ export default function ShowcasePage() {
   useEffect(() => {
     let mounted = true;
 
+    // Instant local cache restore
+    Promise.all([
+      localCache.get<any[]>('all_products'),
+      localCache.get<any[]>('all_categories')
+    ]).then(([cachedProds, cachedCats]) => {
+      if (!mounted) return;
+      if (cachedProds && cachedProds.length > 0) {
+        const showcaseProds = cachedProds.filter(
+          p => p.isShowcase && !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, cachedCats || [])
+        );
+        setProducts(showcaseProds);
+        setLoading(false);
+      }
+      if (cachedCats && cachedCats.length > 0) {
+        setCategories(cachedCats);
+      }
+    });
+
     loadData();
 
     let fetchTimeout: any = null;
@@ -457,7 +475,10 @@ export default function ShowcasePage() {
 
   // Resolve accurate showcase category for any product
   const getShowcaseCategory = (p: Product) => {
-    return p.showcaseCategory || null;
+    if (p.showcaseCategory && (VALID_SHOWCASE_CATEGORIES as readonly string[]).includes(p.showcaseCategory)) {
+      return p.showcaseCategory;
+    }
+    return detectShowcaseCategory(p, categories);
   };
 
   // Reset page when category or search changes
@@ -471,13 +492,7 @@ export default function ShowcasePage() {
       // Category match
       if (selectedCategory !== 'all') {
         const cat = getShowcaseCategory(p);
-        // Only include if category explicitly matches (null won't match)
         if (cat !== selectedCategory) return false;
-
-        // FIXED: Exclude 'لاستيك' products from 'جديد الوفاء' category
-        if (selectedCategory === 'جديد الوفاء' && detectShoeSubtype(p) === 'لاستيك') {
-          return false;
-        }
       }
 
       // Search match
@@ -927,12 +942,10 @@ export default function ShowcasePage() {
                     <div className="text-4xl text-white/30">👟</div>
                   )}
 
-                  {/* Category Tag Badge - تعرض فقط القيمة المخزنة يدوياً */}
-                  {p.showcaseCategory && (
-                    <span className="absolute top-2 right-2 z-10 bg-black/70 backdrop-blur-md text-yellow-300 border border-yellow-500/30 text-[9px] font-bold px-1.5 py-0.5 rounded-full shadow-md">
-                      {p.showcaseCategory}
-                    </span>
-                  )}
+                  {/* Category Tag Badge */}
+                  <span className="absolute top-2 right-2 z-10 bg-black/70 backdrop-blur-md text-yellow-300 border border-yellow-500/30 text-[9px] font-bold px-1.5 py-0.5 rounded-full shadow-md">
+                    {getShowcaseCategory(p)}
+                  </span>
 
                   {/* Top Action Buttons (Download) */}
                   <div className="absolute top-2 left-2 z-10 flex flex-col gap-1 opacity-90 group-hover:opacity-100 transition-opacity">

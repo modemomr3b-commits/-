@@ -2,26 +2,7 @@ import { getServerTime } from './utils/time';
 import { supabase } from './supabase';
 import { ActivityLog } from './types';
 import { parseOrderDetails } from './utils/orderUtils';
-import { isArchivedCategoryName, isRestrictedCategoryName } from './utils/search';
-
-const mapProduct = (p: any) => ({
-  ...p,
-  packaging: p.packaging !== undefined && p.packaging !== null && p.packaging !== '' && p.packaging !== '---'
-    ? String(p.packaging)
-    : (p.size?.packaging || (p.piecesCount ? String(p.piecesCount) : (p.size?.piecesCount ? String(p.size.piecesCount) : ''))),
-  piecesCount: p.piecesCount !== undefined && p.piecesCount !== null
-    ? Number(p.piecesCount)
-    : (p.size?.piecesCount !== undefined ? Number(p.size.piecesCount) : undefined),
-  isHidden: p.size?.isHidden !== undefined ? Boolean(p.size.isHidden) : Boolean(p.isHidden),
-  isLocked: p.size?.isLocked !== undefined ? Boolean(p.size.isLocked) : Boolean(p.isLocked),
-  isArchived: p.isArchived !== undefined ? Boolean(p.isArchived) : (p.size?.isArchived !== undefined ? Boolean(p.size.isArchived) : false),
-  isDeleted: Boolean(p.isDeleted),
-  isShowcase: p.size?.isShowcase !== undefined ? Boolean(p.size.isShowcase) : Boolean(p.isShowcase),
-  showcaseCategory: p.size?.showcaseCategory || p.showcaseCategory || '',
-  oldPriceInfo: p.size?.oldPriceInfo || undefined,
-  forceStandardCrush: p.size?.forceStandardCrush ?? true,
-  updatedAt: p.size?.updatedAt || p.createdAt
-});
+import { localCache } from './utils/localCache';
 
 const getData = async (table: string) => {
   let allData: any[] = [];
@@ -37,25 +18,30 @@ const getData = async (table: string) => {
         .range(from, from + limit - 1);
         
       if (error) {
-        const fallback = await supabase.from(table).select('*').range(from, from + limit - 1);
-        if (fallback.error) throw fallback.error;
-        if (fallback.data && fallback.data.length > 0) {
-          allData = [...allData, ...fallback.data];
-          if (fallback.data.length < limit) break;
-          from += limit;
-          continue;
-        } else break;
+        throw error;
       }
       
       if (data && data.length > 0) {
-        allData = [...allData, ...data];
-        if (data.length < limit) break;
+        const activeData = data.filter((item: any) => item.isDeleted !== true);
+        allData = [...allData, ...activeData];
+        if (data.length < limit) {
+          break;
+        }
         from += limit;
-      } else break;
+      } else {
+        break;
+      }
     }
-    return allData.filter(item => item && item.isDeleted !== true);
+    if (allData.length > 0) {
+      localCache.set(`all_${table}`, allData).catch(() => {});
+    }
+    return allData;
   } catch (err) {
-    console.error(`Error in getData for table ${table}:`, err);
+    console.warn(`Network error in getData for table ${table}, falling back to local cache:`, err);
+    const cached = await localCache.get<any[]>(`all_${table}`, Infinity);
+    if (cached && cached.length > 0) {
+      return cached;
+    }
     return [];
   }
 };
@@ -91,9 +77,14 @@ const getDeletedData = async (table: string) => {
 };
 
 
+// Fast in-memory and persistent IndexedDB cache
+const memCache: Record<string, { data: any, timestamp: number }> = {};
+const MEM_CACHE_TTL = 60000; // 1 minute in-memory
+
 export const api = {
   clearCache: () => { 
-    // No-op as cache is disabled
+    Object.keys(memCache).forEach(k => delete memCache[k]); 
+    localCache.clearAll().catch(() => {});
   },
   uploadImage: async (base64Str: string): Promise<string> => {
     try {
@@ -148,166 +139,70 @@ export const api = {
 
   // PRODUCTS
   getProductsByCategory: async (categoryId: string) => {
+    const cacheKey = `products_cat_${categoryId}`;
+    if (memCache[cacheKey] && Date.now() - memCache[cacheKey].timestamp < MEM_CACHE_TTL) {
+      return memCache[cacheKey].data;
+    }
+    
+    // Check persistent local cache for instant retrieval
+    const cachedCatProds = await localCache.get<any[]>(cacheKey, 1000 * 60 * 10);
+    if (cachedCatProds && cachedCatProds.length > 0) {
+      memCache[cacheKey] = { data: cachedCatProds, timestamp: Date.now() };
+      // Background revalidation
+      setTimeout(async () => {
+        try {
+          const fresh = await api.getProductsByCategoryDirect(categoryId);
+          if (fresh) {
+            memCache[cacheKey] = { data: fresh, timestamp: Date.now() };
+            localCache.set(cacheKey, fresh);
+          }
+        } catch {}
+      }, 50);
+      return cachedCatProds;
+    }
+
     return api.getProductsByCategoryDirect(categoryId);
   },
 
   getProductsByCategoryDirect: async (categoryId: string) => {
+    const cacheKey = `products_cat_${categoryId}`;
     const categories = await api.getCategories();
     const currentCat = categories.find((c: any) => c.id === categoryId);
-    if (!currentCat) return [];
-
-    const isMainCat = !currentCat.parentId;
-    const isArchivedTarget = isArchivedCategoryName(currentCat.name);
-
-    // Get all relevant category IDs: the main category itself + all its children
-    const targetCatIds = [categoryId];
-    if (isMainCat) {
-      const subCats = categories.filter((c: any) => c.parentId === categoryId);
-      targetCatIds.push(...subCats.map((c: any) => c.id));
-    }
-
-    let query = supabase.from('products').select('*');
-    
-    if (!isArchivedTarget) {
-      query = query.eq('isArchived', false);
-    }
-
-    // STRICT FILTERING: Only products that have the showcaseCategory matching the selected category name
-    // If the category is a main category, match all children names too? 
-    // Given the previous conversation, the user wants strict adherence.
-    // Let's match by showcaseCategory field which we now control strictly.
-    query = query.in('size->>showcaseCategory', targetCatIds.map(id => {
-      const cat = categories.find((c: any) => c.id === id);
-      return cat ? cat.name : null;
-    }).filter(Boolean));
-
-    const { data, error } = await query
-      .neq('isDeleted', true)
-      .order('id', { ascending: false });
-
-    if (error) {
-      console.error('Error fetching products by category:', error);
-      return [];
-    }
-
-    return (data || []).map(mapProduct);
-  },
-
-  getSpecialCategoryIds: async () => {
-    const categories = await getData('categories');
-    return categories
-      .filter((c: any) => c.isHidden || isRestrictedCategoryName(c.name) || isArchivedCategoryName(c.name))
-      .map((c: any) => c.id);
-  },
-  
-  getProductsPaginated: async (page: number, pageSize: number, includeArchived = false) => {
-    // Fetch with basic query, filter locally for JSONB fields
-    let query = supabase
-      .from('products')
-      .select('*', { count: 'exact' });
-
-    if (!includeArchived) {
-      query = query.eq('isArchived', false);
-      const specialIds = await api.getSpecialCategoryIds();
-      if (specialIds.length > 0) {
-        const idList = `("${specialIds.join('","')}")`;
-        // Exclude products in hidden/archived categories
-        query = query.or(`categoryId.not.in.${idList},categoryId.is.null`);
-        query = query.or(`subcategoryId.not.in.${idList},subcategoryId.is.null`);
-      }
-    }
-
-    const { data, error, count } = await query
-      .range((page - 1) * pageSize, page * pageSize - 1)
-      .order('id', { ascending: false });
-
-    if (error) throw error;
-    
-    const mapped = (data || []).map(mapProduct).filter(p => !p.isDeleted);
-    return { data: mapped, total: count || 0 };
-  },
-
-  getProductsByCategoryPaginated: async (categoryId: string, page: number, pageSize: number, subCategoryId?: string | null, includeArchived = false) => {
-    const categories = await api.getCategories();
-    const currentCat = categories.find((c: any) => c.id === categoryId);
-    if (!currentCat) return { data: [], total: 0 };
 
     const sameNameCatIds = categories
-      .filter((c: any) => c.name?.trim() === currentCat.name?.trim())
+      .filter((c: any) => currentCat && c.name?.trim() === currentCat.name?.trim())
       .map((c: any) => c.id);
 
-    const targetCatIds = [...new Set([categoryId, ...sameNameCatIds])];
-    const isMainCat = !currentCat.parentId;
+    const targetCatIds = new Set<string>([categoryId, ...sameNameCatIds]);
 
-    let query = supabase.from('products').select('*', { count: 'exact' });
+    const isMainCat = !currentCat?.parentId;
+    const allProducts = await api.getProducts();
 
-    if (!includeArchived) {
-      query = query.eq('isArchived', false);
-      const specialIds = await api.getSpecialCategoryIds();
-      if (specialIds.length > 0) {
-        const idList = `("${specialIds.join('","')}")`;
-        // Exclude products in hidden/archived categories
-        query = query.or(`categoryId.not.in.${idList},categoryId.is.null`);
-        query = query.or(`subcategoryId.not.in.${idList},subcategoryId.is.null`);
-      }
-    }
+    let res: any[] = [];
+    if (isMainCat) {
+      // Find direct child subcategories for any of these main categories
+      const subCats = categories.filter((c: any) => c.parentId && targetCatIds.has(c.parentId));
+      const childSubCatIds = new Set<string>(subCats.map((c: any) => c.id));
 
-    if (subCategoryId) {
-      const subCat = categories.find(c => c.id === subCategoryId);
-      const sameNameSubIds = categories.filter(c => subCat && c.name?.trim() === subCat.name?.trim()).map(c => c.id);
-      const allSubIds = [...new Set([subCategoryId, ...sameNameSubIds])];
-      query = query.or(`categoryId.in.("${allSubIds.join('","')}"),subcategoryId.in.("${allSubIds.join('","')}")`);
-    } else if (isMainCat) {
-      const subCats = categories.filter((c: any) => c.parentId && targetCatIds.includes(c.parentId));
-      const childSubCatIds = subCats.map((c: any) => c.id);
-      const allMatchingIds = [...new Set([...targetCatIds, ...childSubCatIds])];
-      query = query.or(`categoryId.in.("${allMatchingIds.join('","')}"),subcategoryId.in.("${allMatchingIds.join('","')}")`);
+      res = allProducts.filter((p: any) => {
+        if (p.categoryId && targetCatIds.has(p.categoryId)) return true;
+        if (p.subcategoryId && targetCatIds.has(p.subcategoryId)) return true;
+        if (p.subcategoryId && childSubCatIds.has(p.subcategoryId)) return true;
+        if (p.categoryId && childSubCatIds.has(p.categoryId)) return true;
+        return false;
+      });
     } else {
-      query = query.or(`categoryId.in.("${targetCatIds.join('","')}"),subcategoryId.in.("${targetCatIds.join('","')}")`);
+      // Subcategory: match products assigned to this subcategory or subcategory ID
+      res = allProducts.filter((p: any) => {
+        if (p.subcategoryId && targetCatIds.has(p.subcategoryId)) return true;
+        if (p.categoryId && targetCatIds.has(p.categoryId)) return true;
+        return false;
+      });
     }
 
-    const { data, error, count } = await query
-      .range((page - 1) * pageSize, page * pageSize - 1)
-      .order('id', { ascending: false });
-
-    if (error) {
-      console.error('Error fetching paginated category products:', error);
-      return { data: [], total: 0 };
-    }
-
-    const mapped = (data || []).map(mapProduct).filter(p => !p.isDeleted);
-    return {
-      data: mapped,
-      total: count || 0
-    };
-  },
-
-  getProductsBySearchPaginated: async (searchTerm: string, page: number, pageSize: number, includeArchived = false) => {
-    let query = supabase.from('products').select('*', { count: 'exact' });
-    
-    if (!includeArchived) {
-      query = query.eq('isArchived', false);
-      const specialIds = await api.getSpecialCategoryIds();
-      if (specialIds.length > 0) {
-        const idList = `("${specialIds.join('","')}")`;
-        // Exclude products in hidden/archived categories
-        query = query.or(`categoryId.not.in.${idList},categoryId.is.null`);
-        query = query.or(`subcategoryId.not.in.${idList},subcategoryId.is.null`);
-      }
-    }
-
-    const term = searchTerm.trim();
-    if (term) {
-        query = query.or(`name.ilike.%${term}%,modelNumber.ilike.%${term}%,productCode.ilike.%${term}%,barcode.ilike.%${term}%`);
-    }
-
-    const { data, error, count } = await query
-      .range((page - 1) * pageSize, page * pageSize - 1)
-      .order('id', { ascending: false });
-
-    if (error) throw error;
-    const mapped = (data || []).map(mapProduct).filter(p => !p.isDeleted);
-    return { data: mapped, total: count || 0 };
+    memCache[cacheKey] = { data: res, timestamp: Date.now() };
+    localCache.set(cacheKey, res).catch(() => {});
+    return res;
   },
 
   getProductById: async (id: string) => {
@@ -337,18 +232,50 @@ export const api = {
   },
 
   getProductsDirect: async () => {
+    // Return in-memory cache instantly if fresh (under 60 seconds)
+    if (memCache['all_products'] && (Date.now() - memCache['all_products'].timestamp < MEM_CACHE_TTL)) {
+      return memCache['all_products'].data;
+    }
+
+    const mapProduct = (p: any) => ({
+      ...p,
+      packaging: p.packaging !== undefined && p.packaging !== null && p.packaging !== '' && p.packaging !== '---'
+        ? String(p.packaging)
+        : (p.size?.packaging || (p.piecesCount ? String(p.piecesCount) : (p.size?.piecesCount ? String(p.size.piecesCount) : ''))),
+      piecesCount: p.piecesCount !== undefined && p.piecesCount !== null
+        ? Number(p.piecesCount)
+        : (p.size?.piecesCount !== undefined ? Number(p.size.piecesCount) : undefined),
+      isHidden: p.size?.isHidden !== undefined ? Boolean(p.size.isHidden) : Boolean(p.isHidden),
+      isLocked: p.size?.isLocked !== undefined ? Boolean(p.size.isLocked) : Boolean(p.isLocked),
+      isArchived: p.isArchived !== undefined ? Boolean(p.isArchived) : (p.size?.isArchived !== undefined ? Boolean(p.size.isArchived) : false),
+      isDeleted: Boolean(p.isDeleted),
+      isShowcase: p.size?.isShowcase !== undefined ? Boolean(p.size.isShowcase) : Boolean(p.isShowcase),
+      showcaseCategory: p.size?.showcaseCategory || p.showcaseCategory || '',
+      oldPriceInfo: p.size?.oldPriceInfo || undefined,
+      forceStandardCrush: p.size?.forceStandardCrush ?? true,
+      updatedAt: p.size?.updatedAt || p.createdAt
+    });
+
     try {
       const data = await getData('products');
-      if (data) {
-        const res = data.map(mapProduct).sort((a, b) => {
-          const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-          const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-          return timeB - timeA;
-        });
+      if (data && data.length > 0) {
+        const res = data.map(mapProduct).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        memCache['all_products'] = { data: res, timestamp: Date.now() };
+        localCache.set('all_products', res).catch(() => {});
         return res;
       }
     } catch (networkErr) {
-      console.warn('Network fetch failed:', networkErr);
+      console.warn('Network fetch failed, falling back to cached local storage version:', networkErr);
+    }
+
+    // Fallback to cache if network fails (لا سامح الله صارت مشكلة)
+    const fallbackLocal = await localCache.get<any[]>('all_products', Infinity);
+    if (fallbackLocal && fallbackLocal.length > 0) {
+      return fallbackLocal.map(mapProduct);
+    }
+
+    if (memCache['all_products']?.data?.length) {
+      return memCache['all_products'].data;
     }
 
     return [];
@@ -469,6 +396,18 @@ export const api = {
       updatedAt: r.size?.updatedAt || r.createdAt
     };
 
+    // Update in-memory and persistent cache immediately
+    if (memCache['all_products']?.data) {
+      memCache['all_products'].data = [finalProduct, ...memCache['all_products'].data];
+      localCache.set('all_products', memCache['all_products'].data).catch(() => {});
+    }
+
+    // Invalidate category caches
+    Object.keys(memCache).forEach(k => {
+      if (k.startsWith('products_cat_')) delete memCache[k];
+    });
+
+    // Real-time broadcast
     try {
       if (typeof window !== 'undefined' && (window as any).BroadcastChannel) {
         const bc = new (window as any).BroadcastChannel('brq_products_sync');
@@ -533,6 +472,37 @@ export const api = {
     const { data: r, error } = await supabase.from('products').update(safeData).match({ id }).select().single(); 
     if (error) throw error;
     
+    // Update local cache immediately
+    if (memCache['all_products']?.data) {
+      memCache['all_products'].data = memCache['all_products'].data.map((p: any) =>
+        p.id === id
+          ? {
+              ...p,
+              ...r,
+              packaging: r.packaging !== undefined && r.packaging !== null && r.packaging !== '' && r.packaging !== '---'
+                ? String(r.packaging)
+                : (r.size?.packaging || (r.piecesCount ? String(r.piecesCount) : (r.size?.piecesCount ? String(r.size.piecesCount) : p.packaging))),
+              piecesCount: r.piecesCount !== undefined && r.piecesCount !== null
+                ? Number(r.piecesCount)
+                : (r.size?.piecesCount !== undefined ? Number(r.size.piecesCount) : p.piecesCount),
+              isHidden: r.size?.isHidden !== undefined ? Boolean(r.size.isHidden) : Boolean(r.isHidden),
+              isLocked: r.size?.isLocked !== undefined ? Boolean(r.size.isLocked) : Boolean(r.isLocked),
+              isArchived: r.size?.isArchived !== undefined ? Boolean(r.size.isArchived) : Boolean(r.isArchived),
+              isShowcase: r.size?.isShowcase !== undefined ? Boolean(r.size.isShowcase) : Boolean(r.isShowcase),
+              showcaseCategory: r.size?.showcaseCategory || r.showcaseCategory || '',
+              updatedAt: serverTime
+            }
+          : p
+      );
+      localCache.set('all_products', memCache['all_products'].data).catch(() => {});
+    }
+
+    // Invalidate category caches
+    Object.keys(memCache).forEach(k => {
+      if (k.startsWith('products_cat_')) delete memCache[k];
+    });
+    localCache.clearMatching('products_cat_').catch(() => {});
+
     // Real-time broadcast
     try {
       if (typeof window !== 'undefined' && (window as any).BroadcastChannel) {
@@ -697,6 +667,50 @@ export const api = {
       }
     }
 
+    // IMMEDIATELY update local in-memory cache and IndexedDB
+    const idSet = new Set(ids.map(String));
+    if (memCache['all_products']?.data) {
+      memCache['all_products'].data = memCache['all_products'].data.map((p: any) => {
+        if (idSet.has(String(p.id))) {
+          const mergedSize = {
+            ...(p.size || {}),
+            ...(hasSizeUpdates ? sizeUpdates : {})
+          };
+          if (data.isArchived !== undefined) mergedSize.isArchived = Boolean(data.isArchived);
+          if (data.isHidden !== undefined) mergedSize.isHidden = Boolean(data.isHidden);
+          if (data.isLocked !== undefined) mergedSize.isLocked = Boolean(data.isLocked);
+          if (data.isShowcase !== undefined) mergedSize.isShowcase = Boolean(data.isShowcase);
+          if (data.showcaseCategory !== undefined) mergedSize.showcaseCategory = data.showcaseCategory;
+
+          return {
+            ...p,
+            ...directUpdates,
+            ...(hasSizeUpdates ? sizeUpdates : {}),
+            isHidden: data.isHidden !== undefined ? Boolean(data.isHidden) : (mergedSize.isHidden !== undefined ? Boolean(mergedSize.isHidden) : p.isHidden),
+            isLocked: data.isLocked !== undefined ? Boolean(data.isLocked) : (mergedSize.isLocked !== undefined ? Boolean(mergedSize.isLocked) : p.isLocked),
+            isArchived: data.isArchived !== undefined ? Boolean(data.isArchived) : (mergedSize.isArchived !== undefined ? Boolean(mergedSize.isArchived) : p.isArchived),
+            isShowcase: data.isShowcase !== undefined ? Boolean(data.isShowcase) : (mergedSize.isShowcase !== undefined ? Boolean(mergedSize.isShowcase) : p.isShowcase),
+            showcaseCategory: data.showcaseCategory !== undefined ? data.showcaseCategory : (mergedSize.showcaseCategory || p.showcaseCategory),
+            categoryId: data.categoryId !== undefined ? data.categoryId : p.categoryId,
+            subcategoryId: data.subcategoryId !== undefined ? (data.subcategoryId || undefined) : p.subcategoryId,
+            size: mergedSize,
+            updatedAt: serverTime
+          };
+        }
+        return p;
+      });
+      memCache['all_products'].timestamp = Date.now();
+      localCache.set('all_products', memCache['all_products'].data).catch(() => {});
+    }
+
+    // Invalidate all category caches so fresh queries reflect moved products immediately
+    Object.keys(memCache).forEach(k => {
+      if (k.startsWith('products_cat_')) {
+        delete memCache[k];
+      }
+    });
+    localCache.clearMatching('products_cat_').catch(() => {});
+
     // Real-time broadcast across all open tabs and all remote clients
     try {
       if (typeof window !== 'undefined' && (window as any).BroadcastChannel) {
@@ -725,6 +739,16 @@ export const api = {
       if (error) throw error;
     }
     
+    // Invalidate caches
+    const idSet = new Set(ids);
+    if (memCache['all_products']?.data) {
+      memCache['all_products'].data = memCache['all_products'].data.filter((p: any) => !idSet.has(p.id));
+      localCache.set('all_products', memCache['all_products'].data).catch(() => {});
+    }
+    Object.keys(memCache).forEach(k => {
+      if (k.startsWith('products_cat_')) delete memCache[k];
+    });
+
     try {
       if (typeof window !== 'undefined' && (window as any).BroadcastChannel) {
         const bc = new (window as any).BroadcastChannel('brq_products_sync');
@@ -757,17 +781,42 @@ export const api = {
 
   // CATEGORIES
   getCategories: async () => {
+    const cacheKey = 'all_categories';
+    if (memCache[cacheKey]?.data?.length && (Date.now() - (memCache[cacheKey].timestamp || 0) < 30000)) {
+      return memCache[cacheKey].data;
+    }
+    
     try {
       const fresh = await getData('categories');
-      return fresh || [];
+      if (fresh && fresh.length > 0) {
+        memCache[cacheKey] = { data: fresh, timestamp: Date.now() };
+        localCache.set(cacheKey, fresh).catch(() => {});
+        return fresh;
+      }
     } catch (networkErr) {
-      console.error('Fetch categories failed:', networkErr);
-      return [];
+      console.warn('Network fetch failed, falling back to cached local storage version:', networkErr);
     }
+
+    // Fallback to cache if network fails
+    const localCats = await localCache.get<any[]>(cacheKey, Infinity);
+    if (localCats && localCats.length > 0) {
+      memCache[cacheKey] = { data: localCats, timestamp: Date.now() };
+      return localCats;
+    }
+
+    if (memCache[cacheKey]?.data?.length) {
+      return memCache[cacheKey].data;
+    }
+
+    return [];
   },
   createCategory: async (data: any) => { 
     const { data: r, error } = await supabase.from('categories').insert(data).select().single(); 
     if (error) throw error; 
+    
+    // Invalidate categories cache
+    delete memCache['all_categories'];
+    localCache.remove('all_categories').catch(() => {});
 
     try {
       if (typeof window !== 'undefined' && (window as any).BroadcastChannel) {
@@ -790,6 +839,10 @@ export const api = {
   updateCategory: async (id: string, data: any) => { 
     const { data: r, error } = await supabase.from('categories').update(data).match({ id }).select().single(); 
     if (error) throw error; 
+    
+    // Invalidate categories cache
+    delete memCache['all_categories'];
+    localCache.remove('all_categories').catch(() => {});
 
     try {
       if (typeof window !== 'undefined' && (window as any).BroadcastChannel) {
@@ -816,6 +869,13 @@ export const api = {
     // Delete the category itself
     const { error } = await supabase.from('categories').delete().match({ id }); 
     if (error) throw error; 
+    
+    // Invalidate categories and products cache
+    delete memCache['all_categories'];
+    localCache.remove('all_categories').catch(() => {});
+    Object.keys(memCache).forEach(k => {
+      if (k.startsWith('products_cat_')) delete memCache[k];
+    });
 
     try {
       if (typeof window !== 'undefined' && (window as any).BroadcastChannel) {
@@ -839,6 +899,12 @@ export const api = {
     await supabase.from('categories').delete().eq('parentId', id);
     const { error } = await supabase.from('categories').delete().match({ id }); 
     if (error) throw error; 
+    
+    delete memCache['all_categories'];
+    localCache.remove('all_categories').catch(() => {});
+    Object.keys(memCache).forEach(k => {
+      if (k.startsWith('products_cat_')) delete memCache[k];
+    });
     return { success: true }; 
   },
   restoreCategory: async (id: string) => { 
@@ -1266,11 +1332,19 @@ export const api = {
           usdExchangeRate: 1590,
           ...parsed,
         };
+        try {
+          localStorage.setItem('alwafaa_settings_cache', JSON.stringify(complete));
+        } catch (e) {}
         return complete;
       }
     } catch (e) {
       console.warn("Could not fetch settings from supabase:", e);
     }
+    
+    try {
+      const cached = localStorage.getItem('alwafaa_settings_cache');
+      if (cached) return JSON.parse(cached);
+    } catch (e) {}
     
     return {
       id: 'global',
@@ -1286,6 +1360,11 @@ export const api = {
   updateSettings: async (data: any) => { 
     const { id, ...dataJson } = data;
     const merged = { id: 'global', ...dataJson };
+    
+    // Save to local cache immediately
+    try {
+      localStorage.setItem('alwafaa_settings_cache', JSON.stringify(merged));
+    } catch (e) {}
 
     // Try updating Supabase
     try {
