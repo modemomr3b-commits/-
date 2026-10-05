@@ -272,6 +272,11 @@ export default function Products() {
       .on('broadcast', { event: 'bulk_updated' }, () => {
         scheduleFetch(600);
       })
+      .on('broadcast', { event: 'force_refresh' }, () => {
+        // Strict system: Clear caches and force immediate reload
+        api.clearCache();
+        fetchProducts(true);
+      })
       .on('broadcast', { event: 'product_changed' }, () => {
         scheduleFetch(600);
       })

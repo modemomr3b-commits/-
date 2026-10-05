@@ -1156,7 +1156,13 @@ export default function ProductManager() {
     setSelectedIds(new Set());
     setIsSubmitting(true);
 
-    const updatePayload = { categoryId: archivedCatId, isArchived: false, isHidden: false, isLocked: false, isShowcase: false };
+    const updatePayload = { 
+      categoryId: archivedCatId, 
+      isArchived: true, 
+      isHidden: false, 
+      isLocked: false, 
+      isShowcase: false 
+    };
 
     // Instant optimistic local update
     setProducts((prev) =>
@@ -1246,16 +1252,19 @@ export default function ProductManager() {
     const archivedCatId = archivedCat?.id || 'be0a70a8-f9c6-430d-8416-11745f26576f';
     const isMovingToArchived = targetCatId === archivedCatId;
     
-    // Instant optimistic update and close modal immediately
+    // Strict update payload
+    const updatePayload = { 
+      categoryId: targetCatId, 
+      subcategoryId: targetSubcatId,
+      isArchived: isMovingToArchived ? true : false,
+      ...(isMovingToArchived ? { isShowcase: false, isHidden: false } : {})
+    };
+
+    // Instant optimistic update
     setProducts((prev) =>
       prev.map((prod) =>
         targetIdsSet.has(String(prod.id)) 
-          ? { 
-              ...prod, 
-              categoryId: targetCatId, 
-              subcategoryId: targetSubcatId || undefined,
-              ...(isMovingToArchived ? { isShowcase: false } : {})
-            } 
+          ? { ...prod, ...updatePayload } 
           : prod
       )
     );
@@ -1266,16 +1275,19 @@ export default function ProductManager() {
     setIsSubmitting(true);
 
     try {
-      await api.bulkUpdateProducts(ids, { 
-        categoryId: targetCatId, 
-        subcategoryId: targetSubcatId,
-        ...(isMovingToArchived ? { isShowcase: false } : {})
+      await api.bulkUpdateProducts(ids, updatePayload);
+      
+      // Force verification reload
+      await loadData(true);
+
+      // CRITICAL: Notify all clients to sync immediately
+      await supabase.channel('products_changes').send({
+        type: 'broadcast',
+        event: 'force_refresh',
+        payload: { timestamp: Date.now(), reason: 'bulk_move' }
       });
       
-      // Verification reload - now surgical because cache isn't wiped
-      await loadData(true);
-      
-      setAlertMessage(`تم تحديث البيانات ونقل ${ids.length} منتج بنجاح.`);
+      setAlertMessage(`تم تحديث البيانات ونقل ${ids.length} منتج بنجاح وإرسال إشارة تحديث للأجهزة الأخرى.`);
     } catch (e: any) {
       console.error("Error bulk moving categories:", e);
       const updated = await api.getProducts();
@@ -1597,14 +1609,28 @@ export default function ProductManager() {
             <Sparkles size={18} /> النشر التلقائي للمعرض 🪄
           </button>
           <button 
-            onClick={() => {
+            onClick={async () => {
               setLoading(true);
-              loadData(true).finally(() => setLoading(false));
+              try {
+                // Force sync for current admin
+                await loadData(true);
+                // Broadcast to ALL other clients (phones, other PCs) to force refresh their data
+                await supabase.channel('products_changes').send({
+                  type: 'broadcast',
+                  event: 'force_refresh',
+                  payload: { timestamp: Date.now(), by: user?.username }
+                });
+                setAlertMessage("تم تحديث البيانات بنجاح وإرسال أمر تحديث فوري لكل الأجهزة المتصلة.");
+              } catch (e: any) {
+                setAlertMessage("فشل التحديث: " + e.message);
+              } finally {
+                setLoading(false);
+              }
             }}
             className="flex-1 md:flex-none flex items-center justify-center gap-2 py-2.5 px-4 bg-emerald-500/20 border border-emerald-500/50 text-emerald-400 rounded-xl hover:bg-emerald-500/30 transition-all text-sm font-bold shadow-md"
-            title="تحديث البيانات من السيرفر مباشرة وتجاوز التخزين المؤقت"
+            title="تحديث البيانات وإجبار جميع الأجهزة الأخرى على التحديث فوراً"
           >
-            <History size={18} /> تحديث البيانات 🔄
+            <History size={18} /> تحديث البيانات الشامل 🔄
           </button>
           <button
             onClick={() => { setIsAdding(!isAdding); setIsBatchAdding(false); }}
