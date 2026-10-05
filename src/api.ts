@@ -156,35 +156,30 @@ export const api = {
     const currentCat = categories.find((c: any) => c.id === categoryId);
     if (!currentCat) return [];
 
-    const sameNameCatIds = categories
-      .filter((c: any) => c.name?.trim() === currentCat.name?.trim())
-      .map((c: any) => c.id);
-
-    const targetCatIds = [...new Set([categoryId, ...sameNameCatIds])];
     const isMainCat = !currentCat.parentId;
     const isArchivedTarget = isArchivedCategoryName(currentCat.name);
+
+    // Get all relevant category IDs: the main category itself + all its children
+    const targetCatIds = [categoryId];
+    if (isMainCat) {
+      const subCats = categories.filter((c: any) => c.parentId === categoryId);
+      targetCatIds.push(...subCats.map((c: any) => c.id));
+    }
 
     let query = supabase.from('products').select('*');
     
     if (!isArchivedTarget) {
       query = query.eq('isArchived', false);
-      const specialIds = await api.getSpecialCategoryIds();
-      if (specialIds.length > 0) {
-        const idList = `("${specialIds.join('","')}")`;
-        query = query.or(`categoryId.not.in.${idList},categoryId.is.null`);
-        query = query.or(`subcategoryId.not.in.${idList},subcategoryId.is.null`);
-      }
     }
 
-    if (isMainCat) {
-      const subCats = categories.filter((c: any) => c.parentId && targetCatIds.includes(c.parentId));
-      const childSubCatIds = subCats.map((c: any) => c.id);
-      const allMatchingIds = [...new Set([...targetCatIds, ...childSubCatIds])];
-      
-      query = query.or(`categoryId.in.(${allMatchingIds.join(',')}),subcategoryId.in.(${allMatchingIds.join(',')})`);
-    } else {
-      query = query.or(`categoryId.in.(${targetCatIds.join(',')}),subcategoryId.in.(${targetCatIds.join(',')})`);
-    }
+    // STRICT FILTERING: Only products that have the showcaseCategory matching the selected category name
+    // If the category is a main category, match all children names too? 
+    // Given the previous conversation, the user wants strict adherence.
+    // Let's match by showcaseCategory field which we now control strictly.
+    query = query.in('size->>showcaseCategory', targetCatIds.map(id => {
+      const cat = categories.find((c: any) => c.id === id);
+      return cat ? cat.name : null;
+    }).filter(Boolean));
 
     const { data, error } = await query
       .neq('isDeleted', true)
@@ -192,13 +187,7 @@ export const api = {
 
     if (error) {
       console.error('Error fetching products by category:', error);
-      // Fallback to in-memory filter if complex query fails
-      const allProducts = await api.getProducts();
-      return allProducts.filter((p: any) => {
-        if (p.categoryId && targetCatIds.includes(p.categoryId)) return true;
-        if (p.subcategoryId && targetCatIds.includes(p.subcategoryId)) return true;
-        return false;
-      });
+      return [];
     }
 
     return (data || []).map(mapProduct);
