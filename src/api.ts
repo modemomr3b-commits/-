@@ -28,53 +28,31 @@ const mapProduct = (p: any) => ({
   updatedAt: p.size?.updatedAt || p.createdAt
 });
 
-// Helper for retrying failed requests
-const withRetry = async <T>(fn: () => Promise<T>, maxRetries = 3, delay = 1000): Promise<T> => {
-  let lastErr: any;
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      return await fn();
-    } catch (err: any) {
-      lastErr = err;
-      const status = err?.status || err?.code;
-      // Retry on network errors or server errors (500, 521, etc)
-      if (i < maxRetries - 1 && (!status || status >= 500)) {
-        await new Promise(res => setTimeout(res, delay * (i + 1)));
-        continue;
-      }
-      throw err;
-    }
-  }
-  throw lastErr;
-};
-
 const getData = async (table: string) => {
-  return withRetry(async () => {
-    let allData: any[] = [];
-    let from = 0;
-    const limit = 200; // Reduced to prevent timeouts
-    
-    while (true) {
-      const { data, error } = await supabase
-        .from(table)
-        .select('*')
-        .eq('isDeleted', false)
-        .order('id', { ascending: true })
-        .range(from, from + limit - 1);
-        
-      if (error) throw error;
+  let allData: any[] = [];
+  let from = 0;
+  const limit = 200; // Reduced to prevent timeouts
+  
+  while (true) {
+    const { data, error } = await supabase
+      .from(table)
+      .select('*')
+      .eq('isDeleted', false)
+      .order('id', { ascending: true })
+      .range(from, from + limit - 1);
       
-      if (data && data.length > 0) {
-        allData = [...allData, ...data];
-        if (data.length < limit) break;
-        from += limit;
-      } else break;
-    }
-    if (allData.length > 0) {
-      localCache.set(`all_${table}`, allData).catch(() => {});
-    }
-    return allData;
-  });
+    if (error) throw error;
+    
+    if (data && data.length > 0) {
+      allData = [...allData, ...data];
+      if (data.length < limit) break;
+      from += limit;
+    } else break;
+  }
+  if (allData.length > 0) {
+    localCache.set(`all_${table}`, allData).catch(() => {});
+  }
+  return allData;
 };
 
 const getDeletedData = async (table: string) => {
@@ -358,7 +336,7 @@ export const api = {
       return memCache['all_products'].data;
     }
 
-    return withRetry(async () => {
+    try {
       const data = await getData('products');
       if (data) {
         const res = data.map(mapProduct).sort((a, b) => {
@@ -370,55 +348,54 @@ export const api = {
         return res;
       }
       return [];
-    });
+    } catch (e) {
+      console.error('Fetch products direct failed:', e);
+      return [];
+    }
   },
 
   getAdminStats: async () => {
-    return withRetry(async () => {
-      // Manual calculation for reliability across environments
-      const products = await api.getProductsDirect();
-      const active = products.filter(p => !p.isHidden && !p.isLocked && !p.isArchived).length;
-      const inactive = products.filter(p => p.isHidden && !p.isArchived).length;
-      const locked = products.filter(p => p.isLocked && !p.isArchived).length;
-      const showcase = products.filter(p => p.isShowcase && !p.isHidden && !p.isLocked && !p.isArchived).length;
-      return { total: products.length, active, inactive, locked, showcase };
-    });
+    // Manual calculation for reliability across environments
+    const products = await api.getProductsDirect();
+    const active = products.filter(p => !p.isHidden && !p.isLocked && !p.isArchived).length;
+    const inactive = products.filter(p => p.isHidden && !p.isArchived).length;
+    const locked = products.filter(p => p.isLocked && !p.isArchived).length;
+    const showcase = products.filter(p => p.isShowcase && !p.isHidden && !p.isLocked && !p.isArchived).length;
+    return { total: products.length, active, inactive, locked, showcase };
   },
 
   getProductsAdminFiltered: async (filters: any) => {
     const { searchTerm, categoryId, status, page, pageSize } = filters;
-    return withRetry(async () => {
-      let query = supabase.from('products').select('*', { count: 'exact' });
+    let query = supabase.from('products').select('*', { count: 'exact' });
 
-      if (searchTerm) {
-        const term = searchTerm.trim();
-        query = query.or(`name.ilike.%${term}%,modelNumber.ilike.%${term}%,productCode.ilike.%${term}%`);
-      }
+    if (searchTerm) {
+      const term = searchTerm.trim();
+      query = query.or(`name.ilike.%${term}%,modelNumber.ilike.%${term}%,productCode.ilike.%${term}%`);
+    }
 
-      if (categoryId && categoryId !== 'none' && categoryId !== 'all') {
-        query = query.eq('categoryId', categoryId);
-      }
+    if (categoryId && categoryId !== 'none' && categoryId !== 'all') {
+      query = query.eq('categoryId', categoryId);
+    }
 
-      if (status === 'active') {
-        query = query.eq('isArchived', false).filter('size->>isHidden', 'eq', 'false').filter('size->>isLocked', 'eq', 'false');
-      } else if (status === 'inactive') {
-        query = query.filter('size->>isHidden', 'eq', 'true');
-      } else if (status === 'locked') {
-        query = query.filter('size->>isLocked', 'eq', 'true');
-      } else if (status === 'showcase') {
-        query = query.filter('size->>isShowcase', 'eq', 'true');
-      }
+    if (status === 'active') {
+      query = query.eq('isArchived', false).filter('size->>isHidden', 'eq', 'false').filter('size->>isLocked', 'eq', 'false');
+    } else if (status === 'inactive') {
+      query = query.filter('size->>isHidden', 'eq', 'true');
+    } else if (status === 'locked') {
+      query = query.filter('size->>isLocked', 'eq', 'true');
+    } else if (status === 'showcase') {
+      query = query.filter('size->>isShowcase', 'eq', 'true');
+    }
 
-      const from = (page - 1) * pageSize;
-      const to = from + pageSize - 1;
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
 
-      const { data, error, count } = await query
-        .order('createdAt', { ascending: false })
-        .range(from, to);
+    const { data, error, count } = await query
+      .order('createdAt', { ascending: false })
+      .range(from, to);
 
-      if (error) throw error;
-      return { data: (data || []).map(mapProduct), total: count || 0 };
-    });
+    if (error) throw error;
+    return { data: (data || []).map(mapProduct), total: count || 0 };
   },
 
   createProduct: async (data: any) => { 
@@ -940,31 +917,25 @@ export const api = {
     if (error) throw error; return r; 
   },
   updateUser: async (id: string, data: any, silent?: boolean) => { 
-    return withRetry(async () => {
-      const { data: r, error } = await supabase.from('users').update(data).match({ id }).select().maybeSingle(); 
-      if (error && !silent) throw error; 
-      if (data.status || data.isDeleted !== undefined) {
-        try {
-          supabase.channel('global_user_guard').send({
-            type: 'broadcast',
-            event: 'user_status_changed',
-            payload: { id, status: data.status, isDeleted: data.isDeleted }
-          });
-        } catch (e) {}
-      }
-      return r; 
-    });
+    const { data: r, error } = await supabase.from('users').update(data).match({ id }).select().maybeSingle(); 
+    if (error && !silent) throw error; 
+    if (data.status || data.isDeleted !== undefined) {
+      supabase.channel('global_user_guard').send({
+        type: 'broadcast',
+        event: 'user_status_changed',
+        payload: { id, status: data.status, isDeleted: data.isDeleted }
+      }).catch(() => {});
+    }
+    return r; 
   },
   deleteUser: async (id: string, deletedBy?: string) => { 
     const { error } = await supabase.from('users').delete().match({ id }); 
     if (error) throw error; 
-    try {
-      supabase.channel('global_user_guard').send({
-        type: 'broadcast',
-        event: 'user_status_changed',
-        payload: { id, isDeleted: true }
-      });
-    } catch (e) {}
+    supabase.channel('global_user_guard').send({
+      type: 'broadcast',
+      event: 'user_status_changed',
+      payload: { id, isDeleted: true }
+    }).catch(() => {});
     return { success: true }; 
   },
   hardDeleteUser: async (id: string) => { 
@@ -978,39 +949,37 @@ export const api = {
 
   // ORDERS
   getOrders: async () => {
-    // Optimization: Fetch only recent active orders using safe batching and retry logic
-    return withRetry(async () => {
-      const { data, error } = await supabase
-        .from('orders')
-        .select('*')
-        .neq('status', 'completed')
-        .eq('isDeleted', false)
-        .order('createdAt', { ascending: false })
-        .limit(200); // Strict limit to prevent timeouts
+    // Optimization: Fetch only recent active orders using safe batching
+    const { data, error } = await supabase
+      .from('orders')
+      .select('*')
+      .neq('status', 'completed')
+      .eq('isDeleted', false)
+      .order('createdAt', { ascending: false })
+      .limit(200); // Strict limit to prevent timeouts
 
-      if (error) throw error;
-      
-      if (!data) return [];
-      
-      return data.map((o: any) => {
-        const parsed = parseOrderDetails(o);
+    if (error) throw error;
+    
+    if (!data) return [];
+    
+    return data.map((o: any) => {
+      const parsed = parseOrderDetails(o);
 
-        return {
-          ...o,
-          items: o.products || o.items || [],
-          totalQuantity: o.total || o.totalQuantity || 0,
-          userId: o.userId || parsed.agentId || '',
-          agentId: parsed.agentId || o.userId || '',
-          agentName: parsed.agentName || o.agentName || '',
-          fullName: parsed.agentName || o.fullName || o.username || '',
-          username: o.username || parsed.agentName || '',
-          customerName: parsed.customerName || (o.customerName !== parsed.agentName ? o.customerName : '') || '',
-          transport: parsed.transport || o.transport || '',
-          notes: parsed.notes,
-          displayNotes: parsed.displayNotes,
-          rawNotes: o.notes || '',
-        };
-      });
+      return {
+        ...o,
+        items: o.products || o.items || [],
+        totalQuantity: o.total || o.totalQuantity || 0,
+        userId: o.userId || parsed.agentId || '',
+        agentId: parsed.agentId || o.userId || '',
+        agentName: parsed.agentName || o.agentName || '',
+        fullName: parsed.agentName || o.fullName || o.username || '',
+        username: o.username || parsed.agentName || '',
+        customerName: parsed.customerName || (o.customerName !== parsed.agentName ? o.customerName : '') || '',
+        transport: parsed.transport || o.transport || '',
+        notes: parsed.notes,
+        displayNotes: parsed.displayNotes,
+        rawNotes: o.notes || '',
+      };
     });
   },
 
