@@ -26,18 +26,19 @@ const mapProduct = (p: any) => ({
 const getData = async (table: string) => {
   let allData: any[] = [];
   let from = 0;
-  const limit = 1000;
+  const limit = 200; // Reduced to prevent timeouts
   
   try {
     while (true) {
       const { data, error } = await supabase
         .from(table)
         .select('*')
+        .eq('isDeleted', false)
         .order('id', { ascending: true })
         .range(from, from + limit - 1);
         
       if (error) {
-        const fallback = await supabase.from(table).select('*').range(from, from + limit - 1);
+        const fallback = await supabase.from(table).select('*').eq('isDeleted', false).range(from, from + limit - 1);
         if (fallback.error) throw fallback.error;
         if (fallback.data && fallback.data.length > 0) {
           allData = [...allData, ...fallback.data];
@@ -53,7 +54,7 @@ const getData = async (table: string) => {
         from += limit;
       } else break;
     }
-    return allData.filter(item => item && item.isDeleted !== true);
+    return allData;
   } catch (err) {
     console.error(`Error in getData for table ${table}:`, err);
     return [];
@@ -63,7 +64,7 @@ const getData = async (table: string) => {
 const getDeletedData = async (table: string) => {
   let allData: any[] = [];
   let from = 0;
-  const limit = 1000;
+  const limit = 200; // Reduced to prevent timeouts
   
   while (true) {
     const { data, error } = await supabase
