@@ -26,6 +26,8 @@ export default function Products() {
   const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
   const [allStoreProducts, setAllStoreProducts] = useState<Product[]>([]);
+  const [dbSearchResults, setDbSearchResults] = useState<Product[]>([]);
+  const [isSearchingDb, setIsSearchingDb] = useState(false);
   
   // Initialize state from return storage if matching category
   const [searchInput, setSearchInput] = useState(() => {
@@ -242,6 +244,25 @@ export default function Products() {
 
     init();
 
+    // Direct Database Search Effect
+    let searchTimeout: any;
+    if (searchTerm && searchTerm.trim().length >= 2) {
+      setIsSearchingDb(true);
+      searchTimeout = setTimeout(async () => {
+        try {
+          const results = await api.searchProductsDirect(searchTerm, activeSub || categoryId);
+          setDbSearchResults(results);
+        } catch (err) {
+          console.error(err);
+        } finally {
+          setIsSearchingDb(false);
+        }
+      }, 500); // Debounce
+    } else {
+      setDbSearchResults([]);
+      setIsSearchingDb(false);
+    }
+
     // Instant local BroadcastChannel synchronization across tabs
     let fetchTimeout: any = null;
     const scheduleFetch = (delay = 400) => {
@@ -422,8 +443,12 @@ export default function Products() {
 
     // Only active products (never archived, hidden, locked, or in restricted categories) - Global search when searchTerm exists
     if (searchTerm && searchTerm.trim()) {
-      const source = (allStoreProducts.length > 0 ? allStoreProducts : products).filter(isActive);
-      const result = filterProductsBySearch(source, searchTerm, allCategories);
+      // Use DB search results if available, otherwise fallback to local filter
+      const source = dbSearchResults.length > 0 
+        ? dbSearchResults 
+        : (allStoreProducts.length > 0 ? allStoreProducts : products);
+      
+      const result = filterProductsBySearch(source, searchTerm, allCategories, { includeRestricted: false });
       return result.filter(isActive);
     }
 
@@ -692,7 +717,11 @@ export default function Products() {
         <div className="relative mb-3 shrink-0 flex gap-2">
           <div className="relative flex-1">
             <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-              <Search className="w-4 h-4 text-brq-gold" />
+              {isSearchingDb ? (
+                <Loader2 className="w-4 h-4 text-brq-gold animate-spin" />
+              ) : (
+                <Search className="w-4 h-4 text-brq-gold" />
+              )}
             </div>
             <input
               type="text"

@@ -280,6 +280,51 @@ export const api = {
 
     return [];
   },
+
+  searchProductsDirect: async (query: string, categoryId?: string) => {
+    const mapProduct = (p: any) => ({
+      ...p,
+      packaging: p.packaging !== undefined && p.packaging !== null && p.packaging !== '' && p.packaging !== '---'
+        ? String(p.packaging)
+        : (p.size?.packaging || (p.piecesCount ? String(p.piecesCount) : (p.size?.piecesCount ? String(p.size.piecesCount) : ''))),
+      piecesCount: p.piecesCount !== undefined && p.piecesCount !== null
+        ? Number(p.piecesCount)
+        : (p.size?.piecesCount !== undefined ? Number(p.size.piecesCount) : undefined),
+      isHidden: p.size?.isHidden !== undefined ? Boolean(p.size.isHidden) : Boolean(p.isHidden),
+      isLocked: p.size?.isLocked !== undefined ? Boolean(p.size.isLocked) : Boolean(p.isLocked),
+      isArchived: p.isArchived !== undefined ? Boolean(p.isArchived) : (p.size?.isArchived !== undefined ? Boolean(p.size.isArchived) : false),
+      isDeleted: Boolean(p.isDeleted),
+      isShowcase: p.size?.isShowcase !== undefined ? Boolean(p.size.isShowcase) : Boolean(p.isShowcase),
+      showcaseCategory: p.size?.showcaseCategory || p.showcaseCategory || '',
+      oldPriceInfo: p.size?.oldPriceInfo || undefined,
+      forceStandardCrush: p.size?.forceStandardCrush ?? true,
+      updatedAt: p.size?.updatedAt || p.createdAt
+    });
+
+    try {
+      let queryBuilder = supabase
+        .from('products')
+        .select('*')
+        .or(`name.ilike.%${query}%,productCode.ilike.%${query}%`)
+        .eq('isDeleted', false);
+
+      if (categoryId) {
+        // Search within category or subcategory
+        queryBuilder = queryBuilder.or(`categoryId.eq.${categoryId},subcategoryId.eq.${categoryId}`);
+      }
+
+      const { data, error } = await queryBuilder
+        .order('createdAt', { ascending: false })
+        .limit(200);
+
+      if (error) throw error;
+      return (data || []).map(mapProduct);
+    } catch (err) {
+      console.error('Database search failed:', err);
+      return [];
+    }
+  },
+
   createProduct: async (data: any) => { 
     const serverTime = await getServerTime();
     const safeData = { ...data, createdAt: data.createdAt || serverTime, updatedAt: data.updatedAt || serverTime };
