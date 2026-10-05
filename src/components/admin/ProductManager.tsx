@@ -247,7 +247,7 @@ export default function ProductManager() {
     showcaseCategory: "رجالي",
   });
 
-  const [filterStatus, setFilterStatus] = useState<"all" | "active" | "locked" | "inactive" | "duplicates" | "noSubcategory" | "showcase" | "archived" | null>("active");
+  const [filterStatus, setFilterStatus] = useState<"all" | "active" | "locked" | "inactive" | "duplicates" | "noSubcategory" | "showcase" | "archived" | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [searchDate, setSearchDate] = useState("");
@@ -317,6 +317,13 @@ export default function ProductManager() {
         });
       } else {
         // SERVER MODE: Fetch specific slice
+        // If nothing is searched or filtered, just clear and return (performance)
+        if (!force && !searchQuery && filterCategoryId === 'none' && filterStatus === null && !searchDate) {
+          setProducts([]);
+          setTotalServerCount(0);
+          return;
+        }
+
         setIsSearching(true);
         try {
           const [cats, settings, stats, result] = await Promise.all([
@@ -326,7 +333,7 @@ export default function ProductManager() {
             api.getProductsAdminFiltered({
               searchTerm: searchQuery,
               categoryId: filterCategoryId,
-              status: filterStatus || 'active',
+              status: filterStatus || 'all',
               date: searchDate,
               page: currentPage,
               pageSize: itemsPerPage
@@ -351,9 +358,22 @@ export default function ProductManager() {
     let mounted = true;
     let fetchTimeout: any;
     const initialLoad = async () => {
-      // Fetch fresh data from database
-      await loadData();
-      if (mounted) setLoading(false);
+      // 1. Fetch vital metadata first (FAST)
+      try {
+        // Fire all but don't await them as a block if we want to show UI fast
+        api.getCategories().then(cats => { if (mounted) setCategories(cats); });
+        api.getSettings().then(settings => { 
+          if (mounted && settings?.usdExchangeRate) setUsdRate(settings.usdExchangeRate); 
+        });
+        api.getAdminStats().then(stats => { if (mounted) setServerStats(stats); });
+        
+        // 2. We don't fetch all products here anymore for performance
+        // The page will render search bars and empty table initially
+        if (mounted) setLoading(false);
+      } catch (err) {
+        console.error(err);
+        if (mounted) setLoading(false);
+      }
     };
     initialLoad();
 
@@ -412,7 +432,14 @@ export default function ProductManager() {
         try { bc.close(); } catch {}
       }
     };
-  }, []);
+  }, [isServerMode]);
+
+  // Re-fetch in server mode when search filters change
+  useEffect(() => {
+    if (isServerMode && !loading) {
+      loadData(true);
+    }
+  }, [searchQuery, filterCategoryId, filterStatus, searchDate, currentPage, itemsPerPage]);
 
   const getNormalizedRate = () => {
     const r = usdRate || 1590;
@@ -1603,7 +1630,10 @@ export default function ProductManager() {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-white mb-1">إدارة المنتجات</h2>
+          <h2 className="text-2xl font-bold text-white mb-1 flex items-center gap-2">
+            إدارة المنتجات
+            <span className="text-[10px] bg-brq-gold/20 text-brq-gold px-2 py-0.5 rounded-full border border-brq-gold/30">V2 Turbo Search</span>
+          </h2>
           <p className="text-sm text-white/50">
             التحكم الكامل في كتالوج المنتجات والمخزون
           </p>

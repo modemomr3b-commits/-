@@ -28,11 +28,14 @@ const getData = async (table: string) => {
   
   try {
     // 1. Get total count first to parallelize requests
-    const { count, error: countError } = await supabase
-      .from(table)
-      .select('*', { count: 'exact', head: true })
-      .eq('isDeleted', false);
-      
+    let qCount = supabase.from(table).select('*', { count: 'exact', head: true });
+    
+    // Only apply isDeleted filter if relevant (mostly products and categories)
+    if (table === 'products' || table === 'categories') {
+      qCount = qCount.eq('isDeleted', false);
+    }
+    
+    const { count, error: countError } = await qCount;
     if (countError) throw countError;
     
     if (count === 0) return [];
@@ -42,13 +45,14 @@ const getData = async (table: string) => {
     const promises = [];
     
     for (let i = 0; i < pages; i++) {
+      let q = supabase.from(table).select('*');
+      if (table === 'products' || table === 'categories') {
+        q = q.eq('isDeleted', false);
+      }
+      
       promises.push(
-        supabase
-          .from(table)
-          .select('*')
-          .eq('isDeleted', false)
-          .order('id', { ascending: true })
-          .range(i * limit, (i + 1) * limit - 1)
+        q.order('id', { ascending: true })
+         .range(i * limit, (i + 1) * limit - 1)
       );
     }
     
@@ -70,10 +74,12 @@ const getData = async (table: string) => {
     let allData: any[] = [];
     let from = 0;
     while (true) {
-      const { data, error } = await supabase
-        .from(table)
-        .select('*')
-        .eq('isDeleted', false)
+      let q = supabase.from(table).select('*');
+      if (table === 'products' || table === 'categories') {
+        q = q.eq('isDeleted', false);
+      }
+      
+      const { data, error } = await q
         .order('id', { ascending: true })
         .range(from, from + limit - 1);
         
