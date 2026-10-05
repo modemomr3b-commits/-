@@ -14,6 +14,9 @@ create table if not exists products (
   "qrCode" text,
   "isArchived" boolean default false,
   "isDeleted" boolean default false,
+  "isShowcase" boolean default false,
+  "isLocked" boolean default false,
+  "isHidden" boolean default false,
   "deletedAt" bigint,
   "deletedBy" text,
   "createdAt" bigint
