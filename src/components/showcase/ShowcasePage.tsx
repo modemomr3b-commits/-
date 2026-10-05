@@ -475,6 +475,12 @@ export default function ShowcasePage() {
       if (selectedCategory !== 'all') {
         const cat = getShowcaseCategory(p);
         if (cat !== selectedCategory) return false;
+
+        // FIXED: Exclude 'لاستيك' products from 'جديد الوفاء' category
+        // 'جديد الوفاء' is the main showcase category name.
+        if (selectedCategory === 'جديد الوفاء' && detectShoeSubtype(p) === 'لاستيك') {
+          return false;
+        }
       }
 
       // Search match
