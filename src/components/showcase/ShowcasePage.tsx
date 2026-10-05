@@ -457,10 +457,7 @@ export default function ShowcasePage() {
 
   // Resolve accurate showcase category for any product
   const getShowcaseCategory = (p: Product) => {
-    if (p.showcaseCategory && (VALID_SHOWCASE_CATEGORIES as readonly string[]).includes(p.showcaseCategory)) {
-      return p.showcaseCategory;
-    }
-    return detectShowcaseCategory(p, categories);
+    return p.showcaseCategory || null;
   };
 
   // Reset page when category or search changes
