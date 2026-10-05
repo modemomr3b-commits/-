@@ -884,18 +884,20 @@ export const api = {
     if (error) throw error; return r; 
   },
   updateUser: async (id: string, data: any, silent?: boolean) => { 
-    const { data: r, error } = await supabase.from('users').update(data).match({ id }).select().maybeSingle(); 
-    if (error && !silent) throw error; 
-    if (data.status || data.isDeleted !== undefined) {
-      try {
-        supabase.channel('global_user_guard').send({
-          type: 'broadcast',
-          event: 'user_status_changed',
-          payload: { id, status: data.status, isDeleted: data.isDeleted }
-        });
-      } catch (e) {}
-    }
-    return r; 
+    return withRetry(async () => {
+      const { data: r, error } = await supabase.from('users').update(data).match({ id }).select().maybeSingle(); 
+      if (error && !silent) throw error; 
+      if (data.status || data.isDeleted !== undefined) {
+        try {
+          supabase.channel('global_user_guard').send({
+            type: 'broadcast',
+            event: 'user_status_changed',
+            payload: { id, status: data.status, isDeleted: data.isDeleted }
+          });
+        } catch (e) {}
+      }
+      return r; 
+    });
   },
   deleteUser: async (id: string, deletedBy?: string) => { 
     const { error } = await supabase.from('users').delete().match({ id }); 
@@ -920,8 +922,8 @@ export const api = {
 
   // ORDERS
   getOrders: async () => {
-    // Optimization: Fetch only recent active orders using safe batching
-    try {
+    // Optimization: Fetch only recent active orders using safe batching and retry logic
+    return withRetry(async () => {
       const { data, error } = await supabase
         .from('orders')
         .select('*')
@@ -930,30 +932,29 @@ export const api = {
         .order('createdAt', { ascending: false })
         .limit(200); // Strict limit to prevent timeouts
 
-    if (error) {
-      console.error('Error fetching recent orders:', error);
-      return [];
-    }
-    
-    const activeData = (data || []).filter((item: any) => item.isDeleted !== true);
-    return activeData.map((o: any) => {
-      const parsed = parseOrderDetails(o);
+      if (error) throw error;
+      
+      if (!data) return [];
+      
+      return data.map((o: any) => {
+        const parsed = parseOrderDetails(o);
 
-      return {
-        ...o,
-        items: o.products || o.items || [],
-        totalQuantity: o.total || o.totalQuantity || 0,
-        userId: o.userId || parsed.agentId || '',
-        agentId: parsed.agentId || o.userId || '',
-        agentName: parsed.agentName || o.agentName || '',
-        fullName: parsed.agentName || o.fullName || o.username || '',
-        username: o.username || parsed.agentName || '',
-        customerName: parsed.customerName || (o.customerName !== parsed.agentName ? o.customerName : '') || '',
-        transport: parsed.transport || o.transport || '',
-        notes: parsed.notes,
-        displayNotes: parsed.displayNotes,
-        rawNotes: o.notes || '',
-      };
+        return {
+          ...o,
+          items: o.products || o.items || [],
+          totalQuantity: o.total || o.totalQuantity || 0,
+          userId: o.userId || parsed.agentId || '',
+          agentId: parsed.agentId || o.userId || '',
+          agentName: parsed.agentName || o.agentName || '',
+          fullName: parsed.agentName || o.fullName || o.username || '',
+          username: o.username || parsed.agentName || '',
+          customerName: parsed.customerName || (o.customerName !== parsed.agentName ? o.customerName : '') || '',
+          transport: parsed.transport || o.transport || '',
+          notes: parsed.notes,
+          displayNotes: parsed.displayNotes,
+          rawNotes: o.notes || '',
+        };
+      });
     });
   },
 
