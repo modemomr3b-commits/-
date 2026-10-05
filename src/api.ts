@@ -3,6 +3,11 @@ import { supabase } from './supabase';
 import { ActivityLog } from './types';
 import { parseOrderDetails } from './utils/orderUtils';
 import { isArchivedCategoryName, isRestrictedCategoryName } from './utils/search';
+import { localCache } from './utils/localCache';
+
+// Fast in-memory and persistent IndexedDB cache
+const memCache: Record<string, { data: any, timestamp: number }> = {};
+const MEM_CACHE_TTL = 60000; // 1 minute in-memory
 
 const mapProduct = (p: any) => ({
   ...p,
@@ -348,8 +353,12 @@ export const api = {
     return api.getProductsDirect();
   },
 
-  getProductsDirect: async () => {
-    try {
+  getProductsDirect: async (force: boolean = false) => {
+    if (!force && memCache['all_products'] && (Date.now() - memCache['all_products'].timestamp < MEM_CACHE_TTL)) {
+      return memCache['all_products'].data;
+    }
+
+    return withRetry(async () => {
       const data = await getData('products');
       if (data) {
         const res = data.map(mapProduct).sort((a, b) => {
@@ -357,14 +366,61 @@ export const api = {
           const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
           return timeB - timeA;
         });
+        memCache['all_products'] = { data: res, timestamp: Date.now() };
         return res;
       }
-    } catch (networkErr) {
-      console.warn('Network fetch failed:', networkErr);
-    }
-
-    return [];
+      return [];
+    });
   },
+
+  getAdminStats: async () => {
+    return withRetry(async () => {
+      // Manual calculation for reliability across environments
+      const products = await api.getProductsDirect();
+      const active = products.filter(p => !p.isHidden && !p.isLocked && !p.isArchived).length;
+      const inactive = products.filter(p => p.isHidden && !p.isArchived).length;
+      const locked = products.filter(p => p.isLocked && !p.isArchived).length;
+      const showcase = products.filter(p => p.isShowcase && !p.isHidden && !p.isLocked && !p.isArchived).length;
+      return { total: products.length, active, inactive, locked, showcase };
+    });
+  },
+
+  getProductsAdminFiltered: async (filters: any) => {
+    const { searchTerm, categoryId, status, page, pageSize } = filters;
+    return withRetry(async () => {
+      let query = supabase.from('products').select('*', { count: 'exact' });
+
+      if (searchTerm) {
+        const term = searchTerm.trim();
+        query = query.or(`name.ilike.%${term}%,modelNumber.ilike.%${term}%,productCode.ilike.%${term}%`);
+      }
+
+      if (categoryId && categoryId !== 'none' && categoryId !== 'all') {
+        query = query.eq('categoryId', categoryId);
+      }
+
+      if (status === 'active') {
+        query = query.eq('isArchived', false).filter('size->>isHidden', 'eq', 'false').filter('size->>isLocked', 'eq', 'false');
+      } else if (status === 'inactive') {
+        query = query.filter('size->>isHidden', 'eq', 'true');
+      } else if (status === 'locked') {
+        query = query.filter('size->>isLocked', 'eq', 'true');
+      } else if (status === 'showcase') {
+        query = query.filter('size->>isShowcase', 'eq', 'true');
+      }
+
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
+
+      const { data, error, count } = await query
+        .order('createdAt', { ascending: false })
+        .range(from, to);
+
+      if (error) throw error;
+      return { data: (data || []).map(mapProduct), total: count || 0 };
+    });
+  },
+
   createProduct: async (data: any) => { 
     const serverTime = await getServerTime();
     const safeData = { ...data, createdAt: data.createdAt || serverTime, updatedAt: data.updatedAt || serverTime };

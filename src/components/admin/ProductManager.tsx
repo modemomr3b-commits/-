@@ -2731,9 +2731,7 @@ export default function ProductManager() {
               </div>
             )}
             
-          </div>
-        </div>
-      </div>
+          {/* Premature closures removed to fix sibling error */}
 
       {editingProduct && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
@@ -3747,6 +3745,8 @@ export default function ProductManager() {
           onClose={() => setIsShowcaseDownloadOpen(false)}
         />
       )}
-    </div>
-  );
-}
+          </div>
+        </div>
+      </div>
+    );
+  }
