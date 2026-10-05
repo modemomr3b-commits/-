@@ -119,6 +119,17 @@ export default function App() {
           }
         })
         .subscribe();
+
+      // NEW: Strict Global Sync Listener - Force Cache Busting
+      const syncChannel = supabase.channel('products_changes')
+        .on('broadcast', { event: 'force_refresh' }, async (payload) => {
+          if (payload.payload?.hard) {
+            console.log("Strict Sync Signal Received: Clearing Cache...");
+            api.clearCache(); // Wipes memory and IndexedDB
+            await api.forceRefreshAll(); // Refetches all fresh data
+          }
+        })
+        .subscribe();
       
       const handleBeforeUnload = () => {
         api.updateUser(currentUserId, { isOnline: false, lastActive: Date.now() }, true).catch(() => {});
@@ -129,6 +140,7 @@ export default function App() {
       return () => {
         clearInterval(interval);
         supabase.removeChannel(guardChannel);
+        supabase.removeChannel(syncChannel);
         window.removeEventListener('beforeunload', handleBeforeUnload);
       };
     }

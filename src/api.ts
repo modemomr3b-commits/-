@@ -1337,4 +1337,29 @@ export const api = {
     } catch {}
     return { success: true };
   },
+  triggerGlobalSync: async () => {
+    const serverTime = await getServerTime();
+    // 1. Update data version in DB to invalidate old caches
+    await supabase.from('settings').upsert({ id: 'data_version', data: { version: serverTime } });
+    
+    // 2. Immediate cache wipe for current user
+    localCache.clearAll().catch(() => {});
+    Object.keys(memCache).forEach(k => delete memCache[k]);
+    
+    // 3. Broadcast to all clients
+    try {
+      await supabase.channel('products_changes').send({
+        type: 'broadcast',
+        event: 'force_refresh',
+        payload: { timestamp: serverTime, hard: true }
+      });
+      if (typeof window !== 'undefined' && (window as any).BroadcastChannel) {
+        const bc = new (window as any).BroadcastChannel('brq_products_sync');
+        bc.postMessage({ type: 'HARD_SYNC', timestamp: serverTime });
+        bc.close();
+      }
+    } catch {}
+    
+    return { success: true };
+  },
 };

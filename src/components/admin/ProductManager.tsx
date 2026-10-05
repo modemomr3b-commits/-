@@ -79,6 +79,8 @@ export default function ProductManager() {
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false);
   const [isAutoShowcaseOpen, setIsAutoShowcaseOpen] = useState(false);
   const [isShowcaseDownloadOpen, setIsShowcaseDownloadOpen] = useState(false);
+  const [hasPendingSync, setHasPendingSync] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Multi-Category Showcase Publishing State
   const [autoShowcaseTab, setAutoShowcaseTab] = useState<'collections' | 'categories'>('collections');
@@ -199,6 +201,19 @@ export default function ProductManager() {
       setIsSubmitting(false);
     }
   };
+  const handleGlobalSync = async () => {
+    setIsSyncing(true);
+    try {
+      await api.triggerGlobalSync();
+      setAlertMessage("✅ تم تحديث البيانات بنجاح وإجبار كافة أجهزة المستخدمين على مسح التخزين المؤقت.");
+      setHasPendingSync(false);
+    } catch (e) {
+      setAlertMessage("❌ فشل إرسال إشارة التحديث.");
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [initialEditingProduct, setInitialEditingProduct] = useState<Product | null>(null);
   const [showDiffConfirmModal, setShowDiffConfirmModal] = useState<boolean>(false);
@@ -977,6 +992,7 @@ export default function ProductManager() {
     try {
       await api.updateProduct(p.id!, updates);
       setAlertMessage(`تم نقل المنتج "${p.name || ''}" إلى قسم المواد النافذة بنجاح`);
+      setHasPendingSync(true);
     } catch (e) {
       console.error(e);
       // Revert optimistic update
@@ -1215,6 +1231,7 @@ export default function ProductManager() {
     try {
       await api.bulkUpdateProducts(ids, updatePayload);
       setAlertMessage(`تم نقل ${ids.length} منتج إلى قسم المواد النافذة بنجاح`);
+      setHasPendingSync(true);
     } catch (e: any) {
       console.error("Error bulk moving to archived category:", e);
       const updated = await api.getProducts();
@@ -2143,6 +2160,35 @@ export default function ProductManager() {
                       </button>
                     </div>
                   )}
+                  {/* Strict Sync Banner */}
+                  <AnimatePresence>
+                    {hasPendingSync && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className="w-full mb-4 p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-lg"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-amber-500/20 rounded-xl flex items-center justify-center text-amber-500">
+                            <Sparkles size={20} />
+                          </div>
+                          <div className="text-right">
+                            <h4 className="text-amber-500 font-black text-sm">تحديث بيانات المستخدمين</h4>
+                            <p className="text-white/60 text-[11px]">لقد قمت بنقل منتجات، اضغط لتحديث كافة الأجهزة فوراً.</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={handleGlobalSync}
+                          disabled={isSyncing}
+                          className="px-6 py-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-black text-xs rounded-xl flex items-center gap-2 transition-all shadow-md active:scale-95"
+                        >
+                          {isSyncing ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                          <span>تحديث كافة الأجهزة الآن</span>
+                        </button>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                   {selectedIds.size > 0 && (
                     <button
                       onClick={handleBulkDelete}
