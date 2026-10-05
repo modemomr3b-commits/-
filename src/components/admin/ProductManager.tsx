@@ -1630,10 +1630,7 @@ export default function ProductManager() {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-white mb-1 flex items-center gap-2">
-            إدارة المنتجات
-            <span className="text-[10px] bg-brq-gold/20 text-brq-gold px-2 py-0.5 rounded-full border border-brq-gold/30">V2 Turbo Search</span>
-          </h2>
+          <h2 className="text-2xl font-bold text-white mb-1">إدارة المنتجات</h2>
           <p className="text-sm text-white/50">
             التحكم الكامل في كتالوج المنتجات والمخزون
           </p>
@@ -2304,11 +2301,6 @@ export default function ProductManager() {
                       قم باختيار المنتجات الفعالة، غير الفعالة، أو النافذة من القائمة العلوية لعرض المنتجات، أو ابدأ بالبحث مباشرة.
                     </p>
                   </div>
-                </div>
-              ) : loading ? (
-                <div className="flex flex-col items-center justify-center h-[400px] text-center p-8 space-y-6">
-                  <Loader2 className="animate-spin text-brq-gold w-12 h-12 mb-4" />
-                  <p className="text-white/50">جاري تحميل المنتجات...</p>
                 </div>
               ) : (
               <table className="w-full text-sm text-right">

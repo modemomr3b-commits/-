@@ -24,71 +24,39 @@ const mapProduct = (p: any) => ({
 });
 
 const getData = async (table: string) => {
+  let allData: any[] = [];
+  let from = 0;
   const limit = 1000;
   
   try {
-    // 1. Get total count first to parallelize requests
-    let qCount = supabase.from(table).select('*', { count: 'exact', head: true });
-    
-    // Only apply isDeleted filter if relevant (mostly products and categories)
-    if (table === 'products' || table === 'categories') {
-      qCount = qCount.eq('isDeleted', false);
-    }
-    
-    const { count, error: countError } = await qCount;
-    if (countError) throw countError;
-    
-    if (count === 0) return [];
-    
-    // 2. Fire all requests in parallel
-    const pages = Math.ceil((count || 0) / limit);
-    const promises = [];
-    
-    for (let i = 0; i < pages; i++) {
-      let q = supabase.from(table).select('*');
-      if (table === 'products' || table === 'categories') {
-        q = q.eq('isDeleted', false);
-      }
-      
-      promises.push(
-        q.order('id', { ascending: true })
-         .range(i * limit, (i + 1) * limit - 1)
-      );
-    }
-    
-    const results = await Promise.all(promises);
-    let allData: any[] = [];
-    
-    for (const res of results) {
-      if (res.error) throw res.error;
-      if (res.data) {
-        allData = [...allData, ...res.data];
-      }
-    }
-    
-    return allData;
-  } catch (err) {
-    console.error(`Error in optimized getData for table ${table}:`, err);
-    
-    // Fallback to sequential for safety if parallel fails
-    let allData: any[] = [];
-    let from = 0;
     while (true) {
-      let q = supabase.from(table).select('*');
-      if (table === 'products' || table === 'categories') {
-        q = q.eq('isDeleted', false);
-      }
-      
-      const { data, error } = await q
+      const { data, error } = await supabase
+        .from(table)
+        .select('*')
         .order('id', { ascending: true })
         .range(from, from + limit - 1);
         
-      if (error || !data || data.length === 0) break;
-      allData = [...allData, ...data];
-      if (data.length < limit) break;
-      from += limit;
+      if (error) {
+        const fallback = await supabase.from(table).select('*').range(from, from + limit - 1);
+        if (fallback.error) throw fallback.error;
+        if (fallback.data && fallback.data.length > 0) {
+          allData = [...allData, ...fallback.data];
+          if (fallback.data.length < limit) break;
+          from += limit;
+          continue;
+        } else break;
+      }
+      
+      if (data && data.length > 0) {
+        allData = [...allData, ...data];
+        if (data.length < limit) break;
+        from += limit;
+      } else break;
     }
-    return allData;
+    return allData.filter(item => item && item.isDeleted !== true);
+  } catch (err) {
+    console.error(`Error in getData for table ${table}:`, err);
+    return [];
   }
 };
 
@@ -122,9 +90,6 @@ const getDeletedData = async (table: string) => {
   return allData;
 };
 
-
-let specialCategoryIdsCache: string[] | null = null;
-let lastSpecialIdsFetch = 0;
 
 export const api = {
   clearCache: () => { 
@@ -240,18 +205,10 @@ export const api = {
   },
 
   getSpecialCategoryIds: async () => {
-    const now = Date.now();
-    if (specialCategoryIdsCache && (now - lastSpecialIdsFetch < 10000)) {
-      return specialCategoryIdsCache;
-    }
     const categories = await getData('categories');
-    const ids = categories
+    return categories
       .filter((c: any) => c.isHidden || isRestrictedCategoryName(c.name) || isArchivedCategoryName(c.name))
       .map((c: any) => c.id);
-    
-    specialCategoryIdsCache = ids;
-    lastSpecialIdsFetch = now;
-    return ids;
   },
   
   getProductsPaginated: async (page: number, pageSize: number, includeArchived = false) => {
@@ -362,75 +319,6 @@ export const api = {
     if (error) throw error;
     const mapped = (data || []).map(mapProduct).filter(p => !p.isDeleted);
     return { data: mapped, total: count || 0 };
-  },
-
-  getProductsAdminFiltered: async (filters: {
-    searchTerm?: string;
-    categoryId?: string;
-    status?: string;
-    date?: string;
-    page: number;
-    pageSize: number;
-  }) => {
-    let query = supabase.from('products').select('*', { count: 'exact' });
-    
-    if (filters.searchTerm) {
-      const term = filters.searchTerm.trim();
-      query = query.or(`name.ilike.%${term}%,modelNumber.ilike.%${term}%,productCode.ilike.%${term}%,barcode.ilike.%${term}%`);
-    }
-    
-    if (filters.categoryId && filters.categoryId !== 'all' && filters.categoryId !== 'none') {
-      query = query.or(`categoryId.eq.${filters.categoryId},subcategoryId.eq.${filters.categoryId}`);
-    }
-    
-    if (filters.date) {
-      // Approximate date filtering in Supabase (assumes createdAt is timestamp)
-      query = query.gte('createdAt', `${filters.date}T00:00:00Z`).lte('createdAt', `${filters.date}T23:59:59Z`);
-    }
-    
-    if (filters.status) {
-      if (filters.status === 'active') {
-        query = query.eq('isHidden', false).eq('isLocked', false).eq('isArchived', false);
-      } else if (filters.status === 'inactive') {
-        query = query.eq('isHidden', true);
-      } else if (filters.status === 'locked') {
-        query = query.eq('isLocked', true);
-      } else if (filters.status === 'archived') {
-        query = query.eq('isArchived', true);
-      } else if (filters.status === 'showcase') {
-        query = query.eq('isShowcase', true);
-      }
-    }
-
-    const { data, error, count } = await query
-      .eq('isDeleted', false)
-      .range((filters.page - 1) * filters.pageSize, filters.page * filters.pageSize - 1)
-      .order('id', { ascending: false });
-
-    if (error) throw error;
-    return { data: (data || []).map(mapProduct), total: count || 0 };
-  },
-
-  getAdminStats: async () => {
-    const fetchCount = async (filter: any) => {
-      let q = supabase.from('products').select('*', { count: 'exact', head: true }).eq('isDeleted', false);
-      Object.keys(filter).forEach(key => {
-        q = q.eq(key, filter[key]);
-      });
-      const { count } = await q;
-      return count || 0;
-    };
-
-    const [total, active, locked, inactive, showcase, archived] = await Promise.all([
-      fetchCount({}),
-      fetchCount({ isHidden: false, isLocked: false, isArchived: false }),
-      fetchCount({ isLocked: true }),
-      fetchCount({ isHidden: true }),
-      fetchCount({ isShowcase: true }),
-      fetchCount({ isArchived: true })
-    ]);
-
-    return { total, active, locked, inactive, showcase, archived };
   },
 
   getProductById: async (id: string) => {
@@ -889,7 +777,6 @@ export const api = {
     }
   },
   createCategory: async (data: any) => { 
-    specialCategoryIdsCache = null; // Clear cache on create
     const { data: r, error } = await supabase.from('categories').insert(data).select().single(); 
     if (error) throw error; 
 
@@ -912,7 +799,6 @@ export const api = {
     return r; 
   },
   updateCategory: async (id: string, data: any) => { 
-    specialCategoryIdsCache = null; // Clear cache on update
     const { data: r, error } = await supabase.from('categories').update(data).match({ id }).select().single(); 
     if (error) throw error; 
 
@@ -935,7 +821,6 @@ export const api = {
     return r; 
   },
   deleteCategory: async (id: string, deletedBy?: string) => { 
-    specialCategoryIdsCache = null; // Clear cache on delete
     // If it is a parent category, also delete child subcategories
     await supabase.from('categories').delete().eq('parentId', id);
     
