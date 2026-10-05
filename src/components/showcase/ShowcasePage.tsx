@@ -474,10 +474,10 @@ export default function ShowcasePage() {
       // Category match
       if (selectedCategory !== 'all') {
         const cat = getShowcaseCategory(p);
+        // Only include if category explicitly matches (null won't match)
         if (cat !== selectedCategory) return false;
 
         // FIXED: Exclude 'لاستيك' products from 'جديد الوفاء' category
-        // 'جديد الوفاء' is the main showcase category name.
         if (selectedCategory === 'جديد الوفاء' && detectShoeSubtype(p) === 'لاستيك') {
           return false;
         }
