@@ -927,10 +927,12 @@ export default function ShowcasePage() {
                     <div className="text-4xl text-white/30">👟</div>
                   )}
 
-                  {/* Category Tag Badge */}
-                  <span className="absolute top-2 right-2 z-10 bg-black/70 backdrop-blur-md text-yellow-300 border border-yellow-500/30 text-[9px] font-bold px-1.5 py-0.5 rounded-full shadow-md">
-                    {getShowcaseCategory(p)}
-                  </span>
+                  {/* Category Tag Badge - تعرض فقط القيمة المخزنة يدوياً */}
+                  {p.showcaseCategory && (
+                    <span className="absolute top-2 right-2 z-10 bg-black/70 backdrop-blur-md text-yellow-300 border border-yellow-500/30 text-[9px] font-bold px-1.5 py-0.5 rounded-full shadow-md">
+                      {p.showcaseCategory}
+                    </span>
+                  )}
 
                   {/* Top Action Buttons (Download) */}
                   <div className="absolute top-2 left-2 z-10 flex flex-col gap-1 opacity-90 group-hover:opacity-100 transition-opacity">
