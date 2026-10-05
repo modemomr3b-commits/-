@@ -320,6 +320,7 @@ export default function ShowcasePage() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [isPromptModalOpen, setIsPromptModalOpen] = useState(false);
+  const [hasNewUpdate, setHasNewUpdate] = useState(false); // NEW: State for update notification
   const [navCounter, setNavCounter] = useState(0);
   const itemsPerPage = 40;
 
@@ -433,21 +434,11 @@ export default function ShowcasePage() {
           setSettings(payload);
         }
       })
-      .on('broadcast', { event: 'bulk_updated' }, () => {
-        scheduleRefresh(800);
-      })
-      .on('broadcast', { event: 'product_changed' }, () => {
-        scheduleRefresh(800);
-      })
-      .on('broadcast', { event: 'product_created' }, () => {
-        scheduleRefresh(800);
-      })
-      .on('broadcast', { event: 'bulk_deleted' }, () => {
-        scheduleRefresh(800);
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
-        scheduleRefresh(1500);
-      })
+      .on('broadcast', { event: 'bulk_updated' }, () => setHasNewUpdate(true))
+      .on('broadcast', { event: 'product_changed' }, () => setHasNewUpdate(true))
+      .on('broadcast', { event: 'product_created' }, () => setHasNewUpdate(true))
+      .on('broadcast', { event: 'bulk_deleted' }, () => setHasNewUpdate(true))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => setHasNewUpdate(true))
       .subscribe();
 
     // Instant local BroadcastChannel synchronization across tabs
@@ -689,6 +680,13 @@ export default function ShowcasePage() {
   return (
     <div className="min-h-screen bg-brq-black text-white pb-20 selection:bg-brq-gold selection:text-black" dir="rtl">
       
+      {/* Update notification banner */}
+      {hasNewUpdate && (
+        <div className="fixed top-0 left-0 right-0 z-[100] bg-brq-gold text-black font-black p-3 text-center cursor-pointer shadow-lg animate-in fade-in slide-in-from-top-4" onClick={() => window.location.reload()}>
+          تحديث جديد متاح! اضغط هنا لتحديث الصفحة لرؤية أحدث الموديلات.
+        </div>
+      )}
+
       {/* Toast popup */}
       {toastMessage && (
         <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-brq-gold text-black font-bold px-6 py-2.5 rounded-full shadow-2xl text-xs flex items-center gap-2 animate-in fade-in slide-in-from-top-4">
