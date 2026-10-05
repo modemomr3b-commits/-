@@ -23,12 +23,32 @@ const mapProduct = (p: any) => ({
   updatedAt: p.size?.updatedAt || p.createdAt
 });
 
+// Helper for retrying failed requests
+const withRetry = async <T>(fn: () => Promise<T>, maxRetries = 3, delay = 1000): Promise<T> => {
+  let lastErr: any;
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      lastErr = err;
+      const status = err?.status || err?.code;
+      // Retry on network errors or server errors (500, 521, etc)
+      if (i < maxRetries - 1 && (!status || status >= 500)) {
+        await new Promise(res => setTimeout(res, delay * (i + 1)));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr;
+};
+
 const getData = async (table: string) => {
-  let allData: any[] = [];
-  let from = 0;
-  const limit = 200; // Reduced to prevent timeouts
-  
-  try {
+  return withRetry(async () => {
+    let allData: any[] = [];
+    let from = 0;
+    const limit = 200; // Reduced to prevent timeouts
+    
     while (true) {
       const { data, error } = await supabase
         .from(table)
@@ -37,16 +57,7 @@ const getData = async (table: string) => {
         .order('id', { ascending: true })
         .range(from, from + limit - 1);
         
-      if (error) {
-        const fallback = await supabase.from(table).select('*').eq('isDeleted', false).range(from, from + limit - 1);
-        if (fallback.error) throw fallback.error;
-        if (fallback.data && fallback.data.length > 0) {
-          allData = [...allData, ...fallback.data];
-          if (fallback.data.length < limit) break;
-          from += limit;
-          continue;
-        } else break;
-      }
+      if (error) throw error;
       
       if (data && data.length > 0) {
         allData = [...allData, ...data];
@@ -54,11 +65,11 @@ const getData = async (table: string) => {
         from += limit;
       } else break;
     }
+    if (allData.length > 0) {
+      localCache.set(`all_${table}`, allData).catch(() => {});
+    }
     return allData;
-  } catch (err) {
-    console.error(`Error in getData for table ${table}:`, err);
-    return [];
-  }
+  });
 };
 
 const getDeletedData = async (table: string) => {
