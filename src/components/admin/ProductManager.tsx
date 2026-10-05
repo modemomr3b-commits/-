@@ -1908,22 +1908,7 @@ export default function ProductManager() {
         </div>
       )}
 
-      {products.length === 0 && !isAdding ? (
-        <div className="flex-1 flex flex-col justify-center items-center h-[40vh] text-center space-y-6">
-          <div className="w-24 h-24 rounded-full bg-brq-navy flex items-center justify-center text-brq-gold">
-            <Package size={48} />
-          </div>
-          <div>
-            <h2 className="text-2xl font-bold text-white mb-2">
-              لا توجد منتجات
-            </h2>
-            <p className="text-white/50 max-w-md mx-auto">
-              لم يتم العثور على أي منتجات في قاعدة البيانات.
-            </p>
-          </div>
-        </div>
-      ) : (
-        <div className="space-y-4">
+      <div className="space-y-4">
           <div className="flex gap-2 sm:gap-4 border-b border-white/10 pb-0 overflow-x-auto">
             <button
               onClick={() => setFilterStatus("all")}
@@ -2624,11 +2609,11 @@ export default function ProductManager() {
             </div>
             
             {/* Pagination Controls & Page Size Selector */}
-            {filteredProducts.length > 0 && filterStatus !== null && (
+            {(isServerMode ? products.length > 0 : filteredProducts.length > 0) && filterStatus !== null && (
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-4 border-t border-white/10 bg-black/30">
                 <div className="flex items-center gap-4 text-xs sm:text-sm text-white/60">
                   <span>
-                    عرض <strong className="text-brq-gold">{startIndex + 1}</strong> إلى <strong className="text-brq-gold">{Math.min(startIndex + itemsPerPage, filteredProducts.length)}</strong> من أصل <strong className="text-white">{filteredProducts.length}</strong> منتج
+                    عرض <strong className="text-brq-gold">{startIndex + 1}</strong> إلى <strong className="text-brq-gold">{startIndex + (isServerMode ? products.length : Math.min(itemsPerPage, filteredProducts.length - startIndex))}</strong> من أصل <strong className="text-white">{isServerMode ? totalServerCount : filteredProducts.length}</strong> منتج
                   </span>
                   
                   {/* Page Size Selector */}
@@ -2680,7 +2665,7 @@ export default function ProductManager() {
             
           </div>
         </div>
-      )}
+      </div>
 
       {editingProduct && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
