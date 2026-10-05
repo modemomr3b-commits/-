@@ -25,6 +25,7 @@ export default function Products() {
   const { categoryId } = useParams();
   const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
+  const [allStoreProducts, setAllStoreProducts] = useState<Product[]>([]);
   
   // Initialize state from return storage if matching category
   const [searchInput, setSearchInput] = useState(() => {
@@ -44,8 +45,7 @@ export default function Products() {
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false);
   const isAndroid = /Android/i.test(navigator.userAgent || '');
   const maxShareLimit = isAndroid ? 10 : 100;
-  const itemsPerPage = 50;
-  const [totalCount, setTotalCount] = useState(0);
+  const displayCountPerPage = 50;
   const pageProductsAll = products;
   
   // Grid Column & Zoom management with Ctrl + Mouse Wheel support
@@ -100,43 +100,46 @@ export default function Products() {
     return 1;
   });
 
-  const fetchProducts = async (page = currentPage, subId = activeSub, search = searchTerm) => {
-    setLoading(true);
+  const fetchProducts = async (forceDirect = false, isRetry = false) => {
     try {
       const cats = await api.getCategories();
       setAllCategories(cats);
-
-      const archivedCats = cats.filter((c: any) => isArchivedCategoryName(c.name));
-      const archivedCatIds = archivedCats.map((c: any) => c.id);
-      const isArchivedView = categoryId && archivedCatIds.includes(categoryId);
-
-      let result;
-      if (search && search.trim()) {
-        result = await api.getProductsBySearchPaginated(search, page, itemsPerPage, isArchivedView);
-      } else if (categoryId && categoryId !== 'all') {
-        result = await api.getProductsByCategoryPaginated(categoryId, page, itemsPerPage, subId, isArchivedView);
-      } else {
-        result = await api.getProductsPaginated(page, itemsPerPage, isArchivedView);
+      
+      const allStore = forceDirect ? await api.getProductsDirect() : await api.getProducts();
+      
+      // Auto-retry if empty on the very first load to prevent showing "No products" prematurely
+      if (allStore.length === 0 && !isRetry) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        await fetchProducts(true, true);
+        return;
       }
 
-      // Safety filter to ensure products that shouldn't be here are removed
-      // (Handles cases where server-side filtering might have gaps like JSONB fields)
-      const safetyFiltered = result.data.filter((p: any) => {
-        if (isArchivedView) return true; // In archived view, we want to see everything requested
-        
-        // Exclude restricted/archived/hidden if not in archived view
-        return !p.isArchived && !p.isHidden && !p.isLocked && !isProductRestrictedFromSearch(p, cats);
-      });
+      const archivedCatId = cats.find((c: any) => isArchivedCategoryName(c.name))?.id;
+      const isArchivedProd = (p: any) => p.isArchived || (archivedCatId && p.categoryId === archivedCatId);
 
-      setProducts(safetyFiltered);
-      setTotalCount(result.total);
+      const activeStore: Product[] = allStore.filter((p: any) => 
+        !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, cats) &&
+        (categoryId === archivedCatId ? isArchivedProd(p) : !isArchivedProd(p))
+      );
+      const shuffledStore = shuffleProductsForUser<Product>(activeStore);
+      setAllStoreProducts(shuffledStore);
       
+      let fetchedProducts: Product[] = activeStore;
       if (categoryId) {
         const cat = cats.find((c: any) => c.id === categoryId);
-        setCategoryName(cat ? cat.name : "جميع المنتجات");
-
         const sameNameParents = cats.filter((c: any) => cat && c.name?.trim() === cat.name?.trim());
         const parentIdsSet = new Set([categoryId, ...sameNameParents.map((c: any) => c.id)]);
+
+        const childSubCats = cats.filter((c: any) => c.parentId && parentIdsSet.has(c.parentId));
+        const childSubCatIdsSet = new Set(childSubCats.map((c: any) => c.id));
+        const allMatchingCatIds = new Set([...parentIdsSet, ...childSubCatIdsSet]);
+
+        fetchedProducts = activeStore.filter((p: any) => 
+          (p.categoryId && allMatchingCatIds.has(p.categoryId)) ||
+          (p.subcategoryId && allMatchingCatIds.has(p.subcategoryId))
+        );
+
+        setCategoryName(cat ? cat.name : `القسم ${categoryId}`);
 
         const subs = cats
           .filter((c: any) => c.parentId && parentIdsSet.has(c.parentId) && !c.isHidden)
@@ -151,27 +154,100 @@ export default function Products() {
             uniqueSubs.push(s);
           }
         });
+
         setSubCategories(uniqueSubs);
       }
+      
+      fetchedProducts = shuffleProductsForUser<Product>(fetchedProducts);
+      setProducts(fetchedProducts);
     } catch (err) {
       console.error(err);
-    } finally {
-      setLoading(false);
-      setInitialLoading(false);
     }
   };
 
   useEffect(() => {
     let mounted = true;
 
-    fetchProducts(currentPage, activeSub, searchTerm);
+    // Instant local cache restoration so the user experiences NO wait time
+    Promise.all([
+      localCache.get<any[]>('all_categories'),
+      localCache.get<any[]>('all_products')
+    ]).then(([cachedCats, cachedProds]) => {
+      if (!mounted) return;
+      if (cachedCats && cachedCats.length > 0) {
+        setAllCategories(cachedCats);
+        if (categoryId) {
+          const cat = cachedCats.find((c: any) => c.id === categoryId);
+          if (cat) setCategoryName(cat.name);
+          const sameNameParents = cachedCats.filter((c: any) => cat && c.name?.trim() === cat.name?.trim());
+          const parentIdsSet = new Set([categoryId, ...sameNameParents.map((c: any) => c.id)]);
+
+          const subs = cachedCats
+            .filter((c: any) => c.parentId && parentIdsSet.has(c.parentId) && !c.isHidden)
+            .sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+
+          const uniqueSubs: any[] = [];
+          const subNameSeen = new Set<string>();
+          subs.forEach(s => {
+            const sName = s.name.trim();
+            if (!subNameSeen.has(sName)) {
+              subNameSeen.add(sName);
+              uniqueSubs.push(s);
+            }
+          });
+
+          setSubCategories(uniqueSubs);
+        }
+      }
+      if (cachedProds && cachedProds.length > 0) {
+        const archivedCatId = cachedCats?.find((c: any) => isArchivedCategoryName(c.name))?.id;
+        const isArchivedProd = (p: any) => p.isArchived || (archivedCatId && p.categoryId === archivedCatId);
+        
+        let fetchedProducts = cachedProds.filter((p: any) => 
+          !p.isHidden && !p.isLocked && !p.isDeleted &&
+          (categoryId === archivedCatId ? isArchivedProd(p) : !isArchivedProd(p))
+        );
+        
+        if (categoryId && cachedCats) {
+          const cat = cachedCats.find((c: any) => c.id === categoryId);
+          const sameNameParents = cachedCats.filter((c: any) => cat && c.name?.trim() === cat.name?.trim());
+          const parentIdsSet = new Set([categoryId, ...sameNameParents.map((c: any) => c.id)]);
+
+          const childSubCats = cachedCats.filter((c: any) => c.parentId && parentIdsSet.has(c.parentId));
+          const childSubCatIdsSet = new Set(childSubCats.map((c: any) => c.id));
+          const allMatchingCatIds = new Set([...parentIdsSet, ...childSubCatIdsSet]);
+
+          fetchedProducts = fetchedProducts.filter((p: any) => 
+            (p.categoryId && allMatchingCatIds.has(p.categoryId)) ||
+            (p.subcategoryId && allMatchingCatIds.has(p.subcategoryId))
+          );
+        }
+        
+        setProducts(shuffleProductsForUser(fetchedProducts));
+        setLoading(false);
+        setInitialLoading(false);
+      }
+    });
+
+    const init = async () => {
+      try {
+        await fetchProducts();
+      } finally {
+        if (mounted) {
+          setLoading(false);
+          setInitialLoading(false);
+        }
+      }
+    };
+
+    init();
 
     // Instant local BroadcastChannel synchronization across tabs
     let fetchTimeout: any = null;
     const scheduleFetch = (delay = 400) => {
       clearTimeout(fetchTimeout);
       fetchTimeout = setTimeout(() => {
-        if (mounted) fetchProducts(currentPage, activeSub, searchTerm);
+        if (mounted) fetchProducts(true);
       }, delay);
     };
 
@@ -215,7 +291,7 @@ export default function Products() {
         try { bc.close(); } catch {}
       }
     };
-  }, [categoryId, currentPage, activeSub, searchTerm]);
+  }, [categoryId]);
 
   
   // Handle scroll and state restoration
@@ -328,12 +404,49 @@ export default function Products() {
     }
   };
 
-  // Filtered list for display - simplified as fetching is done on DB
-  const filteredProductsAll = products;
+  const filteredProductsAll = useMemo(() => {
+    const archivedCatId = allCategories.find((c: any) => isArchivedCategoryName(c.name))?.id;
+    const isArchivedProd = (p: any) => p.isArchived || (archivedCatId && p.categoryId === archivedCatId);
+
+    const isActive = (p: any) =>
+      !p.isHidden &&
+      !p.isLocked &&
+      !p.isDeleted &&
+      !isProductRestrictedFromSearch(p, allCategories) &&
+      (categoryId === archivedCatId ? isArchivedProd(p) : !isArchivedProd(p));
+
+    // Only active products (never archived, hidden, locked, or in restricted categories) - Global search when searchTerm exists
+    if (searchTerm && searchTerm.trim()) {
+      const source = (allStoreProducts.length > 0 ? allStoreProducts : products).filter(isActive);
+      const result = filterProductsBySearch(source, searchTerm, allCategories);
+      return result.filter(isActive);
+    }
+
+    // Normal browsing without search term: show category-filtered and regular active products ONLY
+    let result = products.filter(isActive);
+    if (activeSub) {
+      const activeSubCat = allCategories.find((c: any) => c.id === activeSub);
+      const sameNameSubs = allCategories.filter((c: any) => activeSubCat && c.name?.trim() === activeSubCat.name?.trim());
+      const activeSubIdsSet = new Set([activeSub, ...sameNameSubs.map((c: any) => c.id)]);
+
+      result = result.filter((p) => 
+        (p.subcategoryId && activeSubIdsSet.has(p.subcategoryId)) || 
+        (p.categoryId && activeSubIdsSet.has(p.categoryId))
+      );
+    }
+    const cleanList = result.filter(isActive);
+    
+    // Distribute products across pages with pageSize = 50
+    return shuffleProductsForUser(cleanList, 50, `member_${categoryId || 'all'}_${activeSub || 'none'}`);
+  }, [activeSub, products, allStoreProducts, searchTerm, allCategories, categoryId]);
   
-  // Pagination logic: using DB-provided totalCount
-  const totalPages = Math.ceil(totalCount / itemsPerPage);
-  const filteredProducts = products;
+  // Pagination: strict 50 items per page
+  const itemsPerPage = 50;
+  const totalPages = Math.ceil(filteredProductsAll.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const filteredProducts = useMemo(() => {
+    return filteredProductsAll.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredProductsAll, startIndex]);
 
 
   
@@ -557,7 +670,7 @@ export default function Products() {
                 {searchTerm ? 'نتائج البحث الشامل' : categoryName}
               </h2>
               <p className="text-[10px] text-white/50">
-                {totalCount} منتجات {searchTerm ? '(بحث في جميع المواد والموديلات)' : ''}
+                {filteredProductsAll.length} منتجات {searchTerm ? '(بحث في جميع المواد والموديلات)' : ''}
               </p>
             </div>
           </div>
@@ -610,15 +723,21 @@ export default function Products() {
               }`}
             >
               <span>الكل</span>
+              {isAdminOrSales && (
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${activeSub === null ? 'bg-black/20 text-black' : 'bg-white/10 text-brq-gold'}`}>
+                  {products.length}
+                </span>
+              )}
             </button>
             {subCategories.map((sub) => {
+              const subCount = products.filter(p => p.subcategoryId === sub.id || (p as any).subcategory === sub.name).length;
               return (
                 <button
                   key={sub.id}
                   onClick={() => { setActiveSub(sub.id); setCurrentPage(1); }}
                   className={`whitespace-nowrap px-4 py-1.5 rounded-full text-xs font-bold transition-colors flex items-center gap-1.5 ${
                     activeSub === sub.id 
-                      ? "bg-brq-gold text-black shadow-lg shadow-yellow-500/20" 
+                      ? "bg-brq-gold text-black" 
                       : "bg-white/10 text-white/70 hover:bg-white/20"
                   }`}
                 >
@@ -626,6 +745,11 @@ export default function Products() {
                     <img src={sub.icon} alt={sub.name} className="w-4 h-4 rounded-full object-cover shrink-0" />
                   )}
                   <span>{sub.name}</span>
+                  {isAdminOrSales && (
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${activeSub === sub.id ? 'bg-black/20 text-black' : 'bg-white/10 text-brq-gold'}`}>
+                      {subCount}
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -843,7 +967,7 @@ export default function Products() {
       {isDownloadDialogOpen && (
         <CategoryDownloadDialog 
           categories={allCategories}
-          products={products}
+          products={allStoreProducts.length > 0 ? allStoreProducts : products}
           onClose={() => setIsDownloadDialogOpen(false)}
         />
       )}

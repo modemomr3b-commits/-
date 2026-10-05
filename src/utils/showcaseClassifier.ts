@@ -49,12 +49,11 @@ export const SHOWCASE_CATEGORIES_METADATA = [
 export function detectShowcaseCategory(
   product: Partial<Product>,
   categories?: Category[] | string
-): ShowcaseCategoryType | null {
+): ShowcaseCategoryType {
   // If already assigned a valid showcase category, respect it
   if (product.showcaseCategory && VALID_SHOWCASE_CATEGORIES.includes(product.showcaseCategory as any)) {
     return product.showcaseCategory as ShowcaseCategoryType;
   }
 
-  const detected = detectStoreMainSection(product, categories);
-  return detected ? (detected as ShowcaseCategoryType) : null;
+  return detectStoreMainSection(product, categories) as ShowcaseCategoryType;
 }
