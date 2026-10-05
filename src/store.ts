@@ -31,7 +31,8 @@ export const useStore = create<AppState>()(
       initialize: () => {        set({ loading: false });      },
       cart: [],
       addToCart: (product, quantity) => {
-        if (product.isArchived || product.categoryId === 'be0a70a8-f9c6-430d-8416-11745f26576f') {
+        // Prevent adding archived products to cart
+        if (product.isArchived) {
           return;
         }
         set((state) => {

@@ -32,7 +32,7 @@ import { copyTextToClipboard, openWhatsAppDirectly } from "../../utils/whatsappS
 import { WhatsAppShareDialog } from "../shared/WhatsAppShareDialog";
 import CategoryIcon from "../ui/CategoryIcon";
 import { localCache } from "../../utils/localCache";
-import { isRestrictedCategoryName, isArchivedCategoryName, isProductRestrictedFromSearch } from "../../utils/search";
+import { isRestrictedCategoryName, isProductRestrictedFromSearch } from "../../utils/search";
 
 const DEFAULT_ICONS = ["✨", "👟", "🇹🇷", "⭐", "🎒", "☀️", "🔥"];
 
@@ -88,18 +88,9 @@ const calculateCategoryProductCounts = (cats: any[], prods: any[]) => {
 
 const filterAndDeduplicateTopCategories = (cats: any[], countsMap: Record<string, number>) => {
   if (!cats || !Array.isArray(cats)) return [];
-  
-  let topCats = cats
-    .filter((c) => !c.isHidden && !c.parentId && !isRestrictedCategoryName(c.name) && !isArchivedCategoryName(c.name))
+  const topCats = cats
+    .filter((c) => !c.isHidden && !c.parentId && !isRestrictedCategoryName(c.name))
     .sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
-
-  // Fallback: If filtering by name was too aggressive and removed everything, 
-  // revert to just showing all non-hidden top categories.
-  if (topCats.length === 0 && cats.some(c => !c.parentId && !c.isHidden)) {
-    topCats = cats
-      .filter(c => !c.parentId && !c.isHidden)
-      .sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
-  }
 
   const nameMap = new Map<string, any>();
   topCats.forEach((c) => {
@@ -150,19 +141,33 @@ export default function Home() {
         setShowcaseSettings(settings);
       }
 
-      api.getProducts().then(prods => {
-        if (prods && Array.isArray(prods) && cats && Array.isArray(cats)) {
-          const scCount = prods.filter((p: any) => p.isShowcase && !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !p.size?.isArchived && !p.size?.isHidden && !p.size?.isLocked && !isProductRestrictedFromSearch(p, cats)).length;
-          setShowcaseCount(scCount);
-
-          const counts = calculateCategoryProductCounts(cats, prods);
-          setProductsCountMap(counts);
-          setCategories(filterAndDeduplicateTopCategories(cats, counts));
-        }
-      }).catch(console.error);
-
       if (cats && Array.isArray(cats)) {
         setCategories(filterAndDeduplicateTopCategories(cats, {}));
+      }
+
+      // Egress optimization: Only fetch products to calculate counts if user is admin
+      // This saves massive amounts of data for regular customers
+      if (isAdminOrSales) {
+        api.getProducts().then(prods => {
+          if (prods && Array.isArray(prods) && cats && Array.isArray(cats)) {
+            const scCount = prods.filter((p: any) => p.isShowcase && !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !p.size?.isArchived && !p.size?.isHidden && !p.size?.isLocked && !isProductRestrictedFromSearch(p, cats)).length;
+            setShowcaseCount(scCount);
+
+            const counts = calculateCategoryProductCounts(cats, prods);
+            setProductsCountMap(counts);
+            setCategories(filterAndDeduplicateTopCategories(cats, counts));
+          }
+        }).catch(console.error);
+      } else {
+        // For regular users, we can fetch JUST the showcase count with a very light query
+        supabase
+          .from('products')
+          .select('id', { count: 'exact', head: true })
+          .eq('isDeleted', false)
+          .contains('size', { isShowcase: true, isHidden: false, isArchived: false })
+          .then(({ count }) => {
+            if (count !== null) setShowcaseCount(count);
+          });
       }
 
     } catch (e) {
@@ -173,6 +178,22 @@ export default function Home() {
   useEffect(() => {
     let mounted = true;
     let fetchTimeout: any;
+
+    Promise.all([
+      localCache.get<any[]>('all_categories'),
+      localCache.get<any[]>('all_products')
+    ]).then(([cachedCats, cachedProds]) => {
+      if (!mounted) return;
+      if (cachedCats && cachedCats.length > 0) {
+        let counts = {};
+        if (cachedProds && cachedProds.length > 0) {
+          counts = calculateCategoryProductCounts(cachedCats, cachedProds);
+          setProductsCountMap(counts);
+        }
+        setCategories(filterAndDeduplicateTopCategories(cachedCats, counts));
+        setLoading(false);
+      }
+    });
 
     const initialFetch = async () => {
       try {

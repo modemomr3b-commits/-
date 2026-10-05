@@ -4,22 +4,34 @@ import { ActivityLog } from './types';
 import { parseOrderDetails } from './utils/orderUtils';
 import { localCache } from './utils/localCache';
 
-const getData = async (table: string) => {
+const getData = async (table: string, force = false) => {
   let allData: any[] = [];
   let from = 0;
   const limit = 1000;
   
-  try {
-    while (true) {
+  const fetchWithRetry = async (retryCount = 0): Promise<any[]> => {
+    try {
       const { data, error } = await supabase
         .from(table)
-        .select('*')
+        .select('id, name, modelNumber, productCode, price, dozenPriceUsd, imageUrl, categoryId, subcategoryId, size')
         .order('id', { ascending: true })
         .range(from, from + limit - 1);
         
-      if (error) {
-        throw error;
+      if (error) throw error;
+      return data || [];
+    } catch (err: any) {
+      // Retry up to 2 times if it's a connection error or DB shutting down
+      if (retryCount < 2 && (err.message?.includes('connection') || err.code === '57P03' || err.message?.includes('shutting down'))) {
+        await new Promise(r => setTimeout(r, 1500 * (retryCount + 1)));
+        return fetchWithRetry(retryCount + 1);
       }
+      throw err;
+    }
+  };
+
+  try {
+    while (true) {
+      const data = await fetchWithRetry();
       
       if (data && data.length > 0) {
         const activeData = data.filter((item: any) => item.isDeleted !== true);
@@ -37,6 +49,11 @@ const getData = async (table: string) => {
     }
     return allData;
   } catch (err) {
+    if (force) {
+      // If forced, we DO NOT want stale data. Throw error so UI can handle it.
+      console.error(`Strict fetch failed for table ${table}:`, err);
+      throw err;
+    }
     console.warn(`Network error in getData for table ${table}, falling back to local cache:`, err);
     const cached = await localCache.get<any[]>(`all_${table}`, Infinity);
     if (cached && cached.length > 0) {
@@ -138,71 +155,136 @@ export const api = {
   },
 
   // PRODUCTS
-  getProductsByCategory: async (categoryId: string) => {
+  getProductsByCategory: async (categoryId: string, force = false) => {
     const cacheKey = `products_cat_${categoryId}`;
-    if (memCache[cacheKey] && Date.now() - memCache[cacheKey].timestamp < MEM_CACHE_TTL) {
+    if (!force && memCache[cacheKey] && Date.now() - memCache[cacheKey].timestamp < MEM_CACHE_TTL) {
       return memCache[cacheKey].data;
     }
     
-    // Check persistent local cache for instant retrieval
-    const cachedCatProds = await localCache.get<any[]>(cacheKey, 1000 * 60 * 10);
-    if (cachedCatProds && cachedCatProds.length > 0) {
-      memCache[cacheKey] = { data: cachedCatProds, timestamp: Date.now() };
-      // Background revalidation
-      setTimeout(async () => {
-        try {
-          const fresh = await api.getProductsByCategoryDirect(categoryId);
-          if (fresh) {
-            memCache[cacheKey] = { data: fresh, timestamp: Date.now() };
-            localCache.set(cacheKey, fresh);
-          }
-        } catch {}
-      }, 50);
-      return cachedCatProds;
+    if (!force) {
+      // Check persistent local cache for instant retrieval
+      const cachedCatProds = await localCache.get<any[]>(cacheKey, 1000 * 60 * 10);
+      if (cachedCatProds && cachedCatProds.length > 0) {
+        memCache[cacheKey] = { data: cachedCatProds, timestamp: Date.now() };
+        // Background revalidation
+        setTimeout(async () => {
+          try {
+            const fresh = await api.getProductsByCategoryDirect(categoryId);
+            if (fresh) {
+              memCache[cacheKey] = { data: fresh, timestamp: Date.now() };
+              localCache.set(cacheKey, fresh);
+            }
+          } catch {}
+        }, 50);
+        return cachedCatProds;
+      }
     }
 
-    return api.getProductsByCategoryDirect(categoryId);
+    return api.getProductsByCategoryDirect(categoryId, force);
   },
 
-  getProductsByCategoryDirect: async (categoryId: string) => {
+  getProductsByCategoryDirect: async (categoryId: string, force = false) => {
     const cacheKey = `products_cat_${categoryId}`;
-    const categories = await api.getCategories();
+    const categories = await api.getCategories(force);
     const currentCat = categories.find((c: any) => c.id === categoryId);
+    if (!currentCat) return [];
 
     const sameNameCatIds = categories
-      .filter((c: any) => currentCat && c.name?.trim() === currentCat.name?.trim())
+      .filter((c: any) => c.name?.trim() === currentCat.name?.trim())
       .map((c: any) => c.id);
 
-    const targetCatIds = new Set<string>([categoryId, ...sameNameCatIds]);
-
+    const targetCatIds = [categoryId, ...sameNameCatIds];
     const isMainCat = !currentCat?.parentId;
-    const allProducts = await api.getProducts();
 
-    let res: any[] = [];
+    let allIdsToFetch = [...targetCatIds];
     if (isMainCat) {
-      // Find direct child subcategories for any of these main categories
-      const subCats = categories.filter((c: any) => c.parentId && targetCatIds.has(c.parentId));
-      const childSubCatIds = new Set<string>(subCats.map((c: any) => c.id));
-
-      res = allProducts.filter((p: any) => {
-        if (p.categoryId && targetCatIds.has(p.categoryId)) return true;
-        if (p.subcategoryId && targetCatIds.has(p.subcategoryId)) return true;
-        if (p.subcategoryId && childSubCatIds.has(p.subcategoryId)) return true;
-        if (p.categoryId && childSubCatIds.has(p.categoryId)) return true;
-        return false;
-      });
-    } else {
-      // Subcategory: match products assigned to this subcategory or subcategory ID
-      res = allProducts.filter((p: any) => {
-        if (p.subcategoryId && targetCatIds.has(p.subcategoryId)) return true;
-        if (p.categoryId && targetCatIds.has(p.categoryId)) return true;
-        return false;
-      });
+      const childSubCats = categories.filter((c: any) => c.parentId && targetCatIds.includes(c.parentId));
+      allIdsToFetch = [...allIdsToFetch, ...childSubCats.map((c: any) => c.id)];
     }
 
-    memCache[cacheKey] = { data: res, timestamp: Date.now() };
-    localCache.set(cacheKey, res).catch(() => {});
-    return res;
+    const mapProduct = (p: any) => ({
+      ...p,
+      packaging: p.packaging !== undefined && p.packaging !== null && p.packaging !== '' && p.packaging !== '---'
+        ? String(p.packaging)
+        : (p.size?.packaging || (p.piecesCount ? String(p.piecesCount) : (p.size?.piecesCount ? String(p.size.piecesCount) : ''))),
+      piecesCount: p.piecesCount !== undefined && p.piecesCount !== null
+        ? Number(p.piecesCount)
+        : (p.size?.piecesCount !== undefined ? Number(p.size.piecesCount) : undefined),
+      isHidden: p.size?.isHidden !== undefined ? Boolean(p.size.isHidden) : Boolean(p.isHidden),
+      isLocked: p.size?.isLocked !== undefined ? Boolean(p.size.isLocked) : Boolean(p.isLocked),
+      isArchived: p.isArchived !== undefined ? Boolean(p.isArchived) : (p.size?.isArchived !== undefined ? Boolean(p.size.isArchived) : false),
+      isDeleted: Boolean(p.isDeleted),
+      isShowcase: p.size?.isShowcase !== undefined ? Boolean(p.size.isShowcase) : Boolean(p.isShowcase),
+      showcaseCategory: p.size?.showcaseCategory || p.showcaseCategory || '',
+      oldPriceInfo: p.size?.oldPriceInfo || undefined,
+      forceStandardCrush: p.size?.forceStandardCrush ?? true,
+      updatedAt: p.size?.updatedAt || p.createdAt
+    });
+
+    try {
+      // Egress optimization: Query ONLY products belonging to these categories
+      const { data, error } = await supabase
+        .from('products')
+        .select('id, name, modelNumber, productCode, price, dozenPriceUsd, imageUrl, categoryId, subcategoryId, size')
+        .or(`categoryId.in.(${allIdsToFetch.join(',')}),subcategoryId.in.(${allIdsToFetch.join(',')})`)
+        .eq('isDeleted', false)
+        .order('createdAt', { ascending: false });
+
+      if (error) throw error;
+      const res = (data || []).map(mapProduct);
+      
+      memCache[cacheKey] = { data: res, timestamp: Date.now() };
+      localCache.set(cacheKey, res).catch(() => {});
+      return res;
+    } catch (err) {
+      console.error('Fetch by category failed:', err);
+      return [];
+    }
+  },
+
+  getShowcaseProducts: async () => {
+    const cacheKey = 'showcase_products';
+    if (memCache[cacheKey] && Date.now() - memCache[cacheKey].timestamp < MEM_CACHE_TTL) {
+      return memCache[cacheKey].data;
+    }
+
+    const mapProduct = (p: any) => ({
+      ...p,
+      packaging: p.packaging !== undefined && p.packaging !== null && p.packaging !== '' && p.packaging !== '---'
+        ? String(p.packaging)
+        : (p.size?.packaging || (p.piecesCount ? String(p.piecesCount) : (p.size?.piecesCount ? String(p.size.piecesCount) : ''))),
+      piecesCount: p.piecesCount !== undefined && p.piecesCount !== null
+        ? Number(p.piecesCount)
+        : (p.size?.piecesCount !== undefined ? Number(p.size.piecesCount) : undefined),
+      isHidden: p.size?.isHidden !== undefined ? Boolean(p.size.isHidden) : Boolean(p.isHidden),
+      isLocked: p.size?.isLocked !== undefined ? Boolean(p.size.isLocked) : Boolean(p.isLocked),
+      isArchived: p.isArchived !== undefined ? Boolean(p.isArchived) : (p.size?.isArchived !== undefined ? Boolean(p.size.isArchived) : false),
+      isDeleted: Boolean(p.isDeleted),
+      isShowcase: p.size?.isShowcase !== undefined ? Boolean(p.size.isShowcase) : Boolean(p.isShowcase),
+      showcaseCategory: p.size?.showcaseCategory || p.showcaseCategory || '',
+      oldPriceInfo: p.size?.oldPriceInfo || undefined,
+      forceStandardCrush: p.size?.forceStandardCrush ?? true,
+      updatedAt: p.size?.updatedAt || p.createdAt
+    });
+
+    try {
+      // Egress optimization: Query ONLY products with isShowcase=true in the 'size' JSON column
+      const { data, error } = await supabase
+        .from('products')
+        .select('id, name, modelNumber, productCode, price, dozenPriceUsd, imageUrl, categoryId, subcategoryId, size')
+        .contains('size', { isShowcase: true, isHidden: false, isArchived: false })
+        .eq('isDeleted', false)
+        .order('createdAt', { ascending: false });
+
+      if (error) throw error;
+      const res = (data || []).map(mapProduct);
+      
+      memCache[cacheKey] = { data: res, timestamp: Date.now() };
+      return res;
+    } catch (err) {
+      console.error('Fetch showcase products failed:', err);
+      return [];
+    }
   },
 
   getProductById: async (id: string) => {
@@ -257,7 +339,7 @@ export const api = {
     });
 
     try {
-      const data = await getData('products');
+      const data = await getData('products', force);
       if (data && data.length > 0) {
         const res = data.map(mapProduct).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
         memCache['all_products'] = { data: res, timestamp: Date.now() };
@@ -265,10 +347,11 @@ export const api = {
         return res;
       }
     } catch (networkErr) {
+      if (force) throw networkErr;
       console.warn('Network fetch failed, falling back to cached local storage version:', networkErr);
     }
 
-    // Fallback to cache if network fails (لا سامح الله صارت مشكلة)
+    // Fallback to cache if network fails (and not forced)
     const fallbackLocal = await localCache.get<any[]>('all_products', Infinity);
     if (fallbackLocal && fallbackLocal.length > 0) {
       return fallbackLocal.map(mapProduct);
@@ -825,14 +908,14 @@ export const api = {
   },
 
   // CATEGORIES
-  getCategories: async () => {
+  getCategories: async (force = false) => {
     const cacheKey = 'all_categories';
-    if (memCache[cacheKey]?.data?.length && (Date.now() - (memCache[cacheKey].timestamp || 0) < 30000)) {
+    if (!force && memCache[cacheKey]?.data?.length && (Date.now() - (memCache[cacheKey].timestamp || 0) < 30000)) {
       return memCache[cacheKey].data;
     }
     
     try {
-      const fresh = await getData('categories');
+      const fresh = await getData('categories', force);
       if (fresh && fresh.length > 0) {
         memCache[cacheKey] = { data: fresh, timestamp: Date.now() };
         localCache.set(cacheKey, fresh).catch(() => {});
