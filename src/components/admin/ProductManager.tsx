@@ -930,7 +930,8 @@ export default function ProductManager() {
     );
     try {
       await api.updateProduct(p.id!, updates);
-      setAlertMessage(`تم نقل المنتج "${p.name || ''}" إلى قسم المواد النافذة بنجاح`);
+      await loadData(true);
+      setAlertMessage(`تم تحديث البيانات ونقل المنتج "${p.name || ''}" إلى المواد النافذة بنجاح`);
     } catch (e) {
       console.error(e);
       // Revert optimistic update
@@ -1168,7 +1169,9 @@ export default function ProductManager() {
 
     try {
       await api.bulkUpdateProducts(ids, updatePayload);
-      setAlertMessage(`تم نقل ${ids.length} منتج إلى قسم المواد النافذة بنجاح`);
+      await loadData(true);
+      
+      setAlertMessage(`تم تحديث البيانات ونقل ${ids.length} منتج إلى قسم المواد النافذة بنجاح`);
     } catch (e: any) {
       console.error("Error bulk moving to archived category:", e);
       const updated = await api.getProducts();
@@ -1268,6 +1271,11 @@ export default function ProductManager() {
         subcategoryId: targetSubcatId,
         ...(isMovingToArchived ? { isShowcase: false } : {})
       });
+      
+      // Verification reload - now surgical because cache isn't wiped
+      await loadData(true);
+      
+      setAlertMessage(`تم تحديث البيانات ونقل ${ids.length} منتج بنجاح.`);
     } catch (e: any) {
       console.error("Error bulk moving categories:", e);
       const updated = await api.getProducts();
@@ -1309,6 +1317,8 @@ export default function ProductManager() {
       for (const [catId, groupIds] of Object.entries(catGroups)) {
         await api.bulkUpdateProducts(groupIds, { categoryId: catId, subcategoryId: '' });
       }
+      await loadData(true);
+      setAlertMessage("تم تحديث البيانات ونقل المنتجات ذكياً بنجاح.");
     } catch (e: any) {
       console.error(e);
       try {
@@ -1585,6 +1595,16 @@ export default function ProductManager() {
           </button>
           <button onClick={() => setIsAutoShowcaseOpen(true)} className="flex-1 md:flex-none flex items-center justify-center gap-2 py-2.5 px-4 bg-amber-500/20 border border-amber-500/50 text-amber-300 rounded-xl hover:bg-amber-500/30 transition-all text-sm font-bold shadow-md">
             <Sparkles size={18} /> النشر التلقائي للمعرض 🪄
+          </button>
+          <button 
+            onClick={() => {
+              setLoading(true);
+              loadData(true).finally(() => setLoading(false));
+            }}
+            className="flex-1 md:flex-none flex items-center justify-center gap-2 py-2.5 px-4 bg-emerald-500/20 border border-emerald-500/50 text-emerald-400 rounded-xl hover:bg-emerald-500/30 transition-all text-sm font-bold shadow-md"
+            title="تحديث البيانات من السيرفر مباشرة وتجاوز التخزين المؤقت"
+          >
+            <History size={18} /> تحديث البيانات 🔄
           </button>
           <button
             onClick={() => { setIsAdding(!isAdding); setIsBatchAdding(false); }}
@@ -2134,7 +2154,7 @@ export default function ProductManager() {
                       className="flex items-center gap-2 px-4 py-2 bg-orange-500/20 text-orange-400 border border-orange-500/30 rounded-lg text-sm hover:bg-orange-500/30 transition-colors font-bold whitespace-nowrap disabled:opacity-50"
                     >
                       {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Package size={16} />}
-                      نقل للمواد النافذة
+                      تحديث ونقل للنافذة
                     </button>
                   )}
                   {selectedIds.size > 0 && filterStatus === 'archived' && (
@@ -2194,7 +2214,7 @@ export default function ProductManager() {
                       className="flex items-center gap-2 px-4 py-2 bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 rounded-lg text-sm hover:bg-indigo-500/30 transition-colors font-bold whitespace-nowrap disabled:opacity-50"
                     >
                       <FolderInput size={16} />
-                      نقل الأقسام
+                      تحديث ونقل الأقسام
                     </button>
                   )}
                   {selectedIds.size > 0 && (
@@ -3280,9 +3300,19 @@ export default function ProductManager() {
               <button
                 onClick={handleBulkMoveCategory}
                 disabled={!moveToCategoryId || isSubmitting}
-                className="px-4 py-2 bg-indigo-500/20 hover:bg-indigo-500 text-indigo-400 hover:text-white border border-indigo-500/50 rounded-lg transition-all font-bold text-sm disabled:opacity-50"
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white border border-indigo-500/50 rounded-lg transition-all font-black text-sm disabled:opacity-50 flex items-center gap-2 shadow-lg shadow-indigo-500/20"
               >
-                {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : "نقل"}
+                {isSubmitting ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    جاري التحديث...
+                  </>
+                ) : (
+                  <>
+                    <History size={16} />
+                    تحديث البيانات ونقلها
+                  </>
+                )}
               </button>
             </div>
           </div>

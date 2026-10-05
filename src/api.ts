@@ -227,13 +227,13 @@ export const api = {
     };
   },
 
-  getProducts: async () => {
-    return api.getProductsDirect();
+  getProducts: async (force = false) => {
+    return api.getProductsDirect(force);
   },
 
-  getProductsDirect: async () => {
-    // Return in-memory cache instantly if fresh (under 60 seconds)
-    if (memCache['all_products'] && (Date.now() - memCache['all_products'].timestamp < MEM_CACHE_TTL)) {
+  getProductsDirect: async (force = false) => {
+    // Return in-memory cache instantly if fresh (under 60 seconds) AND not forced
+    if (!force && memCache['all_products'] && (Date.now() - memCache['all_products'].timestamp < MEM_CACHE_TTL)) {
       return memCache['all_products'].data;
     }
 
