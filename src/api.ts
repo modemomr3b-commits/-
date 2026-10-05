@@ -861,7 +861,7 @@ export const api = {
   },
   getUser: async (id: string) => { 
     try {
-      const { data, error } = await supabase.from('users').select('*').eq('id', id).single();
+      const { data, error } = await supabase.from('users').select('*').eq('id', id).maybeSingle();
       if (error) return null;
       return data;
     } catch (e) {
@@ -873,7 +873,7 @@ export const api = {
     if (error) throw error; return r; 
   },
   updateUser: async (id: string, data: any, silent?: boolean) => { 
-    const { data: r, error } = await supabase.from('users').update(data).match({ id }).select().single(); 
+    const { data: r, error } = await supabase.from('users').update(data).match({ id }).select().maybeSingle(); 
     if (error && !silent) throw error; 
     if (data.status || data.isDeleted !== undefined) {
       try {
@@ -909,13 +909,15 @@ export const api = {
 
   // ORDERS
   getOrders: async () => {
-    // Optimization: Fetch only recent orders to avoid timeouts
-    const { data, error } = await supabase
-      .from('orders')
-      .select('*')
-      .neq('status', 'completed')
-      .order('createdAt', { ascending: false })
-      .limit(500);
+    // Optimization: Fetch only recent active orders using safe batching
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*')
+        .neq('status', 'completed')
+        .eq('isDeleted', false)
+        .order('createdAt', { ascending: false })
+        .limit(200); // Strict limit to prevent timeouts
 
     if (error) {
       console.error('Error fetching recent orders:', error);
@@ -945,19 +947,11 @@ export const api = {
   },
 
   getAllOrders: async () => {
-    // Fetch all orders including completed ones
-    const { data, error } = await supabase
-      .from('orders')
-      .select('*')
-      .order('createdAt', { ascending: false });
-
-    if (error) {
-      console.error('Error fetching all orders:', error);
-      return [];
-    }
+    // Fetch all orders using safe data retrieval pattern
+    const data = await getData('orders');
+    if (!data) return [];
     
-    const activeData = (data || []).filter((item: any) => item.isDeleted !== true);
-    return activeData.map((o: any) => {
+    return data.map((o: any) => {
       const parsed = parseOrderDetails(o);
 
       return {
