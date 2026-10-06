@@ -11,9 +11,11 @@ const getData = async (table: string) => {
   
   try {
     while (true) {
-      const { data, error } = await supabase
-        .from(table)
-        .select('*')
+      const query = table === 'products' 
+        ? supabase.from(table).select('id, name, price, modelNumber, productCode, categoryId, subcategoryId, imageUrl, isArchived, isHidden, isLocked, isShowcase, createdAt, updatedAt')
+        : supabase.from(table).select('*');
+      
+      const { data, error } = await query
         .order('id', { ascending: true })
         .range(from, from + limit - 1);
         
