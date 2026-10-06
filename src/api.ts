@@ -388,7 +388,7 @@ export const api = {
       let queryBuilder = supabase
         .from('products')
         .select('*')
-        .or(`name.ilike.%${query}%,productCode.ilike.%${query}%`)
+        .or(`name.ilike.%${query}%,productCode.ilike.%${query}%,modelNumber.ilike.%${query}%`)
         .eq('isDeleted', false);
 
       if (categoryId) {
@@ -400,7 +400,10 @@ export const api = {
         .order('createdAt', { ascending: false })
         .limit(200);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Database search error:', error);
+        throw error;
+      }
       return (data || []).map(mapProduct);
     } catch (err) {
       console.error('Database search failed:', err);
