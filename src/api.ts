@@ -976,13 +976,13 @@ export const api = {
 
   // ORDERS
   getOrders: async () => {
-    // Optimization: Fetch only recent orders to avoid timeouts
+    // Optimization: Fetch only essential fields to avoid timeouts
     const { data, error } = await supabase
       .from('orders')
-      .select('*')
+      .select('id, status, createdAt, userId, username, fullName, customerName, transport, total, products, items, notes')
       .neq('status', 'completed')
       .order('createdAt', { ascending: false })
-      .limit(500);
+      .limit(200);
 
     if (error) {
       console.error('Error fetching recent orders:', error);
@@ -1012,10 +1012,10 @@ export const api = {
   },
 
   getAllOrders: async () => {
-    // Fetch all orders including completed ones
+    // Optimization: Fetch only essential fields to avoid timeouts
     const { data, error } = await supabase
       .from('orders')
-      .select('*')
+      .select('id, status, createdAt, userId, username, fullName, customerName, transport, total, products, items, notes')
       .order('createdAt', { ascending: false });
 
     if (error) {
