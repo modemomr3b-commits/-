@@ -105,7 +105,7 @@ export default function Products() {
       const cats = await api.getCategories();
       setAllCategories(cats);
       
-      const allStore = await api.getProducts(forceDirect);
+      const allStore = forceDirect ? await api.getProductsDirect() : await api.getProducts();
       
       // Auto-retry if empty on the very first load to prevent showing "No products" prematurely
       if (allStore.length === 0 && !isRetry) {
@@ -231,11 +231,7 @@ export default function Products() {
 
     const init = async () => {
       try {
-        console.log("Initializing products view...");
-        await fetchProducts(false); // Try cache first via fetchProducts
-        console.log("Initial fetch finished.");
-      } catch (err) {
-        console.error("Critical error in init fetch:", err);
+        await fetchProducts();
       } finally {
         if (mounted) {
           setLoading(false);
@@ -275,11 +271,6 @@ export default function Products() {
       })
       .on('broadcast', { event: 'bulk_updated' }, () => {
         scheduleFetch(600);
-      })
-      .on('broadcast', { event: 'force_refresh' }, () => {
-        // Strict system: Clear caches and force immediate reload
-        api.clearCache();
-        fetchProducts(true);
       })
       .on('broadcast', { event: 'product_changed' }, () => {
         scheduleFetch(600);

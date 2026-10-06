@@ -42,6 +42,7 @@ export const localCache = {
             return;
           }
           if (maxAgeMs && Date.now() - item.timestamp > maxAgeMs) {
+            // Expired, but we can still return data if caller wants stale-while-revalidate, or null
             resolve(item.data);
           } else {
             resolve(item.data);
@@ -50,6 +51,7 @@ export const localCache = {
         req.onerror = () => resolve(null);
       });
     } catch {
+      // LocalStorage fallback
       try {
         const raw = localStorage.getItem(`brq_c_${key}`);
         if (!raw) return null;
@@ -74,7 +76,9 @@ export const localCache = {
     } catch {
       try {
         localStorage.setItem(`brq_c_${key}`, JSON.stringify({ data, timestamp: Date.now() }));
-      } catch {}
+      } catch {
+        // storage quota exceeded or disabled
+      }
     }
   },
 
@@ -129,5 +133,3 @@ export const localCache = {
     }
   }
 };
-
-

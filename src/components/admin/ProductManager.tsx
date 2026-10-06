@@ -371,29 +371,17 @@ export default function ProductManager() {
           }, 300);
         },
       )
-      .on('broadcast', { event: 'bulk_updated' }, (payload: any) => {
-        const { ids, data } = payload.payload;
-        if (!ids || !data || !mounted) return;
-        const idSet = new Set(ids);
-        setProducts(prev => prev.map(p => idSet.has(p.id!) ? { ...p, ...data } : p));
+      .on('broadcast', { event: 'bulk_updated' }, () => {
+        if (mounted) loadData(true);
       })
-      .on('broadcast', { event: 'product_changed' }, (payload: any) => {
-        const { id, data } = payload.payload;
-        if (!id || !data || !mounted) return;
-        setProducts(prev => prev.map(p => p.id === id ? { ...p, ...data } : p));
+      .on('broadcast', { event: 'product_changed' }, () => {
+        if (mounted) loadData(true);
       })
-      .on('broadcast', { event: 'product_created' }, (payload: any) => {
-        const { product } = payload.payload;
-        if (product && mounted) {
-          setProducts(prev => [product, ...prev]);
-        }
+      .on('broadcast', { event: 'product_created' }, () => {
+        if (mounted) loadData(true);
       })
-      .on('broadcast', { event: 'bulk_deleted' }, (payload: any) => {
-        const { ids } = payload.payload;
-        if (ids && mounted) {
-          const idSet = new Set(ids);
-          setProducts(prev => prev.filter(p => !idSet.has(p.id!)));
-        }
+      .on('broadcast', { event: 'bulk_deleted' }, () => {
+        if (mounted) loadData(true);
       })
       .subscribe();
 
@@ -930,7 +918,7 @@ export default function ProductManager() {
       return;
     }
 
-    const updates: any = { categoryId: archivedCatId, isArchived: true, isHidden: false, isLocked: false, isShowcase: false };
+    const updates: any = { categoryId: archivedCatId, isArchived: false, isHidden: false, isLocked: false, isShowcase: false };
 
     // Optimistic update
     setProducts((prev) =>
@@ -942,8 +930,7 @@ export default function ProductManager() {
     );
     try {
       await api.updateProduct(p.id!, updates);
-      await loadData(true);
-      setAlertMessage(`تم تحديث البيانات ونقل المنتج "${p.name || ''}" إلى المواد النافذة بنجاح`);
+      setAlertMessage(`تم نقل المنتج "${p.name || ''}" إلى قسم المواد النافذة بنجاح`);
     } catch (e) {
       console.error(e);
       // Revert optimistic update
@@ -1168,13 +1155,7 @@ export default function ProductManager() {
     setSelectedIds(new Set());
     setIsSubmitting(true);
 
-    const updatePayload = { 
-      categoryId: archivedCatId, 
-      isArchived: true, 
-      isHidden: false, 
-      isLocked: false, 
-      isShowcase: false 
-    };
+    const updatePayload = { categoryId: archivedCatId, isArchived: false, isHidden: false, isLocked: false, isShowcase: false };
 
     // Instant optimistic local update
     setProducts((prev) =>
@@ -1187,9 +1168,7 @@ export default function ProductManager() {
 
     try {
       await api.bulkUpdateProducts(ids, updatePayload);
-      await loadData(true);
-      
-      setAlertMessage(`تم تحديث البيانات ونقل ${ids.length} منتج إلى قسم المواد النافذة بنجاح`);
+      setAlertMessage(`تم نقل ${ids.length} منتج إلى قسم المواد النافذة بنجاح`);
     } catch (e: any) {
       console.error("Error bulk moving to archived category:", e);
       const updated = await api.getProducts();
@@ -1264,19 +1243,16 @@ export default function ProductManager() {
     const archivedCatId = archivedCat?.id || 'be0a70a8-f9c6-430d-8416-11745f26576f';
     const isMovingToArchived = targetCatId === archivedCatId;
     
-    // Strict update payload
-    const updatePayload = { 
-      categoryId: targetCatId, 
-      subcategoryId: targetSubcatId,
-      isArchived: isMovingToArchived ? true : false,
-      ...(isMovingToArchived ? { isShowcase: false, isHidden: false } : {})
-    };
-
-    // Instant optimistic update
+    // Instant optimistic update and close modal immediately
     setProducts((prev) =>
       prev.map((prod) =>
         targetIdsSet.has(String(prod.id)) 
-          ? { ...prod, ...updatePayload } 
+          ? { 
+              ...prod, 
+              categoryId: targetCatId, 
+              subcategoryId: targetSubcatId || undefined,
+              ...(isMovingToArchived ? { isShowcase: false } : {})
+            } 
           : prod
       )
     );
@@ -1287,19 +1263,11 @@ export default function ProductManager() {
     setIsSubmitting(true);
 
     try {
-      await api.bulkUpdateProducts(ids, updatePayload);
-      
-      // Force verification reload
-      await loadData(true);
-
-      // CRITICAL: Notify all clients to sync immediately
-      await supabase.channel('products_changes').send({
-        type: 'broadcast',
-        event: 'force_refresh',
-        payload: { timestamp: Date.now(), reason: 'bulk_move' }
+      await api.bulkUpdateProducts(ids, { 
+        categoryId: targetCatId, 
+        subcategoryId: targetSubcatId,
+        ...(isMovingToArchived ? { isShowcase: false } : {})
       });
-      
-      setAlertMessage(`تم تحديث البيانات ونقل ${ids.length} منتج بنجاح وإرسال إشارة تحديث للأجهزة الأخرى.`);
     } catch (e: any) {
       console.error("Error bulk moving categories:", e);
       const updated = await api.getProducts();
@@ -1341,8 +1309,6 @@ export default function ProductManager() {
       for (const [catId, groupIds] of Object.entries(catGroups)) {
         await api.bulkUpdateProducts(groupIds, { categoryId: catId, subcategoryId: '' });
       }
-      await loadData(true);
-      setAlertMessage("تم تحديث البيانات ونقل المنتجات ذكياً بنجاح.");
     } catch (e: any) {
       console.error(e);
       try {
@@ -1619,30 +1585,6 @@ export default function ProductManager() {
           </button>
           <button onClick={() => setIsAutoShowcaseOpen(true)} className="flex-1 md:flex-none flex items-center justify-center gap-2 py-2.5 px-4 bg-amber-500/20 border border-amber-500/50 text-amber-300 rounded-xl hover:bg-amber-500/30 transition-all text-sm font-bold shadow-md">
             <Sparkles size={18} /> النشر التلقائي للمعرض 🪄
-          </button>
-          <button 
-            onClick={async () => {
-              setLoading(true);
-              try {
-                // Force sync for current admin
-                await loadData(true);
-                // Broadcast to ALL other clients (phones, other PCs) to force refresh their data
-                await supabase.channel('products_changes').send({
-                  type: 'broadcast',
-                  event: 'force_refresh',
-                  payload: { timestamp: Date.now(), by: user?.username }
-                });
-                setAlertMessage("تم تحديث البيانات بنجاح وإرسال أمر تحديث فوري لكل الأجهزة المتصلة.");
-              } catch (e: any) {
-                setAlertMessage("فشل التحديث: " + e.message);
-              } finally {
-                setLoading(false);
-              }
-            }}
-            className="flex-1 md:flex-none flex items-center justify-center gap-2 py-2.5 px-4 bg-emerald-500/20 border border-emerald-500/50 text-emerald-400 rounded-xl hover:bg-emerald-500/30 transition-all text-sm font-bold shadow-md"
-            title="تحديث البيانات وإجبار جميع الأجهزة الأخرى على التحديث فوراً"
-          >
-            <History size={18} /> تحديث البيانات الشامل 🔄
           </button>
           <button
             onClick={() => { setIsAdding(!isAdding); setIsBatchAdding(false); }}
@@ -2192,7 +2134,7 @@ export default function ProductManager() {
                       className="flex items-center gap-2 px-4 py-2 bg-orange-500/20 text-orange-400 border border-orange-500/30 rounded-lg text-sm hover:bg-orange-500/30 transition-colors font-bold whitespace-nowrap disabled:opacity-50"
                     >
                       {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Package size={16} />}
-                      تحديث ونقل للنافذة
+                      نقل للمواد النافذة
                     </button>
                   )}
                   {selectedIds.size > 0 && filterStatus === 'archived' && (
@@ -2252,7 +2194,7 @@ export default function ProductManager() {
                       className="flex items-center gap-2 px-4 py-2 bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 rounded-lg text-sm hover:bg-indigo-500/30 transition-colors font-bold whitespace-nowrap disabled:opacity-50"
                     >
                       <FolderInput size={16} />
-                      تحديث ونقل الأقسام
+                      نقل الأقسام
                     </button>
                   )}
                   {selectedIds.size > 0 && (
@@ -3338,19 +3280,9 @@ export default function ProductManager() {
               <button
                 onClick={handleBulkMoveCategory}
                 disabled={!moveToCategoryId || isSubmitting}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white border border-indigo-500/50 rounded-lg transition-all font-black text-sm disabled:opacity-50 flex items-center gap-2 shadow-lg shadow-indigo-500/20"
+                className="px-4 py-2 bg-indigo-500/20 hover:bg-indigo-500 text-indigo-400 hover:text-white border border-indigo-500/50 rounded-lg transition-all font-bold text-sm disabled:opacity-50"
               >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 size={16} className="animate-spin" />
-                    جاري التحديث...
-                  </>
-                ) : (
-                  <>
-                    <History size={16} />
-                    تحديث البيانات ونقلها
-                  </>
-                )}
+                {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : "نقل"}
               </button>
             </div>
           </div>

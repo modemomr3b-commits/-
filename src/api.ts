@@ -11,11 +11,9 @@ const getData = async (table: string) => {
   
   try {
     while (true) {
-      const query = table === 'products' 
-        ? supabase.from(table).select('id, name, price, modelNumber, productCode, categoryId, subcategoryId, imageUrl, isArchived, isHidden, isLocked, isShowcase, created_at, updated_at')
-        : supabase.from(table).select('*');
-      
-      const { data, error } = await query
+      const { data, error } = await supabase
+        .from(table)
+        .select('*')
         .order('id', { ascending: true })
         .range(from, from + limit - 1);
         
@@ -229,13 +227,13 @@ export const api = {
     };
   },
 
-  getProducts: async (force = false) => {
-    return api.getProductsDirect(force);
+  getProducts: async () => {
+    return api.getProductsDirect();
   },
 
-  getProductsDirect: async (force = false) => {
-    // Return in-memory cache instantly if fresh (under 60 seconds) AND not forced
-    if (!force && memCache['all_products'] && (Date.now() - memCache['all_products'].timestamp < MEM_CACHE_TTL)) {
+  getProductsDirect: async () => {
+    // Return in-memory cache instantly if fresh (under 60 seconds)
+    if (memCache['all_products'] && (Date.now() - memCache['all_products'].timestamp < MEM_CACHE_TTL)) {
       return memCache['all_products'].data;
     }
 
@@ -255,7 +253,7 @@ export const api = {
       showcaseCategory: p.size?.showcaseCategory || p.showcaseCategory || '',
       oldPriceInfo: p.size?.oldPriceInfo || undefined,
       forceStandardCrush: p.size?.forceStandardCrush ?? true,
-      updatedAt: p.size?.updatedAt || p.updated_at || p.created_at || p.createdAt
+      updatedAt: p.size?.updatedAt || p.createdAt
     });
 
     try {
@@ -976,13 +974,13 @@ export const api = {
 
   // ORDERS
   getOrders: async () => {
-    // Optimization: Fetch only essential fields to avoid timeouts
+    // Optimization: Fetch only recent orders to avoid timeouts
     const { data, error } = await supabase
       .from('orders')
-      .select('id, status, createdAt, user_id, username, fullName, customerName, transport, total, products, items, notes')
+      .select('*')
       .neq('status', 'completed')
       .order('createdAt', { ascending: false })
-      .limit(200);
+      .limit(500);
 
     if (error) {
       console.error('Error fetching recent orders:', error);
@@ -997,8 +995,8 @@ export const api = {
         ...o,
         items: o.products || o.items || [],
         totalQuantity: o.total || o.totalQuantity || 0,
-        userId: o.user_id || o.userId || parsed.agentId || '',
-        agentId: parsed.agentId || o.user_id || o.userId || '',
+        userId: o.userId || parsed.agentId || '',
+        agentId: parsed.agentId || o.userId || '',
         agentName: parsed.agentName || o.agentName || '',
         fullName: parsed.agentName || o.fullName || o.username || '',
         username: o.username || parsed.agentName || '',
@@ -1012,10 +1010,10 @@ export const api = {
   },
 
   getAllOrders: async () => {
-    // Optimization: Fetch only essential fields to avoid timeouts
+    // Fetch all orders including completed ones
     const { data, error } = await supabase
       .from('orders')
-      .select('id, status, createdAt, user_id, username, fullName, customerName, transport, total, products, items, notes')
+      .select('*')
       .order('createdAt', { ascending: false });
 
     if (error) {
@@ -1031,8 +1029,8 @@ export const api = {
         ...o,
         items: o.products || o.items || [],
         totalQuantity: o.total || o.totalQuantity || 0,
-        userId: o.user_id || o.userId || parsed.agentId || '',
-        agentId: parsed.agentId || o.user_id || o.userId || '',
+        userId: o.userId || parsed.agentId || '',
+        agentId: parsed.agentId || o.userId || '',
         agentName: parsed.agentName || o.agentName || '',
         fullName: parsed.agentName || o.fullName || o.username || '',
         username: o.username || parsed.agentName || '',
