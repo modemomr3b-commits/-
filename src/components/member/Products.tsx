@@ -332,6 +332,9 @@ export default function Products() {
           }
         } catch (err) {
           console.error(err);
+          if (mounted) {
+            showToast("حدث خطأ أثناء البحث في قاعدة البيانات", "error");
+          }
         } finally {
           if (mounted) {
             setIsSearchingDb(false);
