@@ -979,7 +979,7 @@ export const api = {
     // Optimization: Fetch only essential fields to avoid timeouts
     const { data, error } = await supabase
       .from('orders')
-      .select('id, status, createdAt, userId, username, fullName, customerName, transport, total, products, items, notes')
+      .select('id, status, createdAt, user_id, username, fullName, customerName, transport, total, products, items, notes')
       .neq('status', 'completed')
       .order('createdAt', { ascending: false })
       .limit(200);
@@ -997,8 +997,8 @@ export const api = {
         ...o,
         items: o.products || o.items || [],
         totalQuantity: o.total || o.totalQuantity || 0,
-        userId: o.userId || parsed.agentId || '',
-        agentId: parsed.agentId || o.userId || '',
+        userId: o.user_id || o.userId || parsed.agentId || '',
+        agentId: parsed.agentId || o.user_id || o.userId || '',
         agentName: parsed.agentName || o.agentName || '',
         fullName: parsed.agentName || o.fullName || o.username || '',
         username: o.username || parsed.agentName || '',
@@ -1015,7 +1015,7 @@ export const api = {
     // Optimization: Fetch only essential fields to avoid timeouts
     const { data, error } = await supabase
       .from('orders')
-      .select('id, status, createdAt, userId, username, fullName, customerName, transport, total, products, items, notes')
+      .select('id, status, createdAt, user_id, username, fullName, customerName, transport, total, products, items, notes')
       .order('createdAt', { ascending: false });
 
     if (error) {
@@ -1031,8 +1031,8 @@ export const api = {
         ...o,
         items: o.products || o.items || [],
         totalQuantity: o.total || o.totalQuantity || 0,
-        userId: o.userId || parsed.agentId || '',
-        agentId: parsed.agentId || o.userId || '',
+        userId: o.user_id || o.userId || parsed.agentId || '',
+        agentId: parsed.agentId || o.user_id || o.userId || '',
         agentName: parsed.agentName || o.agentName || '',
         fullName: parsed.agentName || o.fullName || o.username || '',
         username: o.username || parsed.agentName || '',
