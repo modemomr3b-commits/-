@@ -11,9 +11,9 @@ const getData = async (table: string, force = false) => {
   
   const fetchWithRetry = async (retryCount = 0): Promise<any[]> => {
     try {
-      const { data, error } = await supabase
-        .from(table)
-        .select('id, name, modelNumber, productCode, price, dozenPriceUsd, imageUrl, categoryId, subcategoryId, size')
+      let query = supabase.from(table).select(table === 'products' ? 'id, name, modelNumber, productCode, price, dozenPriceUsd, imageUrl, categoryId, subcategoryId, size' : '*');
+      
+      const { data, error } = await query
         .order('id', { ascending: true })
         .range(from, from + limit - 1);
         
