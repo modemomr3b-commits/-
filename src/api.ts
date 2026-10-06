@@ -11,9 +11,11 @@ const getData = async (table: string) => {
   
   try {
     while (true) {
-      const { data, error } = await supabase
-        .from(table)
-        .select('*')
+      const query = table === 'products' 
+        ? supabase.from(table).select('id, name, price, modelNumber, productCode, categoryId, subcategoryId, imageUrl, isArchived, isHidden, isLocked, isShowcase, createdAt, updatedAt')
+        : supabase.from(table).select('*');
+      
+      const { data, error } = await query
         .order('id', { ascending: true })
         .range(from, from + limit - 1);
         
@@ -974,13 +976,13 @@ export const api = {
 
   // ORDERS
   getOrders: async () => {
-    // Optimization: Fetch only recent orders to avoid timeouts
+    // Optimization: Fetch only essential fields to avoid timeouts
     const { data, error } = await supabase
       .from('orders')
-      .select('*')
+      .select('id, status, createdAt, userId, username, fullName, customerName, transport, total, products, items, notes')
       .neq('status', 'completed')
       .order('createdAt', { ascending: false })
-      .limit(500);
+      .limit(200);
 
     if (error) {
       console.error('Error fetching recent orders:', error);
@@ -1010,10 +1012,10 @@ export const api = {
   },
 
   getAllOrders: async () => {
-    // Fetch all orders including completed ones
+    // Optimization: Fetch only essential fields to avoid timeouts
     const { data, error } = await supabase
       .from('orders')
-      .select('*')
+      .select('id, status, createdAt, userId, username, fullName, customerName, transport, total, products, items, notes')
       .order('createdAt', { ascending: false });
 
     if (error) {

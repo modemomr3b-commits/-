@@ -231,7 +231,11 @@ export default function Products() {
 
     const init = async () => {
       try {
-        await fetchProducts();
+        console.log("Initializing products view...");
+        await fetchProducts(false); // Try cache first via fetchProducts
+        console.log("Initial fetch finished.");
+      } catch (err) {
+        console.error("Critical error in init fetch:", err);
       } finally {
         if (mounted) {
           setLoading(false);
