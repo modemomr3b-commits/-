@@ -387,12 +387,11 @@ export const api = {
     try {
       let queryBuilder = supabase
         .from('products')
-        .select('*')
+        .select('id, name, modelNumber, productCode, price, dozenPriceUsd, imageUrl, categoryId, subcategoryId, size')
         .or(`name.ilike.%${query}%,productCode.ilike.%${query}%`)
         .eq('isDeleted', false);
 
       if (categoryId) {
-        // Search within category or subcategory
         queryBuilder = queryBuilder.or(`categoryId.eq.${categoryId},subcategoryId.eq.${categoryId}`);
       }
 
@@ -400,11 +399,14 @@ export const api = {
         .order('createdAt', { ascending: false })
         .limit(200);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase search error:', error);
+        throw error;
+      }
       return (data || []).map(mapProduct);
     } catch (err) {
       console.error('Database search failed:', err);
-      return [];
+      throw err; // Rethrow to let the UI catch it and show error
     }
   },
 
