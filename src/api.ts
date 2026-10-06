@@ -388,8 +388,7 @@ export const api = {
       let queryBuilder = supabase
         .from('products')
         .select('*')
-        .or(`name.ilike.%${query}%,productCode.ilike.%${query}%,modelNumber.ilike.%${query}%`)
-        .eq('isDeleted', false);
+        .or(`name.ilike.%${query}%,productCode.ilike.%${query}%,modelNumber.ilike.%${query}%`);
 
       if (categoryId) {
         // Search within category or subcategory
