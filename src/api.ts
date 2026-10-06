@@ -385,24 +385,19 @@ export const api = {
     });
 
     try {
+      // Use a simpler approach: Apply basic filters first
       let queryBuilder = supabase
         .from('products')
         .select('id, name, modelNumber, productCode, price, dozenPriceUsd, imageUrl, categoryId, subcategoryId, size')
         .eq('isDeleted', false);
 
-      let orCondition = `name.ilike.%${query}%,productCode.ilike.%${query}%`;
-      
-      if (categoryId) {
-        // Correctly combine conditions: (name match OR code match) AND (categoryId match OR subcategoryId match)
-        // Supabase syntax for this is complex. Let's try combining them into a single OR if possible, 
-        // or just apply the category filter as an AND filter.
-        // Actually, to get (name OR code) AND (cat OR sub), we can use and(or(...),or(...))
-        orCondition = `and(or(name.ilike.%${query}%,productCode.ilike.%${query}%),or(categoryId.eq.${categoryId},subcategoryId.eq.${categoryId}))`;
-      } else {
-        orCondition = `or(${orCondition})`;
-      }
+      // Apply search as a single OR condition
+      queryBuilder = queryBuilder.or(`name.ilike.%${query}%,productCode.ilike.%${query}%,modelNumber.ilike.%${query}%`);
 
-      queryBuilder = queryBuilder.or(orCondition);
+      if (categoryId) {
+        // Apply category as an AND filter on the result of the OR search
+        queryBuilder = queryBuilder.or(`categoryId.eq.${categoryId},subcategoryId.eq.${categoryId}`);
+      }
 
       const { data, error } = await queryBuilder
         .order('createdAt', { ascending: false })
@@ -415,7 +410,7 @@ export const api = {
       return (data || []).map(mapProduct);
     } catch (err) {
       console.error('Database search failed:', err);
-      throw err; // Rethrow to let the UI catch it and show error
+      return []; // Return empty instead of throwing to avoid UI crash, as requested
     }
   },
 
