@@ -375,13 +375,17 @@ export default function ShowcasePage() {
 
   const loadData = async () => {
     try {
-      const [showcaseProds, appSettings, allCats] = await Promise.all([
-        api.getShowcaseProducts(),
+      const [allProds, appSettings, allCats] = await Promise.all([
+        api.getProducts(),
         api.getSettings(),
         api.getCategories()
       ]);
       
-      setProducts(showcaseProds || []);
+      // Filter products that are designated for showcase AND not archived/hidden/locked/restricted
+      const showcaseProds = (allProds || []).filter(
+        p => p.isShowcase && !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !isProductRestrictedFromSearch(p, allCats || [])
+      );
+      setProducts(showcaseProds);
       setSettings(appSettings || {});
       setCategories(allCats || []);
     } catch (e) {

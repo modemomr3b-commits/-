@@ -371,29 +371,17 @@ export default function ProductManager() {
           }, 300);
         },
       )
-      .on('broadcast', { event: 'bulk_updated' }, (payload: any) => {
-        const { ids, data } = payload.payload;
-        if (!ids || !data || !mounted) return;
-        const idSet = new Set(ids);
-        setProducts(prev => prev.map(p => idSet.has(p.id!) ? { ...p, ...data } : p));
+      .on('broadcast', { event: 'bulk_updated' }, () => {
+        if (mounted) loadData(true);
       })
-      .on('broadcast', { event: 'product_changed' }, (payload: any) => {
-        const { id, data } = payload.payload;
-        if (!id || !data || !mounted) return;
-        setProducts(prev => prev.map(p => p.id === id ? { ...p, ...data } : p));
+      .on('broadcast', { event: 'product_changed' }, () => {
+        if (mounted) loadData(true);
       })
-      .on('broadcast', { event: 'product_created' }, (payload: any) => {
-        const { product } = payload.payload;
-        if (product && mounted) {
-          setProducts(prev => [product, ...prev]);
-        }
+      .on('broadcast', { event: 'product_created' }, () => {
+        if (mounted) loadData(true);
       })
-      .on('broadcast', { event: 'bulk_deleted' }, (payload: any) => {
-        const { ids } = payload.payload;
-        if (ids && mounted) {
-          const idSet = new Set(ids);
-          setProducts(prev => prev.filter(p => !idSet.has(p.id!)));
-        }
+      .on('broadcast', { event: 'bulk_deleted' }, () => {
+        if (mounted) loadData(true);
       })
       .subscribe();
 
@@ -930,7 +918,7 @@ export default function ProductManager() {
       return;
     }
 
-    const updates: any = { categoryId: archivedCatId, isArchived: true, isHidden: false, isLocked: false, isShowcase: false };
+    const updates: any = { categoryId: archivedCatId, isArchived: false, isHidden: false, isLocked: false, isShowcase: false };
 
     // Optimistic update
     setProducts((prev) =>
