@@ -385,22 +385,15 @@ export const api = {
     });
 
     try {
-      let queryBuilder = supabase
+      const { data, error } = await supabase
         .from('products')
         .select('*')
-        .or(`name.ilike.%${query}%,productCode.ilike.%${query}%,modelNumber.ilike.%${query}%`);
-
-      if (categoryId) {
-        // Search within category or subcategory
-        queryBuilder = queryBuilder.or(`categoryId.eq.${categoryId},subcategoryId.eq.${categoryId}`);
-      }
-
-      const { data, error } = await queryBuilder
+        .or(`name.ilike.%${query}%,productCode.ilike.%${query}%,modelNumber.ilike.%${query}%`)
         .order('createdAt', { ascending: false })
         .limit(200);
 
       if (error) {
-        console.error('Database search error:', error);
+        console.error('Supabase search error:', error);
         throw error;
       }
       return (data || []).map(mapProduct);
