@@ -388,12 +388,21 @@ export const api = {
       let queryBuilder = supabase
         .from('products')
         .select('id, name, modelNumber, productCode, price, dozenPriceUsd, imageUrl, categoryId, subcategoryId, size')
-        .or(`name.ilike.%${query}%,productCode.ilike.%${query}%`)
         .eq('isDeleted', false);
 
+      let orCondition = `name.ilike.%${query}%,productCode.ilike.%${query}%`;
+      
       if (categoryId) {
-        queryBuilder = queryBuilder.or(`categoryId.eq.${categoryId},subcategoryId.eq.${categoryId}`);
+        // Correctly combine conditions: (name match OR code match) AND (categoryId match OR subcategoryId match)
+        // Supabase syntax for this is complex. Let's try combining them into a single OR if possible, 
+        // or just apply the category filter as an AND filter.
+        // Actually, to get (name OR code) AND (cat OR sub), we can use and(or(...),or(...))
+        orCondition = `and(or(name.ilike.%${query}%,productCode.ilike.%${query}%),or(categoryId.eq.${categoryId},subcategoryId.eq.${categoryId}))`;
+      } else {
+        orCondition = `or(${orCondition})`;
       }
+
+      queryBuilder = queryBuilder.or(orCondition);
 
       const { data, error } = await queryBuilder
         .order('createdAt', { ascending: false })
