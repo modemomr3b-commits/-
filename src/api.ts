@@ -12,7 +12,7 @@ const getData = async (table: string) => {
   try {
     while (true) {
       const query = table === 'products' 
-        ? supabase.from(table).select('id, name, price, modelNumber, productCode, categoryId, subcategoryId, imageUrl, isArchived, isHidden, isLocked, isShowcase, createdAt, updatedAt')
+        ? supabase.from(table).select('id, name, price, modelNumber, productCode, categoryId, subcategoryId, imageUrl, isArchived, isHidden, isLocked, isShowcase, created_at, updated_at')
         : supabase.from(table).select('*');
       
       const { data, error } = await query
@@ -255,7 +255,7 @@ export const api = {
       showcaseCategory: p.size?.showcaseCategory || p.showcaseCategory || '',
       oldPriceInfo: p.size?.oldPriceInfo || undefined,
       forceStandardCrush: p.size?.forceStandardCrush ?? true,
-      updatedAt: p.size?.updatedAt || p.createdAt
+      updatedAt: p.size?.updatedAt || p.updated_at || p.created_at || p.createdAt
     });
 
     try {
