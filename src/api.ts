@@ -385,17 +385,14 @@ export const api = {
     });
 
     try {
-      // Use a simpler approach: Apply basic filters first
       let queryBuilder = supabase
         .from('products')
-        .select('id, name, modelNumber, productCode, price, dozenPriceUsd, imageUrl, categoryId, subcategoryId, size')
+        .select('*')
+        .or(`name.ilike.%${query}%,productCode.ilike.%${query}%`)
         .eq('isDeleted', false);
 
-      // Apply search as a single OR condition
-      queryBuilder = queryBuilder.or(`name.ilike.%${query}%,productCode.ilike.%${query}%,modelNumber.ilike.%${query}%`);
-
       if (categoryId) {
-        // Apply category as an AND filter on the result of the OR search
+        // Search within category or subcategory
         queryBuilder = queryBuilder.or(`categoryId.eq.${categoryId},subcategoryId.eq.${categoryId}`);
       }
 
@@ -403,14 +400,11 @@ export const api = {
         .order('createdAt', { ascending: false })
         .limit(200);
 
-      if (error) {
-        console.error('Supabase search error:', error);
-        throw error;
-      }
+      if (error) throw error;
       return (data || []).map(mapProduct);
     } catch (err) {
       console.error('Database search failed:', err);
-      return []; // Return empty instead of throwing to avoid UI crash, as requested
+      return [];
     }
   },
 
