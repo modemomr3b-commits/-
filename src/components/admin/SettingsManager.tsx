@@ -48,40 +48,60 @@ export default function SettingsManager() {
         p.dozenPriceUsd && p.dozenPriceUsd > 0 && p.imageUrl
       );
       
-      setPriceUpdateProgress({ current: 0, total: productsToUpdate.length });
+      const total = productsToUpdate.length;
+      setPriceUpdateProgress({ current: 0, total });
       
       const rate = settings.usdExchangeRate || 1590;
       const normalizedRate = rate >= 50000 ? Math.round(rate / 100) : (rate >= 50 && rate <= 500 ? Math.round(rate * 10) : Math.round(rate));
 
-      for (let i = 0; i < productsToUpdate.length; i++) {
-        const p = productsToUpdate[i];
-        try {
-          const newPriceIqd = Math.round(p.dozenPriceUsd! * normalizedRate);
-          const calcPieces = (p.forceStandardCrush ?? true) ? 12 : (Number(p.piecesCount) || 12);
-          const newPiecePriceIqd = calcPieces > 0 ? Math.round(newPriceIqd / calcPieces) : 0;
-          
-          // Update product object locally to pass to burner
-          const updatedProduct = {
-            ...p,
-            price: newPriceIqd,
-            piecePriceIqd: newPiecePriceIqd
-          };
+      // Process in parallel batches of 6 for high speed without crashing the browser canvas
+      const BATCH_SIZE = 6;
+      let completedCount = 0;
 
-          // Regenerate burned image with NEW prices
-          const newFinalImg = await burnProductOverlay(updatedProduct, p.imageUrl!);
+      for (let i = 0; i < total; i += BATCH_SIZE) {
+        const batch = productsToUpdate.slice(i, i + BATCH_SIZE);
+        
+        await Promise.all(batch.map(async (p) => {
+          try {
+            const dozenUsd = Number(p.dozenPriceUsd) || 0;
+            const newPriceIqd = Math.round(dozenUsd * normalizedRate);
+            
+            // Precise piece count logic consistent with the rest of the system
+            let piecesCount = 12;
+            if (!(p.forceStandardCrush ?? true)) {
+              piecesCount = Number(p.piecesCount) || (p.size?.piecesCount ? Number(p.size.piecesCount) : 12);
+            }
+            if (piecesCount <= 0) piecesCount = 12;
 
-          // Update in DB with both new prices and new image
-          await api.updateProduct(p.id!, { 
-            price: newPriceIqd, 
-            piecePriceIqd: newPiecePriceIqd,
-            finalImageUrl: newFinalImg
-          });
-        } catch (e) {
-          console.error("Failed to update product price/image", p.id, e);
-        }
-        setPriceUpdateProgress({ current: i + 1, total: productsToUpdate.length });
+            const newPiecePriceIqd = Math.round(newPriceIqd / piecesCount);
+            
+            // Create temporary object for image burner
+            const updatedProductForImage = {
+              ...p,
+              price: newPriceIqd,
+              piecePriceIqd: newPiecePriceIqd
+            };
+
+            // Regenerate image with new calculated prices
+            const newFinalImg = await burnProductOverlay(updatedProductForImage, p.imageUrl!);
+
+            // Save to database
+            await api.updateProduct(p.id!, { 
+              price: newPriceIqd, 
+              piecePriceIqd: newPiecePriceIqd,
+              finalImageUrl: newFinalImg
+            });
+          } catch (err) {
+            console.error(`Error processing product ${p.id}:`, err);
+          } finally {
+            completedCount++;
+            // Update progress state inside the map for smoother UI updates
+            setPriceUpdateProgress(prev => prev ? { ...prev, current: completedCount } : null);
+          }
+        }));
       }
-      alert('تم تحديث جميع الأسعار والصور بنجاح!');
+
+      alert('تم تحديث جميع الأسعار والصور بنجاح وبدقة عالية!');
     } catch (e) {
       console.error(e);
       alert('حدث خطأ أثناء تحديث الأسعار');
@@ -143,6 +163,33 @@ export default function SettingsManager() {
 
   return (
     <div className="space-y-6">
+      {priceUpdateProgress && (
+        <div className="fixed inset-x-0 top-0 z-[100] bg-brq-gold/10 backdrop-blur-md border-b border-brq-gold/30 p-4 animate-in slide-in-from-top duration-300">
+          <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-brq-gold/20 flex items-center justify-center">
+                <Loader2 className="animate-spin text-brq-gold" size={20} />
+              </div>
+              <div>
+                <h4 className="text-white font-bold text-sm">جاري تحديث أسعار وصور المتجر...</h4>
+                <p className="text-white/50 text-[11px]">يرجى عدم إغلاق الصفحة حتى اكتمال العملية لضمان تحديث كافة البيانات.</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-4 w-full md:w-auto">
+              <div className="flex-1 md:w-64 h-2 bg-white/10 rounded-full overflow-hidden border border-white/5">
+                <div 
+                  className="h-full bg-brq-gold transition-all duration-300 shadow-[0_0_10px_rgba(212,175,55,0.5)]"
+                  style={{ width: `${(priceUpdateProgress.current / priceUpdateProgress.total) * 100}%` }}
+                />
+              </div>
+              <span className="text-brq-gold font-mono font-bold text-sm whitespace-nowrap">
+                {priceUpdateProgress.current} / {priceUpdateProgress.total}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
          <div>
              <h2 className="text-2xl font-bold text-white mb-1">الإعدادات</h2>
