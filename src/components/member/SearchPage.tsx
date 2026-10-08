@@ -74,13 +74,24 @@ export default function SearchPage() {
 
     setLoading(true);
     try {
-      // Use unified API search
-      const results = await api.searchProductsDirect(term);
-      
-      let rawProducts = results || [];
-
       let cats = allCategories;
-      const archivedCat = cats.find((c: any) => isArchivedCategoryName(c.name));
+      if (cats.length === 0) {
+        cats = await api.getCategories();
+        setAllCategories(cats);
+      }
+
+      // Query database directly bypassing local cache
+      let queryBuilder = supabase.from('products').select('*');
+      
+      // Match by productCode, name, modelNumber, or barcode
+      queryBuilder = queryBuilder.or(`productCode.ilike.%${term}%,name.ilike.%${term}%,modelNumber.ilike.%${term}%`);
+
+      const { data, error } = await queryBuilder;
+      if (error) throw error;
+
+      let rawProducts = data || [];
+
+      let archivedCat = cats.find(c => isArchivedCategoryName(c.name));
       const archivedCatId = archivedCat?.id;
 
       if (archivedMode) {

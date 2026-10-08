@@ -141,33 +141,19 @@ export default function Home() {
         setShowcaseSettings(settings);
       }
 
+      api.getProducts().then(prods => {
+        if (prods && Array.isArray(prods) && cats && Array.isArray(cats)) {
+          const scCount = prods.filter((p: any) => p.isShowcase && !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !p.size?.isArchived && !p.size?.isHidden && !p.size?.isLocked && !isProductRestrictedFromSearch(p, cats)).length;
+          setShowcaseCount(scCount);
+
+          const counts = calculateCategoryProductCounts(cats, prods);
+          setProductsCountMap(counts);
+          setCategories(filterAndDeduplicateTopCategories(cats, counts));
+        }
+      }).catch(console.error);
+
       if (cats && Array.isArray(cats)) {
         setCategories(filterAndDeduplicateTopCategories(cats, {}));
-      }
-
-      // Egress optimization: Only fetch products to calculate counts if user is admin
-      // This saves massive amounts of data for regular customers
-      if (isAdminOrSales) {
-        api.getProducts().then(prods => {
-          if (prods && Array.isArray(prods) && cats && Array.isArray(cats)) {
-            const scCount = prods.filter((p: any) => p.isShowcase && !p.isArchived && !p.isHidden && !p.isLocked && !p.isDeleted && !p.size?.isArchived && !p.size?.isHidden && !p.size?.isLocked && !isProductRestrictedFromSearch(p, cats)).length;
-            setShowcaseCount(scCount);
-
-            const counts = calculateCategoryProductCounts(cats, prods);
-            setProductsCountMap(counts);
-            setCategories(filterAndDeduplicateTopCategories(cats, counts));
-          }
-        }).catch(console.error);
-      } else {
-        // For regular users, we can fetch JUST the showcase count with a very light query
-        supabase
-          .from('products')
-          .select('id', { count: 'exact', head: true })
-          .eq('isDeleted', false)
-          .contains('size', { isShowcase: true, isHidden: false, isArchived: false })
-          .then(({ count }) => {
-            if (count !== null) setShowcaseCount(count);
-          });
       }
 
     } catch (e) {
@@ -178,22 +164,6 @@ export default function Home() {
   useEffect(() => {
     let mounted = true;
     let fetchTimeout: any;
-
-    Promise.all([
-      localCache.get<any[]>('all_categories'),
-      localCache.get<any[]>('all_products')
-    ]).then(([cachedCats, cachedProds]) => {
-      if (!mounted) return;
-      if (cachedCats && cachedCats.length > 0) {
-        let counts = {};
-        if (cachedProds && cachedProds.length > 0) {
-          counts = calculateCategoryProductCounts(cachedCats, cachedProds);
-          setProductsCountMap(counts);
-        }
-        setCategories(filterAndDeduplicateTopCategories(cachedCats, counts));
-        setLoading(false);
-      }
-    });
 
     const initialFetch = async () => {
       try {

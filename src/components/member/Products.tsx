@@ -105,7 +105,7 @@ export default function Products() {
       const cats = await api.getCategories();
       setAllCategories(cats);
       
-      const allStore = await api.getProductsDirect(forceDirect);
+      const allStore = forceDirect ? await api.getProductsDirect() : await api.getProducts();
       
       // Auto-retry if empty on the very first load to prevent showing "No products" prematurely
       if (allStore.length === 0 && !isRetry) {
@@ -168,74 +168,9 @@ export default function Products() {
   useEffect(() => {
     let mounted = true;
 
-    // Instant local cache restoration so the user experiences NO wait time
-    Promise.all([
-      localCache.get<any[]>('all_categories'),
-      localCache.get<any[]>('all_products')
-    ]).then(([cachedCats, cachedProds]) => {
-      if (!mounted) return;
-      if (cachedCats && cachedCats.length > 0) {
-        setAllCategories(cachedCats);
-        if (categoryId) {
-          const cat = cachedCats.find((c: any) => c.id === categoryId);
-          if (cat) setCategoryName(cat.name);
-          const sameNameParents = cachedCats.filter((c: any) => cat && c.name?.trim() === cat.name?.trim());
-          const parentIdsSet = new Set([categoryId, ...sameNameParents.map((c: any) => c.id)]);
-
-          const subs = cachedCats
-            .filter((c: any) => c.parentId && parentIdsSet.has(c.parentId) && !c.isHidden)
-            .sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
-
-          const uniqueSubs: any[] = [];
-          const subNameSeen = new Set<string>();
-          subs.forEach(s => {
-            const sName = s.name.trim();
-            if (!subNameSeen.has(sName)) {
-              subNameSeen.add(sName);
-              uniqueSubs.push(s);
-            }
-          });
-
-          setSubCategories(uniqueSubs);
-        }
-      }
-      if (cachedProds && cachedProds.length > 0) {
-        const archivedCatId = cachedCats?.find((c: any) => isArchivedCategoryName(c.name))?.id;
-        const isArchivedProd = (p: any) => p.isArchived || (archivedCatId && p.categoryId === archivedCatId);
-        
-        let fetchedProducts = cachedProds.filter((p: any) => 
-          !p.isHidden && !p.isLocked && !p.isDeleted &&
-          (categoryId === archivedCatId ? isArchivedProd(p) : !isArchivedProd(p))
-        );
-        
-        if (categoryId && cachedCats) {
-          const cat = cachedCats.find((c: any) => c.id === categoryId);
-          const sameNameParents = cachedCats.filter((c: any) => cat && c.name?.trim() === cat.name?.trim());
-          const parentIdsSet = new Set([categoryId, ...sameNameParents.map((c: any) => c.id)]);
-
-          const childSubCats = cachedCats.filter((c: any) => c.parentId && parentIdsSet.has(c.parentId));
-          const childSubCatIdsSet = new Set(childSubCats.map((c: any) => c.id));
-          const allMatchingCatIds = new Set([...parentIdsSet, ...childSubCatIdsSet]);
-
-          fetchedProducts = fetchedProducts.filter((p: any) => 
-            (p.categoryId && allMatchingCatIds.has(p.categoryId)) ||
-            (p.subcategoryId && allMatchingCatIds.has(p.subcategoryId))
-          );
-        }
-        
-        setProducts(shuffleProductsForUser(fetchedProducts));
-        setLoading(false);
-        setInitialLoading(false);
-      }
-    });
-
     const init = async () => {
       try {
-        console.log("Initializing products view...");
-        await fetchProducts(false); // Try cache first via fetchProducts
-        console.log("Initial fetch finished.");
-      } catch (err) {
-        console.error("Critical error in init fetch:", err);
+        await fetchProducts();
       } finally {
         if (mounted) {
           setLoading(false);
@@ -275,11 +210,6 @@ export default function Products() {
       })
       .on('broadcast', { event: 'bulk_updated' }, () => {
         scheduleFetch(600);
-      })
-      .on('broadcast', { event: 'force_refresh' }, () => {
-        // Strict system: Clear caches and force immediate reload
-        api.clearCache();
-        fetchProducts(true);
       })
       .on('broadcast', { event: 'product_changed' }, () => {
         scheduleFetch(600);

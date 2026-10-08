@@ -1,10 +1,7 @@
 import { Save, Building2, Monitor, Bell, Shield, Globe, HardDrive, Loader2, DollarSign, Phone, Send, MessageCircle, Sparkles } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { api } from '../../api.ts';
-import { supabase } from '../../supabase';
 import { burnProductOverlay } from '../../utils/burnImage';
-import { normalizeArabic, autoDetectCategoryAndSubcategory } from '../../utils/categoryDetector';
-import { isArchivedCategoryName } from '../../utils/search';
 
 export default function SettingsManager() {
   const [loading, setLoading] = useState(false);
@@ -37,141 +34,6 @@ export default function SettingsManager() {
   }, []);
 
   
-  const [isUpdatingPrices, setIsUpdatingPrices] = useState(false);
-  const [priceUpdateProgress, setPriceUpdateProgress] = useState<{current: number, total: number} | null>(null);
-
-  const handleUpdatePricesAndImages = async () => {
-    if (!window.confirm("هل أنت متأكد من رغبتك في إعادة حساب جميع الأسعار وتحديث الصور؟ سيتم استخدام تقنية التحديث السريع (Lightning Update) كما سيتم محاولة استرجاع الأقسام المفقودة تلقائياً.")) return;
-    setIsUpdatingPrices(true);
-    try {
-      const [products, categories] = await Promise.all([
-        api.getProducts(),
-        api.getCategories()
-      ]);
-
-      const archivedCat = categories.find(c => isArchivedCategoryName(c.name));
-      const archivedCatId = archivedCat?.id;
-      
-      // Default fallback for new products
-      const newArrivalsCat = categories.find(c => c.name === 'جديد الوفاء' && !c.parentId);
-      const newArrivalsCatId = newArrivalsCat?.id;
-
-      const productsToUpdate = products.filter(p => 
-        !p.isDeleted && 
-        p.dozenPriceUsd && p.dozenPriceUsd > 0 && p.imageUrl
-      );
-      
-      const total = productsToUpdate.length;
-      if (total === 0) {
-        alert("لا توجد منتجات فعالة بأسعار دولار تحتاج لتحديث.");
-        setIsUpdatingPrices(false);
-        return;
-      }
-
-      setPriceUpdateProgress({ current: 0, total });
-      
-      const rate = settings.usdExchangeRate || 1590;
-      const normalizedRate = rate >= 50000 ? Math.round(rate / 100) : (rate >= 50 && rate <= 500 ? Math.round(rate * 10) : Math.round(rate));
-
-      // Step 1: Generate all images and data in parallel batches
-      const BATCH_SIZE = 15; 
-      const updates: any[] = [];
-      let processed = 0;
-
-      for (let i = 0; i < total; i += BATCH_SIZE) {
-        const batch = productsToUpdate.slice(i, i + BATCH_SIZE);
-        
-        await Promise.all(batch.map(async (p) => {
-          try {
-            const dozenUsd = Number(p.dozenPriceUsd) || 0;
-            const newPriceIqd = Math.round(dozenUsd * normalizedRate);
-            
-            let piecesCount = 12;
-            if (!(p.forceStandardCrush ?? true)) {
-              piecesCount = Number(p.piecesCount) || (p.size?.piecesCount ? Number(p.size.piecesCount) : 12);
-            }
-            if (piecesCount <= 0) piecesCount = 12;
-
-            const newPiecePriceIqd = Math.round(newPriceIqd / piecesCount);
-            const newFinalImg = await burnProductOverlay({...p, price: newPriceIqd, piecePriceIqd: newPiecePriceIqd}, p.imageUrl!);
-
-            // Category Restoration Logic
-            let finalCatId = p.categoryId;
-            let finalSubCatId = p.subcategoryId;
-
-            const isCurrentlyArchived = p.isArchived || (archivedCatId && p.categoryId === archivedCatId);
-
-            if (isCurrentlyArchived && archivedCatId) {
-              finalCatId = archivedCatId;
-              finalSubCatId = null;
-            } else if (!finalCatId || finalCatId === "" || finalCatId === "null") {
-              // Try to detect from name (High Priority for "Correctness")
-              const detected = autoDetectCategoryAndSubcategory(p.name, '', '', categories);
-              
-              if (detected.categoryId) {
-                finalCatId = detected.categoryId;
-                finalSubCatId = detected.subcategoryId;
-              } else {
-                // Try fallback to showcaseCategory hint
-                const showcaseCat = p.showcaseCategory || (p as any).size?.showcaseCategory;
-                if (showcaseCat) {
-                   const matchedCat = categories.find(c => !c.parentId && normalizeArabic(c.name).includes(normalizeArabic(showcaseCat)));
-                   if (matchedCat) {
-                     finalCatId = matchedCat.id;
-                     const subDetected = autoDetectCategoryAndSubcategory(p.name, matchedCat.id, '', categories);
-                     finalSubCatId = subDetected.subcategoryId;
-                   }
-                }
-              }
-              
-              // Final Fallback to New Arrivals if still nothing
-              if ((!finalCatId || finalCatId === "") && newArrivalsCatId) {
-                finalCatId = newArrivalsCatId;
-                const subDetected = autoDetectCategoryAndSubcategory(p.name, newArrivalsCatId, '', categories);
-                finalSubCatId = subDetected.subcategoryId;
-              }
-            }
-
-            // Collect update payload
-            updates.push({
-              id: p.id,
-              price: newPriceIqd,
-              piecePriceIqd: newPiecePriceIqd,
-              finalImageUrl: newFinalImg,
-              categoryId: finalCatId || null,
-              subcategoryId: finalSubCatId || null,
-              updatedAt: Date.now()
-            });
-          } catch (err) {
-            console.error(err);
-          } finally {
-            processed++;
-            setPriceUpdateProgress(prev => prev ? { ...prev, current: processed } : null);
-          }
-        }));
-      }
-
-      // Step 2: Send ALL updates to Supabase in chunks
-      const CHUNK_SIZE = 50;
-      for (let i = 0; i < updates.length; i += CHUNK_SIZE) {
-        const chunk = updates.slice(i, i + CHUNK_SIZE);
-        const { error } = await supabase.from('products').upsert(chunk, { onConflict: 'id' });
-        if (error) throw error;
-      }
-
-      // Refresh local data once at the end
-      await api.forceRefreshAll();
-      
-      alert('تم التحديث واسترجاع الأقسام بنجاح! تم معالجة كافة المنتجات وتحديث الصور.');
-    } catch (e: any) {
-      console.error(e);
-      alert('حدث خطأ أثناء التحديث السريع: ' + e.message);
-    } finally {
-      setIsUpdatingPrices(false);
-      setPriceUpdateProgress(null);
-    }
-  };
-
   const handleUpdateImages = async () => {
     if (!window.confirm("هل أنت متأكد من رغبتك في تحديث جميع الصور المدمجة؟ قد تستغرق هذه العملية بعض الوقت.")) return;
     try {
@@ -224,33 +86,6 @@ export default function SettingsManager() {
 
   return (
     <div className="space-y-6">
-      {priceUpdateProgress && (
-        <div className="fixed inset-x-0 top-0 z-[100] bg-brq-gold/10 backdrop-blur-md border-b border-brq-gold/30 p-4 animate-in slide-in-from-top duration-300">
-          <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-brq-gold/20 flex items-center justify-center">
-                <Loader2 className="animate-spin text-brq-gold" size={20} />
-              </div>
-              <div>
-                <h4 className="text-white font-bold text-sm">جاري تحديث أسعار وصور المتجر...</h4>
-                <p className="text-white/50 text-[11px]">يرجى عدم إغلاق الصفحة حتى اكتمال العملية لضمان تحديث كافة البيانات.</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-4 w-full md:w-auto">
-              <div className="flex-1 md:w-64 h-2 bg-white/10 rounded-full overflow-hidden border border-white/5">
-                <div 
-                  className="h-full bg-brq-gold transition-all duration-300 shadow-[0_0_10px_rgba(212,175,55,0.5)]"
-                  style={{ width: `${(priceUpdateProgress.current / priceUpdateProgress.total) * 100}%` }}
-                />
-              </div>
-              <span className="text-brq-gold font-mono font-bold text-sm whitespace-nowrap">
-                {priceUpdateProgress.current} / {priceUpdateProgress.total}
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
-
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
          <div>
              <h2 className="text-2xl font-bold text-white mb-1">الإعدادات</h2>
@@ -342,29 +177,6 @@ export default function SettingsManager() {
                            : Math.round(settings.usdExchangeRate))
                      ).toLocaleString('en-US')} د.ع
                    </span>
-                 </div>
-
-                 <div className="pt-3 border-t border-white/5 mt-2">
-                   <button
-                     onClick={handleUpdatePricesAndImages}
-                     disabled={isUpdatingPrices}
-                     className="w-full py-2 bg-brq-gold text-black rounded-lg text-xs font-black flex items-center justify-center gap-2 hover:bg-yellow-400 transition-all shadow-lg shadow-yellow-500/10 disabled:opacity-50"
-                   >
-                     {priceUpdateProgress ? (
-                        <>
-                          <Loader2 size={14} className="animate-spin" />
-                          جاري التحديث ({priceUpdateProgress.current}/{priceUpdateProgress.total})
-                        </>
-                     ) : (
-                        <>
-                          <Sparkles size={14} />
-                          تطبيق السعر الجديد على الصور والمنتجات
-                        </>
-                     )}
-                   </button>
-                   <p className="text-[9px] text-white/30 text-center mt-1.5 leading-tight">
-                     سيقوم هذا الإجراء بإعادة حساب سعر الدينار وتغيير الشريط في كافة الصور بناءً على سعر الدولار المدخل أعلاه.
-                   </p>
                  </div>
                </div>
              ) : null}
