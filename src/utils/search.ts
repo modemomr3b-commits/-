@@ -37,7 +37,7 @@ export function normalizeDigits(str: string): string {
  */
 export function isRestrictedCategoryName(categoryName: string): boolean {
   if (!categoryName) return false;
-  const norm = normalizeArabic(categoryName);
+  const norm = normalizeArabic(categoryName).toLowerCase();
   
   // 1. المواد المقفلة من قبل الادمن
   if (
@@ -45,7 +45,9 @@ export function isRestrictedCategoryName(categoryName: string): boolean {
     norm.includes('المواد المقفله') ||
     norm.includes('مواد مقفله') ||
     norm.includes('مقفل من قبل') ||
-    norm.includes('مقفله من قبل')
+    norm.includes('مقفله من قبل') ||
+    norm.includes('locked') ||
+    norm.includes('restricted')
   ) {
     return true;
   }
@@ -59,10 +61,9 @@ export function isRestrictedCategoryName(categoryName: string): boolean {
     norm.includes('موديلات للمتابعه') ||
     norm.includes('قسم المتابعه') ||
     norm.includes('قسم متابعه') ||
+    norm.includes('follow') ||
     norm === 'متابعه' ||
-    norm === 'المتابعه' ||
-    norm === 'موديلات متابعه' ||
-    norm === 'الموديلات متابعه'
+    norm === 'المتابعه'
   ) {
     return true;
   }
@@ -72,8 +73,16 @@ export function isRestrictedCategoryName(categoryName: string): boolean {
 
 export function isArchivedCategoryName(categoryName: string): boolean {
   if (!categoryName) return false;
-  const norm = normalizeArabic(categoryName);
-  return norm.includes('نافذ') || norm.includes('نفاذ') || norm.includes('نافد');
+  const norm = normalizeArabic(categoryName).toLowerCase();
+  
+  // Use more specific matching for Arabic to avoid false positives with common letters
+  const patterns = ['نافذ', 'نفاذ', 'نافد', 'sold out', 'archived', 'stock out'];
+  if (patterns.some(p => norm.includes(p))) return true;
+  
+  // Check for exact matches for short words
+  if (norm === 'منتهي' || norm === 'منتهيه' || norm === 'نافذ') return true;
+  
+  return false;
 }
 
 /**
@@ -97,12 +106,12 @@ export function isProductRestrictedFromSearch(
   if (product.categoryId) {
     const cat = categoryMap.get(product.categoryId);
     if (cat) {
-      if (cat.isHidden || isRestrictedCategoryName(cat.name)) {
+      if (cat.isHidden || isRestrictedCategoryName(cat.name) || isArchivedCategoryName(cat.name)) {
         return true;
       }
       if (cat.parentId) {
         const parent = categoryMap.get(cat.parentId);
-        if (parent && (parent.isHidden || isRestrictedCategoryName(parent.name))) {
+        if (parent && (parent.isHidden || isRestrictedCategoryName(parent.name) || isArchivedCategoryName(parent.name))) {
           return true;
         }
       }
@@ -113,12 +122,12 @@ export function isProductRestrictedFromSearch(
   if (product.subcategoryId) {
     const subcat = categoryMap.get(product.subcategoryId);
     if (subcat) {
-      if (subcat.isHidden || isRestrictedCategoryName(subcat.name)) {
+      if (subcat.isHidden || isRestrictedCategoryName(subcat.name) || isArchivedCategoryName(subcat.name)) {
         return true;
       }
       if (subcat.parentId) {
         const parent = categoryMap.get(subcat.parentId);
-        if (parent && (parent.isHidden || isRestrictedCategoryName(parent.name))) {
+        if (parent && (parent.isHidden || isRestrictedCategoryName(parent.name) || isArchivedCategoryName(parent.name))) {
           return true;
         }
       }
@@ -126,7 +135,7 @@ export function isProductRestrictedFromSearch(
   }
 
   // Check showcase category or metadata
-  if (product.showcaseCategory && isRestrictedCategoryName(product.showcaseCategory)) {
+  if (product.showcaseCategory && (isRestrictedCategoryName(product.showcaseCategory) || isArchivedCategoryName(product.showcaseCategory))) {
     return true;
   }
 

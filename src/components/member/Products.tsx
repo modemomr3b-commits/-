@@ -26,6 +26,8 @@ export default function Products() {
   const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
   const [allStoreProducts, setAllStoreProducts] = useState<Product[]>([]);
+  const [dbSearchResults, setDbSearchResults] = useState<Product[]>([]);
+  const [isSearchingDb, setIsSearchingDb] = useState(false);
   
   // Initialize state from return storage if matching category
   const [searchInput, setSearchInput] = useState(() => {
@@ -105,7 +107,7 @@ export default function Products() {
       const cats = await api.getCategories();
       setAllCategories(cats);
       
-      const allStore = forceDirect ? await api.getProductsDirect() : await api.getProducts();
+      const allStore = await api.getProducts(forceDirect);
       
       // Auto-retry if empty on the very first load to prevent showing "No products" prematurely
       if (allStore.length === 0 && !isRetry) {
@@ -168,6 +170,67 @@ export default function Products() {
   useEffect(() => {
     let mounted = true;
 
+    // Instant local cache restoration so the user experiences NO wait time
+    Promise.all([
+      localCache.get<any[]>('all_categories'),
+      localCache.get<any[]>('all_products')
+    ]).then(([cachedCats, cachedProds]) => {
+      if (!mounted) return;
+      if (cachedCats && cachedCats.length > 0) {
+        setAllCategories(cachedCats);
+        if (categoryId) {
+          const cat = cachedCats.find((c: any) => c.id === categoryId);
+          if (cat) setCategoryName(cat.name);
+          const sameNameParents = cachedCats.filter((c: any) => cat && c.name?.trim() === cat.name?.trim());
+          const parentIdsSet = new Set([categoryId, ...sameNameParents.map((c: any) => c.id)]);
+
+          const subs = cachedCats
+            .filter((c: any) => c.parentId && parentIdsSet.has(c.parentId) && !c.isHidden)
+            .sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+
+          const uniqueSubs: any[] = [];
+          const subNameSeen = new Set<string>();
+          subs.forEach(s => {
+            const sName = s.name.trim();
+            if (!subNameSeen.has(sName)) {
+              subNameSeen.add(sName);
+              uniqueSubs.push(s);
+            }
+          });
+
+          setSubCategories(uniqueSubs);
+        }
+      }
+      if (cachedProds && cachedProds.length > 0) {
+        const archivedCatId = cachedCats?.find((c: any) => isArchivedCategoryName(c.name))?.id;
+        const isArchivedProd = (p: any) => p.isArchived || (archivedCatId && p.categoryId === archivedCatId);
+        
+        let fetchedProducts = cachedProds.filter((p: any) => 
+          !p.isHidden && !p.isLocked && !p.isDeleted &&
+          (categoryId === archivedCatId ? isArchivedProd(p) : !isArchivedProd(p))
+        );
+        
+        if (categoryId && cachedCats) {
+          const cat = cachedCats.find((c: any) => c.id === categoryId);
+          const sameNameParents = cachedCats.filter((c: any) => cat && c.name?.trim() === cat.name?.trim());
+          const parentIdsSet = new Set([categoryId, ...sameNameParents.map((c: any) => c.id)]);
+
+          const childSubCats = cachedCats.filter((c: any) => c.parentId && parentIdsSet.has(c.parentId));
+          const childSubCatIdsSet = new Set(childSubCats.map((c: any) => c.id));
+          const allMatchingCatIds = new Set([...parentIdsSet, ...childSubCatIdsSet]);
+
+          fetchedProducts = fetchedProducts.filter((p: any) => 
+            (p.categoryId && allMatchingCatIds.has(p.categoryId)) ||
+            (p.subcategoryId && allMatchingCatIds.has(p.subcategoryId))
+          );
+        }
+        
+        setProducts(shuffleProductsForUser(fetchedProducts));
+        setLoading(false);
+        setInitialLoading(false);
+      }
+    });
+
     const init = async () => {
       try {
         await fetchProducts();
@@ -180,6 +243,25 @@ export default function Products() {
     };
 
     init();
+
+    // Direct Database Search Effect
+    let searchTimeout: any;
+    if (searchTerm && searchTerm.trim().length >= 2) {
+      setIsSearchingDb(true);
+      searchTimeout = setTimeout(async () => {
+        try {
+          const results = await api.searchProductsDirect(searchTerm, activeSub || categoryId);
+          setDbSearchResults(results);
+        } catch (err) {
+          console.error(err);
+        } finally {
+          setIsSearchingDb(false);
+        }
+      }, 500); // Debounce
+    } else {
+      setDbSearchResults([]);
+      setIsSearchingDb(false);
+    }
 
     // Instant local BroadcastChannel synchronization across tabs
     let fetchTimeout: any = null;
@@ -211,14 +293,40 @@ export default function Products() {
       .on('broadcast', { event: 'bulk_updated' }, () => {
         scheduleFetch(600);
       })
-      .on('broadcast', { event: 'product_changed' }, () => {
-        scheduleFetch(600);
+      .on('broadcast', { event: 'force_refresh' }, () => {
+        // Only fetch if strictly necessary, but avoid wiping everything
+        fetchProducts(true);
       })
-      .on('broadcast', { event: 'product_created' }, () => {
-        scheduleFetch(600);
+      .on('broadcast', { event: 'product_changed' }, (payload: any) => {
+        const { id, data } = payload.payload;
+        if (!id || !data) return;
+        
+        // Surgical update: update only the changed product in local state
+        setProducts(prev => prev.map(p => p.id === id ? { ...p, ...data } : p));
+        setAllStoreProducts(prev => prev.map(p => p.id === id ? { ...p, ...data } : p));
       })
-      .on('broadcast', { event: 'bulk_deleted' }, () => {
-        scheduleFetch(600);
+      .on('broadcast', { event: 'bulk_updated' }, (payload: any) => {
+        const { ids, data } = payload.payload;
+        if (!ids || !data) return;
+        
+        const idSet = new Set(ids);
+        setProducts(prev => prev.map(p => idSet.has(p.id!) ? { ...p, ...data } : p));
+        setAllStoreProducts(prev => prev.map(p => idSet.has(p.id!) ? { ...p, ...data } : p));
+      })
+      .on('broadcast', { event: 'product_created' }, (payload: any) => {
+        const { product } = payload.payload;
+        if (product) {
+          setProducts(prev => [product, ...prev]);
+          setAllStoreProducts(prev => [product, ...prev]);
+        }
+      })
+      .on('broadcast', { event: 'bulk_deleted' }, (payload: any) => {
+        const { ids } = payload.payload;
+        if (ids) {
+          const idSet = new Set(ids);
+          setProducts(prev => prev.filter(p => !idSet.has(p.id!)));
+          setAllStoreProducts(prev => prev.filter(p => !idSet.has(p.id!)));
+        }
       })
       .subscribe();
 
@@ -356,8 +464,12 @@ export default function Products() {
 
     // Only active products (never archived, hidden, locked, or in restricted categories) - Global search when searchTerm exists
     if (searchTerm && searchTerm.trim()) {
-      const source = (allStoreProducts.length > 0 ? allStoreProducts : products).filter(isActive);
-      const result = filterProductsBySearch(source, searchTerm, allCategories);
+      // Use DB search results if available, otherwise fallback to local filter
+      const source = dbSearchResults.length > 0 
+        ? dbSearchResults 
+        : (allStoreProducts.length > 0 ? allStoreProducts : products);
+      
+      const result = filterProductsBySearch(source, searchTerm, allCategories, { includeRestricted: false });
       return result.filter(isActive);
     }
 
@@ -626,7 +738,11 @@ export default function Products() {
         <div className="relative mb-3 shrink-0 flex gap-2">
           <div className="relative flex-1">
             <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-              <Search className="w-4 h-4 text-brq-gold" />
+              {isSearchingDb ? (
+                <Loader2 className="w-4 h-4 text-brq-gold animate-spin" />
+              ) : (
+                <Search className="w-4 h-4 text-brq-gold" />
+              )}
             </div>
             <input
               type="text"
