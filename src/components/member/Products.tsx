@@ -26,8 +26,6 @@ export default function Products() {
   const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
   const [allStoreProducts, setAllStoreProducts] = useState<Product[]>([]);
-  const [dbSearchResults, setDbSearchResults] = useState<Product[]>([]);
-  const [isSearchingDb, setIsSearchingDb] = useState(false);
   
   // Initialize state from return storage if matching category
   const [searchInput, setSearchInput] = useState(() => {
@@ -107,7 +105,7 @@ export default function Products() {
       const cats = await api.getCategories();
       setAllCategories(cats);
       
-      const allStore = await api.getProducts(forceDirect);
+      const allStore = await api.getProductsDirect(forceDirect);
       
       // Auto-retry if empty on the very first load to prevent showing "No products" prematurely
       if (allStore.length === 0 && !isRetry) {
@@ -233,7 +231,11 @@ export default function Products() {
 
     const init = async () => {
       try {
-        await fetchProducts();
+        console.log("Initializing products view...");
+        await fetchProducts(false); // Try cache first via fetchProducts
+        console.log("Initial fetch finished.");
+      } catch (err) {
+        console.error("Critical error in init fetch:", err);
       } finally {
         if (mounted) {
           setLoading(false);
@@ -243,25 +245,6 @@ export default function Products() {
     };
 
     init();
-
-    // Direct Database Search Effect
-    let searchTimeout: any;
-    if (searchTerm && searchTerm.trim().length >= 2) {
-      setIsSearchingDb(true);
-      searchTimeout = setTimeout(async () => {
-        try {
-          const results = await api.searchProductsDirect(searchTerm, activeSub || categoryId);
-          setDbSearchResults(results);
-        } catch (err) {
-          console.error(err);
-        } finally {
-          setIsSearchingDb(false);
-        }
-      }, 500); // Debounce
-    } else {
-      setDbSearchResults([]);
-      setIsSearchingDb(false);
-    }
 
     // Instant local BroadcastChannel synchronization across tabs
     let fetchTimeout: any = null;
@@ -294,39 +277,18 @@ export default function Products() {
         scheduleFetch(600);
       })
       .on('broadcast', { event: 'force_refresh' }, () => {
-        // Only fetch if strictly necessary, but avoid wiping everything
+        // Strict system: Clear caches and force immediate reload
+        api.clearCache();
         fetchProducts(true);
       })
-      .on('broadcast', { event: 'product_changed' }, (payload: any) => {
-        const { id, data } = payload.payload;
-        if (!id || !data) return;
-        
-        // Surgical update: update only the changed product in local state
-        setProducts(prev => prev.map(p => p.id === id ? { ...p, ...data } : p));
-        setAllStoreProducts(prev => prev.map(p => p.id === id ? { ...p, ...data } : p));
+      .on('broadcast', { event: 'product_changed' }, () => {
+        scheduleFetch(600);
       })
-      .on('broadcast', { event: 'bulk_updated' }, (payload: any) => {
-        const { ids, data } = payload.payload;
-        if (!ids || !data) return;
-        
-        const idSet = new Set(ids);
-        setProducts(prev => prev.map(p => idSet.has(p.id!) ? { ...p, ...data } : p));
-        setAllStoreProducts(prev => prev.map(p => idSet.has(p.id!) ? { ...p, ...data } : p));
+      .on('broadcast', { event: 'product_created' }, () => {
+        scheduleFetch(600);
       })
-      .on('broadcast', { event: 'product_created' }, (payload: any) => {
-        const { product } = payload.payload;
-        if (product) {
-          setProducts(prev => [product, ...prev]);
-          setAllStoreProducts(prev => [product, ...prev]);
-        }
-      })
-      .on('broadcast', { event: 'bulk_deleted' }, (payload: any) => {
-        const { ids } = payload.payload;
-        if (ids) {
-          const idSet = new Set(ids);
-          setProducts(prev => prev.filter(p => !idSet.has(p.id!)));
-          setAllStoreProducts(prev => prev.filter(p => !idSet.has(p.id!)));
-        }
+      .on('broadcast', { event: 'bulk_deleted' }, () => {
+        scheduleFetch(600);
       })
       .subscribe();
 
@@ -464,12 +426,8 @@ export default function Products() {
 
     // Only active products (never archived, hidden, locked, or in restricted categories) - Global search when searchTerm exists
     if (searchTerm && searchTerm.trim()) {
-      // Use DB search results if available, otherwise fallback to local filter
-      const source = dbSearchResults.length > 0 
-        ? dbSearchResults 
-        : (allStoreProducts.length > 0 ? allStoreProducts : products);
-      
-      const result = filterProductsBySearch(source, searchTerm, allCategories, { includeRestricted: false });
+      const source = (allStoreProducts.length > 0 ? allStoreProducts : products).filter(isActive);
+      const result = filterProductsBySearch(source, searchTerm, allCategories);
       return result.filter(isActive);
     }
 
@@ -738,11 +696,7 @@ export default function Products() {
         <div className="relative mb-3 shrink-0 flex gap-2">
           <div className="relative flex-1">
             <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-              {isSearchingDb ? (
-                <Loader2 className="w-4 h-4 text-brq-gold animate-spin" />
-              ) : (
-                <Search className="w-4 h-4 text-brq-gold" />
-              )}
+              <Search className="w-4 h-4 text-brq-gold" />
             </div>
             <input
               type="text"

@@ -930,7 +930,7 @@ export default function ProductManager() {
       return;
     }
 
-    const updates: any = { categoryId: archivedCatId, isArchived: false, isHidden: false, isLocked: false, isShowcase: false };
+    const updates: any = { categoryId: archivedCatId, isArchived: true, isHidden: false, isLocked: false, isShowcase: false };
 
     // Optimistic update
     setProducts((prev) =>

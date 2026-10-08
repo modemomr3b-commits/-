@@ -80,6 +80,7 @@ export default function SearchPage() {
       let rawProducts = results || [];
 
       let cats = allCategories;
+      const archivedCat = cats.find((c: any) => isArchivedCategoryName(c.name));
       const archivedCatId = archivedCat?.id;
 
       if (archivedMode) {
