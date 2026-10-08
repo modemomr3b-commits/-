@@ -1,7 +1,10 @@
 import { Save, Building2, Monitor, Bell, Shield, Globe, HardDrive, Loader2, DollarSign, Phone, Send, MessageCircle, Sparkles } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { api } from '../../api.ts';
+import { supabase } from '../../supabase';
 import { burnProductOverlay } from '../../utils/burnImage';
+import { normalizeArabic, autoDetectCategoryAndSubcategory } from '../../utils/categoryDetector';
+import { isArchivedCategoryName } from '../../utils/search';
 
 export default function SettingsManager() {
   const [loading, setLoading] = useState(false);
@@ -38,25 +41,42 @@ export default function SettingsManager() {
   const [priceUpdateProgress, setPriceUpdateProgress] = useState<{current: number, total: number} | null>(null);
 
   const handleUpdatePricesAndImages = async () => {
-    if (!window.confirm("هل أنت متأكد من رغبتك في إعادة حساب جميع الأسعار (تكسير) وتحديث الصور بناءً على سعر الدولار الحالي؟")) return;
+    if (!window.confirm("هل أنت متأكد من رغبتك في إعادة حساب جميع الأسعار وتحديث الصور؟ سيتم استخدام تقنية التحديث السريع (Lightning Update) كما سيتم محاولة استرجاع الأقسام المفقودة تلقائياً.")) return;
     setIsUpdatingPrices(true);
     try {
-      const products = await api.getProducts();
-      // Filter products that are active, have a USD price, and a raw image
+      const [products, categories] = await Promise.all([
+        api.getProducts(),
+        api.getCategories()
+      ]);
+
+      const archivedCat = categories.find(c => isArchivedCategoryName(c.name));
+      const archivedCatId = archivedCat?.id;
+      
+      // Default fallback for new products
+      const newArrivalsCat = categories.find(c => c.name === 'جديد الوفاء' && !c.parentId);
+      const newArrivalsCatId = newArrivalsCat?.id;
+
       const productsToUpdate = products.filter(p => 
-        !p.isHidden && !p.isArchived && !p.isDeleted && 
+        !p.isDeleted && 
         p.dozenPriceUsd && p.dozenPriceUsd > 0 && p.imageUrl
       );
       
       const total = productsToUpdate.length;
+      if (total === 0) {
+        alert("لا توجد منتجات فعالة بأسعار دولار تحتاج لتحديث.");
+        setIsUpdatingPrices(false);
+        return;
+      }
+
       setPriceUpdateProgress({ current: 0, total });
       
       const rate = settings.usdExchangeRate || 1590;
       const normalizedRate = rate >= 50000 ? Math.round(rate / 100) : (rate >= 50 && rate <= 500 ? Math.round(rate * 10) : Math.round(rate));
 
-      // Process in parallel batches of 6 for high speed without crashing the browser canvas
-      const BATCH_SIZE = 6;
-      let completedCount = 0;
+      // Step 1: Generate all images and data in parallel batches
+      const BATCH_SIZE = 15; 
+      const updates: any[] = [];
+      let processed = 0;
 
       for (let i = 0; i < total; i += BATCH_SIZE) {
         const batch = productsToUpdate.slice(i, i + BATCH_SIZE);
@@ -66,7 +86,6 @@ export default function SettingsManager() {
             const dozenUsd = Number(p.dozenPriceUsd) || 0;
             const newPriceIqd = Math.round(dozenUsd * normalizedRate);
             
-            // Precise piece count logic consistent with the rest of the system
             let piecesCount = 12;
             if (!(p.forceStandardCrush ?? true)) {
               piecesCount = Number(p.piecesCount) || (p.size?.piecesCount ? Number(p.size.piecesCount) : 12);
@@ -74,37 +93,79 @@ export default function SettingsManager() {
             if (piecesCount <= 0) piecesCount = 12;
 
             const newPiecePriceIqd = Math.round(newPriceIqd / piecesCount);
-            
-            // Create temporary object for image burner
-            const updatedProductForImage = {
-              ...p,
+            const newFinalImg = await burnProductOverlay({...p, price: newPriceIqd, piecePriceIqd: newPiecePriceIqd}, p.imageUrl!);
+
+            // Category Restoration Logic
+            let finalCatId = p.categoryId;
+            let finalSubCatId = p.subcategoryId;
+
+            const isCurrentlyArchived = p.isArchived || (archivedCatId && p.categoryId === archivedCatId);
+
+            if (isCurrentlyArchived && archivedCatId) {
+              finalCatId = archivedCatId;
+              finalSubCatId = null;
+            } else if (!finalCatId || finalCatId === "" || finalCatId === "null") {
+              // Try to detect from name (High Priority for "Correctness")
+              const detected = autoDetectCategoryAndSubcategory(p.name, '', '', categories);
+              
+              if (detected.categoryId) {
+                finalCatId = detected.categoryId;
+                finalSubCatId = detected.subcategoryId;
+              } else {
+                // Try fallback to showcaseCategory hint
+                const showcaseCat = p.showcaseCategory || (p as any).size?.showcaseCategory;
+                if (showcaseCat) {
+                   const matchedCat = categories.find(c => !c.parentId && normalizeArabic(c.name).includes(normalizeArabic(showcaseCat)));
+                   if (matchedCat) {
+                     finalCatId = matchedCat.id;
+                     const subDetected = autoDetectCategoryAndSubcategory(p.name, matchedCat.id, '', categories);
+                     finalSubCatId = subDetected.subcategoryId;
+                   }
+                }
+              }
+              
+              // Final Fallback to New Arrivals if still nothing
+              if ((!finalCatId || finalCatId === "") && newArrivalsCatId) {
+                finalCatId = newArrivalsCatId;
+                const subDetected = autoDetectCategoryAndSubcategory(p.name, newArrivalsCatId, '', categories);
+                finalSubCatId = subDetected.subcategoryId;
+              }
+            }
+
+            // Collect update payload
+            updates.push({
+              id: p.id,
               price: newPriceIqd,
-              piecePriceIqd: newPiecePriceIqd
-            };
-
-            // Regenerate image with new calculated prices
-            const newFinalImg = await burnProductOverlay(updatedProductForImage, p.imageUrl!);
-
-            // Save to database
-            await api.updateProduct(p.id!, { 
-              price: newPriceIqd, 
               piecePriceIqd: newPiecePriceIqd,
-              finalImageUrl: newFinalImg
+              finalImageUrl: newFinalImg,
+              categoryId: finalCatId || null,
+              subcategoryId: finalSubCatId || null,
+              updatedAt: Date.now()
             });
           } catch (err) {
-            console.error(`Error processing product ${p.id}:`, err);
+            console.error(err);
           } finally {
-            completedCount++;
-            // Update progress state inside the map for smoother UI updates
-            setPriceUpdateProgress(prev => prev ? { ...prev, current: completedCount } : null);
+            processed++;
+            setPriceUpdateProgress(prev => prev ? { ...prev, current: processed } : null);
           }
         }));
       }
 
-      alert('تم تحديث جميع الأسعار والصور بنجاح وبدقة عالية!');
-    } catch (e) {
+      // Step 2: Send ALL updates to Supabase in chunks
+      const CHUNK_SIZE = 50;
+      for (let i = 0; i < updates.length; i += CHUNK_SIZE) {
+        const chunk = updates.slice(i, i + CHUNK_SIZE);
+        const { error } = await supabase.from('products').upsert(chunk, { onConflict: 'id' });
+        if (error) throw error;
+      }
+
+      // Refresh local data once at the end
+      await api.forceRefreshAll();
+      
+      alert('تم التحديث واسترجاع الأقسام بنجاح! تم معالجة كافة المنتجات وتحديث الصور.');
+    } catch (e: any) {
       console.error(e);
-      alert('حدث خطأ أثناء تحديث الأسعار');
+      alert('حدث خطأ أثناء التحديث السريع: ' + e.message);
     } finally {
       setIsUpdatingPrices(false);
       setPriceUpdateProgress(null);

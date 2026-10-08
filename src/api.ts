@@ -1,8 +1,9 @@
 import { getServerTime } from './utils/time';
 import { supabase } from './supabase';
-import { ActivityLog } from './types';
+import { ActivityLog, Product } from './types';
 import { parseOrderDetails } from './utils/orderUtils';
 import { localCache } from './utils/localCache';
+import { filterProductsBySearch } from './utils/search';
 
 const getData = async (table: string) => {
   let allData: any[] = [];
@@ -279,6 +280,17 @@ export const api = {
     }
 
     return [];
+  },
+
+  searchProductsDirect: async (term: string) => {
+    const products = await api.getProducts();
+    const categories = await api.getCategories();
+    return filterProductsBySearch(products, term, categories, { includeRestricted: true });
+  },
+
+  getShowcaseProducts: async () => {
+    const products = await api.getProducts();
+    return products.filter(p => p.isShowcase && !p.isHidden && !p.isArchived && !p.isDeleted);
   },
   createProduct: async (data: any) => { 
     const serverTime = await getServerTime();

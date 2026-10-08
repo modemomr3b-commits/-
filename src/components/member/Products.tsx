@@ -105,7 +105,7 @@ export default function Products() {
       const cats = await api.getCategories();
       setAllCategories(cats);
       
-      const allStore = await api.getProducts(forceDirect);
+      const allStore = await api.getProductsDirect(forceDirect);
       
       // Auto-retry if empty on the very first load to prevent showing "No products" prematurely
       if (allStore.length === 0 && !isRetry) {
