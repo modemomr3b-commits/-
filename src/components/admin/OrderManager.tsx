@@ -206,7 +206,7 @@ export default function OrderManager() {
       activeTab === "new"
         ? o.status === "new"
         : activeTab === "processing"
-        ? o.status === "reviewing" || o.status === "contacted" || o.status === "pending_agent" || o.status === "cancelled"
+        ? o.status === "reviewing" || o.status === "contacted" || (o.status as string) === "pending_agent" || (o.status as string) === "cancelled"
         : o.status === "completed";
 
     return matchesSearch && matchesStatus && matchesTab;

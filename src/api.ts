@@ -231,9 +231,9 @@ export const api = {
     return api.getProductsDirect();
   },
 
-  getProductsDirect: async () => {
-    // Return in-memory cache instantly if fresh (under 60 seconds)
-    if (memCache['all_products'] && (Date.now() - memCache['all_products'].timestamp < MEM_CACHE_TTL)) {
+  getProductsDirect: async (force: boolean = false) => {
+    // Return in-memory cache instantly if fresh (under 60 seconds) and not forced
+    if (!force && memCache['all_products'] && (Date.now() - memCache['all_products'].timestamp < MEM_CACHE_TTL)) {
       return memCache['all_products'].data;
     }
 

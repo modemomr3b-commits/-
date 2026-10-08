@@ -64,7 +64,7 @@ export type ShoeSubtype = typeof SHOE_SUBTYPES[number];
 export function detectStoreMainSection(
   product: Partial<Product>,
   categories?: Category[] | string
-): StoreMainSection {
+): StoreMainSection | null {
   let categoryName = '';
   let subcategoryName = '';
 
@@ -181,7 +181,7 @@ export function detectStoreMainSection(
     return product.showcaseCategory as StoreMainSection;
   }
 
-  return 'رجالي';
+  return null;
 }
 
 /**

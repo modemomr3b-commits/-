@@ -34,6 +34,63 @@ export default function SettingsManager() {
   }, []);
 
   
+  const [isUpdatingPrices, setIsUpdatingPrices] = useState(false);
+  const [priceUpdateProgress, setPriceUpdateProgress] = useState<{current: number, total: number} | null>(null);
+
+  const handleUpdatePricesAndImages = async () => {
+    if (!window.confirm("هل أنت متأكد من رغبتك في إعادة حساب جميع الأسعار (تكسير) وتحديث الصور بناءً على سعر الدولار الحالي؟")) return;
+    setIsUpdatingPrices(true);
+    try {
+      const products = await api.getProducts();
+      // Filter products that are active, have a USD price, and a raw image
+      const productsToUpdate = products.filter(p => 
+        !p.isHidden && !p.isArchived && !p.isDeleted && 
+        p.dozenPriceUsd && p.dozenPriceUsd > 0 && p.imageUrl
+      );
+      
+      setPriceUpdateProgress({ current: 0, total: productsToUpdate.length });
+      
+      const rate = settings.usdExchangeRate || 1590;
+      const normalizedRate = rate >= 50000 ? Math.round(rate / 100) : (rate >= 50 && rate <= 500 ? Math.round(rate * 10) : Math.round(rate));
+
+      for (let i = 0; i < productsToUpdate.length; i++) {
+        const p = productsToUpdate[i];
+        try {
+          const newPriceIqd = Math.round(p.dozenPriceUsd! * normalizedRate);
+          const calcPieces = (p.forceStandardCrush ?? true) ? 12 : (Number(p.piecesCount) || 12);
+          const newPiecePriceIqd = calcPieces > 0 ? Math.round(newPriceIqd / calcPieces) : 0;
+          
+          // Update product object locally to pass to burner
+          const updatedProduct = {
+            ...p,
+            price: newPriceIqd,
+            piecePriceIqd: newPiecePriceIqd
+          };
+
+          // Regenerate burned image with NEW prices
+          const newFinalImg = await burnProductOverlay(updatedProduct, p.imageUrl!);
+
+          // Update in DB with both new prices and new image
+          await api.updateProduct(p.id!, { 
+            price: newPriceIqd, 
+            piecePriceIqd: newPiecePriceIqd,
+            finalImageUrl: newFinalImg
+          });
+        } catch (e) {
+          console.error("Failed to update product price/image", p.id, e);
+        }
+        setPriceUpdateProgress({ current: i + 1, total: productsToUpdate.length });
+      }
+      alert('تم تحديث جميع الأسعار والصور بنجاح!');
+    } catch (e) {
+      console.error(e);
+      alert('حدث خطأ أثناء تحديث الأسعار');
+    } finally {
+      setIsUpdatingPrices(false);
+      setPriceUpdateProgress(null);
+    }
+  };
+
   const handleUpdateImages = async () => {
     if (!window.confirm("هل أنت متأكد من رغبتك في تحديث جميع الصور المدمجة؟ قد تستغرق هذه العملية بعض الوقت.")) return;
     try {
@@ -177,6 +234,29 @@ export default function SettingsManager() {
                            : Math.round(settings.usdExchangeRate))
                      ).toLocaleString('en-US')} د.ع
                    </span>
+                 </div>
+
+                 <div className="pt-3 border-t border-white/5 mt-2">
+                   <button
+                     onClick={handleUpdatePricesAndImages}
+                     disabled={isUpdatingPrices}
+                     className="w-full py-2 bg-brq-gold text-black rounded-lg text-xs font-black flex items-center justify-center gap-2 hover:bg-yellow-400 transition-all shadow-lg shadow-yellow-500/10 disabled:opacity-50"
+                   >
+                     {priceUpdateProgress ? (
+                        <>
+                          <Loader2 size={14} className="animate-spin" />
+                          جاري التحديث ({priceUpdateProgress.current}/{priceUpdateProgress.total})
+                        </>
+                     ) : (
+                        <>
+                          <Sparkles size={14} />
+                          تطبيق السعر الجديد على الصور والمنتجات
+                        </>
+                     )}
+                   </button>
+                   <p className="text-[9px] text-white/30 text-center mt-1.5 leading-tight">
+                     سيقوم هذا الإجراء بإعادة حساب سعر الدينار وتغيير الشريط في كافة الصور بناءً على سعر الدولار المدخل أعلاه.
+                   </p>
                  </div>
                </div>
              ) : null}
