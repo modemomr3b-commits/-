@@ -283,6 +283,37 @@ export const api = {
   },
 
   searchProductsDirect: async (term: string) => {
+    // Attempt database-level search first for speed
+    const { data, error } = await supabase
+      .from('products')
+      .select('*')
+      .eq('isDeleted', false)
+      .or(`productCode.ilike.%${term}%,modelNumber.ilike.%${term}%,barcode.ilike.%${term}%,name.ilike.%${term}%`)
+      .limit(300);
+
+    if (!error && data) {
+       return data.map((p: any) => ({
+          ...p,
+          packaging: p.packaging !== undefined && p.packaging !== null && p.packaging !== '' && p.packaging !== '---'
+            ? String(p.packaging)
+            : (p.size?.packaging || (p.piecesCount ? String(p.piecesCount) : (p.size?.piecesCount ? String(p.size.piecesCount) : p.packaging))),
+          piecesCount: p.piecesCount !== undefined && p.piecesCount !== null
+            ? Number(p.piecesCount)
+            : (p.size?.piecesCount !== undefined ? Number(p.size.piecesCount) : undefined),
+          isHidden: p.size?.isHidden !== undefined ? Boolean(p.size.isHidden) : Boolean(p.isHidden),
+          isLocked: p.size?.isLocked !== undefined ? Boolean(p.size.isLocked) : Boolean(p.isLocked),
+          isArchived: p.isArchived !== undefined ? Boolean(p.isArchived) : (p.size?.isArchived !== undefined ? Boolean(p.size.isArchived) : false),
+          isDeleted: Boolean(p.isDeleted),
+          isShowcase: p.size?.isShowcase !== undefined ? Boolean(p.size.isShowcase) : Boolean(p.isShowcase),
+          showcaseCategory: p.size?.showcaseCategory || p.showcaseCategory || '',
+          oldPriceInfo: p.size?.oldPriceInfo || undefined,
+          forceStandardCrush: p.size?.forceStandardCrush ?? true,
+          updatedAt: p.size?.updatedAt || p.createdAt
+        }));
+    }
+    
+    // Fallback to memory search if DB search fails or returns nothing
+    console.warn("Database search failed or empty, falling back:", error);
     const products = await api.getProducts();
     const categories = await api.getCategories();
     return filterProductsBySearch(products, term, categories, { includeRestricted: true });
